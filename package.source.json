@@ -1,0 +1,31 @@
+{
+  "schema_version": "1",
+  "identity": {"publisher_id": "io.piphi", "package_id": "whole-home-energy", "version": "0.1.0"},
+  "name": "Whole Home Energy",
+  "description": "A multi-source view of household demand, solar production, and battery state.",
+  "origin": "standalone",
+  "sdk_version_range": ">=0.5,<0.6",
+  "recommended_for_integrations": ["piphi-network-sense", "piphi-network-solaredge"],
+  "widgets": [{
+    "id": "energy-overview",
+    "name": "Whole Home Energy",
+    "runtime": "declarative",
+    "binding_slots": [
+      {"id": "consumption", "label": "Home consumption", "binding_modes": ["read"], "capability_requirements": ["active_power_w"], "compatible_integration_ids": ["piphi-network-sense"]},
+      {"id": "solar", "label": "Solar production", "required": false, "binding_modes": ["read"], "capability_requirements": ["production_power_w"], "compatible_integration_ids": ["piphi-network-solaredge"]},
+      {"id": "battery", "label": "Battery", "required": false, "binding_modes": ["read"], "capability_requirements": ["battery_soc_percent"], "compatible_integration_ids": ["piphi-network-solaredge"]}
+    ],
+    "recipe": {
+      "schema_version": "1",
+      "layout": "grid",
+      "columns": 3,
+      "items": [
+        {"type": "metric", "slot_id": "consumption", "label": "Using now"},
+        {"type": "metric", "slot_id": "solar", "label": "Solar now"},
+        {"type": "progress", "slot_id": "battery", "label": "Battery"}
+      ]
+    },
+    "default_column_span": 6,
+    "default_row_span": 3
+  }]
+}
