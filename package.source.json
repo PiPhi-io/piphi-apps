@@ -1,0 +1,28 @@
+{
+  "schema_version": "1",
+  "identity": {"publisher_id": "io.piphi", "package_id": "home-health", "version": "0.1.0"},
+  "name": "PiPhi Home Health",
+  "description": "A first-party summary of connectivity and the lowest device battery.",
+  "origin": "first_party",
+  "sdk_version_range": ">=0.5,<0.6",
+  "widgets": [{
+    "id": "home-health",
+    "name": "Home Health",
+    "runtime": "declarative",
+    "binding_slots": [
+      {"id": "connectivity", "label": "Connectivity", "binding_modes": ["read"], "capability_requirements": ["connected"]},
+      {"id": "battery", "label": "Lowest battery", "required": false, "binding_modes": ["read"], "capability_requirements": ["battery_percent"]}
+    ],
+    "recipe": {
+      "schema_version": "1",
+      "layout": "grid",
+      "columns": 2,
+      "items": [
+        {"type": "status", "slot_id": "connectivity", "label": "Devices", "true_label": "Healthy", "false_label": "Needs attention"},
+        {"type": "progress", "slot_id": "battery", "label": "Lowest battery"}
+      ]
+    },
+    "default_column_span": 4,
+    "default_row_span": 3
+  }]
+}
