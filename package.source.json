@@ -18,8 +18,8 @@
       "layout": "grid",
       "columns": 2,
       "items": [
-        {"type": "status", "slot_id": "connectivity", "label": "Devices", "true_label": "Healthy", "false_label": "Needs attention"},
-        {"type": "progress", "slot_id": "battery", "label": "Lowest battery"}
+        {"type": "status", "slot_id": "connectivity", "label": "Devices", "true_label": "Healthy", "false_label": "Needs attention", "domain": "connectivity"},
+        {"type": "progress", "slot_id": "battery", "label": "Lowest battery", "domain": "battery"}
       ]
     },
     "default_column_span": 4,
