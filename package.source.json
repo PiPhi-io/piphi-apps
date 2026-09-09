@@ -20,9 +20,9 @@
       "layout": "grid",
       "columns": 3,
       "items": [
-        {"type": "metric", "slot_id": "consumption", "label": "Using now"},
-        {"type": "metric", "slot_id": "solar", "label": "Solar now"},
-        {"type": "progress", "slot_id": "battery", "label": "Battery"}
+        {"type": "metric", "slot_id": "consumption", "label": "Using now", "domain": "power", "emphasis": "hero"},
+        {"type": "metric", "slot_id": "solar", "label": "Solar now", "domain": "energy"},
+        {"type": "progress", "slot_id": "battery", "label": "Battery", "domain": "battery"}
       ]
     },
     "default_column_span": 6,
