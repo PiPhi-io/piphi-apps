@@ -1,14 +1,28 @@
 {
   "schema_version": "1",
-  "identity": {"publisher_id": "io.piphi", "package_id": "home-health", "version": "0.1.0"},
+  "identity": {"publisher_id": "io.piphi", "package_id": "home-health", "version": "0.1.1"},
   "name": "PiPhi Home Health",
   "description": "A first-party summary of connectivity and the lowest device battery.",
   "origin": "first_party",
-  "sdk_version_range": ">=0.5,<0.6",
+  "sdk_version_range": ">=0.5,<0.7",
   "widgets": [{
     "id": "home-health",
     "name": "Home Health",
     "runtime": "declarative",
+    "certification": {
+      "verified_gates": ["runtime", "persistence", "binding", "states", "responsive", "themes", "accessibility", "save-reload", "performance"],
+      "evidence": {
+        "runtime": ["core-profile:declarative-v2/runtime"],
+        "persistence": ["core-profile:declarative-v2/persistence"],
+        "binding": ["core-profile:declarative-v2/binding"],
+        "states": ["core-profile:declarative-v2/states"],
+        "responsive": ["core-profile:declarative-v2/responsive"],
+        "themes": ["core-profile:declarative-v2/themes"],
+        "accessibility": ["core-profile:declarative-v2/accessibility"],
+        "save-reload": ["core-profile:declarative-v2/save-reload"],
+        "performance": ["core-profile:declarative-v2/performance"]
+      }
+    },
     "binding_slots": [
       {"id": "connectivity", "label": "Connectivity", "binding_modes": ["read"], "capability_requirements": ["connected"]},
       {"id": "battery", "label": "Lowest battery", "required": false, "binding_modes": ["read"], "capability_requirements": ["battery_percent"]}
