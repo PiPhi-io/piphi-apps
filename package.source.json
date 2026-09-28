@@ -1,6 +1,6 @@
 {
   "schema_version": "1",
-  "identity": {"publisher_id": "io.piphi", "package_id": "whole-home-energy", "version": "0.1.1"},
+  "identity": {"publisher_id": "io.piphi", "package_id": "whole-home-energy", "version": "0.1.2"},
   "name": "Whole Home Energy",
   "description": "A multi-source view of household demand, solar production, and battery state.",
   "origin": "standalone",
