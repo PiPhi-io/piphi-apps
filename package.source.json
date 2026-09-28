@@ -1,15 +1,29 @@
 {
   "schema_version": "1",
-  "identity": {"publisher_id": "io.piphi", "package_id": "whole-home-energy", "version": "0.1.0"},
+  "identity": {"publisher_id": "io.piphi", "package_id": "whole-home-energy", "version": "0.1.1"},
   "name": "Whole Home Energy",
   "description": "A multi-source view of household demand, solar production, and battery state.",
   "origin": "standalone",
-  "sdk_version_range": ">=0.5,<0.6",
+  "sdk_version_range": ">=0.5,<0.7",
   "recommended_for_integrations": ["piphi-network-sense", "piphi-network-solaredge"],
   "widgets": [{
     "id": "energy-overview",
     "name": "Whole Home Energy",
     "runtime": "declarative",
+    "certification": {
+      "verified_gates": ["runtime", "persistence", "binding", "states", "responsive", "themes", "accessibility", "save-reload", "performance"],
+      "evidence": {
+        "runtime": ["core-profile:declarative-v2/runtime"],
+        "persistence": ["core-profile:declarative-v2/persistence"],
+        "binding": ["core-profile:declarative-v2/binding"],
+        "states": ["core-profile:declarative-v2/states"],
+        "responsive": ["core-profile:declarative-v2/responsive"],
+        "themes": ["core-profile:declarative-v2/themes"],
+        "accessibility": ["core-profile:declarative-v2/accessibility"],
+        "save-reload": ["core-profile:declarative-v2/save-reload"],
+        "performance": ["core-profile:declarative-v2/performance"]
+      }
+    },
     "binding_slots": [
       {"id": "consumption", "label": "Home consumption", "binding_modes": ["read"], "capability_requirements": ["active_power_w"], "compatible_integration_ids": ["piphi-network-sense"]},
       {"id": "solar", "label": "Solar production", "required": false, "binding_modes": ["read"], "capability_requirements": ["production_power_w"], "compatible_integration_ids": ["piphi-network-solaredge"]},
