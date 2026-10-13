@@ -4,12 +4,16 @@
   "name": "Whole Home Energy",
   "description": "A multi-source view of household demand, solar production, and battery state.",
   "origin": "standalone",
-  "sdk_version_range": ">=0.5,<0.7",
+  "sdk_version_range": ">=0.6.1,<0.7",
   "recommended_for_integrations": ["piphi-network-sense", "piphi-network-solaredge"],
   "widgets": [{
     "id": "energy-overview",
     "name": "Whole Home Energy",
     "runtime": "declarative",
+    "presentation": {"contract_version": "1", "shell": "core", "content_surface": "transparent", "typography": "core", "appearance_controls": ["icon", "title", "surface", "opacity", "radius", "shadow"]},
+    "interaction_targets": [
+      {"id": "energy-overview-card", "label": "Whole home energy", "kind": "card", "allowed_actions": ["more-info", "popout", "refresh"], "default_action": "more-info"}
+    ],
     "certification": {
       "verified_gates": ["runtime", "persistence", "binding", "states", "responsive", "themes", "accessibility", "save-reload", "performance"],
       "evidence": {
