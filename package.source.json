@@ -4,7 +4,7 @@
   "name": "PiPhi Home Health",
   "description": "A first-party summary of connectivity and the lowest device battery.",
   "origin": "first_party",
-  "sdk_version_range": ">=0.6.1,<0.7",
+  "sdk_version_range": ">=0.6.1,<0.8",
   "widgets": [{
     "id": "home-health",
     "name": "Home Health",
