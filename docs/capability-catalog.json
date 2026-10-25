@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "capabilities": [
+    {
+      "id": "camera.bridge.wyze.v1",
+      "kind": "platform_service",
+      "status": "implemented",
+      "permissions": ["wyze_account", "internet_access", "local_network_access"],
+      "notes": "Configures one shared bridge and returns authenticated RTSP descriptors to trusted PiPhi consumers."
+    },
+    {
+      "id": "camera.bridge.wyze.commands.v1",
+      "kind": "actions",
+      "status": "planned",
+      "permissions": ["wyze_account"],
+      "notes": "Camera controls are deferred to the user-facing Wyze integration and are not advertised by this service."
+    },
+    {
+      "id": "camera.bridge.wyze.recording.v1",
+      "kind": "recording",
+      "status": "excluded",
+      "permissions": ["host_storage"],
+      "notes": "Recording is disabled to avoid hidden storage retention and broad filesystem access."
+    }
+  ]
+}
