@@ -19,5 +19,5 @@ qualification and governance review are complete.
 Current image target:
 
 ```text
-ghcr.io/piphi-io/piphi-wyze-camera-service:0.1.0
+ghcr.io/piphi-io/piphi-wyze-camera-service:0.1.1
 ```

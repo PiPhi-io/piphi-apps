@@ -5,7 +5,7 @@
   "deployment_mode": "sidecar",
   "id": "piphi.service.wyze-camera-bridge",
   "name": "PiPhi Wyze Camera Bridge",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Shared managed bridge that makes authorized Wyze cameras available to PiPhi camera integrations as local RTSP sources.",
   "metadata": {
     "generator": "piphi-network-create",
@@ -25,7 +25,7 @@
     "support_email": "support@piphi.io"
   },
   "license": "AGPL-3.0",
-  "image": "ghcr.io/piphi-io/piphi-wyze-camera-service:0.1.0",
+  "image": "ghcr.io/piphi-io/piphi-wyze-camera-service:0.1.1",
   "platforms": ["linux"],
   "runtime_requirements": [
     "sidecar_runtime",
@@ -39,7 +39,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "ghcr.io/piphi-io/piphi-wyze-camera-service:0.1.0",
+        "image": "ghcr.io/piphi-io/piphi-wyze-camera-service:0.1.1",
         "ports": [
           {"container": 8090},
           {"container": 8554, "host": 18554, "protocol": "tcp"}
@@ -85,7 +85,7 @@
     "protocols": ["wyze_p2p", "rtsp"],
     "regions": ["US", "CA"],
     "languages": ["en"],
-    "discovery_methods": [],
+    "discovery_methods": ["manual"],
     "connectivity": "hybrid",
     "offline_support": "partial",
     "access_declared": true,
@@ -121,10 +121,16 @@
         "required": true
       }
     ],
-    "compatibility": [],
+    "compatibility": [
+      {
+        "brand": "Wyze",
+        "model": "Cameras supported by docker-wyze-bridge v2.10.3"
+      }
+    ],
     "documentation_url": "https://github.com/PiPhi-io/piphi-wyze-camera-service",
     "support_url": "https://github.com/PiPhi-io/piphi-wyze-camera-service/issues",
     "changelog_url": "https://github.com/PiPhi-io/piphi-wyze-camera-service/releases",
+    "privacy_url": "https://github.com/PiPhi-io/piphi-wyze-camera-service/blob/main/PRIVACY.md",
     "quality_tier": "unrated",
     "governance": {
       "schema_version": 1,
