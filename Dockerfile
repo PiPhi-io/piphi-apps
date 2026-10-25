@@ -8,7 +8,7 @@ RUN pdm export --prod --without-hashes --output requirements.txt
 
 FROM docker.io/mrlt8/wyze-bridge:2.10.3@sha256:af2d638a6d6d52e15ddcfb711e5b905e484b1f519986ad33b9be562b6277b987
 
-ARG APP_VERSION=0.1.1
+ARG APP_VERSION=0.1.2
 LABEL org.opencontainers.image.title="PiPhi Wyze Camera Bridge" \
       org.opencontainers.image.description="Managed Wyze-to-RTSP bridge for PiPhi camera integrations" \
       org.opencontainers.image.source="https://github.com/PiPhi-io/piphi-wyze-camera-service" \

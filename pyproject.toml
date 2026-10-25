@@ -1,6 +1,6 @@
 [project]
 name = "piphi-wyze-camera-service"
-version = "0.1.1"
+version = "0.1.2"
 description = "PiPhi managed service for authorized Wyze camera streams."
 requires-python = ">=3.11"
 license = { text = "AGPL-3.0-only" }
