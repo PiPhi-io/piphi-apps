@@ -1,5 +1,6 @@
 {
   "schema_version": "1",
+  "runtime_contract": {"version": 1, "port_binding": "not_applicable"},
   "identity": {"publisher_id": "io.piphi", "package_id": "home-health", "version": "0.1.2"},
   "name": "PiPhi Home Health",
   "description": "A first-party summary of connectivity and the lowest device battery.",
