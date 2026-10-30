@@ -3,6 +3,13 @@ name: Release widget package
 on:
   push:
     tags: ["v*.*.*"]
+  workflow_dispatch:
+    inputs:
+      release_ref:
+        description: Existing immutable release tag
+        required: true
+        default: v0.1.0
+        type: string
 
 permissions:
   contents: write
@@ -12,7 +19,9 @@ jobs:
     runs-on: [self-hosted, Linux, X64, self-hosted-machine-1]
     steps:
       - uses: actions/checkout@v4
-        with: {fetch-depth: 0}
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.release_ref || github.ref_name }}
       - uses: actions/setup-node@v4
         with: {node-version: 22, cache: npm}
       - uses: actions/setup-python@v5
@@ -39,3 +48,4 @@ jobs:
         with:
           files: release/*
           generate_release_notes: true
+          tag_name: ${{ inputs.release_ref || github.ref_name }}
