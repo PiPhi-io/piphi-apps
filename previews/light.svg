@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="600" viewBox="0 0 960 600" role="img" aria-labelledby="title desc">
+  <title id="title">Zigbee network map light preview</title>
+  <desc id="desc">A coordinator connected to three routers and four end devices with link-quality labels.</desc>
+  <rect width="960" height="600" rx="28" fill="#f8fafc"/>
+  <text x="48" y="62" fill="#0f172a" font-family="system-ui" font-size="26" font-weight="700">Zigbee network</text>
+  <text x="48" y="91" fill="#64748b" font-family="system-ui" font-size="16">8 devices · 9 links</text>
+  <rect x="748" y="38" width="164" height="48" rx="13" fill="#0f766e"/><text x="830" y="68" text-anchor="middle" fill="white" font-family="system-ui" font-size="16" font-weight="700">Scan network</text>
+  <rect x="38" y="126" width="884" height="430" rx="22" fill="#ecfdf5"/>
+  <g stroke="#94a3b8" stroke-width="3"><path d="M480 330L270 230M480 330L690 230M480 330L480 180M270 230L170 390M270 230L340 460M690 230L790 390M690 230L620 460"/><path d="M270 230L480 180M690 230L480 180" stroke="#16a34a" stroke-width="5"/></g>
+  <g font-family="system-ui" font-size="13" fill="#475569"><text x="365" y="245">214</text><text x="575" y="245">188</text><text x="360" y="196">232</text><text x="585" y="196">201</text></g>
+  <g font-family="system-ui" text-anchor="middle"><g transform="translate(480 330)"><circle r="31" fill="#f97316" stroke="#9a3412" stroke-width="5"/><text y="6" fill="white" font-size="18" font-weight="800">C</text><text y="54" fill="#0f172a" font-size="15" font-weight="700">Coordinator</text></g><g transform="translate(270 230)"><circle r="27" fill="#0ea5e9"/><text y="6" fill="white" font-size="17" font-weight="800">R</text><text y="49" fill="#0f172a" font-size="14" font-weight="700">Hall router</text></g><g transform="translate(690 230)"><circle r="27" fill="#0ea5e9"/><text y="6" fill="white" font-size="17" font-weight="800">R</text><text y="49" fill="#0f172a" font-size="14" font-weight="700">Kitchen plug</text></g><g transform="translate(480 180)"><circle r="27" fill="#0ea5e9"/><text y="6" fill="white" font-size="17" font-weight="800">R</text><text y="49" fill="#0f172a" font-size="14" font-weight="700">Landing light</text></g></g>
+  <g fill="#14b8a6" stroke="#0f766e" stroke-width="3" stroke-dasharray="5 4"><circle cx="170" cy="390" r="22"/><circle cx="340" cy="460" r="22"/><circle cx="790" cy="390" r="22"/><circle cx="620" cy="460" r="22"/></g>
+  <g fill="#0f172a" font-family="system-ui" font-size="13" text-anchor="middle"><text x="170" y="427">Door sensor</text><text x="340" y="497">Motion</text><text x="790" y="427">Temperature</text><text x="620" y="497">Remote</text></g>
+</svg>
