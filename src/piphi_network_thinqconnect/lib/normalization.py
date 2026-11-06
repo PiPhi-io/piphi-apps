@@ -1079,11 +1079,15 @@ def derive_capabilities(
 ) -> list[str]:
     tokens = _collect_search_tokens(device_type, raw_status, available_controls)
     profile = device_type_catalog(device_type)
-    capabilities: set[str] = {"refresh", *(profile.get("capabilities") or [])}
+    profile_capabilities = set(profile.get("capabilities") or [])
+    capabilities: set[str] = {"refresh", *profile_capabilities}
 
     if {"power", "operation", "on", "off", "switch"} & tokens:
         capabilities.add("switch")
-    if {"temperature", "temp"} & tokens:
+    if {"temperature", "temp"} & tokens and not (
+        profile.get("device_class") == "refrigeration"
+        and "temperature" not in profile_capabilities
+    ):
         capabilities.add("temperature")
     if {"target", "setpoint"} & tokens and "temperature" in tokens:
         capabilities.add("target_temperature")

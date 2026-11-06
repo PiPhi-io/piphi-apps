@@ -562,7 +562,6 @@ def test_entities_and_state_include_read_only_device(mock_core, monkeypatch) -> 
             "refresh",
             "switch",
             "target_temperature",
-            "temperature",
         ]
         assert [command["id"] for command in entities[0]["available_commands"]] == [
             "refresh",
