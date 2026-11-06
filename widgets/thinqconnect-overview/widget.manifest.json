@@ -2,7 +2,7 @@
   "id": "io.piphi.thinqconnect.overview",
   "name": "LG ThinQ Overview",
   "description": "See the readings your selected LG appliance supports.",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "entry": "./dist/widget.js",
   "binding_modes": [
     "read"
