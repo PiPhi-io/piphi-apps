@@ -189,7 +189,6 @@
     },
     "temperature": {
       "kind": "sensor",
-      "unit": "\u00b0C",
       "dashboard": {
         "allowed_widgets": [
           "thermostat",
@@ -204,7 +203,6 @@
     },
     "target_temperature": {
       "kind": "sensor",
-      "unit": "\u00b0C",
       "dashboard": {
         "allowed_widgets": [
           "thermostat",
