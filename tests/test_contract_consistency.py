@@ -102,6 +102,15 @@ def test_temperature_capabilities_use_runtime_reported_units() -> None:
     assert "unit" not in manifest["capabilities"]["target_temperature"]
 
 
+def test_target_temperature_supports_history_charts() -> None:
+    manifest = _load_json("src/manifest.json")
+
+    allowed_widgets = manifest["capabilities"]["target_temperature"]["dashboard"][
+        "allowed_widgets"
+    ]
+    assert "line-chart" in allowed_widgets
+
+
 def test_temperature_behaviors_use_correct_state_fields_operators_and_bounds() -> None:
     behaviors = _load_json("src/behaviors.json")
 

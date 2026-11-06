@@ -111,6 +111,7 @@ def test_live_refrigerator_payload_publishes_primary_compartment_temperature() -
     assert state["device_class"] == "refrigeration"
     assert state["model"] == "2REF11EIISAS2"
     assert "target_temperature" in state["capabilities"]
+    assert "temperature" not in state["capabilities"]
     assert state["metrics"]["target_temperature"] == 38
     assert state["units"]["target_temperature"] == "°F"
 

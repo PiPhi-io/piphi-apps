@@ -207,6 +207,7 @@
         "allowed_widgets": [
           "thermostat",
           "stat",
+          "line-chart",
           "external-widget"
         ],
         "default_widget": "thermostat"
