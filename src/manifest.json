@@ -2,7 +2,7 @@
   "manifest_version": "1.0",
   "id": "lg-thinq-connect-api",
   "name": "LG ThinQ Connect",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "description": "Integration for LG ThinQ appliances using the official ThinQ Connect Python SDK.",
   "maintainer": {
     "name": "PiPhi Network",
@@ -18,7 +18,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "piphinetwork/lg-thinq-connect:0.1.12",
+        "image": "piphinetwork/lg-thinq-connect:0.1.13",
         "ports": [
           {
             "container": 3667,
@@ -538,7 +538,7 @@
       {
         "id": "io.piphi.thinqconnect.overview",
         "name": "LG ThinQ Overview",
-        "version": "0.1.12",
+        "version": "0.1.13",
         "entry": "/widgets/thinqconnect-overview/dist/widget.js",
         "runtime": "prebuilt_bundle",
         "certification": {
