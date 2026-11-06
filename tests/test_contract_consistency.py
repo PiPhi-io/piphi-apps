@@ -95,6 +95,13 @@ def test_behavior_capabilities_exist_in_manifest() -> None:
     assert behavior_capabilities.issubset(manifest_capabilities)
 
 
+def test_temperature_capabilities_use_runtime_reported_units() -> None:
+    manifest = _load_json("src/manifest.json")
+
+    assert "unit" not in manifest["capabilities"]["temperature"]
+    assert "unit" not in manifest["capabilities"]["target_temperature"]
+
+
 def test_temperature_behaviors_use_correct_state_fields_operators_and_bounds() -> None:
     behaviors = _load_json("src/behaviors.json")
 
