@@ -294,6 +294,11 @@ def slugify_token(value: Any) -> str:
 
 
 def normalize_discovered_device(raw_device: dict[str, Any]) -> dict[str, Any]:
+    device_info = (
+        raw_device.get("deviceInfo")
+        if isinstance(raw_device.get("deviceInfo"), dict)
+        else {}
+    )
     device_id = (
         raw_device.get("deviceId")
         or raw_device.get("device_id")
@@ -303,6 +308,8 @@ def normalize_discovered_device(raw_device: dict[str, Any]) -> dict[str, Any]:
         raw_device.get("deviceType")
         or raw_device.get("device_type")
         or raw_device.get("type")
+        or device_info.get("deviceType")
+        or device_info.get("device_type")
         or "unknown"
     )
     device_name = (
@@ -310,6 +317,9 @@ def normalize_discovered_device(raw_device: dict[str, Any]) -> dict[str, Any]:
         or raw_device.get("deviceName")
         or raw_device.get("device_name")
         or raw_device.get("name")
+        or device_info.get("alias")
+        or device_info.get("deviceName")
+        or device_info.get("device_name")
         or device_id
     )
     return {
@@ -318,9 +328,18 @@ def normalize_discovered_device(raw_device: dict[str, Any]) -> dict[str, Any]:
         "device_name": str(device_name),
         "name": str(device_name),
         "device_type": str(device_type),
-        "model": raw_device.get("modelName") or raw_device.get("model_name"),
-        "model_id": raw_device.get("modelJsonUrl") or raw_device.get("model_id"),
-        "platform_type": raw_device.get("platformType") or raw_device.get("platform_type"),
+        "model": raw_device.get("modelName")
+        or raw_device.get("model_name")
+        or device_info.get("modelName")
+        or device_info.get("model_name"),
+        "model_id": raw_device.get("modelJsonUrl")
+        or raw_device.get("model_id")
+        or device_info.get("modelJsonUrl")
+        or device_info.get("model_id"),
+        "platform_type": raw_device.get("platformType")
+        or raw_device.get("platform_type")
+        or device_info.get("platformType")
+        or device_info.get("platform_type"),
         "raw": raw_device,
     }
 
@@ -417,6 +436,41 @@ def _extract_metrics(raw_status: dict[str, Any]) -> tuple[dict[str, Any], dict[s
         if unit:
             units[path] = unit
     return metrics, units
+
+
+def _primary_target_temperature(
+    raw_status: dict[str, Any],
+) -> tuple[float | int, str] | None:
+    for collection_key in ("temperature", "temperatureInUnits"):
+        collection = raw_status.get(collection_key)
+        if not isinstance(collection, list):
+            continue
+        compartments = [item for item in collection if isinstance(item, dict)]
+        primary = next(
+            (
+                item
+                for item in compartments
+                if slugify_token(item.get("locationName")) == "fridge"
+            ),
+            compartments[0] if compartments else None,
+        )
+        if primary is None:
+            continue
+        candidates = (
+            ("targetTemperature", primary.get("unit")),
+            ("targetTemperatureC", "C"),
+            ("targetTemperatureF", "F"),
+        )
+        for key, unit_value in candidates:
+            value = primary.get(key)
+            if not isinstance(value, (int, float)) or isinstance(value, bool):
+                continue
+            unit = str(unit_value or "").strip().upper()
+            if unit in {"C", "°C"}:
+                return value, "°C"
+            if unit in {"F", "°F"}:
+                return value, "°F"
+    return None
 
 
 def _observed_profile_terms(raw_status: dict[str, Any], raw_profile: dict[str, Any] | None) -> tuple[list[str], list[str]]:
@@ -1164,7 +1218,12 @@ def normalize_device_snapshot(
     door_state = status.get("door_state") or status.get("doorState")
     if door_state is not None:
         metrics["door"] = door_state
-    if "target_temperature_c" in metrics:
+    primary_target_temperature = _primary_target_temperature(status)
+    if primary_target_temperature is not None:
+        target_temperature, target_temperature_unit = primary_target_temperature
+        metrics["target_temperature"] = target_temperature
+        units["target_temperature"] = target_temperature_unit
+    elif "target_temperature_c" in metrics:
         metrics["target_temperature"] = metrics["target_temperature_c"]
         units["target_temperature"] = "°C"
     filter_value = next(

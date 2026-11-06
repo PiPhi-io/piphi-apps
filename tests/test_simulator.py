@@ -70,6 +70,51 @@ def test_simulator_publishes_dashboard_metrics_for_each_appliance_family() -> No
     assert fridge["metrics"]["filter_life"] == 82
 
 
+def test_live_refrigerator_payload_publishes_primary_compartment_temperature() -> None:
+    state = normalize_device_snapshot(
+        raw_device={
+            "deviceId": "live-fridge",
+            "deviceInfo": {
+                "deviceType": "DEVICE_REFRIGERATOR",
+                "modelName": "2REF11EIISAS2",
+                "alias": "Somerchille",
+                "reportable": True,
+            },
+        },
+        raw_status={
+            "temperature": [
+                {
+                    "targetTemperature": 38,
+                    "unit": "F",
+                    "locationName": "FRIDGE",
+                },
+                {
+                    "targetTemperature": -3,
+                    "unit": "F",
+                    "locationName": "FREEZER",
+                },
+            ],
+            "temperatureInUnits": [
+                {
+                    "targetTemperatureF": 38,
+                    "locationName": "FRIDGE",
+                    "unit": "F",
+                },
+            ],
+        },
+        raw_profile=None,
+        raw_available_controls=None,
+    )
+
+    assert state["device_name"] == "Somerchille"
+    assert state["device_type"] == "DEVICE_REFRIGERATOR"
+    assert state["device_class"] == "refrigeration"
+    assert state["model"] == "2REF11EIISAS2"
+    assert "target_temperature" in state["capabilities"]
+    assert state["metrics"]["target_temperature"] == 38
+    assert state["units"]["target_temperature"] == "°F"
+
+
 def test_simulated_commands_are_bounded_to_discovered_devices() -> None:
     client = SimulatedThinQClient()
     result = asyncio.run(
