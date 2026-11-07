@@ -8,7 +8,7 @@ test("package identity and integration linkage are stable", () => {
   assert.deepEqual(source.identity, {
     publisher_id: "io.piphi",
     package_id: "awair-air-quality",
-    version: "0.1.15",
+    version: "0.1.16",
   });
   assert.equal(source.owning_integration_id, "awair-element-local-api");
   assert.deepEqual(source.recommended_for_integrations, ["awair-element-local-api"]);
@@ -33,4 +33,5 @@ test("the widget is read-only and requests no browser or command permissions", (
   assert.deepEqual(widget.permissions ?? [], []);
   assert.deepEqual(widget.allowed_commands ?? [], []);
   assert.ok(widget.binding_slots.every((slot) => slot.binding_modes.length === 1 && slot.binding_modes[0] === "read"));
+  assert.ok(widget.binding_slots.every((slot) => slot.allow_shared_device === true));
 });

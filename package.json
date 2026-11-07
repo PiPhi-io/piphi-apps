@@ -1,6 +1,6 @@
 {
   "name": "@piphi/widget-awair-air-quality",
-  "version": "0.1.15",
+  "version": "0.1.16",
   "private": true,
   "type": "module",
   "description": "PiPhi dashboard widget for Awair Element air-quality integrations.",

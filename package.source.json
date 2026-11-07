@@ -1,6 +1,6 @@
 {
   "schema_version": "1",
-  "identity": {"publisher_id": "io.piphi", "package_id": "awair-air-quality", "version": "0.1.15"},
+  "identity": {"publisher_id": "io.piphi", "package_id": "awair-air-quality", "version": "0.1.16"},
   "name": "Awair Air Quality",
   "description": "Awair Element air-quality score and the readings behind it.",
   "origin": "integration",
@@ -40,12 +40,12 @@
       {"id": "humidity", "label": "Humidity", "kind": "binding", "binding_slot_id": "humidity", "allowed_actions": ["more-info", "history", "popout"], "default_action": "more-info"}
     ],
     "binding_slots": [
-      {"id": "score", "label": "Air quality score", "required": true, "binding_modes": ["read"], "capability_requirements": ["score"], "compatible_integration_ids": ["awair-element-local-api"]},
-      {"id": "co2", "label": "Carbon dioxide", "required": false, "binding_modes": ["read"], "capability_requirements": ["co2"], "compatible_integration_ids": ["awair-element-local-api"]},
-      {"id": "pm25", "label": "PM2.5", "required": false, "binding_modes": ["read"], "capability_requirements": ["pm25"], "compatible_integration_ids": ["awair-element-local-api"]},
-      {"id": "voc", "label": "VOC", "required": false, "binding_modes": ["read"], "capability_requirements": ["voc"], "compatible_integration_ids": ["awair-element-local-api"]},
-      {"id": "temperature", "label": "Temperature", "required": false, "binding_modes": ["read"], "capability_requirements": ["temperature"], "compatible_integration_ids": ["awair-element-local-api"]},
-      {"id": "humidity", "label": "Humidity", "required": false, "binding_modes": ["read"], "capability_requirements": ["humidity"], "compatible_integration_ids": ["awair-element-local-api"]}
+      {"id": "score", "label": "Air quality score", "required": true, "allow_shared_device": true, "binding_modes": ["read"], "capability_requirements": ["score"], "compatible_integration_ids": ["awair-element-local-api"]},
+      {"id": "co2", "label": "Carbon dioxide", "required": false, "allow_shared_device": true, "binding_modes": ["read"], "capability_requirements": ["co2"], "compatible_integration_ids": ["awair-element-local-api"]},
+      {"id": "pm25", "label": "PM2.5", "required": false, "allow_shared_device": true, "binding_modes": ["read"], "capability_requirements": ["pm25"], "compatible_integration_ids": ["awair-element-local-api"]},
+      {"id": "voc", "label": "VOC", "required": false, "allow_shared_device": true, "binding_modes": ["read"], "capability_requirements": ["voc"], "compatible_integration_ids": ["awair-element-local-api"]},
+      {"id": "temperature", "label": "Temperature", "required": false, "allow_shared_device": true, "binding_modes": ["read"], "capability_requirements": ["temperature"], "compatible_integration_ids": ["awair-element-local-api"]},
+      {"id": "humidity", "label": "Humidity", "required": false, "allow_shared_device": true, "binding_modes": ["read"], "capability_requirements": ["humidity"], "compatible_integration_ids": ["awair-element-local-api"]}
     ],
     "default_column_span": 4,
     "default_row_span": 3
