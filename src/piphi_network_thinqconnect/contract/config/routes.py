@@ -28,6 +28,10 @@ from piphi_network_thinqconnect.lib.normalization import (
     normalize_device_snapshot,
     stable_client_id,
 )
+from piphi_network_thinqconnect.lib.push import (
+    ThinQPushSupervisor,
+    create_sdk_push_transport,
+)
 from piphi_network_thinqconnect.lib.runtime_auth import authorize_runtime_request
 from piphi_network_thinqconnect.lib.schemas import (
     DeconfigureConfig,
@@ -59,6 +63,7 @@ telemetry_client.timeout_seconds = TELEMETRY_REQUEST_TIMEOUT_SECONDS
 event_client.core_base_url = CORE_BASE_URL
 event_client.timeout_seconds = EVENT_REQUEST_TIMEOUT_SECONDS
 config_sync = ConfigSyncCoordinator(process_state=runtime_context.process_state)
+push_supervisor: ThinQPushSupervisor | None = None
 
 
 def _sync_runtime_auth_from_request(request: Request, payload: Any | None = None) -> None:
@@ -109,6 +114,8 @@ def schedule_event_send(
 
 
 async def shutdown_background_tasks() -> None:
+    if push_supervisor is not None:
+        await push_supervisor.shutdown()
     await shutdown_runtime_background_tasks(runtime_context.process_state)
 
 
@@ -274,6 +281,35 @@ async def _cancel_poll_task(task: asyncio.Task[Any]) -> None:
 
 async def trigger_refresh(device_id: str) -> dict[str, Any]:
     return await fetch_and_store_state(device_id=device_id)
+
+
+def _emit_push_event(
+    entry_id: str,
+    event_type: str,
+    payload: dict[str, Any],
+    severity: str,
+) -> None:
+    device = registry.get(entry_id)
+    if device is None:
+        return
+    schedule_event_send(
+        event_type=event_type,
+        device=device,
+        payload=payload,
+        source="lg_thinq_connect_push",
+        severity=severity,
+    )
+
+
+def get_push_supervisor() -> ThinQPushSupervisor:
+    global push_supervisor
+    if push_supervisor is None:
+        push_supervisor = ThinQPushSupervisor(
+            transport_factory=create_sdk_push_transport,
+            refresh=trigger_refresh,
+            emit_event=_emit_push_event,
+        )
+    return push_supervisor
 
 
 def _command_args_schema(latest_state: dict[str, Any], command: str) -> dict[str, Any]:
@@ -510,6 +546,8 @@ async def remove_device_config(device_id: str) -> bool:
         return False
 
     existing_entry = registry.get(entry_id)
+    if push_supervisor is not None:
+        await push_supervisor.remove_device(entry_id)
     if existing_entry and existing_entry.get("task") and not existing_entry["task"].done():
         existing_entry["task"].cancel()
         try:
@@ -544,6 +582,7 @@ async def apply_device_config(payload: ThinQDeviceConfig) -> dict[str, Any]:
     registry.set(
         payload.id,
         {
+            "id": payload.id,
             "task": None,
             "config_id": payload.config_id or payload.id,
             "container_id": resolved_container_id,
@@ -557,6 +596,7 @@ async def apply_device_config(payload: ThinQDeviceConfig) -> dict[str, Any]:
             "integration_id": payload.integration_id or INTEGRATION_ID,
             "simulation_mode": payload.simulation_mode,
             "poll_interval_seconds": payload.poll_interval_seconds or POLL_INTERVAL_SECONDS,
+            "push_events_enabled": payload.push_events_enabled,
         },
     )
     try:
@@ -581,6 +621,9 @@ async def apply_device_config(payload: ThinQDeviceConfig) -> dict[str, Any]:
         await remove_device_config(payload.id)
         raise
 
+    if payload.push_events_enabled and not payload.simulation_mode:
+        await get_push_supervisor().add_device(device_entry)
+
     device_entry = registry.get(payload.id) or {}
     schedule_event_send(
         event_type="device.configured",
@@ -599,6 +642,7 @@ async def apply_device_config(payload: ThinQDeviceConfig) -> dict[str, Any]:
             "device_id": payload.device_id,
             "device_type": payload.device_type,
             "poll_interval_seconds": payload.poll_interval_seconds or POLL_INTERVAL_SECONDS,
+            "push_events_enabled": payload.push_events_enabled,
         },
     ).model_dump()
 

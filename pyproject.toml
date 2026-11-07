@@ -6,7 +6,7 @@ authors = [
     {name = "KelvinSan", email = "kelvin.sanyaolu@gmail.com"},
 ]
 dependencies = [
-    "thinqconnect>=1.0.0",
+    "thinqconnect>=1.0.14",
     "aiohttp>=3.11.0",
     "fastapi[standard]>=0.135.2",
     "aiofiles>=25.1.0",

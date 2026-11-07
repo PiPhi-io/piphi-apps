@@ -1353,6 +1353,118 @@
           "ui": {
             "group": "only_if"
           }
+        },
+        {
+          "id": "express_fridge_enabled",
+          "label": "Express fridge is enabled",
+          "type": "boolean",
+          "capability": "sensor.express_fridge_enabled",
+          "operators": [
+            "eq",
+            "neq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "express_fridge_enabled",
+            "operator": "eq"
+          },
+          "freshness": {
+            "maxAgeSeconds": 300,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "fresh_air_filter_mode_is",
+          "label": "Fresh-air filter mode matches",
+          "type": "text",
+          "params": [
+            {
+              "name": "mode",
+              "label": "Filter mode",
+              "type": "text",
+              "required": true
+            }
+          ],
+          "capability": "sensor.fresh_air_filter_mode",
+          "operators": [
+            "eq",
+            "neq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "fresh_air_filter_mode",
+            "operator": "eq"
+          },
+          "freshness": {
+            "maxAgeSeconds": 300,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "water_filter_state_is",
+          "label": "Water filter state matches",
+          "type": "text",
+          "params": [
+            {
+              "name": "state",
+              "label": "Filter state",
+              "type": "text",
+              "required": true
+            }
+          ],
+          "capability": "sensor.water_filter_state",
+          "operators": [
+            "eq",
+            "neq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "water_filter_state",
+            "operator": "eq"
+          },
+          "freshness": {
+            "maxAgeSeconds": 300,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "notification_is",
+          "label": "Latest notification matches",
+          "type": "text",
+          "params": [
+            {
+              "name": "code",
+              "label": "Notification code",
+              "type": "text",
+              "required": true
+            }
+          ],
+          "capability": "sensor.notification",
+          "operators": [
+            "eq",
+            "neq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "notification",
+            "operator": "eq"
+          },
+          "freshness": {
+            "maxAgeSeconds": 300,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "only_if"
+          }
         }
       ],
       "actions": [
@@ -2044,6 +2156,57 @@
           "runtime": {
             "event": "device.state_changed",
             "source": "integration"
+          },
+          "freshness": {
+            "maxAgeSeconds": 300,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "when"
+          }
+        },
+        {
+          "id": "door_opened",
+          "label": "Door opens",
+          "description": "Start when a reconciled ThinQ update confirms that the refrigerator door opened.",
+          "capability": "door_open",
+          "runtime": {
+            "event": "refrigerator.door.opened",
+            "source": "lg_thinq_connect_push"
+          },
+          "freshness": {
+            "maxAgeSeconds": 300,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "when"
+          }
+        },
+        {
+          "id": "door_closed",
+          "label": "Door closes",
+          "description": "Start when a reconciled ThinQ update confirms that the refrigerator door closed.",
+          "capability": "door_open",
+          "runtime": {
+            "event": "refrigerator.door.closed",
+            "source": "lg_thinq_connect_push"
+          },
+          "freshness": {
+            "maxAgeSeconds": 300,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "when"
+          }
+        },
+        {
+          "id": "notification_received",
+          "label": "Notification received",
+          "description": "Start when LG ThinQ reports a normalized refrigerator notification code.",
+          "capability": "notification",
+          "runtime": {
+            "event": "refrigerator.notification",
+            "source": "lg_thinq_connect_push"
           },
           "freshness": {
             "maxAgeSeconds": 300,

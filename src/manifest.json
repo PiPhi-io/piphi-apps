@@ -45,6 +45,14 @@
             "description": "Use deterministic washer, refrigerator, and air-conditioner fixtures without an LG account."
           },
           {
+            "name": "push_events_enabled",
+            "label": "Enable Near-Real-Time Events",
+            "type": "boolean",
+            "required": false,
+            "default": false,
+            "description": "Use LG ThinQ MQTT events for faster updates while retaining polling as fallback. Requires event and push token scopes."
+          },
+          {
             "name": "access_token",
             "label": "Personal Access Token",
             "type": "password",
@@ -87,6 +95,13 @@
             "default": false
           },
           {
+            "name": "push_events_enabled",
+            "label": "Enable Near-Real-Time Events",
+            "type": "boolean",
+            "required": false,
+            "default": false
+          },
+          {
             "name": "access_token",
             "label": "Personal Access Token",
             "type": "password",
@@ -121,6 +136,13 @@
           {
             "name": "simulation_mode",
             "label": "Use Simulator",
+            "type": "boolean",
+            "required": false,
+            "default": false
+          },
+          {
+            "name": "push_events_enabled",
+            "label": "Enable Near-Real-Time Events",
             "type": "boolean",
             "required": false,
             "default": false
