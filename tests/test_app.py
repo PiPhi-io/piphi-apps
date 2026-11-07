@@ -556,6 +556,7 @@ def test_entities_and_state_include_read_only_device(mock_core, monkeypatch) -> 
         assert entities[0]["capabilities"] == [
             "appliance_state",
             "door",
+            "door_open",
             "filter_life",
             "mode",
             "power",
@@ -586,6 +587,8 @@ def test_entities_and_state_include_read_only_device(mock_core, monkeypatch) -> 
             "disable_eco_friendly",
             "enable_express_mode",
             "disable_express_mode",
+            "enable_express_fridge",
+            "disable_express_fridge",
             "enable_rapid_freeze",
             "disable_rapid_freeze",
             "enable_sabbath_mode",

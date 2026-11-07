@@ -474,6 +474,7 @@ async def run_command_for_device(
             device_type=device["device_type"],
             control_method=control_method,
             control_params=effective_params,
+            control_resource=str(mapping.get("control_resource") or "") or None,
             client_id=device.get("client_id"),
         )
     except ThinQClientError as exc:
