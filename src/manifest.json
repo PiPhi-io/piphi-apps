@@ -2,7 +2,7 @@
   "manifest_version": "1.0",
   "id": "lg-thinq-connect-api",
   "name": "LG ThinQ Connect",
-  "version": "0.1.14",
+  "version": "0.1.15",
   "description": "Integration for LG ThinQ appliances using the official ThinQ Connect Python SDK.",
   "maintainer": {
     "name": "PiPhi Network",
@@ -18,7 +18,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "piphinetwork/lg-thinq-connect:0.1.14",
+        "image": "piphinetwork/lg-thinq-connect:0.1.15",
         "ports": [
           {
             "container": 3667,
@@ -365,7 +365,11 @@
       "value_kind": "boolean",
       "label": "Door open",
       "dashboard": {
-        "allowed_widgets": ["tile", "status-list", "external-widget"],
+        "allowed_widgets": [
+          "tile",
+          "status-list",
+          "external-widget"
+        ],
         "default_widget": "tile"
       }
     },
@@ -374,7 +378,12 @@
       "value_kind": "numeric",
       "label": "Fridge target temperature",
       "dashboard": {
-        "allowed_widgets": ["thermostat", "stat", "line-chart", "external-widget"],
+        "allowed_widgets": [
+          "thermostat",
+          "stat",
+          "line-chart",
+          "external-widget"
+        ],
         "default_widget": "thermostat"
       }
     },
@@ -383,7 +392,12 @@
       "value_kind": "numeric",
       "label": "Freezer target temperature",
       "dashboard": {
-        "allowed_widgets": ["thermostat", "stat", "line-chart", "external-widget"],
+        "allowed_widgets": [
+          "thermostat",
+          "stat",
+          "line-chart",
+          "external-widget"
+        ],
         "default_widget": "thermostat"
       }
     },
@@ -392,7 +406,12 @@
       "value_kind": "numeric",
       "label": "Convertible zone target temperature",
       "dashboard": {
-        "allowed_widgets": ["thermostat", "stat", "line-chart", "external-widget"],
+        "allowed_widgets": [
+          "thermostat",
+          "stat",
+          "line-chart",
+          "external-widget"
+        ],
         "default_widget": "thermostat"
       }
     },
@@ -400,83 +419,171 @@
       "kind": "sensor",
       "value_kind": "boolean",
       "label": "Power save",
-      "dashboard": {"allowed_widgets": ["tile", "status-list", "external-widget"], "default_widget": "tile"}
+      "dashboard": {
+        "allowed_widgets": [
+          "tile",
+          "status-list",
+          "external-widget"
+        ],
+        "default_widget": "tile"
+      }
     },
     "eco_friendly_enabled": {
       "kind": "sensor",
       "value_kind": "boolean",
       "label": "Eco friendly mode",
-      "dashboard": {"allowed_widgets": ["tile", "status-list", "external-widget"], "default_widget": "tile"}
+      "dashboard": {
+        "allowed_widgets": [
+          "tile",
+          "status-list",
+          "external-widget"
+        ],
+        "default_widget": "tile"
+      }
     },
     "sabbath_mode_enabled": {
       "kind": "sensor",
       "value_kind": "boolean",
       "label": "Sabbath mode",
-      "dashboard": {"allowed_widgets": ["tile", "status-list", "external-widget"], "default_widget": "tile"}
+      "dashboard": {
+        "allowed_widgets": [
+          "tile",
+          "status-list",
+          "external-widget"
+        ],
+        "default_widget": "tile"
+      }
     },
     "rapid_freeze_enabled": {
       "kind": "sensor",
       "value_kind": "boolean",
       "label": "Rapid freeze",
-      "dashboard": {"allowed_widgets": ["tile", "status-list", "external-widget"], "default_widget": "tile"}
+      "dashboard": {
+        "allowed_widgets": [
+          "tile",
+          "status-list",
+          "external-widget"
+        ],
+        "default_widget": "tile"
+      }
     },
     "express_mode_enabled": {
       "kind": "sensor",
       "value_kind": "boolean",
       "label": "Express mode",
-      "dashboard": {"allowed_widgets": ["tile", "status-list", "external-widget"], "default_widget": "tile"}
+      "dashboard": {
+        "allowed_widgets": [
+          "tile",
+          "status-list",
+          "external-widget"
+        ],
+        "default_widget": "tile"
+      }
     },
     "express_fridge_enabled": {
       "kind": "sensor",
       "value_kind": "boolean",
       "label": "Express fridge",
-      "dashboard": {"allowed_widgets": ["tile", "status-list", "external-widget"], "default_widget": "tile"}
+      "dashboard": {
+        "allowed_widgets": [
+          "tile",
+          "status-list",
+          "external-widget"
+        ],
+        "default_widget": "tile"
+      }
     },
     "fresh_air_filter_mode": {
       "kind": "sensor",
       "value_kind": "text",
       "label": "Fresh-air filter mode",
-      "dashboard": {"allowed_widgets": ["status-list", "external-widget"], "default_widget": "status-list"}
+      "dashboard": {
+        "allowed_widgets": [
+          "status-list",
+          "external-widget"
+        ],
+        "default_widget": "status-list"
+      }
     },
     "fresh_air_filter_life": {
       "kind": "sensor",
       "value_kind": "numeric",
       "unit": "%",
       "label": "Fresh-air filter life",
-      "dashboard": {"allowed_widgets": ["stat", "gauge", "external-widget"], "default_widget": "gauge"}
+      "dashboard": {
+        "allowed_widgets": [
+          "stat",
+          "gauge",
+          "external-widget"
+        ],
+        "default_widget": "gauge"
+      }
     },
     "water_filter_state": {
       "kind": "sensor",
       "value_kind": "text",
       "label": "Water filter state",
-      "dashboard": {"allowed_widgets": ["status-list", "external-widget"], "default_widget": "status-list"}
+      "dashboard": {
+        "allowed_widgets": [
+          "status-list",
+          "external-widget"
+        ],
+        "default_widget": "status-list"
+      }
     },
     "water_filter_1_life": {
       "kind": "sensor",
       "value_kind": "numeric",
       "unit": "%",
       "label": "Water filter 1 life",
-      "dashboard": {"allowed_widgets": ["stat", "gauge", "external-widget"], "default_widget": "gauge"}
+      "dashboard": {
+        "allowed_widgets": [
+          "stat",
+          "gauge",
+          "external-widget"
+        ],
+        "default_widget": "gauge"
+      }
     },
     "water_filter_2_life": {
       "kind": "sensor",
       "value_kind": "numeric",
       "unit": "%",
       "label": "Water filter 2 life",
-      "dashboard": {"allowed_widgets": ["stat", "gauge", "external-widget"], "default_widget": "gauge"}
+      "dashboard": {
+        "allowed_widgets": [
+          "stat",
+          "gauge",
+          "external-widget"
+        ],
+        "default_widget": "gauge"
+      }
     },
     "water_filter_3_life": {
       "kind": "sensor",
       "value_kind": "numeric",
       "unit": "%",
       "label": "Water filter 3 life",
-      "dashboard": {"allowed_widgets": ["stat", "gauge", "external-widget"], "default_widget": "gauge"}
+      "dashboard": {
+        "allowed_widgets": [
+          "stat",
+          "gauge",
+          "external-widget"
+        ],
+        "default_widget": "gauge"
+      }
     },
     "notification": {
       "kind": "sensor",
       "value_kind": "text",
       "label": "Latest refrigerator notification",
-      "dashboard": {"allowed_widgets": ["status-list", "external-widget"], "default_widget": "status-list"}
+      "dashboard": {
+        "allowed_widgets": [
+          "status-list",
+          "external-widget"
+        ],
+        "default_widget": "status-list"
+      }
     },
     "battery": {
       "kind": "sensor",
@@ -685,7 +792,7 @@
       {
         "id": "io.piphi.thinqconnect.overview",
         "name": "LG ThinQ Overview",
-        "version": "0.1.14",
+        "version": "0.1.15",
         "entry": "/widgets/thinqconnect-overview/dist/widget.js",
         "runtime": "prebuilt_bundle",
         "certification": {

@@ -1,6 +1,6 @@
 [project]
 name = "piphi_network_thinqconnect"
-version = "0.1.14"
+version = "0.1.15"
 description = "PiPhi LG ThinQ Connect integration"
 authors = [
     {name = "KelvinSan", email = "kelvin.sanyaolu@gmail.com"},
