@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-
 router = APIRouter(tags=["ui_schema"])
 
 
@@ -67,6 +66,12 @@ async def get_ui_schema() -> dict:
                 "default": 60,
                 "minimum": 15,
                 "maximum": 900,
+            },
+            "push_events_enabled": {
+                "type": "boolean",
+                "title": "Enable near-real-time ThinQ events",
+                "description": "Use LG's MQTT event service for faster updates while retaining polling as a fallback. Requires event and push scopes on the ThinQ token.",
+                "default": False,
             },
         },
     }

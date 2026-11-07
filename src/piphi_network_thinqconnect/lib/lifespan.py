@@ -6,11 +6,16 @@ from fastapi import FastAPI
 from httpx import AsyncClient
 from piphi_runtime_kit_python import runtime_lifespan
 
-from piphi_network_thinqconnect.contract.config.routes import apply_runtime_config_snapshot
+from piphi_network_thinqconnect.contract.config.routes import (
+    apply_runtime_config_snapshot,
+    shutdown_background_tasks,
+)
 from piphi_network_thinqconnect.lib.logging import logger
-from piphi_network_thinqconnect.lib.schemas import RuntimeConfigSnapshot, ThinQDeviceConfig
+from piphi_network_thinqconnect.lib.schemas import (
+    RuntimeConfigSnapshot,
+    ThinQDeviceConfig,
+)
 from piphi_network_thinqconnect.lib.store import runtime_context, starter
-
 
 CORE_REQUEST_TIMEOUT_SECONDS = 10.0
 
@@ -58,4 +63,5 @@ async def lifespan(app: FastAPI):
         try:
             yield
         finally:
+            await shutdown_background_tasks()
             logger.info("thinq_lifespan_shutdown")

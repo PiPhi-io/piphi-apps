@@ -10,6 +10,8 @@ from piphi_network_thinqconnect.lib.normalization import (
     DEVICE_TYPE_CATALOG,
     stable_client_id,
 )
+from piphi_network_thinqconnect.lib.push import REFRIGERATOR_PUSH_EVENTS
+from piphi_network_thinqconnect.lib.schemas import ThinQDeviceConfig
 from piphi_network_thinqconnect.lib.store import INTEGRATION_VERSION
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -107,6 +109,70 @@ def test_automation_registry_matches_declared_behavior_commands() -> None:
     }
 
     assert registered_commands == declared_commands
+
+
+def test_refrigerator_push_events_match_behavior_triggers() -> None:
+    behaviors = _load_json("src/behaviors.json")
+    refrigerator = next(
+        device
+        for device in behaviors["devices"]
+        if device["id"] == "thinq_refrigerator"
+    )
+    push_triggers = {
+        trigger["runtime"]["event"]
+        for trigger in refrigerator["triggers"]
+        if trigger["runtime"].get("source") == "lg_thinq_connect_push"
+    }
+
+    assert push_triggers == REFRIGERATOR_PUSH_EVENTS
+    assert all(
+        trigger["capability"] in refrigerator["capabilities"]
+        for trigger in refrigerator["triggers"]
+        if trigger["runtime"].get("event") in REFRIGERATOR_PUSH_EVENTS
+    )
+    assert not any(event.startswith("thinq.push.") for event in push_triggers)
+
+
+def test_refrigerator_behaviors_cover_reviewed_safe_state_surface() -> None:
+    behaviors = _load_json("src/behaviors.json")
+    refrigerator = next(
+        device
+        for device in behaviors["devices"]
+        if device["id"] == "thinq_refrigerator"
+    )
+    condition_fields = {
+        condition["runtime"]["field"] for condition in refrigerator["conditions"]
+    }
+
+    assert {
+        "door_open",
+        "target_temperature",
+        "filter_life",
+        "power_save_enabled",
+        "eco_friendly_enabled",
+        "sabbath_mode_enabled",
+        "rapid_freeze_enabled",
+        "express_mode_enabled",
+        "express_fridge_enabled",
+        "fresh_air_filter_mode",
+        "water_filter_state",
+        "notification",
+    }.issubset(condition_fields)
+
+
+def test_push_opt_in_is_declared_by_runtime_and_manifest() -> None:
+    manifest = _load_json("src/manifest.json")
+    platform_inputs = [
+        platform["discovery"]["inputs"]
+        for platform in manifest["runtime"].values()
+    ]
+
+    assert ThinQDeviceConfig.model_fields["push_events_enabled"].default is False
+    for inputs in platform_inputs:
+        push_field = next(
+            field for field in inputs if field["name"] == "push_events_enabled"
+        )
+        assert push_field["default"] is False
 
 
 def test_behavior_capabilities_exist_in_manifest() -> None:

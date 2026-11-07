@@ -296,6 +296,62 @@ def test_config_apply_sends_telemetry_and_event(mock_core, monkeypatch) -> None:
     assert registry.get("cfg-ac-1")["task"].done()
 
 
+def test_config_apply_registers_opt_in_push_with_runtime_identity(monkeypatch) -> None:
+    reset_runtime_state()
+    added_entries = []
+
+    class FakePushSupervisor:
+        async def add_device(self, entry):
+            added_entries.append(entry)
+
+    async def fake_fetch_device_snapshot(**_kwargs):
+        return _fridge_snapshot()
+
+    monkeypatch.setattr(
+        config_module.thinq_client,
+        "fetch_device_snapshot",
+        fake_fetch_device_snapshot,
+    )
+    monkeypatch.setattr(
+        config_module,
+        "start_device_poll_task",
+        lambda **_kwargs: _DummyTask(),
+    )
+    monkeypatch.setattr(
+        config_module,
+        "get_push_supervisor",
+        lambda: FakePushSupervisor(),
+    )
+    headers = build_runtime_headers(
+        container_id="runtime-456",
+        internal_token="secret-token",
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/config",
+            json={
+                "id": "cfg-fridge-push",
+                "config_id": "cfg-fridge-push",
+                "device_id": "fridge-1",
+                "device_name": "Kitchen Fridge",
+                "device_type": "DEVICE_REFRIGERATOR",
+                "access_token": "pat-1",
+                "country_code": "US",
+                "client_id": "account-client-id",
+                "push_events_enabled": True,
+            },
+            headers=headers,
+        )
+
+    assert response.status_code == 200
+    assert response.json()["metadata"]["push_events_enabled"] is True
+    assert len(added_entries) == 1
+    assert added_entries[0]["id"] == "cfg-fridge-push"
+    assert added_entries[0]["device_id"] == "fridge-1"
+    assert added_entries[0]["push_events_enabled"] is True
+
+
 def test_config_apply_keeps_real_polling_task_alive_and_cleans_up(
     mock_core, monkeypatch
 ) -> None:
