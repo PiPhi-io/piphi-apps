@@ -985,9 +985,26 @@
       "description": "LG refrigerators, kimchi refrigerators, and wine storage devices exposed through LG ThinQ.",
       "capabilities": [
         "door",
+        "door_open",
         "temperature",
         "target_temperature",
+        "fridge_target_temperature",
+        "freezer_target_temperature",
+        "convertible_target_temperature",
         "filter_life",
+        "fresh_air_filter_mode",
+        "fresh_air_filter_life",
+        "water_filter_state",
+        "water_filter_1_life",
+        "water_filter_2_life",
+        "water_filter_3_life",
+        "power_save_enabled",
+        "eco_friendly_enabled",
+        "sabbath_mode_enabled",
+        "rapid_freeze_enabled",
+        "express_mode_enabled",
+        "express_fridge_enabled",
+        "notification",
         "mode",
         "power",
         "switch",
@@ -1238,7 +1255,7 @@
           ],
           "runtime": {
             "source": "state",
-            "field": "power",
+            "field": "power_save_enabled",
             "operator": "eq"
           },
           "freshness": {
@@ -1282,7 +1299,7 @@
           ],
           "runtime": {
             "source": "state",
-            "field": "mode",
+            "field": "express_mode_enabled",
             "operator": "eq"
           },
           "freshness": {
@@ -1326,7 +1343,7 @@
           ],
           "runtime": {
             "source": "state",
-            "field": "mode",
+            "field": "sabbath_mode_enabled",
             "operator": "eq"
           },
           "freshness": {
@@ -1645,6 +1662,90 @@
           }
         },
         {
+          "id": "enable_express_fridge",
+          "label": "Enable express fridge",
+          "capability": "action.enable_express_fridge",
+          "runtime": {
+            "command": "enable_express_fridge"
+          },
+          "targeting": {
+            "fanoutSafe": true,
+            "scopes": [
+              "config",
+              "configs",
+              "room",
+              "rooms",
+              "group",
+              "groups",
+              "selection",
+              "tag",
+              "tags",
+              "capability",
+              "all_matching"
+            ],
+            "supportsMultiTarget": true
+          },
+          "failure": {
+            "strategy": "retry_then_continue",
+            "retry": {
+              "maxAttempts": 1,
+              "delaySeconds": 2,
+              "backoff": "fixed"
+            },
+            "timeoutSeconds": 30,
+            "continueOnPartialFailure": true,
+            "idempotent": true
+          },
+          "ui": {
+            "group": "do_this"
+          },
+          "safety": {
+            "riskLevel": "medium"
+          }
+        },
+        {
+          "id": "disable_express_fridge",
+          "label": "Disable express fridge",
+          "capability": "action.disable_express_fridge",
+          "runtime": {
+            "command": "disable_express_fridge"
+          },
+          "targeting": {
+            "fanoutSafe": true,
+            "scopes": [
+              "config",
+              "configs",
+              "room",
+              "rooms",
+              "group",
+              "groups",
+              "selection",
+              "tag",
+              "tags",
+              "capability",
+              "all_matching"
+            ],
+            "supportsMultiTarget": true
+          },
+          "failure": {
+            "strategy": "retry_then_continue",
+            "retry": {
+              "maxAttempts": 1,
+              "delaySeconds": 2,
+              "backoff": "fixed"
+            },
+            "timeoutSeconds": 30,
+            "continueOnPartialFailure": true,
+            "idempotent": true
+          },
+          "ui": {
+            "group": "do_this"
+          },
+          "safety": {
+            "riskLevel": "medium"
+          }
+        },
+        {
           "id": "enable_rapid_freeze",
           "label": "Enable rapid freeze",
           "capability": "action.enable_rapid_freeze",
@@ -1859,6 +1960,10 @@
         {
           "id": "disable_express_mode",
           "label": "Disable express mode"
+        },
+        {
+          "id": "disable_express_fridge",
+          "label": "Disable express fridge"
         },
         {
           "id": "disable_rapid_freeze",

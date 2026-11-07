@@ -6,6 +6,11 @@ import uuid
 from collections.abc import Iterable
 from typing import Any
 
+from piphi_network_thinqconnect.lib.refrigerator import (
+    REFRIGERATOR_DEVICE_TYPES,
+    normalize_refrigerator_state,
+)
+
 
 CLIENT_ID_NAMESPACE = uuid.UUID("2bea399e-5cf7-41e7-8652-70c1fb44cff7")
 
@@ -142,8 +147,8 @@ DEVICE_TYPE_CATALOG: dict[str, dict[str, Any]] = {
     },
     "DEVICE_REFRIGERATOR": {
         "resources": ["power_save", "eco_friendly", "sabbath", "refrigeration", "water_filter_info", "door_status", "temperature"],
-        "properties": ["power_save_enabled", "eco_friendly_mode", "rapid_freeze", "express_mode", "fresh_air_filter", "fresh_air_filter_remain_percent", "water_filter_state", "water_filter_1_remain_percent", "door_state", "target_temperature_c"],
-        "capabilities": ["door", "target_temperature", "filter_life", "mode"],
+        "properties": ["power_save_enabled", "eco_friendly_mode", "sabbath_mode", "rapid_freeze", "express_mode", "express_mode_name", "express_fridge", "fresh_air_filter", "fresh_air_filter_remain_percent", "used_time", "water_filter_state", "water_filter_1_remain_percent", "water_filter_2_remain_percent", "water_filter_3_remain_percent", "door_state", "target_temperature_c", "target_temperature_f"],
+        "capabilities": ["door", "door_open", "target_temperature", "fridge_target_temperature", "freezer_target_temperature", "convertible_target_temperature", "filter_life", "fresh_air_filter_mode", "fresh_air_filter_life", "water_filter_state", "water_filter_1_life", "water_filter_2_life", "water_filter_3_life", "power_save_enabled", "eco_friendly_enabled", "sabbath_mode_enabled", "rapid_freeze_enabled", "express_mode_enabled", "express_fridge_enabled", "notification"],
         "device_class": "refrigeration",
         "entity_type": "appliance",
         "documented_commands": [
@@ -155,6 +160,8 @@ DEVICE_TYPE_CATALOG: dict[str, dict[str, Any]] = {
             "disable_eco_friendly",
             "enable_express_mode",
             "disable_express_mode",
+            "enable_express_fridge",
+            "disable_express_fridge",
             "enable_rapid_freeze",
             "disable_rapid_freeze",
             "enable_sabbath_mode",
@@ -255,13 +262,19 @@ SPECIAL_TOGGLE_COMMAND_SPECS: tuple[dict[str, Any], ...] = (
         "label": "Sabbath Mode",
     },
     {
-        "match_tokens": ("express_mode", "express"),
+        "match_tokens": ("express_mode",),
         "enable_id": "enable_express_mode",
         "disable_id": "disable_express_mode",
         "label": "Express Mode",
     },
     {
-        "match_tokens": ("rapid_freeze", "express_fridge", "one_touch_filter"),
+        "match_tokens": ("express_fridge",),
+        "enable_id": "enable_express_fridge",
+        "disable_id": "disable_express_fridge",
+        "label": "Express Fridge",
+    },
+    {
+        "match_tokens": ("rapid_freeze",),
         "enable_id": "enable_rapid_freeze",
         "disable_id": "disable_rapid_freeze",
         "label": "Rapid Freeze",
@@ -523,7 +536,13 @@ def _normalize_params(raw_params: Any) -> dict[str, dict[str, Any]]:
 
 def _coerce_param_spec(name: Any, raw_spec: Any) -> dict[str, Any]:
     if not isinstance(raw_spec, dict):
-        return {"type": "string", "label": str(name), "required": False, "options": []}
+        return {
+            "provider_name": str(name),
+            "type": "string",
+            "label": str(name),
+            "required": False,
+            "options": [],
+        }
     options = raw_spec.get("options") or raw_spec.get("enum") or raw_spec.get("values") or []
     if not isinstance(options, list):
         options = []
@@ -544,6 +563,7 @@ def _coerce_param_spec(name: Any, raw_spec: Any) -> dict[str, Any]:
     if not resolved_type:
         resolved_type = "number" if isinstance(raw_spec.get("default"), (int, float)) else "string"
     return {
+        "provider_name": str(name),
         "type": resolved_type,
         "label": raw_spec.get("label") or str(name).replace("_", " ").title(),
         "required": bool(raw_spec.get("required", False)),
@@ -573,6 +593,7 @@ def _extract_control_entries(raw_controls: Any) -> list[dict[str, Any]]:
                             or value.get("control_params")
                             or value.get("parameter")
                         ),
+                        "resource": value.get("resource") or value.get("resource_name"),
                     }
                 )
             for nested in value.values():
@@ -661,13 +682,14 @@ def _map_turn_command(
     if enum_param is None:
         return
     param_name, spec = enum_param
+    provider_param_name = str(spec.get("provider_name") or param_name)
     normalized_options = {str(option).upper(): option for option in spec.get("options") or []}
     if "ON" in normalized_options:
         command_map.setdefault(
             "turn_on",
             {
                 "control_method": method_id,
-                "control_params": {param_name: normalized_options["ON"]},
+                "control_params": {provider_param_name: normalized_options["ON"]},
                 "arg_map": {},
             },
         )
@@ -685,7 +707,7 @@ def _map_turn_command(
             "turn_off",
             {
                 "control_method": method_id,
-                "control_params": {param_name: normalized_options["OFF"]},
+                "control_params": {provider_param_name: normalized_options["OFF"]},
                 "arg_map": {},
             },
         )
@@ -728,11 +750,12 @@ def _map_binary_toggle_command(
     if toggle_param is None:
         return
     param_name, truthy, falsy = toggle_param
+    provider_param_name = str(params[param_name].get("provider_name") or param_name)
     command_map.setdefault(
         enable_id,
         {
             "control_method": method_id,
-            "control_params": {param_name: truthy},
+            "control_params": {provider_param_name: truthy},
             "arg_map": {},
         },
     )
@@ -747,7 +770,7 @@ def _map_binary_toggle_command(
         disable_id,
         {
             "control_method": method_id,
-            "control_params": {param_name: falsy},
+            "control_params": {provider_param_name: falsy},
             "arg_map": {},
         },
     )
@@ -808,6 +831,7 @@ def build_command_catalog(
     control_entries = _extract_control_entries(available_controls)
 
     for entry in control_entries:
+        commands_before_entry = set(command_map)
         method_id = entry["method_id"]
         method_token = slugify_token(method_id)
         params = entry["params"]
@@ -859,10 +883,11 @@ def build_command_catalog(
             option_param = _param_with_options(params, contains=("mode",)) or _param_with_options(params)
             if option_param is not None:
                 param_name, spec = option_param
+                provider_param_name = str(spec.get("provider_name") or param_name)
                 command_map["set_mode"] = {
                     "control_method": method_id,
                     "control_params": {},
-                    "arg_map": {"mode": param_name},
+                    "arg_map": {"mode": provider_param_name},
                 }
                 available_commands.append(
                     {
@@ -885,10 +910,38 @@ def build_command_catalog(
             numeric_param = _numeric_param(params, contains=("temp", "temperature")) or _numeric_param(params)
             if numeric_param is not None:
                 param_name, spec = numeric_param
+                provider_param_name = str(spec.get("provider_name") or param_name)
+                location_param = _param_with_options(
+                    params,
+                    contains=("location", "zone", "compartment"),
+                )
+                arg_map = {"temperature": provider_param_name}
+                args_schema: dict[str, Any] = {
+                    "temperature": {
+                        "type": "number",
+                        "label": "Temperature",
+                        "required": True,
+                        "minimum": spec.get("minimum"),
+                        "maximum": spec.get("maximum"),
+                        "step": spec.get("step") or 1,
+                        "unit": spec.get("unit") or "°C",
+                    }
+                }
+                if location_param is not None:
+                    location_name, location_spec = location_param
+                    arg_map["location"] = str(
+                        location_spec.get("provider_name") or location_name
+                    )
+                    args_schema["location"] = {
+                        "type": "string",
+                        "label": "Compartment",
+                        "required": True,
+                        "options": location_spec.get("options") or [],
+                    }
                 command_map["set_target_temperature"] = {
                     "control_method": method_id,
                     "control_params": {},
-                    "arg_map": {"temperature": param_name},
+                    "arg_map": arg_map,
                 }
                 available_commands.append(
                     {
@@ -896,17 +949,7 @@ def build_command_catalog(
                         "label": "Set Target Temperature",
                         "kind": "adjust",
                         "description": "Set a target temperature when supported by this ThinQ profile.",
-                        "args_schema": {
-                            "temperature": {
-                                "type": "number",
-                                "label": "Temperature",
-                                "required": True,
-                                "minimum": spec.get("minimum"),
-                                "maximum": spec.get("maximum"),
-                                "step": spec.get("step") or 1,
-                                "unit": spec.get("unit") or "°C",
-                            }
-                        },
+                        "args_schema": args_schema,
                     }
                 )
 
@@ -914,10 +957,11 @@ def build_command_catalog(
             option_param = _param_with_options(params, contains=("fan", "wind", "speed")) or _param_with_options(params)
             if option_param is not None:
                 param_name, spec = option_param
+                provider_param_name = str(spec.get("provider_name") or param_name)
                 command_map["set_fan_speed"] = {
                     "control_method": method_id,
                     "control_params": {},
-                    "arg_map": {"speed": param_name},
+                    "arg_map": {"speed": provider_param_name},
                 }
                 available_commands.append(
                     {
@@ -940,10 +984,11 @@ def build_command_catalog(
             numeric_param = _numeric_param(params, contains=("bright", "level")) or _numeric_param(params)
             if numeric_param is not None:
                 param_name, spec = numeric_param
+                provider_param_name = str(spec.get("provider_name") or param_name)
                 command_map["set_brightness"] = {
                     "control_method": method_id,
                     "control_params": {},
-                    "arg_map": {"brightness": param_name},
+                    "arg_map": {"brightness": provider_param_name},
                 }
                 available_commands.append(
                     {
@@ -969,10 +1014,11 @@ def build_command_catalog(
             numeric_param = _numeric_param(params, contains=("humid",)) or _numeric_param(params)
             if numeric_param is not None:
                 param_name, spec = numeric_param
+                provider_param_name = str(spec.get("provider_name") or param_name)
                 command_map["set_target_humidity"] = {
                     "control_method": method_id,
                     "control_params": {},
-                    "arg_map": {"humidity": param_name},
+                    "arg_map": {"humidity": provider_param_name},
                 }
                 _append_command(
                     available_commands,
@@ -997,10 +1043,11 @@ def build_command_catalog(
             option_param = _param_with_options(params, contains=("course", "cycle", "recipe")) or _param_with_options(params)
             if option_param is not None:
                 param_name, spec = option_param
+                provider_param_name = str(spec.get("provider_name") or param_name)
                 command_map["set_course"] = {
                     "control_method": method_id,
                     "control_params": {},
-                    "arg_map": {"course": param_name},
+                    "arg_map": {"course": provider_param_name},
                 }
                 _append_command(
                     available_commands,
@@ -1022,10 +1069,11 @@ def build_command_catalog(
             option_param = _param_with_options(params, contains=("cook", "mode")) or _param_with_options(params)
             if option_param is not None:
                 param_name, spec = option_param
+                provider_param_name = str(spec.get("provider_name") or param_name)
                 command_map["set_cook_mode"] = {
                     "control_method": method_id,
                     "control_params": {},
-                    "arg_map": {"cook_mode": param_name},
+                    "arg_map": {"cook_mode": provider_param_name},
                 }
                 _append_command(
                     available_commands,
@@ -1042,6 +1090,11 @@ def build_command_catalog(
                         }
                     },
                 )
+
+        control_resource = str(entry.get("resource") or "").strip()
+        if control_resource:
+            for command_id in set(command_map) - commands_before_entry:
+                command_map[command_id]["control_resource"] = control_resource
 
     deduped_commands: list[dict[str, Any]] = []
     seen_command_ids: set[str] = set()
@@ -1079,7 +1132,14 @@ def derive_capabilities(
 ) -> list[str]:
     tokens = _collect_search_tokens(device_type, raw_status, available_controls)
     profile = device_type_catalog(device_type)
-    profile_capabilities = set(profile.get("capabilities") or [])
+    # Refrigerator models vary materially. Their catalog is an inventory, not
+    # a promise that every appliance exposes the union of all model features.
+    # Advertise only capabilities observed in state/control negotiation below.
+    profile_capabilities = (
+        set()
+        if str(device_type or "").strip().upper() in REFRIGERATOR_DEVICE_TYPES
+        else set(profile.get("capabilities") or [])
+    )
     capabilities: set[str] = {"refresh", *profile_capabilities}
 
     if {"power", "operation", "on", "off", "switch"} & tokens:
@@ -1207,6 +1267,14 @@ def normalize_device_snapshot(
     status = raw_status or {}
     profile_catalog = device_type_catalog(discovered["device_type"])
     metrics, units = _extract_metrics(status)
+    refrigerator_state = (
+        normalize_refrigerator_state(status, raw_profile)
+        if discovered["device_type"].strip().upper() in REFRIGERATOR_DEVICE_TYPES
+        else None
+    )
+    if refrigerator_state:
+        metrics.update(refrigerator_state["metrics"])
+        units.update(refrigerator_state["units"])
     # Publish stable, end-user-oriented metric ids alongside the raw ThinQ
     # properties so one adaptive card can represent multiple appliance families.
     job_state = status.get("current_state") or status.get("run_state")
@@ -1255,6 +1323,8 @@ def normalize_device_snapshot(
         raw_status=status,
         available_controls=raw_available_controls,
     )
+    if refrigerator_state:
+        capabilities.extend(refrigerator_state["capabilities"])
     if job_state is not None:
         capabilities.append("appliance_state")
     if "remaining_minutes" in metrics:
@@ -1305,7 +1375,13 @@ def normalize_device_snapshot(
             "documented_commands": documented_commands_list,
             "observed_resources": observed_resources,
             "observed_properties": observed_properties,
+            "fingerprint": (
+                refrigerator_state["profile_fingerprint"]
+                if refrigerator_state
+                else None
+            ),
         },
+        "refrigerator": refrigerator_state["details"] if refrigerator_state else None,
         "summary": {
             "operation_state": status.get("operation_state") or status.get("operationState"),
             "job_state": status.get("current_state") or status.get("run_state"),

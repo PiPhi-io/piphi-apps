@@ -87,6 +87,24 @@ surface for light and dark appearance. A dedicated experience should only be
 added when an appliance workflow cannot be expressed cleanly by the overview
 or Core's canonical controls.
 
+## Refrigerator capability model
+
+Standard refrigerators are negotiated from each appliance's current ThinQ profile and
+state rather than from a global model superset. The runtime preserves distinct
+fridge, freezer, and convertible target temperatures; main-door state; power
+save, eco, Sabbath, rapid-freeze, express-mode, and express-fridge state; and
+fresh-air plus multiple water-filter instances when the appliance reports them.
+
+Only controls present in the device's negotiated control surface are exposed.
+Known commands retain the provider's exact parameter names and validate
+profile-provided enum/range constraints. Unknown readable scalar properties are
+available in the bounded `refrigerator.additional_capabilities` detail surface;
+unknown writes are denied. See `src/refrigerator-capability-catalog.json` for
+implemented, planned, and deliberately excluded upstream capabilities.
+Kimchi refrigerators and wine cellars retain their separate device-family
+contracts; their model-specific compartment/program semantics are not flattened
+into this standard refrigerator representation.
+
 ## Polling behavior
 
 Configured devices are polled on a background loop. The default polling

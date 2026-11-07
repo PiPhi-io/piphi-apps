@@ -65,6 +65,35 @@ def test_documented_commands_exist_in_manifest_and_behaviors() -> None:
     assert documented_commands.issubset(behavior_commands)
 
 
+def test_refrigerator_capability_catalog_accounts_for_known_surface() -> None:
+    catalog = _load_json("src/refrigerator-capability-catalog.json")
+    rows = catalog["rows"]
+    ids = [row["id"] for row in rows]
+
+    assert len(ids) == len(set(ids))
+    assert {row["status"] for row in rows} <= {"implemented", "planned", "excluded"}
+    assert {
+        "door.open",
+        "temperature.target",
+        "mode.power_save",
+        "mode.eco",
+        "mode.sabbath",
+        "freezing.rapid",
+        "cooling.express_mode",
+        "cooling.express_fridge",
+        "filter.fresh_air",
+        "filter.water",
+        "notification",
+        "energy.daily",
+        "profile.unknown_readable",
+        "profile.unknown_writable",
+        "events.mqtt_push",
+    } == set(ids)
+    assert next(row for row in rows if row["id"] == "profile.unknown_writable")[
+        "status"
+    ] == "excluded"
+
+
 def test_automation_registry_matches_declared_behavior_commands() -> None:
     behaviors = _load_json("src/behaviors.json")
     declared_commands = {

@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 from piphi_network_thinqconnect.lib.normalization import normalize_discovered_device, stable_client_id
+from piphi_network_thinqconnect.lib.refrigerator import derive_refrigerator_controls
 
 
 class ThinQClientError(RuntimeError):
@@ -59,7 +60,7 @@ class ThinQApiClient:
             raw_profile = await self._call_with_signatures(
                 api,
                 ["async_get_device_profile", "get_device_profile"],
-                [(device_type, device_id), (device_id,), tuple()],
+                [(device_id,), (device_type, device_id), tuple()],
                 fallback_kwargs={"device_type": device_type, "device_id": device_id},
                 allow_missing=True,
             )
@@ -70,6 +71,10 @@ class ThinQApiClient:
                 fallback_kwargs={"device_type": device_type, "device_id": device_id},
                 allow_missing=True,
             )
+            if not raw_controls and str(device_type).strip().upper() == "DEVICE_REFRIGERATOR":
+                raw_controls = derive_refrigerator_controls(
+                    raw_profile if isinstance(raw_profile, dict) else {}
+                )
         return {
             "device": raw_device,
             "status": raw_status if isinstance(raw_status, dict) else {},
@@ -87,6 +92,7 @@ class ThinQApiClient:
         device_type: str,
         control_method: str,
         control_params: dict[str, Any],
+        control_resource: str | None = None,
         client_id: str | None = None,
     ) -> dict[str, Any]:
         effective_client_id = client_id or stable_client_id(
@@ -95,18 +101,17 @@ class ThinQApiClient:
             device_id=device_id,
         )
         async with self._api(access_token=access_token, country_code=country_code, client_id=effective_client_id) as api:
+            if not control_resource:
+                raise ThinQClientError(
+                    f"ThinQ control '{control_method}' is missing its negotiated resource"
+                )
             result = await self._call_with_signatures(
                 api,
                 ["async_post_device_control", "post_device_control"],
-                [
-                    (device_type, device_id, control_method, control_params),
-                    (device_id, control_method, control_params),
-                ],
+                [(device_id, {control_resource: control_params})],
                 fallback_kwargs={
-                    "device_type": device_type,
                     "device_id": device_id,
-                    "control_method": control_method,
-                    "control_params": control_params,
+                    "payload": {control_resource: control_params},
                 },
                 allow_missing=False,
             )
