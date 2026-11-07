@@ -331,6 +331,7 @@ def test_release_workflow_can_publish_an_existing_tag_without_mutating_source() 
     assert '[[ "$(git rev-parse HEAD)" == "${TAG_COMMIT}" ]]' in workflow
     assert '[[ "$(git rev-parse "FETCH_HEAD^{commit}")" == "${TAG_COMMIT}" ]]' in workflow
     assert workflow.count("if: ${{ needs.preflight.outputs.existing_tag == '' }}") == 2
+    assert "DOCKERHUB_OIDC_EXPIREIN: 21600" in workflow
     assert workflow.index("Resolve existing release tag") < workflow.index("Install and test")
     assert workflow.index("Validate bumped release contract") < workflow.index(
         "Build and push image"

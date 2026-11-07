@@ -38,6 +38,7 @@ concurrency:
 env:
   RELEASE_IMAGE: piphinetwork/lg-thinq-connect
   DOCKERHUB_OIDC_CONNECTIONID: ${{ vars.DOCKERHUB_OIDC_CONNECTIONID }}
+  DOCKERHUB_OIDC_EXPIREIN: 21600
 
 jobs:
   preflight:
