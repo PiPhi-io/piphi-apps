@@ -2,7 +2,7 @@
   "package_schema": "piphi.package.v1",
   "id": "piphi-camera-stream",
   "name": "Piphi Camera Stream",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "roles": [
     "integration_runtime"
   ],

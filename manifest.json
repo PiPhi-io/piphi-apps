@@ -3,7 +3,7 @@
   "manifest_version": "1.0",
   "id": "piphi-camera-stream",
   "name": "Piphi Camera Stream",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Connect an RTSP or RTSPS camera to PiPhi while keeping its source URL inside the integration and media sidecar boundary.",
   "metadata": {
     "generator": "piphi-network-create",
@@ -17,7 +17,7 @@
     "website": "https://piphi.io"
   },
   "license": "Apache-2.0",
-  "image": "ghcr.io/piphi-io/piphi-camera-stream:0.1.4",
+  "image": "ghcr.io/piphi-io/piphi-camera-stream:0.1.5",
   "platforms": [
     "linux"
   ],
@@ -25,7 +25,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "ghcr.io/piphi-io/piphi-camera-stream:0.1.4",
+        "image": "ghcr.io/piphi-io/piphi-camera-stream:0.1.5",
         "ports": [
           {
             "container": 8090

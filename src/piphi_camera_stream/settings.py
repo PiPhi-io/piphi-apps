@@ -4,7 +4,7 @@ import os
 
 INTEGRATION_ID = "piphi-camera-stream"
 INTEGRATION_NAME = "Piphi Camera Stream"
-INTEGRATION_VERSION = "0.1.4"
+INTEGRATION_VERSION = "0.1.5"
 PROJECT_KIND = "integration"
 PROJECT_PRESET = "protocol-bridge"
 PROJECT_DOMAIN = "local-device"
