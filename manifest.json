@@ -88,6 +88,8 @@
     "required": true,
     "editable_fields": [
       "source_url",
+      "username",
+      "password",
       "alias",
       "preferred_transport"
     ],

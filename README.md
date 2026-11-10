@@ -17,6 +17,11 @@ port `8090` for direct development. Camera setup is manual: Core reads
 device discovery. The installer also resolves the shared WebRTC Camera Service
 declared in `manifest.json`.
 
+Camera authentication is optional and uses separate username and password
+fields. Core encrypts the password at rest, while the runtime only combines the
+credentials with the RTSP URL inside its private camera-source response. Legacy
+URLs containing embedded credentials remain supported.
+
 The runtime exposes the common PiPhi runtime route contract:
 
 - `GET /health`

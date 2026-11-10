@@ -38,11 +38,12 @@ commands = COMMANDS
 
 def make_entry(config: DeviceConfig) -> dict[str, Any]:
     identity = build_runtime_identity(config, integration_id=INTEGRATION_ID)
+    source_url = config.authenticated_source_url()
     return {
         **identity,
         "alias": config.alias,
-        "_source_url": config.source_url,
-        "source_protocol": config.source_url.get_secret_value().split(":", 1)[0].lower(),
+        "_source_url": source_url,
+        "source_protocol": source_url.get_secret_value().split(":", 1)[0].lower(),
         "preferred_transport": config.preferred_transport,
     }
 

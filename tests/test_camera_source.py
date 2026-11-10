@@ -70,3 +70,67 @@ def test_camera_config_accepts_inline_credentials() -> None:
     )
 
     assert config.source_url.get_secret_value().startswith("rtsps://username:password@")
+
+
+@pytest.mark.anyio
+async def test_camera_source_combines_separate_credentials_and_percent_encodes_them(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PIPHI_INTEGRATION_INTERNAL_TOKEN", "runtime-token")
+    monkeypatch.setenv("PIPHI_CONTAINER_ID", "camera-container")
+    registry.entries.clear()
+    registry.state_snapshots.clear()
+    await apply_config(
+        DeviceConfig(
+            id="doggy-cam",
+            config_id="doggy-cam",
+            source_url="rtsp://10.0.0.241:554/stream0",
+            username="camera user",
+            password="p@ss/word",
+        )
+    )
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        source = await client.get(
+            "/v1/cameras/doggy-cam/source",
+            headers={
+                "X-PiPhi-Integration-Token": "runtime-token",
+                "X-Container-Id": "camera-container",
+            },
+        )
+        state = await client.get("/state")
+
+    assert source.status_code == 200
+    assert source.json()["source_url"] == (
+        "rtsp://camera%20user:p%40ss%2Fword@10.0.0.241:554/stream0"
+    )
+    assert "camera user" not in state.text
+    assert "p@ss/word" not in state.text
+
+
+@pytest.mark.parametrize(
+    ("username", "password"),
+    [("camera-user", None), (None, "camera-password")],
+)
+def test_camera_config_requires_username_and_password_together(
+    username: str | None,
+    password: str | None,
+) -> None:
+    with pytest.raises(ValueError, match="username and password together"):
+        DeviceConfig(
+            id="camera",
+            source_url="rtsp://camera.local/live",
+            username=username,
+            password=password,
+        )
+
+
+def test_camera_config_rejects_separate_and_inline_credentials_together() -> None:
+    with pytest.raises(ValueError, match="either separate fields or the URL"):
+        DeviceConfig(
+            id="camera",
+            source_url="rtsp://legacy:secret@camera.local/live",
+            username="camera-user",
+            password="camera-password",
+        )

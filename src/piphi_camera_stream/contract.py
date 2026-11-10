@@ -33,11 +33,24 @@ CONFIG_SCHEMA: dict[str, Any] = {
                 "type": "string",
                 "title": "RTSP camera URL",
                 "description": (
-                    "Full RTSP or RTSPS URL supplied by your camera or NVR. Include its "
-                    "username and password when sign-in is required. Percent-encode "
-                    "reserved characters in credentials."
+                    "RTSP or RTSPS address supplied by your camera or NVR, without credentials."
                 ),
+            },
+            "username": {
+                "type": "string",
+                "title": "Username",
+                "description": (
+                    "Optional. Use the camera's RTSP username, not your PiPhi account."
+                ),
+                "maxLength": 512,
+            },
+            "password": {
+                "type": "string",
+                "title": "Password",
+                "description": "Optional. Enter the camera's RTSP password.",
+                "format": "password",
                 "writeOnly": True,
+                "maxLength": 1024,
             },
             "alias": {"type": "string", "title": "Camera name", "maxLength": 120},
             "preferred_transport": {"type": "string", "title": "RTSP transport", "enum": ["tcp", "udp", "auto"], "default": "tcp"},
@@ -45,9 +58,10 @@ CONFIG_SCHEMA: dict[str, Any] = {
     },
     "uiSchema": {
         "source_url": {
-            "ui:widget": "password",
-            "placeholder": "rtsps://username:password@camera.local:322/stream0",
+            "placeholder": "rtsp://camera.local:554/stream0",
         },
+        "username": {"placeholder": "Camera username"},
+        "password": {"ui:widget": "password", "placeholder": "Camera password"},
         "alias": {"placeholder": "Front door"},
     },
 }

@@ -38,14 +38,20 @@ def test_runtime_implements_contract_routes() -> None:
     assert "refresh" in COMMANDS
 
 
-def test_camera_url_setup_explains_optional_rtsp_credentials() -> None:
+def test_camera_setup_exposes_separate_optional_rtsp_credentials() -> None:
     source_url = CONFIG_SCHEMA["schema"]["properties"]["source_url"]
+    username = CONFIG_SCHEMA["schema"]["properties"]["username"]
+    password = CONFIG_SCHEMA["schema"]["properties"]["password"]
     source_ui = CONFIG_SCHEMA["uiSchema"]["source_url"]
+    password_ui = CONFIG_SCHEMA["uiSchema"]["password"]
 
-    assert "username and password" in source_url["description"]
-    assert "username:password@" in source_ui["placeholder"]
-    assert "format" not in source_url
-    assert source_url["writeOnly"] is True
+    assert "without credentials" in source_url["description"]
+    assert source_ui["placeholder"] == "rtsp://camera.local:554/stream0"
+    assert username["title"] == "Username"
+    assert "PiPhi account" in username["description"]
+    assert password["writeOnly"] is True
+    assert password["format"] == "password"
+    assert password_ui["ui:widget"] == "password"
 
 
 def test_camera_stream_depends_on_shared_camera_media_service() -> None:
