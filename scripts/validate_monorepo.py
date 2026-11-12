@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-"""Validate migration inventory and any registry sources imported so far."""
+"""Validate the monorepo, migration baseline, and app release metadata."""
 
 from __future__ import annotations
 
 import json
 from pathlib import Path
 from typing import Any
+
+from app_tooling import validate_all_apps
 
 ROOT = Path(__file__).resolve().parents[1]
 INVENTORY_PATH = ROOT / "migration" / "inventory.json"
@@ -72,9 +74,24 @@ def validate_files() -> None:
     apps = ROOT / "apps"
     if not apps.exists():
         return
+    ignored_directories = {
+        "node_modules",
+        "dist",
+        "build",
+        "__pycache__",
+        ".pytest_cache",
+        ".ruff_cache",
+        ".venv",
+    }
     for path in apps.rglob("*"):
+        if ignored_directories & set(path.relative_to(apps).parts):
+            continue
         if path.name == ".git" and path.is_dir():
             raise ValueError(f"nested Git repository found at {path.relative_to(ROOT)}")
+        if path.is_file() and ".github/workflows" in path.as_posix():
+            raise ValueError(
+                f"nested workflow {path.relative_to(ROOT)} must move to the trusted root workflows"
+            )
         if path.is_file() and path.stat().st_size > MAX_FILE_SIZE:
             raise ValueError(f"file exceeds 50 MiB: {path.relative_to(ROOT)}")
 
@@ -95,10 +112,14 @@ def main() -> None:
         raise ValueError("migration inventory contains duplicate source repositories")
 
     imported_entries = sum(validate_repository_import(repository) for repository in repositories)
+    app_count, package_count = validate_all_apps()
+    if package_count != EXPECTED_COUNTS["entries"]:
+        raise ValueError("app metadata does not account for every imported registry package")
     validate_files()
     print(
         f"validated inventory for {EXPECTED_COUNTS['entries']} entries; "
-        f"{imported_entries} imported manifests are present"
+        f"{imported_entries} imported manifests and {package_count} package records "
+        f"across {app_count} app directories are present"
     )
 
 

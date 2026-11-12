@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "$schema": "../../../contracts/piphi-app.schema.json",
+  "slug": "piphi-network-zigbee2mqtt",
+  "source": {
+    "imported_from": "https://github.com/PiPhi-io/piphi_network_zigbee2mqtt"
+  },
+  "languages": [
+    "python"
+  ],
+  "toolchains": {
+    "python": "3.12"
+  },
+  "ci": {
+    "enforcement": "legacy-static",
+    "commands": [
+      "pdm install --check",
+      "pdm run pytest"
+    ],
+    "build_container": false
+  },
+  "packages": [
+    {
+      "id": "piphi.service.zigbee2mqtt-sidecar",
+      "type": "platform_service",
+      "version": "0.1.17",
+      "manifest": "src/manifest.json",
+      "release": {
+        "tag": "apps/{package_id}/v{version}",
+        "commands": []
+      },
+      "artifact": {
+        "kind": "oci",
+        "context": ".",
+        "dockerfile": "Dockerfile",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ]
+      },
+      "publishing": {
+        "mode": "piphi_managed",
+        "environment": "release-docker-io",
+        "primary": {
+          "registry": "docker.io",
+          "repository": "piphinetwork/zigbee2mqtt-sidecar"
+        },
+        "mirrors": []
+      }
+    }
+  ]
+}

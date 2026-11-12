@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "$schema": "../../../contracts/piphi-app.schema.json",
+  "slug": "home-health",
+  "source": {
+    "imported_from": "https://github.com/PiPhi-io/piphi_network_widget_sdk"
+  },
+  "languages": [
+    "declarative"
+  ],
+  "toolchains": {},
+  "ci": {
+    "enforcement": "legacy-static",
+    "commands": [],
+    "build_container": false
+  },
+  "packages": [
+    {
+      "id": "io.piphi.home-health",
+      "type": "widget",
+      "version": "0.1.0",
+      "manifest": "package.source.json",
+      "release": {
+        "tag": "apps/{package_id}/v{version}",
+        "commands": []
+      },
+      "artifact": {
+        "kind": "widget",
+        "output": "dist"
+      }
+    }
+  ]
+}

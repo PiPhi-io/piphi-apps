@@ -1,0 +1,83 @@
+name: Reusable app CI
+
+on:
+  workflow_call:
+    inputs:
+      app_path: { type: string, required: true }
+      python: { type: boolean, default: false }
+      node: { type: boolean, default: false }
+      go: { type: boolean, default: false }
+      rust: { type: boolean, default: false }
+      java: { type: boolean, default: false }
+      dotnet: { type: boolean, default: false }
+      ruby: { type: boolean, default: false }
+      php: { type: boolean, default: false }
+      python_version: { type: string, default: "3.12" }
+      node_version: { type: string, default: "22" }
+      go_version: { type: string, default: stable }
+      java_version: { type: string, default: "21" }
+      dotnet_version: { type: string, default: "8.0.x" }
+      ruby_version: { type: string, default: "3.3" }
+      php_version: { type: string, default: "8.3" }
+      build_container: { type: boolean, default: false }
+      dockerfile: { type: string, default: Dockerfile }
+      context: { type: string, default: "." }
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - if: inputs.python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python_version }}
+      - if: inputs.python
+        run: python -m pip install "pdm==2.26.2"
+      - if: inputs.node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node_version }}
+      - if: inputs.go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ inputs.go_version }}
+      - if: inputs.java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ inputs.java_version }}
+      - if: inputs.dotnet
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ inputs.dotnet_version }}
+      - if: inputs.ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ inputs.ruby_version }}
+          bundler-cache: false
+      - if: inputs.rust
+        run: rustup toolchain install stable --profile minimal
+      - if: inputs.php
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes php-cli composer
+          php -r "exit(version_compare(PHP_VERSION, '${{ inputs.php_version }}', '>=') ? 0 : 1);"
+      - name: Validate and test app
+        run: python scripts/run_app_ci.py "${{ inputs.app_path }}"
+      - if: inputs.build_container
+        uses: docker/setup-buildx-action@v3
+      - name: Build portable OCI artifact
+        if: inputs.build_container
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ inputs.app_path }}/${{ inputs.context }}
+          file: ${{ inputs.app_path }}/${{ inputs.dockerfile }}
+          push: false
+          cache-from: type=gha,scope=${{ inputs.app_path }}
+          cache-to: type=gha,mode=max,scope=${{ inputs.app_path }}

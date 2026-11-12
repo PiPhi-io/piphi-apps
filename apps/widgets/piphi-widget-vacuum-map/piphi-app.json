@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "$schema": "../../../contracts/piphi-app.schema.json",
+  "slug": "piphi-widget-vacuum-map",
+  "source": {
+    "imported_from": "https://github.com/PiPhi-io/piphi-widget-vacuum-map"
+  },
+  "languages": [
+    "node"
+  ],
+  "toolchains": {
+    "node": "22"
+  },
+  "ci": {
+    "enforcement": "legacy-static",
+    "commands": [
+      "npm ci",
+      "npm audit --omit=dev --audit-level=high",
+      "npm run test",
+      "npm run validate",
+      "npm run build"
+    ],
+    "build_container": false
+  },
+  "packages": [
+    {
+      "id": "io.piphi.widget.vacuum-map",
+      "type": "widget",
+      "version": "0.1.0",
+      "manifest": "widget.manifest.json",
+      "release": {
+        "tag": "apps/{package_id}/v{version}",
+        "commands": []
+      },
+      "artifact": {
+        "kind": "widget",
+        "output": "dist"
+      }
+    }
+  ]
+}
