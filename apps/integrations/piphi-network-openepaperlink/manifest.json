@@ -1,0 +1,206 @@
+{
+  "$schema": "./schema/piphi-manifest.schema.json",
+  "manifest_version": "1.0",
+  "id": "piphi-network-openepaperlink",
+  "name": "OpenEPaperLink",
+  "version": "0.1.0",
+  "description": "Monitor tag and pending-transfer counts on a local OpenEPaperLink access point.",
+  "metadata": {
+    "generator": "piphi-network-create",
+    "scaffold_version": "0.3.0",
+    "preset": "actuator-device",
+    "domain": "local-device",
+    "preset_summary": "Local actuator starter with command and safety-oriented controls."
+  },
+  "maintainer": {
+    "name": "PiPhi Network",
+    "website": "https://piphi.io"
+  },
+  "license": "Apache-2.0",
+  "image": "docker.io/piphinetwork/piphi-network-openepaperlink:0.1.0",
+  "platforms": [
+    "linux"
+  ],
+  "runtime": {
+    "linux": {
+      "type": "container",
+      "container": {
+        "image": "docker.io/piphinetwork/piphi-network-openepaperlink:0.1.0",
+        "ports": [
+          {
+            "container": 4219,
+            "host": 4219
+          }
+        ],
+        "environment": {
+          "LOG_LEVEL": "info"
+        },
+        "restart_policy": {
+          "name": "unless-stopped",
+          "maximum_retry_count": 0
+        }
+      },
+      "discovery": {
+        "method": "passive"
+      }
+    }
+  },
+  "api": {
+    "required": [
+      "health",
+      "entities",
+      "command",
+      "config",
+      "ui_config"
+    ],
+    "endpoints": {
+      "health": "/health",
+      "diagnostics": "/diagnostics",
+      "discover": "/discover",
+      "entities": "/entities",
+      "state": "/state",
+      "config": "/config",
+      "config_sync": "/config/sync",
+      "deconfigure": "/deconfigure",
+      "ui_config": "/ui-config",
+      "events": "/events",
+      "command": "/command"
+    }
+  },
+  "config": {
+    "source": "endpoint",
+    "endpoint": "/ui-config",
+    "required": true,
+    "editable_fields": [
+      "host",
+      "alias",
+      "poll_interval_seconds"
+    ],
+    "runtime_fields": [
+      "id",
+      "config_id",
+      "container_id",
+      "device_id"
+    ],
+    "identity_fields": [
+      "host"
+    ]
+  },
+  "identity": {
+    "fields": [
+      "host"
+    ]
+  },
+  "capabilities": {
+    "connected": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "ap_tag_count": {"kind": "sensor", "value_kind": "numeric", "unit": "count"},
+    "ap_pending_transfer_count": {"kind": "sensor", "value_kind": "numeric", "unit": "count"},
+    "refresh": {
+      "kind": "action"
+    }
+  },
+  "commands": {
+    "refresh": {
+      "description": "Refresh the device state.",
+      "timeout_ms": 12000
+    }
+  },
+  "entities": [
+    {
+      "id": "demo-device",
+      "name": "Demo Device",
+      "device_id": "demo-device",
+      "entity_type": "access_point",
+      "capabilities": [
+        "connected",
+        "ap_tag_count",
+        "ap_pending_transfer_count",
+        "refresh"
+      ],
+      "available_commands": [
+        {
+          "id": "refresh",
+          "label": "Refresh",
+          "kind": "action"
+        }
+      ],
+      "dashboard": {
+        "allowed_widgets": [
+          "tile",
+          "stat",
+          "button"
+        ],
+        "default_widget": "tile"
+      }
+    }
+  ],
+  "ui": {
+    "experience_packages": [
+      {"registry_id": "io.piphi.openepaperlink-ap", "version_range": ">=0.1,<1", "auto_install": true}
+    ]
+  },
+  "marketplace": {
+    "metadata_version": 2,
+    "display_name": "OpenEPaperLink",
+    "summary": "Monitor tag and pending-transfer counts on a local OpenEPaperLink access point.",
+    "category": "other",
+    "regions": [
+      "WW"
+    ],
+    "languages": [
+      "en"
+    ],
+    "publisher": {
+      "name": "PiPhi Network",
+      "website_url": "https://piphi.io",
+      "support_url": "https://github.com/PiPhi-io/piphi-network-openepaperlink/issues",
+      "security_contact": "support@piphi.io"
+    },
+    "access_declared": true,
+    "access": [
+      {
+        "id": "local_network",
+        "label": "Local network access",
+        "reason": "Discovers or communicates with supported services and devices on the homeowner's local network.",
+        "required": true
+      }
+    ],
+    "compatibility": [
+      {
+        "brand": "OpenEPaperLink",
+        "model": "Local access points exposing the tag database API"
+      }
+    ],
+    "documentation_url": "https://github.com/PiPhi-io/piphi-network-openepaperlink",
+    "support_url": "https://github.com/PiPhi-io/piphi-network-openepaperlink/issues",
+    "changelog_url": "https://github.com/PiPhi-io/piphi-network-openepaperlink/releases",
+    "quality_tier": "unrated",
+    "governance": {
+      "schema_version": 1,
+      "publication_status": "draft",
+      "rollout_percent": 0,
+      "lifecycle_status": "active",
+      "qualification": {
+        "status": "unverified"
+      }
+    },
+    "device_types": [
+      "access point"
+    ],
+    "protocols": [
+      "OpenEPaperLink API",
+      "HTTP"
+    ],
+    "discovery_methods": [
+      "manual"
+    ],
+    "connectivity": "local",
+    "offline_support": "none"
+  },
+  "onboarding": {
+    "mode": "discovery"
+  }
+}
