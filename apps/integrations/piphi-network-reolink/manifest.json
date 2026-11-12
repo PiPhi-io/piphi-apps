@@ -1,0 +1,213 @@
+{
+  "$schema": "./schema/piphi-manifest.schema.json",
+  "manifest_version": "1.0",
+  "id": "piphi-network-reolink",
+  "name": "Reolink cameras",
+  "version": "0.1.0",
+  "description": "Discover and monitor local Reolink cameras and NVR channels.",
+  "metadata": {
+    "generator": "piphi-network-create",
+    "scaffold_version": "0.3.0",
+    "preset": "actuator-device",
+    "domain": "local-device",
+    "preset_summary": "Local actuator starter with command and safety-oriented controls."
+  },
+  "maintainer": {
+    "name": "PiPhi Network",
+    "website": "https://piphi.io"
+  },
+  "license": "Apache-2.0",
+  "image": "ghcr.io/piphi-io/piphi-network-reolink:0.1.0",
+  "platforms": [
+    "linux"
+  ],
+  "runtime": {
+    "linux": {
+      "type": "container",
+      "container": {
+        "image": "ghcr.io/piphi-io/piphi-network-reolink:0.1.0",
+        "ports": [
+          {
+            "container": 4225,
+            "host": 4225
+          }
+        ],
+        "environment": {
+          "LOG_LEVEL": "info"
+        },
+        "restart_policy": {
+          "name": "unless-stopped",
+          "maximum_retry_count": 0
+        }
+      },
+      "discovery": {
+        "method": "passive"
+      }
+    }
+  },
+  "api": {
+    "required": [
+      "health",
+      "entities",
+      "command",
+      "config",
+      "ui_config"
+    ],
+    "endpoints": {
+      "health": "/health",
+      "diagnostics": "/diagnostics",
+      "discover": "/discover",
+      "entities": "/entities",
+      "state": "/state",
+      "config": "/config",
+      "config_sync": "/config/sync",
+      "deconfigure": "/deconfigure",
+      "ui_config": "/ui-config",
+      "events": "/events",
+      "command": "/command"
+    }
+  },
+  "config": {
+    "source": "endpoint",
+    "endpoint": "/ui-config",
+    "required": true,
+    "editable_fields": [
+      "host",
+      "username",
+      "password",
+      "port",
+      "use_https",
+      "alias",
+      "poll_interval_seconds"
+    ],
+    "runtime_fields": [
+      "id",
+      "config_id",
+      "container_id",
+      "device_id"
+    ],
+    "identity_fields": [
+      "host"
+    ]
+  },
+  "identity": {
+    "fields": [
+      "host"
+    ]
+  },
+  "capabilities": {
+    "connected": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "camera_count": {
+      "kind": "sensor",
+      "unit": "cameras"
+    },
+    "refresh": {
+      "kind": "action"
+    }
+  },
+  "commands": {
+    "refresh": {
+      "description": "Refresh camera and NVR discovery and state.",
+      "timeout_ms": 45000
+    }
+  },
+  "entities": [
+    {
+      "id": "reolink-connection",
+      "name": "Reolink connection",
+      "device_id": "reolink-connection",
+      "entity_type": "camera",
+      "capabilities": [
+        "connected",
+        "camera_count",
+        "refresh"
+      ],
+      "available_commands": [
+        {
+          "id": "refresh",
+          "label": "Refresh",
+          "kind": "action"
+        }
+      ],
+      "dashboard": {
+        "allowed_widgets": [
+          "tile",
+          "stat",
+          "button"
+        ],
+        "default_widget": "tile"
+      }
+    }
+  ],
+  "marketplace": {
+    "metadata_version": 2,
+    "display_name": "Reolink cameras",
+    "summary": "Connect local Reolink cameras and NVR channels for monitoring and automations.",
+    "category": "camera",
+    "regions": [
+      "WW"
+    ],
+    "languages": [
+      "en"
+    ],
+    "publisher": {
+      "name": "PiPhi Network",
+      "website_url": "https://piphi.io",
+      "support_url": "https://github.com/PiPhi-io/piphi-network-reolink/issues",
+      "security_contact": "support@piphi.io"
+    },
+    "access": [
+      {
+        "id": "local_network",
+        "label": "Local network access",
+        "reason": "Connects directly to the configured Reolink camera or NVR and discovers its available channels.",
+        "required": true
+      },
+      {
+        "id": "credentials",
+        "label": "Camera or NVR credentials",
+        "reason": "Authenticates to the configured Reolink device while keeping credentials out of state, telemetry, events, logs, and diagnostics.",
+        "required": true
+      }
+    ],
+    "compatibility": [
+      {
+        "brand": "Reolink",
+        "model": "Cameras, video doorbells, and NVRs supported by reolink_aio with local access enabled"
+      }
+    ],
+    "documentation_url": "https://github.com/PiPhi-io/piphi-network-reolink",
+    "support_url": "https://github.com/PiPhi-io/piphi-network-reolink/issues",
+    "changelog_url": "https://github.com/PiPhi-io/piphi-network-reolink/releases",
+    "quality_tier": "bronze",
+    "governance": {
+      "schema_version": 1,
+      "publication_status": "beta",
+      "rollout_percent": 1,
+      "lifecycle_status": "active",
+      "qualification": {
+        "status": "unverified"
+      }
+    },
+    "device_types": [
+      "camera",
+      "video doorbell",
+      "network video recorder"
+    ],
+    "protocols": [
+      "Reolink local API",
+      "Baichuan"
+    ],
+    "discovery_methods": [
+      "manual"
+    ],
+    "connectivity": "local",
+    "offline_support": "full"
+  },
+  "onboarding": {
+    "mode": "manual"
+  }
+}

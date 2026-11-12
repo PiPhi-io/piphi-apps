@@ -1,0 +1,49 @@
+{
+  "entities": [
+    {
+      "id": "reolink-connection",
+      "name": "Reolink connection",
+      "device_id": "reolink-connection",
+      "entity_type": "camera",
+      "capabilities": [
+        "connected",
+        "camera_count",
+        "refresh"
+      ],
+      "available_commands": [
+        {
+          "id": "refresh",
+          "label": "Refresh",
+          "kind": "action"
+        }
+      ],
+      "dashboard": {
+        "allowed_widgets": [
+          "tile",
+          "stat",
+          "button"
+        ],
+        "default_widget": "tile"
+      }
+    }
+  ],
+  "capabilities": {
+    "connected": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "camera_count": {
+      "kind": "sensor",
+      "unit": "cameras"
+    },
+    "refresh": {
+      "kind": "action"
+    }
+  },
+  "commands": {
+    "refresh": {
+      "description": "Refresh camera and NVR discovery and state.",
+      "timeout_ms": 45000
+    }
+  }
+}

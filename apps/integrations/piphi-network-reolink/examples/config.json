@@ -1,0 +1,8 @@
+{
+  "id": "demo-device",
+  "host": "192.168.1.50",
+  "username": "piphi",
+  "password": "replace-me",
+  "alias": "Front cameras",
+  "poll_interval_seconds": 30
+}

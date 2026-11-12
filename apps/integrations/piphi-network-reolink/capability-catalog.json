@@ -1,0 +1,80 @@
+{
+  "catalog_version": "1.0",
+  "integration_id": "piphi-network-reolink",
+  "coverage_mode": "model_negotiated_reolink_camera_and_nvr",
+  "reviewed_at": "2026-10-22",
+  "sources": {
+    "reolink_aio": "https://github.com/starkillerOG/reolink_aio",
+    "reolink_aio_api": "https://github.com/starkillerOG/reolink_aio/blob/main/reolink_aio/api.py",
+    "media_gateway": "PiPhi authenticated camera gateway contract",
+    "core_vocabulary": "PiPhi Network Core runtime and behavior contracts"
+  },
+  "groups": [
+    {
+      "id": "runtime-foundation",
+      "status": "implemented",
+      "scope": ["standalone-cameras", "nvrs", "nvr-channels"],
+      "source_refs": ["reolink_aio", "core_vocabulary"],
+      "reason": "The first milestone securely configures a host, refreshes host data, discovers NVR channels, publishes aggregate availability, and exposes read-only refresh.",
+      "state": ["connected", "camera_count"],
+      "events": ["runtime.config.applied"],
+      "conditions": ["connected_is"],
+      "actions": ["refresh"]
+    },
+    {
+      "id": "detection-state-and-events",
+      "status": "planned",
+      "scope": ["models-advertising-each-detection-type"],
+      "source_refs": ["reolink_aio_api"],
+      "reason": "Motion and AI detections need baseline suppression, transition deduplication, TCP push subscription recovery, and representative model fixtures.",
+      "state": ["motion_detected", "person_detected", "vehicle_detected", "pet_detected", "visitor_detected", "package_detected"],
+      "events": ["motion.detected", "person.detected", "vehicle.detected", "pet.detected", "doorbell.pressed", "package.detected"],
+      "conditions": ["motion_is_detected", "detection_type_is"],
+      "actions": []
+    },
+    {
+      "id": "camera-state-and-health",
+      "status": "planned",
+      "scope": ["capability-advertising-camera-channels"],
+      "source_refs": ["reolink_aio_api"],
+      "reason": "Per-channel state and telemetry need stable entity-level publication and offline/stale semantics in Core.",
+      "state": ["battery_percent", "charging", "wifi_signal_dbm", "recording_enabled", "ir_enabled", "status_led_enabled", "spotlight_enabled", "firmware_version", "stream_available"],
+      "events": ["camera.online", "camera.offline", "battery.low"],
+      "conditions": ["battery_below", "camera_is_online"],
+      "actions": []
+    },
+    {
+      "id": "media-broker",
+      "status": "planned",
+      "scope": ["stream-capable-channels", "snapshot-capable-channels"],
+      "source_refs": ["reolink_aio_api", "media_gateway"],
+      "reason": "Authenticated stream sources must remain private and be handed to the shared camera gateway through a bounded broker contract.",
+      "state": ["snapshot_available", "main_stream_available", "sub_stream_available"],
+      "events": ["stream.available", "stream.unavailable"],
+      "conditions": ["stream_is_available"],
+      "actions": ["capture_snapshot", "request_stream_session", "close_stream_session"]
+    },
+    {
+      "id": "camera-controls",
+      "status": "planned",
+      "scope": ["models-advertising-each-control", "configurations-with-controls-enabled"],
+      "source_refs": ["reolink_aio_api"],
+      "reason": "Mutating controls require per-model negotiation, explicit opt-in, bounded inputs, targeting checks, and executable action tests.",
+      "state": ["ptz_presets", "auto_track_enabled", "siren_active"],
+      "events": ["siren.started", "siren.stopped"],
+      "conditions": ["camera_at_preset", "siren_is_active"],
+      "actions": ["set_ir_lights", "set_spotlight", "start_siren", "stop_siren", "move_to_preset", "set_auto_track"]
+    },
+    {
+      "id": "unsafe-or-sensitive-surface",
+      "status": "excluded",
+      "scope": ["all-configurations"],
+      "source_refs": ["reolink_aio_api", "core_vocabulary"],
+      "reason": "Secrets, raw authenticated media URLs, arbitrary upstream calls, firmware changes, account administration, and destructive reset operations must not enter PiPhi state or general automation.",
+      "state": ["camera_password", "session_token", "camera_uid", "raw_rtsp_url", "raw_rtmp_url"],
+      "events": [],
+      "conditions": [],
+      "actions": ["execute_arbitrary_reolink_method", "factory_reset", "install_firmware", "change_camera_account", "expose_unbrokered_stream"]
+    }
+  ]
+}
