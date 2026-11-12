@@ -1,0 +1,1813 @@
+{
+  "behaviorSchemaVersion": "integration.behaviors.v2",
+  "templates": [
+    {
+      "id": "refresh_on_state_change",
+      "label": "Refresh when a Zigbee device updates",
+      "description": "Starts from any saved Zigbee device state update and asks the runtime for the latest state.",
+      "category": "Starter",
+      "deviceKey": "piphi_network_zigbee_device",
+      "config": {
+        "automation_schema_version": "automation.behavior.v2",
+        "triggers": [
+          {
+            "id": "state_changed",
+            "label": "Device updates",
+            "type": "integration_event",
+            "event": "device.state_changed",
+            "capability": "telemetry.state",
+            "enabled": true,
+            "sourceRef": {
+              "integrationId": "{{integrationId}}",
+              "integrationKey": "{{integrationKey}}",
+              "configId": "{{configId}}",
+              "behaviorDeviceKey": "piphi_network_zigbee_device",
+              "optionKey": "state_changed",
+              "capability": "telemetry.state"
+            }
+          }
+        ],
+        "trigger": {
+          "id": "state_changed",
+          "label": "Device updates",
+          "type": "integration_event",
+          "event": "device.state_changed",
+          "capability": "telemetry.state",
+          "enabled": true
+        },
+        "intent": "monitor_state",
+        "conditionTree": {
+          "op": "and",
+          "children": []
+        },
+        "actions": [
+          {
+            "id": "refresh_device",
+            "label": "Refresh device",
+            "action": "refresh",
+            "sourceRef": {
+              "integrationId": "{{integrationId}}",
+              "integrationKey": "{{integrationKey}}",
+              "configId": "{{configId}}",
+              "behaviorDeviceKey": "piphi_network_zigbee_device",
+              "optionKey": "refresh"
+            },
+            "target": {
+              "mode": "selection",
+              "configIds": [
+                "{{configId}}"
+              ]
+            }
+          }
+        ],
+        "safety": {
+          "staleDataMode": "block",
+          "maxAgeSeconds": 300,
+          "requireFreshTrigger": true,
+          "dryRunFirst": false
+        },
+        "failure": {
+          "strategy": "follow_edges",
+          "fallbackBehaviorId": "",
+          "conditionTree": {
+            "op": "and",
+            "children": []
+          }
+        },
+        "stop": {
+          "never": true
+        },
+        "override": {
+          "mode": "continue"
+        },
+        "execution": {
+          "failureStrategy": "follow_edges",
+          "fallbackBehaviorId": "",
+          "dispatchMode": "runtime"
+        },
+        "policies": {
+          "execution": {
+            "failureStrategy": "follow_edges",
+            "fallbackBehaviorId": "",
+            "dispatchMode": "runtime"
+          },
+          "freshness": {
+            "staleDataMode": "block"
+          },
+          "manualOverride": {
+            "mode": "continue"
+          },
+          "cooldownSeconds": 0
+        }
+      },
+      "metadata": {
+        "generated": true,
+        "recommended": true,
+        "deviceFamilies": [
+          "all"
+        ]
+      }
+    },
+    {
+      "id": "turn_on_when_motion_detected",
+      "label": "Turn something on when motion is detected",
+      "description": "Use occupancy sensors, PIR sensors, and presence sensors to switch a Zigbee target on.",
+      "category": "Motion",
+      "deviceKey": "piphi_network_zigbee_device",
+      "config": {
+        "automation_schema_version": "automation.behavior.v2",
+        "triggers": [
+          {
+            "id": "motion_detected",
+            "label": "Motion detected",
+            "type": "integration_event",
+            "event": "device.state_changed",
+            "capability": "telemetry.occupancy",
+            "enabled": true,
+            "sourceRef": {
+              "integrationId": "{{integrationId}}",
+              "integrationKey": "{{integrationKey}}",
+              "configId": "{{configId}}",
+              "behaviorDeviceKey": "piphi_network_zigbee_device",
+              "optionKey": "motion_detected",
+              "capability": "telemetry.occupancy"
+            }
+          }
+        ],
+        "trigger": {
+          "id": "motion_detected",
+          "label": "Motion detected",
+          "type": "integration_event",
+          "event": "device.state_changed",
+          "capability": "telemetry.occupancy",
+          "enabled": true
+        },
+        "intent": "control_device",
+        "conditionTree": {
+          "op": "and",
+          "children": []
+        },
+        "actions": [
+          {
+            "id": "turn_on_target",
+            "label": "Turn on",
+            "action": "set_state",
+            "params": {
+              "state": "ON"
+            },
+            "sourceRef": {
+              "integrationId": "{{integrationId}}",
+              "integrationKey": "{{integrationKey}}",
+              "configId": "{{configId}}",
+              "behaviorDeviceKey": "piphi_network_zigbee_device",
+              "optionKey": "set_state"
+            },
+            "target": {
+              "mode": "selection",
+              "configIds": [
+                "{{configId}}"
+              ]
+            }
+          }
+        ],
+        "safety": {
+          "staleDataMode": "block",
+          "maxAgeSeconds": 300,
+          "requireFreshTrigger": true,
+          "dryRunFirst": false
+        },
+        "failure": {
+          "strategy": "follow_edges",
+          "fallbackBehaviorId": "",
+          "conditionTree": {
+            "op": "and",
+            "children": []
+          }
+        },
+        "stop": {
+          "never": true
+        },
+        "override": {
+          "mode": "continue"
+        },
+        "execution": {
+          "failureStrategy": "follow_edges",
+          "fallbackBehaviorId": "",
+          "dispatchMode": "runtime"
+        },
+        "policies": {
+          "execution": {
+            "failureStrategy": "follow_edges",
+            "fallbackBehaviorId": "",
+            "dispatchMode": "runtime"
+          },
+          "freshness": {
+            "staleDataMode": "block"
+          },
+          "manualOverride": {
+            "mode": "continue"
+          },
+          "cooldownSeconds": 0
+        }
+      },
+      "metadata": {
+        "generated": true,
+        "recommended": true,
+        "deviceFamilies": [
+          "motion_sensor",
+          "occupancy_sensor",
+          "presence_sensor",
+          "switch",
+          "light"
+        ]
+      }
+    },
+    {
+      "id": "turn_off_when_contact_opens",
+      "label": "Turn something off when a contact opens",
+      "description": "Use door, window, and contact sensors to turn a Zigbee target off.",
+      "category": "Security",
+      "deviceKey": "piphi_network_zigbee_device",
+      "config": {
+        "automation_schema_version": "automation.behavior.v2",
+        "triggers": [
+          {
+            "id": "contact_opened",
+            "label": "Contact opened",
+            "type": "integration_event",
+            "event": "device.state_changed",
+            "capability": "telemetry.contact_open",
+            "enabled": true,
+            "sourceRef": {
+              "integrationId": "{{integrationId}}",
+              "integrationKey": "{{integrationKey}}",
+              "configId": "{{configId}}",
+              "behaviorDeviceKey": "piphi_network_zigbee_device",
+              "optionKey": "contact_opened",
+              "capability": "telemetry.contact_open"
+            }
+          }
+        ],
+        "trigger": {
+          "id": "contact_opened",
+          "label": "Contact opened",
+          "type": "integration_event",
+          "event": "device.state_changed",
+          "capability": "telemetry.contact_open",
+          "enabled": true
+        },
+        "intent": "protect_home",
+        "conditionTree": {
+          "op": "and",
+          "children": []
+        },
+        "actions": [
+          {
+            "id": "turn_off_target",
+            "label": "Turn off",
+            "action": "set_state",
+            "params": {
+              "state": "OFF"
+            },
+            "sourceRef": {
+              "integrationId": "{{integrationId}}",
+              "integrationKey": "{{integrationKey}}",
+              "configId": "{{configId}}",
+              "behaviorDeviceKey": "piphi_network_zigbee_device",
+              "optionKey": "set_state"
+            },
+            "target": {
+              "mode": "selection",
+              "configIds": [
+                "{{configId}}"
+              ]
+            }
+          }
+        ],
+        "safety": {
+          "staleDataMode": "block",
+          "maxAgeSeconds": 300,
+          "requireFreshTrigger": true,
+          "dryRunFirst": false
+        },
+        "failure": {
+          "strategy": "follow_edges",
+          "fallbackBehaviorId": "",
+          "conditionTree": {
+            "op": "and",
+            "children": []
+          }
+        },
+        "stop": {
+          "never": true
+        },
+        "override": {
+          "mode": "continue"
+        },
+        "execution": {
+          "failureStrategy": "follow_edges",
+          "fallbackBehaviorId": "",
+          "dispatchMode": "runtime"
+        },
+        "policies": {
+          "execution": {
+            "failureStrategy": "follow_edges",
+            "fallbackBehaviorId": "",
+            "dispatchMode": "runtime"
+          },
+          "freshness": {
+            "staleDataMode": "block"
+          },
+          "manualOverride": {
+            "mode": "continue"
+          },
+          "cooldownSeconds": 0
+        }
+      },
+      "metadata": {
+        "generated": true,
+        "recommended": true,
+        "deviceFamilies": [
+          "contact_sensor",
+          "door_sensor",
+          "window_sensor",
+          "switch",
+          "plug"
+        ]
+      }
+    },
+    {
+      "id": "dim_light_on_button_action",
+      "label": "Dim a light from a Zigbee button",
+      "description": "Use action-capable remotes, buttons, and scene controllers to set a brightness level.",
+      "category": "Button",
+      "deviceKey": "piphi_network_zigbee_device",
+      "config": {
+        "automation_schema_version": "automation.behavior.v2",
+        "triggers": [
+          {
+            "id": "button_action",
+            "label": "Button action",
+            "type": "integration_event",
+            "event": "device.state_changed",
+            "capability": "telemetry.action",
+            "enabled": true,
+            "sourceRef": {
+              "integrationId": "{{integrationId}}",
+              "integrationKey": "{{integrationKey}}",
+              "configId": "{{configId}}",
+              "behaviorDeviceKey": "piphi_network_zigbee_device",
+              "optionKey": "button_action",
+              "capability": "telemetry.action"
+            }
+          }
+        ],
+        "trigger": {
+          "id": "button_action",
+          "label": "Button action",
+          "type": "integration_event",
+          "event": "device.state_changed",
+          "capability": "telemetry.action",
+          "enabled": true
+        },
+        "intent": "react_to_buttons",
+        "conditionTree": {
+          "op": "and",
+          "children": []
+        },
+        "actions": [
+          {
+            "id": "set_button_brightness",
+            "label": "Set brightness",
+            "action": "set_brightness",
+            "params": {
+              "brightness_percent": 35
+            },
+            "sourceRef": {
+              "integrationId": "{{integrationId}}",
+              "integrationKey": "{{integrationKey}}",
+              "configId": "{{configId}}",
+              "behaviorDeviceKey": "piphi_network_zigbee_device",
+              "optionKey": "set_brightness"
+            },
+            "target": {
+              "mode": "selection",
+              "configIds": [
+                "{{configId}}"
+              ]
+            }
+          }
+        ],
+        "safety": {
+          "staleDataMode": "block",
+          "maxAgeSeconds": 300,
+          "requireFreshTrigger": true,
+          "dryRunFirst": false
+        },
+        "failure": {
+          "strategy": "follow_edges",
+          "fallbackBehaviorId": "",
+          "conditionTree": {
+            "op": "and",
+            "children": []
+          }
+        },
+        "stop": {
+          "never": true
+        },
+        "override": {
+          "mode": "continue"
+        },
+        "execution": {
+          "failureStrategy": "follow_edges",
+          "fallbackBehaviorId": "",
+          "dispatchMode": "runtime"
+        },
+        "policies": {
+          "execution": {
+            "failureStrategy": "follow_edges",
+            "fallbackBehaviorId": "",
+            "dispatchMode": "runtime"
+          },
+          "freshness": {
+            "staleDataMode": "block"
+          },
+          "manualOverride": {
+            "mode": "continue"
+          },
+          "cooldownSeconds": 0
+        }
+      },
+      "metadata": {
+        "generated": true,
+        "recommended": true,
+        "deviceFamilies": [
+          "remote",
+          "button",
+          "scene_controller",
+          "light"
+        ]
+      }
+    },
+    {
+      "id": "refresh_on_low_battery",
+      "label": "Check a Zigbee device when battery is low",
+      "description": "Starts when a battery device reports a low battery state and refreshes it.",
+      "category": "Maintenance",
+      "deviceKey": "piphi_network_zigbee_device",
+      "config": {
+        "automation_schema_version": "automation.behavior.v2",
+        "triggers": [
+          {
+            "id": "battery_low",
+            "label": "Battery low",
+            "type": "integration_event",
+            "event": "device.state_changed",
+            "capability": "telemetry.battery_low",
+            "enabled": true,
+            "sourceRef": {
+              "integrationId": "{{integrationId}}",
+              "integrationKey": "{{integrationKey}}",
+              "configId": "{{configId}}",
+              "behaviorDeviceKey": "piphi_network_zigbee_device",
+              "optionKey": "battery_low",
+              "capability": "telemetry.battery_low"
+            }
+          }
+        ],
+        "trigger": {
+          "id": "battery_low",
+          "label": "Battery low",
+          "type": "integration_event",
+          "event": "device.state_changed",
+          "capability": "telemetry.battery_low",
+          "enabled": true
+        },
+        "intent": "maintain_devices",
+        "conditionTree": {
+          "op": "and",
+          "children": []
+        },
+        "actions": [
+          {
+            "id": "refresh_battery_device",
+            "label": "Refresh device",
+            "action": "refresh",
+            "sourceRef": {
+              "integrationId": "{{integrationId}}",
+              "integrationKey": "{{integrationKey}}",
+              "configId": "{{configId}}",
+              "behaviorDeviceKey": "piphi_network_zigbee_device",
+              "optionKey": "refresh"
+            },
+            "target": {
+              "mode": "selection",
+              "configIds": [
+                "{{configId}}"
+              ]
+            }
+          }
+        ],
+        "safety": {
+          "staleDataMode": "allow",
+          "maxAgeSeconds": 3600,
+          "requireFreshTrigger": false,
+          "dryRunFirst": false
+        },
+        "failure": {
+          "strategy": "follow_edges",
+          "fallbackBehaviorId": "",
+          "conditionTree": {
+            "op": "and",
+            "children": []
+          }
+        },
+        "stop": {
+          "never": true
+        },
+        "override": {
+          "mode": "continue"
+        },
+        "execution": {
+          "failureStrategy": "follow_edges",
+          "fallbackBehaviorId": "",
+          "dispatchMode": "runtime"
+        },
+        "policies": {
+          "execution": {
+            "failureStrategy": "follow_edges",
+            "fallbackBehaviorId": "",
+            "dispatchMode": "runtime"
+          },
+          "freshness": {
+            "staleDataMode": "allow"
+          },
+          "manualOverride": {
+            "mode": "continue"
+          },
+          "cooldownSeconds": 3600
+        }
+      },
+      "metadata": {
+        "generated": true,
+        "recommended": true,
+        "deviceFamilies": [
+          "battery_sensor",
+          "maintenance"
+        ]
+      }
+    },
+    {
+      "id": "refresh_on_safety_alarm",
+      "label": "Check a Zigbee safety alarm",
+      "description": "Starts from leak, smoke, gas, carbon monoxide, or tamper alarms and refreshes the reporting device.",
+      "category": "Safety",
+      "deviceKey": "piphi_network_zigbee_device",
+      "config": {
+        "automation_schema_version": "automation.behavior.v2",
+        "triggers": [
+          {
+            "id": "safety_alarm",
+            "label": "Safety alarm",
+            "type": "integration_event",
+            "event": "device.state_changed",
+            "capability": "telemetry.alarm",
+            "enabled": true,
+            "sourceRef": {
+              "integrationId": "{{integrationId}}",
+              "integrationKey": "{{integrationKey}}",
+              "configId": "{{configId}}",
+              "behaviorDeviceKey": "piphi_network_zigbee_device",
+              "optionKey": "safety_alarm",
+              "capability": "telemetry.alarm"
+            }
+          }
+        ],
+        "trigger": {
+          "id": "safety_alarm",
+          "label": "Safety alarm",
+          "type": "integration_event",
+          "event": "device.state_changed",
+          "capability": "telemetry.alarm",
+          "enabled": true
+        },
+        "intent": "protect_home",
+        "conditionTree": {
+          "op": "and",
+          "children": []
+        },
+        "actions": [
+          {
+            "id": "refresh_alarm_device",
+            "label": "Refresh device",
+            "action": "refresh",
+            "sourceRef": {
+              "integrationId": "{{integrationId}}",
+              "integrationKey": "{{integrationKey}}",
+              "configId": "{{configId}}",
+              "behaviorDeviceKey": "piphi_network_zigbee_device",
+              "optionKey": "refresh"
+            },
+            "target": {
+              "mode": "selection",
+              "configIds": [
+                "{{configId}}"
+              ]
+            }
+          }
+        ],
+        "safety": {
+          "staleDataMode": "block",
+          "maxAgeSeconds": 300,
+          "requireFreshTrigger": true,
+          "dryRunFirst": false
+        },
+        "failure": {
+          "strategy": "follow_edges",
+          "fallbackBehaviorId": "",
+          "conditionTree": {
+            "op": "and",
+            "children": []
+          }
+        },
+        "stop": {
+          "never": true
+        },
+        "override": {
+          "mode": "continue"
+        },
+        "execution": {
+          "failureStrategy": "follow_edges",
+          "fallbackBehaviorId": "",
+          "dispatchMode": "runtime"
+        },
+        "policies": {
+          "execution": {
+            "failureStrategy": "follow_edges",
+            "fallbackBehaviorId": "",
+            "dispatchMode": "runtime"
+          },
+          "freshness": {
+            "staleDataMode": "block"
+          },
+          "manualOverride": {
+            "mode": "continue"
+          },
+          "cooldownSeconds": 30,
+          "delivery": {
+            "mode": "once_until_clear",
+            "minIntervalSeconds": 30
+          }
+        }
+      },
+      "metadata": {
+        "generated": true,
+        "recommended": true,
+        "deviceFamilies": [
+          "leak_sensor",
+          "smoke_sensor",
+          "gas_sensor",
+          "carbon_monoxide_sensor",
+          "tamper_sensor"
+        ]
+      }
+    }
+  ],
+  "devices": [
+    {
+      "id": "piphi_network_zigbee_device",
+      "name": "PiPhi Network Zigbee",
+      "description": "Automation metadata for Zigbee devices managed through Zigbee2MQTT exposes.",
+      "deviceClass": "smart_home_device",
+      "entityType": "zigbee_device",
+      "capabilities": [
+        "connected",
+        "availability",
+        "linkquality",
+        "action",
+        "temperature_c",
+        "humidity_percent",
+        "pressure_hpa",
+        "battery_percent",
+        "battery_low",
+        "voltage_v",
+        "current_a",
+        "power_w",
+        "energy_kwh",
+        "occupancy",
+        "contact_open",
+        "illuminance_lux",
+        "tamper",
+        "water_leak",
+        "smoke",
+        "gas",
+        "carbon_monoxide",
+        "state",
+        "brightness_percent",
+        "color_temperature_mired",
+        "position_percent",
+        "refresh",
+        "set_state",
+        "set_brightness",
+        "set_color_temperature"
+      ],
+      "runtime": {
+        "driver": "zigbee2mqtt",
+        "discovery": "zigbee2mqtt.exposes",
+        "stateSource": "mqtt",
+        "commandEndpoint": "/command"
+      },
+      "targeting": {
+        "scopes": [
+          "config",
+          "configs",
+          "room",
+          "rooms",
+          "group",
+          "groups",
+          "tag",
+          "tags",
+          "capability",
+          "selection",
+          "all_matching"
+        ],
+        "fanout": {
+          "supported": true,
+          "defaultMode": "selection",
+          "allowedModes": [
+            "config",
+            "configs",
+            "room",
+            "rooms",
+            "group",
+            "groups",
+            "tag",
+            "tags",
+            "capability",
+            "selection",
+            "all_matching"
+          ]
+        }
+      },
+      "freshness": {
+        "maxAgeSeconds": 300,
+        "staleDataMode": "block"
+      },
+      "ui": {
+        "icon": "network",
+        "category": "bridge",
+        "groups": [
+          {
+            "id": "environment",
+            "label": "Environment"
+          },
+          {
+            "id": "security",
+            "label": "Security"
+          },
+          {
+            "id": "lighting",
+            "label": "Lighting"
+          },
+          {
+            "id": "power",
+            "label": "Power"
+          },
+          {
+            "id": "maintenance",
+            "label": "Maintenance"
+          }
+        ]
+      },
+      "triggers": [
+        {
+          "id": "state_changed",
+          "label": "Device updates",
+          "description": "Start when this device reports any new state.",
+          "capability": "telemetry.state",
+          "runtime": {
+            "event": "device.state_changed",
+            "source": "integration"
+          },
+          "freshness": {
+            "maxAgeSeconds": 300,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "when"
+          }
+        },
+        {
+          "id": "availability_changed",
+          "label": "Availability changes",
+          "description": "Start when Zigbee2MQTT reports the device online or offline.",
+          "capability": "telemetry.availability",
+          "runtime": {
+            "event": "device.state_changed",
+            "source": "integration",
+            "fields": [
+              "availability"
+            ]
+          },
+          "freshness": {
+            "maxAgeSeconds": 900,
+            "staleDataMode": "allow"
+          },
+          "ui": {
+            "group": "maintenance"
+          }
+        },
+        {
+          "id": "motion_detected",
+          "label": "Motion detected",
+          "description": "Start when occupancy or presence becomes active.",
+          "capability": "telemetry.occupancy",
+          "runtime": {
+            "event": "device.state_changed",
+            "source": "integration",
+            "match": {
+              "field": "occupancy",
+              "equals": true
+            }
+          },
+          "freshness": {
+            "maxAgeSeconds": 120,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "motion"
+          }
+        },
+        {
+          "id": "motion_cleared",
+          "label": "Motion cleared",
+          "description": "Start when occupancy or presence becomes inactive.",
+          "capability": "telemetry.occupancy",
+          "runtime": {
+            "event": "device.state_changed",
+            "source": "integration",
+            "match": {
+              "field": "occupancy",
+              "equals": false
+            }
+          },
+          "freshness": {
+            "maxAgeSeconds": 300,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "motion"
+          }
+        },
+        {
+          "id": "contact_opened",
+          "label": "Contact opened",
+          "description": "Start when a door, window, or contact sensor opens.",
+          "capability": "telemetry.contact_open",
+          "runtime": {
+            "event": "device.state_changed",
+            "source": "integration",
+            "match": {
+              "field": "contact_open",
+              "equals": true
+            }
+          },
+          "freshness": {
+            "maxAgeSeconds": 300,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "security"
+          }
+        },
+        {
+          "id": "contact_closed",
+          "label": "Contact closed",
+          "description": "Start when a door, window, or contact sensor closes.",
+          "capability": "telemetry.contact_open",
+          "runtime": {
+            "event": "device.state_changed",
+            "source": "integration",
+            "match": {
+              "field": "contact_open",
+              "equals": false
+            }
+          },
+          "freshness": {
+            "maxAgeSeconds": 300,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "security"
+          }
+        },
+        {
+          "id": "button_action",
+          "label": "Button action",
+          "description": "Start when a remote, button, dimmer, or scene controller reports an action.",
+          "capability": "telemetry.action",
+          "runtime": {
+            "event": "device.state_changed",
+            "source": "integration",
+            "fields": [
+              "action"
+            ]
+          },
+          "freshness": {
+            "maxAgeSeconds": 60,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "button"
+          }
+        },
+        {
+          "id": "environment_changed",
+          "label": "Environment changed",
+          "description": "Start when temperature, humidity, pressure, or illuminance changes.",
+          "capability": "telemetry.environment",
+          "runtime": {
+            "event": "device.state_changed",
+            "source": "integration",
+            "fields": [
+              "temperature_c",
+              "humidity_percent",
+              "pressure_hpa",
+              "illuminance_lux"
+            ]
+          },
+          "freshness": {
+            "maxAgeSeconds": 900,
+            "staleDataMode": "allow"
+          },
+          "ui": {
+            "group": "environment"
+          }
+        },
+        {
+          "id": "power_changed",
+          "label": "Power changed",
+          "description": "Start when power, current, voltage, or energy readings change.",
+          "capability": "telemetry.power",
+          "runtime": {
+            "event": "device.state_changed",
+            "source": "integration",
+            "fields": [
+              "power_w",
+              "current_a",
+              "voltage_v",
+              "energy_kwh"
+            ]
+          },
+          "freshness": {
+            "maxAgeSeconds": 900,
+            "staleDataMode": "allow"
+          },
+          "ui": {
+            "group": "power"
+          }
+        },
+        {
+          "id": "position_changed",
+          "label": "Position changed",
+          "description": "Start when a cover, shade, valve, or similar position-capable device reports a new position.",
+          "capability": "telemetry.position_percent",
+          "runtime": {
+            "event": "device.state_changed",
+            "source": "integration",
+            "fields": [
+              "position_percent"
+            ]
+          },
+          "freshness": {
+            "maxAgeSeconds": 300,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "position"
+          }
+        },
+        {
+          "id": "battery_low",
+          "label": "Battery low",
+          "description": "Start when a battery device reports low battery.",
+          "capability": "telemetry.battery_low",
+          "runtime": {
+            "event": "device.state_changed",
+            "source": "integration",
+            "match": {
+              "field": "battery_low",
+              "equals": true
+            }
+          },
+          "freshness": {
+            "maxAgeSeconds": 3600,
+            "staleDataMode": "allow"
+          },
+          "ui": {
+            "group": "maintenance"
+          }
+        },
+        {
+          "id": "safety_alarm",
+          "label": "Safety alarm",
+          "description": "Start when leak, smoke, gas, carbon monoxide, or tamper alarm data changes.",
+          "capability": "telemetry.alarm",
+          "runtime": {
+            "event": "device.state_changed",
+            "source": "integration",
+            "fields": [
+              "water_leak",
+              "smoke",
+              "gas",
+              "carbon_monoxide",
+              "tamper"
+            ]
+          },
+          "freshness": {
+            "maxAgeSeconds": 300,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "safety"
+          }
+        }
+      ],
+      "intents": [
+        {
+          "id": "monitor_state",
+          "label": "Monitor this Zigbee device",
+          "description": "React to state, availability, battery, and diagnostic updates."
+        },
+        {
+          "id": "control_device",
+          "label": "Control Zigbee devices",
+          "description": "Send supported Zigbee2MQTT set commands to switches, plugs, dimmers, and lights."
+        },
+        {
+          "id": "protect_home",
+          "label": "Protect the home",
+          "description": "Build automations around contact, leak, smoke, gas, carbon monoxide, and tamper sensors."
+        },
+        {
+          "id": "save_energy",
+          "label": "Save energy",
+          "description": "React to metering, power, occupancy, and illuminance data."
+        },
+        {
+          "id": "react_to_buttons",
+          "label": "React to buttons and remotes",
+          "description": "Use action events from buttons, dimmers, remotes, and scene controllers."
+        },
+        {
+          "id": "maintain_devices",
+          "label": "Maintain Zigbee devices",
+          "description": "Keep battery, availability, and link quality visible."
+        }
+      ],
+      "conditions": [
+        {
+          "id": "state_matches",
+          "label": "State matches",
+          "description": "Only run when a reported text state value matches what you choose.",
+          "type": "text",
+          "capability": "telemetry.state",
+          "operators": [
+            "eq",
+            "neq",
+            "contains"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "state",
+            "operator": "eq"
+          },
+          "freshness": {
+            "maxAgeSeconds": 300,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "only_if"
+          },
+          "params": [
+            {
+              "name": "field",
+              "label": "State field",
+              "type": "text",
+              "required": true,
+              "placeholder": "state"
+            },
+            {
+              "name": "value",
+              "label": "Value",
+              "type": "text",
+              "required": true,
+              "placeholder": "ON"
+            }
+          ]
+        },
+        {
+          "id": "boolean_is",
+          "label": "Boolean value is",
+          "description": "Only run when a true or false Zigbee value matches.",
+          "type": "boolean",
+          "capability": "telemetry.boolean",
+          "operators": [
+            "eq",
+            "neq"
+          ],
+          "runtime": {
+            "source": "state",
+            "operator": "eq"
+          },
+          "freshness": {
+            "maxAgeSeconds": 300,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "only_if"
+          },
+          "params": [
+            {
+              "name": "field",
+              "label": "Field",
+              "type": "enum",
+              "required": true,
+              "options": [
+                "availability",
+                "state",
+                "occupancy",
+                "contact_open",
+                "battery_low",
+                "tamper",
+                "water_leak",
+                "smoke",
+                "gas",
+                "carbon_monoxide"
+              ]
+            },
+            {
+              "name": "value",
+              "label": "Value",
+              "type": "boolean",
+              "required": true,
+              "default": true
+            }
+          ]
+        },
+        {
+          "id": "number_compare",
+          "label": "Number compares",
+          "description": "Only run when a numeric Zigbee value crosses a threshold.",
+          "type": "number",
+          "capability": "telemetry.numeric",
+          "operators": [
+            "lt",
+            "lte",
+            "eq",
+            "gte",
+            "gt"
+          ],
+          "runtime": {
+            "source": "state",
+            "operator": "gte"
+          },
+          "freshness": {
+            "maxAgeSeconds": 900,
+            "staleDataMode": "allow"
+          },
+          "ui": {
+            "group": "only_if"
+          },
+          "params": [
+            {
+              "name": "field",
+              "label": "Field",
+              "type": "enum",
+              "required": true,
+              "options": [
+                "temperature_c",
+                "humidity_percent",
+                "pressure_hpa",
+                "illuminance_lux",
+                "battery_percent",
+                "linkquality",
+                "power_w",
+                "energy_kwh",
+                "voltage_v",
+                "current_a",
+                "position_percent"
+              ]
+            },
+            {
+              "name": "operator",
+              "label": "Operator",
+              "type": "enum",
+              "required": true,
+              "default": "gte",
+              "options": [
+                "lt",
+                "lte",
+                "eq",
+                "gte",
+                "gt"
+              ]
+            },
+            {
+              "name": "value",
+              "label": "Value",
+              "type": "number",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "action_matches",
+          "label": "Button action matches",
+          "description": "Only run for a specific Zigbee button, remote, dimmer, or scene action.",
+          "type": "text",
+          "capability": "telemetry.action",
+          "operators": [
+            "eq",
+            "contains"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "action",
+            "operator": "eq"
+          },
+          "freshness": {
+            "maxAgeSeconds": 60,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "only_if"
+          },
+          "params": [
+            {
+              "name": "action",
+              "label": "Action",
+              "type": "text",
+              "required": true,
+              "placeholder": "single"
+            }
+          ]
+        },
+        {
+          "id": "device_available",
+          "label": "Device is available",
+          "description": "Only run when the device is online according to Zigbee2MQTT.",
+          "type": "boolean",
+          "capability": "telemetry.availability",
+          "operators": [
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "availability",
+            "operator": "eq"
+          },
+          "freshness": {
+            "maxAgeSeconds": 900,
+            "staleDataMode": "allow"
+          },
+          "ui": {
+            "group": "only_if"
+          },
+          "params": [
+            {
+              "name": "available",
+              "label": "Available",
+              "type": "boolean",
+              "required": true,
+              "default": true
+            }
+          ]
+        },
+        {
+          "id": "safety_clear",
+          "label": "Safety sensors are clear",
+          "description": "Only run when alarm-style safety values are false.",
+          "type": "boolean",
+          "capability": "telemetry.alarm",
+          "operators": [
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "operator": "eq",
+            "fields": [
+              "water_leak",
+              "smoke",
+              "gas",
+              "carbon_monoxide",
+              "tamper"
+            ]
+          },
+          "freshness": {
+            "maxAgeSeconds": 300,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "only_if"
+          },
+          "params": [
+            {
+              "name": "clear",
+              "label": "Clear",
+              "type": "boolean",
+              "required": true,
+              "default": true
+            }
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "id": "refresh",
+          "label": "Refresh",
+          "description": "Ask the Zigbee runtime for the latest state from the selected device.",
+          "capability": "device.refresh",
+          "capabilityRequirements": [
+            "device.refresh"
+          ],
+          "runtime": {
+            "command": "refresh",
+            "endpoint": "/command",
+            "method": "POST",
+            "timeoutSeconds": 30
+          },
+          "safety": {
+            "riskLevel": "low",
+            "requiresConfirmation": false,
+            "liveRunAllowed": true
+          },
+          "targeting": {
+            "fanoutSafe": true,
+            "supportsMultiTarget": true,
+            "scopes": [
+              "config",
+              "configs",
+              "room",
+              "rooms",
+              "group",
+              "groups",
+              "tag",
+              "tags",
+              "capability",
+              "selection",
+              "all_matching"
+            ]
+          },
+          "failure": {
+            "strategy": "retry_then_continue",
+            "retry": {
+              "maxAttempts": 1,
+              "delaySeconds": 2,
+              "backoff": "fixed"
+            },
+            "timeoutSeconds": 30,
+            "continueOnPartialFailure": true,
+            "idempotent": true
+          },
+          "ui": {
+            "group": "do_this"
+          }
+        },
+        {
+          "id": "set_state",
+          "label": "Set state",
+          "description": "Set an on/off style Zigbee device state.",
+          "capability": "action.set_state",
+          "capabilityRequirements": [
+            "action.set_state"
+          ],
+          "params": [
+            {
+              "name": "state",
+              "label": "State",
+              "type": "enum",
+              "required": true,
+              "default": "ON",
+              "options": [
+                "ON",
+                "OFF",
+                "TOGGLE"
+              ]
+            }
+          ],
+          "runtime": {
+            "command": "set_state",
+            "endpoint": "/command",
+            "method": "POST",
+            "timeoutSeconds": 30
+          },
+          "safety": {
+            "riskLevel": "medium",
+            "requiresConfirmation": false,
+            "liveRunAllowed": true
+          },
+          "targeting": {
+            "fanoutSafe": true,
+            "supportsMultiTarget": true,
+            "scopes": [
+              "config",
+              "configs",
+              "room",
+              "rooms",
+              "group",
+              "groups",
+              "tag",
+              "tags",
+              "capability",
+              "selection",
+              "all_matching"
+            ]
+          },
+          "failure": {
+            "strategy": "retry_then_continue",
+            "retry": {
+              "maxAttempts": 1,
+              "delaySeconds": 2,
+              "backoff": "fixed"
+            },
+            "timeoutSeconds": 30,
+            "continueOnPartialFailure": true,
+            "idempotent": true
+          },
+          "ui": {
+            "group": "do_this"
+          }
+        },
+        {
+          "id": "set_brightness",
+          "label": "Set brightness",
+          "description": "Set a brightness percentage on Zigbee lights and dimmers.",
+          "capability": "action.set_brightness",
+          "capabilityRequirements": [
+            "action.set_brightness"
+          ],
+          "params": [
+            {
+              "name": "brightness_percent",
+              "label": "Brightness",
+              "type": "number",
+              "required": true,
+              "default": 75,
+              "min": 0,
+              "max": 100,
+              "step": 1,
+              "unit": "%"
+            }
+          ],
+          "runtime": {
+            "command": "set_brightness",
+            "endpoint": "/command",
+            "method": "POST",
+            "timeoutSeconds": 30
+          },
+          "safety": {
+            "riskLevel": "medium",
+            "requiresConfirmation": false,
+            "liveRunAllowed": true
+          },
+          "targeting": {
+            "fanoutSafe": true,
+            "supportsMultiTarget": true,
+            "scopes": [
+              "config",
+              "configs",
+              "room",
+              "rooms",
+              "group",
+              "groups",
+              "tag",
+              "tags",
+              "capability",
+              "selection",
+              "all_matching"
+            ]
+          },
+          "failure": {
+            "strategy": "retry_then_continue",
+            "retry": {
+              "maxAttempts": 1,
+              "delaySeconds": 2,
+              "backoff": "fixed"
+            },
+            "timeoutSeconds": 30,
+            "continueOnPartialFailure": true,
+            "idempotent": true
+          },
+          "ui": {
+            "group": "lighting"
+          }
+        },
+        {
+          "id": "set_color_temperature",
+          "label": "Set color temperature",
+          "description": "Set color temperature in mireds on compatible Zigbee lights.",
+          "capability": "action.set_color_temperature",
+          "capabilityRequirements": [
+            "action.set_color_temperature"
+          ],
+          "params": [
+            {
+              "name": "color_temperature_mired",
+              "label": "Color temperature",
+              "type": "number",
+              "required": true,
+              "default": 250,
+              "min": 150,
+              "max": 500,
+              "step": 1,
+              "unit": "mired"
+            }
+          ],
+          "runtime": {
+            "command": "set_color_temperature",
+            "endpoint": "/command",
+            "method": "POST",
+            "timeoutSeconds": 30
+          },
+          "safety": {
+            "riskLevel": "medium",
+            "requiresConfirmation": false,
+            "liveRunAllowed": true
+          },
+          "targeting": {
+            "fanoutSafe": true,
+            "supportsMultiTarget": true,
+            "scopes": [
+              "config",
+              "configs",
+              "room",
+              "rooms",
+              "group",
+              "groups",
+              "tag",
+              "tags",
+              "capability",
+              "selection",
+              "all_matching"
+            ]
+          },
+          "failure": {
+            "strategy": "retry_then_continue",
+            "retry": {
+              "maxAttempts": 1,
+              "delaySeconds": 2,
+              "backoff": "fixed"
+            },
+            "timeoutSeconds": 30,
+            "continueOnPartialFailure": true,
+            "idempotent": true
+          },
+          "ui": {
+            "group": "lighting"
+          }
+        }
+      ],
+      "stop": [
+        {
+          "id": "after_duration",
+          "label": "After a set time",
+          "type": "duration",
+          "params": [
+            {
+              "name": "duration",
+              "label": "How long",
+              "type": "duration",
+              "default": "30m",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "when_state_clears",
+          "label": "When state clears",
+          "type": "boolean",
+          "params": [
+            {
+              "name": "field",
+              "label": "Field",
+              "type": "enum",
+              "required": true,
+              "options": [
+                "occupancy",
+                "contact_open",
+                "water_leak",
+                "smoke",
+                "gas",
+                "carbon_monoxide",
+                "tamper"
+              ]
+            }
+          ]
+        }
+      ],
+      "manualOverride": [
+        {
+          "id": "continue",
+          "label": "Keep running"
+        },
+        {
+          "id": "pause",
+          "label": "Pause",
+          "params": [
+            {
+              "name": "duration",
+              "label": "Pause time",
+              "type": "duration",
+              "default": "30m",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "skip_while_unavailable",
+          "label": "Skip while device is unavailable",
+          "description": "Avoid running this behavior when Zigbee2MQTT marks the device unavailable."
+        }
+      ],
+      "metadata": {
+        "compatibilitySource": "https://www.zigbee2mqtt.io/supported-devices/",
+        "capabilityModel": "zigbee2mqtt.exposes",
+        "supportedFamilies": [
+          "lights",
+          "switches",
+          "plugs",
+          "dimmers",
+          "remotes",
+          "scene_controllers",
+          "motion_sensors",
+          "presence_sensors",
+          "contact_sensors",
+          "temperature_sensors",
+          "humidity_sensors",
+          "illuminance_sensors",
+          "pressure_sensors",
+          "leak_sensors",
+          "smoke_sensors",
+          "gas_sensors",
+          "carbon_monoxide_sensors",
+          "tamper_sensors",
+          "power_meters",
+          "covers",
+          "shades",
+          "blinds",
+          "valves"
+        ],
+        "knownZigbee2mqttFamilies": [
+          "lights",
+          "switches",
+          "plugs",
+          "dimmers",
+          "remotes",
+          "scene_controllers",
+          "motion_sensors",
+          "presence_sensors",
+          "contact_sensors",
+          "environment_sensors",
+          "safety_sensors",
+          "power_meters",
+          "covers",
+          "shades",
+          "blinds",
+          "valves",
+          "locks",
+          "fans",
+          "climate",
+          "thermostats",
+          "ir_remotes",
+          "sirens",
+          "custom_exposes"
+        ],
+        "runtimeActionCoverage": {
+          "implementedCommands": [
+            "refresh",
+            "set_state",
+            "set_brightness",
+            "set_color_temperature"
+          ],
+          "readOnlyUntilRuntimeCommandsExist": [
+            "lock_unlock",
+            "cover_position",
+            "fan_mode",
+            "climate_mode",
+            "temperature_setpoint",
+            "color_xy",
+            "color_hs",
+            "effect",
+            "siren",
+            "device_specific_write"
+          ]
+        },
+        "notes": [
+          "Device support is derived from Zigbee2MQTT exposes instead of per-model behavior entries.",
+          "This catalog only advertises runtime actions currently implemented by the PiPhi Zigbee integration."
+        ]
+      }
+    }
+  ],
+  "telemetry": {
+    "capabilityMappings": [
+      {
+        "nativeMetric": "availability",
+        "capability": "sensor.availability"
+      },
+      {
+        "nativeMetric": "battery_low",
+        "capability": "sensor.battery_low"
+      },
+      {
+        "nativeMetric": "battery_percent",
+        "capability": "sensor.battery_percent"
+      },
+      {
+        "nativeMetric": "brightness_percent",
+        "capability": "sensor.brightness_percent"
+      },
+      {
+        "nativeMetric": "carbon_monoxide",
+        "capability": "sensor.carbon_monoxide"
+      },
+      {
+        "nativeMetric": "color_temperature_mired",
+        "capability": "sensor.color_temperature_mired"
+      },
+      {
+        "nativeMetric": "connected",
+        "capability": "sensor.connected"
+      },
+      {
+        "nativeMetric": "contact_open",
+        "capability": "sensor.contact_open"
+      },
+      {
+        "nativeMetric": "current_a",
+        "capability": "sensor.current_a"
+      },
+      {
+        "nativeMetric": "energy_kwh",
+        "capability": "sensor.energy_kwh"
+      },
+      {
+        "nativeMetric": "gas",
+        "capability": "sensor.gas"
+      },
+      {
+        "nativeMetric": "humidity_percent",
+        "capability": "sensor.humidity_percent"
+      },
+      {
+        "nativeMetric": "illuminance_lux",
+        "capability": "sensor.illuminance_lux"
+      },
+      {
+        "nativeMetric": "linkquality",
+        "capability": "sensor.linkquality"
+      },
+      {
+        "nativeMetric": "occupancy",
+        "capability": "sensor.occupancy"
+      },
+      {
+        "nativeMetric": "position_percent",
+        "capability": "sensor.position_percent"
+      },
+      {
+        "nativeMetric": "power_w",
+        "capability": "sensor.power_w"
+      },
+      {
+        "nativeMetric": "pressure_hpa",
+        "capability": "sensor.pressure_hpa"
+      },
+      {
+        "nativeMetric": "smoke",
+        "capability": "sensor.smoke"
+      },
+      {
+        "nativeMetric": "state",
+        "capability": "sensor.state"
+      },
+      {
+        "nativeMetric": "tamper",
+        "capability": "sensor.tamper"
+      },
+      {
+        "nativeMetric": "temperature_c",
+        "capability": "sensor.temperature_c"
+      },
+      {
+        "nativeMetric": "voltage_v",
+        "capability": "sensor.voltage_v"
+      },
+      {
+        "nativeMetric": "water_leak",
+        "capability": "sensor.water_leak"
+      }
+    ]
+  }
+}

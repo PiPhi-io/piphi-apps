@@ -1,0 +1,11 @@
+{
+  "id": "living-room-motion",
+  "friendly_name": "living_room_motion",
+  "ieee_address": "0x00158d0000000000",
+  "alias": "Living Room Motion",
+  "model_id": "RTCGQ11LM",
+  "vendor": "Aqara",
+  "mqtt_base_topic": "zigbee2mqtt",
+  "sidecar_base_url": "http://127.0.0.1:8720",
+  "capabilities": ["connected", "availability", "occupancy", "battery_percent", "linkquality", "refresh"]
+}

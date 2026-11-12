@@ -1,0 +1,64 @@
+{
+  "entities": [
+    {
+      "id": "0x00158d0000000000",
+      "name": "Living Room Motion",
+      "device_id": "0x00158d0000000000",
+      "entity_type": "zigbee_device",
+      "capabilities": [
+        "connected",
+        "availability",
+        "occupancy",
+        "battery_percent",
+        "linkquality",
+        "refresh"
+      ],
+      "available_commands": [
+        {
+          "id": "refresh",
+          "label": "Refresh",
+          "kind": "action"
+        }
+      ],
+      "dashboard": {
+        "allowed_widgets": [
+          "tile",
+          "stat",
+          "button"
+        ],
+        "default_widget": "tile"
+      }
+    }
+  ],
+  "capabilities": {
+    "connected": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "availability": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "linkquality": {
+      "kind": "sensor",
+      "unit": "lqi"
+    },
+    "occupancy": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "battery_percent": {
+      "kind": "sensor",
+      "unit": "%"
+    },
+    "refresh": {
+      "kind": "action"
+    }
+  },
+  "commands": {
+    "refresh": {
+      "description": "Refresh the device state.",
+      "timeout_ms": 5000
+    }
+  }
+}

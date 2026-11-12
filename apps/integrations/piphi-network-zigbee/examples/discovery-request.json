@@ -1,0 +1,18 @@
+{
+  "inputs": {
+    "sidecar_base_url": "http://127.0.0.1:8720",
+    "device": {
+      "friendly_name": "living_room_motion",
+      "ieee_address": "0x00158d0000000000",
+      "definition": {
+        "model": "RTCGQ11LM",
+        "vendor": "Aqara",
+        "exposes": [
+          {"property": "occupancy"},
+          {"property": "battery"},
+          {"property": "linkquality"}
+        ]
+      }
+    }
+  }
+}
