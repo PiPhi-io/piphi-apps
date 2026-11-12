@@ -1,0 +1,734 @@
+{
+  "devices": [
+    {
+      "id": "kaiterra_device",
+      "name": "Kaiterra air monitor",
+      "description": "Kaiterra air quality readings and safe cloud refresh controls.",
+      "deviceClass": "air_quality_monitor",
+      "entityType": "sensor",
+      "capabilities": [
+        "connected",
+        "temperature_c",
+        "api_rate_limit_remaining",
+        "api_latency_ms",
+        "co2_ppm",
+        "humidity_percent",
+        "pm1_ug_m3",
+        "pm25_ug_m3",
+        "pm10_ug_m3",
+        "tvoc_ppb",
+        "ozone_ppb",
+        "refresh",
+        "sync_cloud"
+      ],
+      "intents": [
+        {
+          "id": "monitor_air_quality",
+          "label": "Watch air quality",
+          "description": "Use Kaiterra readings to start automations when the air changes."
+        },
+        {
+          "id": "keep_cloud_readings_current",
+          "label": "Keep readings current",
+          "description": "Refresh one saved monitor or sync every Kaiterra monitor from the cloud."
+        }
+      ],
+      "conditions": [
+        {
+          "id": "connected",
+          "label": "Monitor is connected",
+          "type": "boolean",
+          "capability": "sensor.connected",
+          "operators": [
+            "eq",
+            "neq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "connected",
+            "operator": "eq"
+          },
+          "freshness": {
+            "maxAgeSeconds": 600,
+            "staleDataMode": "warn"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "temperature_above",
+          "label": "Temperature",
+          "type": "number",
+          "params": [
+            {
+              "name": "celsius",
+              "label": "Temperature threshold",
+              "type": "number",
+              "min": -20,
+              "max": 60,
+              "default": 27,
+              "step": 0.5,
+              "unit": "C",
+              "required": true
+            }
+          ],
+          "capability": "sensor.temperature_c",
+          "operators": [
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "temperature_c",
+            "operator": ">"
+          },
+          "freshness": {
+            "maxAgeSeconds": 600,
+            "staleDataMode": "warn"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "co2_above",
+          "label": "CO2 level",
+          "type": "number",
+          "params": [
+            {
+              "name": "ppm",
+              "label": "CO2 threshold",
+              "type": "number",
+              "min": 400,
+              "max": 5000,
+              "default": 1000,
+              "step": 50,
+              "unit": "ppm",
+              "required": true
+            }
+          ],
+          "capability": "sensor.co2_ppm",
+          "operators": [
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "co2_ppm",
+            "operator": ">"
+          },
+          "freshness": {
+            "maxAgeSeconds": 600,
+            "staleDataMode": "warn"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "humidity_outside_range",
+          "label": "Humidity",
+          "type": "number",
+          "params": [
+            {
+              "name": "min_percent",
+              "label": "Minimum humidity",
+              "type": "number",
+              "min": 0,
+              "max": 100,
+              "default": 35,
+              "step": 1,
+              "unit": "%",
+              "required": true
+            },
+            {
+              "name": "max_percent",
+              "label": "Maximum humidity",
+              "type": "number",
+              "min": 0,
+              "max": 100,
+              "default": 55,
+              "step": 1,
+              "unit": "%",
+              "required": true
+            }
+          ],
+          "capability": "sensor.humidity_percent",
+          "operators": [
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "humidity_percent",
+            "operator": ">"
+          },
+          "freshness": {
+            "maxAgeSeconds": 600,
+            "staleDataMode": "warn"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "pm1_above",
+          "label": "PM1",
+          "type": "number",
+          "params": [
+            {
+              "name": "ug_m3",
+              "label": "PM1 threshold",
+              "type": "number",
+              "min": 0,
+              "max": 1000,
+              "default": 20,
+              "step": 1,
+              "unit": "ug/m3",
+              "required": true
+            }
+          ],
+          "capability": "sensor.pm1_ug_m3",
+          "operators": [
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "pm1_ug_m3",
+            "operator": ">"
+          },
+          "freshness": {
+            "maxAgeSeconds": 600,
+            "staleDataMode": "warn"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "pm25_above",
+          "label": "PM2.5",
+          "type": "number",
+          "params": [
+            {
+              "name": "ug_m3",
+              "label": "PM2.5 threshold",
+              "type": "number",
+              "min": 0,
+              "max": 1000,
+              "default": 35,
+              "step": 1,
+              "unit": "ug/m3",
+              "required": true
+            }
+          ],
+          "capability": "sensor.pm25_ug_m3",
+          "operators": [
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "pm25_ug_m3",
+            "operator": ">"
+          },
+          "freshness": {
+            "maxAgeSeconds": 600,
+            "staleDataMode": "warn"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "pm10_above",
+          "label": "PM10",
+          "type": "number",
+          "params": [
+            {
+              "name": "ug_m3",
+              "label": "PM10 threshold",
+              "type": "number",
+              "min": 0,
+              "max": 2000,
+              "default": 100,
+              "step": 1,
+              "unit": "ug/m3",
+              "required": true
+            }
+          ],
+          "capability": "sensor.pm10_ug_m3",
+          "operators": [
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "pm10_ug_m3",
+            "operator": ">"
+          },
+          "freshness": {
+            "maxAgeSeconds": 600,
+            "staleDataMode": "warn"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "tvoc_above",
+          "label": "TVOC",
+          "type": "number",
+          "params": [
+            {
+              "name": "ppb",
+              "label": "TVOC threshold",
+              "type": "number",
+              "min": 0,
+              "max": 50000,
+              "default": 500,
+              "step": 10,
+              "unit": "ppb",
+              "required": true
+            }
+          ],
+          "capability": "sensor.tvoc_ppb",
+          "operators": [
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "tvoc_ppb",
+            "operator": ">"
+          },
+          "freshness": {
+            "maxAgeSeconds": 600,
+            "staleDataMode": "warn"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "ozone_above",
+          "label": "Ozone",
+          "type": "number",
+          "params": [
+            {
+              "name": "ppb",
+              "label": "Ozone threshold",
+              "type": "number",
+              "min": 0,
+              "max": 1000,
+              "default": 70,
+              "step": 1,
+              "unit": "ppb",
+              "required": true
+            }
+          ],
+          "capability": "sensor.ozone_ppb",
+          "operators": [
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "ozone_ppb",
+            "operator": ">"
+          },
+          "freshness": {
+            "maxAgeSeconds": 600,
+            "staleDataMode": "warn"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "api_rate_limit_below",
+          "label": "API requests remaining",
+          "type": "number",
+          "params": [
+            {
+              "name": "requests",
+              "label": "Requests remaining threshold",
+              "type": "number",
+              "min": 0,
+              "max": 100000,
+              "default": 50,
+              "step": 1,
+              "unit": "requests",
+              "required": true
+            }
+          ],
+          "capability": "sensor.api_rate_limit_remaining",
+          "operators": [
+            "<",
+            "<=",
+            ">",
+            ">=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "api_rate_limit_remaining",
+            "operator": "<"
+          },
+          "freshness": {
+            "maxAgeSeconds": 600,
+            "staleDataMode": "warn"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "api_latency_above",
+          "label": "API response time",
+          "type": "number",
+          "params": [
+            {
+              "name": "milliseconds",
+              "label": "Response time threshold",
+              "type": "number",
+              "min": 0,
+              "max": 60000,
+              "default": 2000,
+              "step": 100,
+              "unit": "ms",
+              "required": true
+            }
+          ],
+          "capability": "sensor.api_latency_ms",
+          "operators": [
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "api_latency_ms",
+            "operator": ">"
+          },
+          "freshness": {
+            "maxAgeSeconds": 600,
+            "staleDataMode": "warn"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        }
+      ],
+      "actions": [
+        {
+          "id": "refresh",
+          "label": "Refresh this monitor",
+          "description": "Ask Kaiterra for the latest readings for one saved monitor.",
+          "capability": "action.refresh",
+          "runtime": {
+            "command": "refresh"
+          },
+          "targeting": {
+            "modes": [
+              "picked_devices",
+              "by_integration"
+            ],
+            "minTargets": 1,
+            "maxTargets": 1
+          },
+          "failure": {
+            "strategy": "retry_then_continue",
+            "retry": {
+              "maxAttempts": 2,
+              "delaySeconds": 5,
+              "timeoutSeconds": 5,
+              "backoff": "fixed"
+            }
+          },
+          "ui": {
+            "group": "do_this"
+          },
+          "safety": {
+            "riskLevel": "low"
+          }
+        },
+        {
+          "id": "sync_cloud",
+          "label": "Sync all Kaiterra monitors",
+          "description": "Refresh all saved Kaiterra monitors from the cloud.",
+          "capability": "action.sync_cloud",
+          "runtime": {
+            "command": "sync_cloud"
+          },
+          "targeting": {
+            "modes": [
+              "by_integration"
+            ],
+            "minTargets": 0,
+            "maxTargets": 0
+          },
+          "failure": {
+            "strategy": "retry_then_continue",
+            "retry": {
+              "maxAttempts": 2,
+              "delaySeconds": 10,
+              "timeoutSeconds": 15,
+              "backoff": "fixed"
+            }
+          },
+          "ui": {
+            "group": "do_this"
+          },
+          "safety": {
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "targeting": {
+        "modes": [
+          "picked_devices",
+          "by_integration"
+        ],
+        "supportsGroups": false,
+        "supportsRooms": false
+      },
+      "freshness": {
+        "maxAgeSeconds": 600,
+        "staleDataMode": "warn"
+      },
+      "ui": {
+        "icon": "wind",
+        "accent": "air_quality",
+        "defaultListLabel": "Kaiterra monitors"
+      },
+      "triggers": [
+        {
+          "id": "state_changed",
+          "label": "Air reading changes",
+          "description": "Start when this Kaiterra monitor reports a new reading.",
+          "capability": "telemetry.state",
+          "runtime": {
+            "event": "device.state_changed",
+            "source": "integration"
+          },
+          "freshness": {
+            "maxAgeSeconds": 600,
+            "staleDataMode": "warn"
+          },
+          "ui": {
+            "group": "when"
+          }
+        }
+      ]
+    }
+  ],
+  "templates": [
+    {
+      "id": "kaiterra_high_co2_refresh",
+      "label": "Refresh Kaiterra when CO2 is high",
+      "description": "When a saved Kaiterra monitor reports high CO2, refresh that monitor so PiPhi has the latest reading.",
+      "category": "Air quality",
+      "deviceKey": "kaiterra_device",
+      "config": {
+        "automation_schema_version": "automation.behavior.v2",
+        "triggers": [
+          {
+            "id": "state_changed",
+            "label": "Kaiterra reading changes",
+            "type": "integration_event",
+            "event": "device.state_changed",
+            "capability": "telemetry.state",
+            "enabled": true,
+            "sourceRef": {
+              "integrationId": "{{integrationId}}",
+              "integrationKey": "{{integrationKey}}",
+              "configId": "{{configId}}",
+              "behaviorDeviceKey": "kaiterra_device",
+              "optionKey": "state_changed",
+              "capability": "telemetry.state"
+            }
+          }
+        ],
+        "trigger": {
+          "id": "state_changed",
+          "label": "Kaiterra reading changes",
+          "type": "integration_event",
+          "event": "device.state_changed",
+          "capability": "telemetry.state",
+          "enabled": true,
+          "sourceRef": {
+            "integrationId": "{{integrationId}}",
+            "integrationKey": "{{integrationKey}}",
+            "configId": "{{configId}}",
+            "behaviorDeviceKey": "kaiterra_device",
+            "optionKey": "state_changed",
+            "capability": "telemetry.state"
+          }
+        },
+        "intent": "monitor_air_quality",
+        "conditionTree": {
+          "id": "co2_above_template",
+          "label": "CO2 is above 1000 ppm",
+          "field": "co2_ppm",
+          "operator": ">",
+          "value": 1000,
+          "sourceRef": {
+            "integrationId": "{{integrationId}}",
+            "integrationKey": "{{integrationKey}}",
+            "configId": "{{configId}}",
+            "behaviorDeviceKey": "kaiterra_device",
+            "optionKey": "co2_above",
+            "capability": "sensor.co2_ppm"
+          }
+        },
+        "conditions": {
+          "integrationCondition": {
+            "id": "co2_above",
+            "params": {
+              "ppm": 1000
+            }
+          }
+        },
+        "actions": [
+          {
+            "id": "refresh",
+            "label": "Refresh this monitor",
+            "action": "command",
+            "capability": "action.refresh",
+            "sourceRef": {
+              "integrationId": "{{integrationId}}",
+              "integrationKey": "{{integrationKey}}",
+              "configId": "{{configId}}",
+              "behaviorDeviceKey": "kaiterra_device",
+              "optionKey": "refresh",
+              "capability": "action.refresh"
+            },
+            "target": {
+              "mode": "selection",
+              "configIds": [
+                "{{configId}}"
+              ]
+            },
+            "parameters": {},
+            "failure": {
+              "strategy": "retry_then_continue",
+              "retry": {
+                "maxAttempts": 2,
+                "delaySeconds": 5,
+                "timeoutSeconds": 5,
+                "backoff": "fixed"
+              },
+              "continueOnPartialFailure": true
+            }
+          }
+        ],
+        "safety": {
+          "staleDataMode": "warn",
+          "maxAgeSeconds": 600,
+          "requireFreshTrigger": false,
+          "dryRunFirst": false
+        },
+        "failure": {
+          "strategy": "follow_edges",
+          "fallbackBehaviorId": "",
+          "conditionTree": {
+            "op": "and",
+            "children": []
+          }
+        },
+        "stop": {
+          "never": true
+        },
+        "override": {
+          "mode": "continue"
+        }
+      },
+      "ui": {
+        "accent": "air_quality",
+        "icon": "wind"
+      },
+      "metadata": {
+        "recommended": true,
+        "difficulty": "easy"
+      }
+    }
+  ],
+  "behaviorSchemaVersion": "integration.behaviors.v2",
+  "telemetry": {
+    "capabilityMappings": [
+      {
+        "nativeMetric": "api_latency_ms",
+        "capability": "sensor.api_latency_ms"
+      },
+      {
+        "nativeMetric": "api_rate_limit_remaining",
+        "capability": "sensor.api_rate_limit_remaining"
+      },
+      {
+        "nativeMetric": "co2_ppm",
+        "capability": "sensor.co2_ppm"
+      },
+      {
+        "nativeMetric": "connected",
+        "capability": "sensor.connected"
+      },
+      {
+        "nativeMetric": "humidity_percent",
+        "capability": "sensor.humidity_percent"
+      },
+      {
+        "nativeMetric": "ozone_ppb",
+        "capability": "sensor.ozone_ppb"
+      },
+      {
+        "nativeMetric": "pm10_ug_m3",
+        "capability": "sensor.pm10_ug_m3"
+      },
+      {
+        "nativeMetric": "pm1_ug_m3",
+        "capability": "sensor.pm1_ug_m3"
+      },
+      {
+        "nativeMetric": "pm25_ug_m3",
+        "capability": "sensor.pm25_ug_m3"
+      },
+      {
+        "nativeMetric": "temperature_c",
+        "capability": "sensor.temperature_c"
+      },
+      {
+        "nativeMetric": "tvoc_ppb",
+        "capability": "sensor.tvoc_ppb"
+      }
+    ]
+  }
+}

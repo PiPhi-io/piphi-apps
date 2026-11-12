@@ -1,0 +1,60 @@
+{
+  "schema_version": "1",
+  "identity": {"publisher_id": "io.piphi", "package_id": "kaiterra-air-quality", "version": "0.1.5"},
+  "name": "Kaiterra Air Quality",
+  "description": "A focused view of indoor air quality and comfort from a Kaiterra monitor.",
+  "origin": "integration",
+  "owning_integration_id": "piphi-network-kaiterra-api",
+  "sdk_version_range": ">=0.6.1,<0.7",
+  "requires_integrations": [{"integration_id": "piphi-network-kaiterra-api", "version_range": ">=0.1,<1", "optional": false}],
+  "recommended_for_integrations": ["piphi-network-kaiterra-api"],
+  "widgets": [{
+    "id": "air-quality-overview",
+    "name": "Kaiterra Air Quality Overview",
+    "description": "CO₂, PM2.5, TVOC, temperature, humidity, and ozone readings.",
+    "runtime": "declarative",
+    "presentation": {"contract_version": "1", "shell": "core", "content_surface": "transparent", "typography": "core", "appearance_controls": ["icon", "title", "surface", "opacity", "radius", "shadow"]},
+    "interaction_targets": [
+      {"id": "card", "label": "Kaiterra air quality", "kind": "card", "allowed_actions": ["more-info", "popout", "refresh"], "default_action": "more-info"},
+      {"id": "co2", "label": "Carbon dioxide", "kind": "binding", "binding_slot_id": "co2", "allowed_actions": ["more-info", "history", "popout"], "default_action": "more-info"},
+      {"id": "pm25", "label": "PM2.5", "kind": "binding", "binding_slot_id": "pm25", "allowed_actions": ["more-info", "history", "popout"], "default_action": "more-info"},
+      {"id": "tvoc", "label": "TVOC", "kind": "binding", "binding_slot_id": "tvoc", "allowed_actions": ["more-info", "history", "popout"], "default_action": "more-info"},
+      {"id": "temperature", "label": "Temperature", "kind": "binding", "binding_slot_id": "temperature", "allowed_actions": ["more-info", "history", "popout"], "default_action": "more-info"},
+      {"id": "humidity", "label": "Humidity", "kind": "binding", "binding_slot_id": "humidity", "allowed_actions": ["more-info", "history", "popout"], "default_action": "more-info"},
+      {"id": "ozone", "label": "Ozone", "kind": "binding", "binding_slot_id": "ozone", "allowed_actions": ["more-info", "history", "popout"], "default_action": "more-info"}
+    ],
+    "binding_slots": [
+      {"id": "co2", "label": "Carbon dioxide", "required": true, "binding_modes": ["read"], "capability_requirements": ["co2_ppm"], "compatible_integration_ids": ["piphi-network-kaiterra-api"]},
+      {"id": "pm25", "label": "PM2.5", "required": false, "binding_modes": ["read"], "capability_requirements": ["pm25_ug_m3"], "compatible_integration_ids": ["piphi-network-kaiterra-api"]},
+      {"id": "tvoc", "label": "TVOC", "required": false, "binding_modes": ["read"], "capability_requirements": ["tvoc_ppb"], "compatible_integration_ids": ["piphi-network-kaiterra-api"]},
+      {"id": "temperature", "label": "Temperature", "required": false, "binding_modes": ["read"], "capability_requirements": ["temperature_c"], "compatible_integration_ids": ["piphi-network-kaiterra-api"]},
+      {"id": "humidity", "label": "Humidity", "required": false, "binding_modes": ["read"], "capability_requirements": ["humidity_percent"], "compatible_integration_ids": ["piphi-network-kaiterra-api"]},
+      {"id": "ozone", "label": "Ozone", "required": false, "binding_modes": ["read"], "capability_requirements": ["ozone_ppb"], "compatible_integration_ids": ["piphi-network-kaiterra-api"]}
+    ],
+    "recipe": {"schema_version": "1", "layout": "grid", "columns": 2, "items": [
+      {"type": "metric", "slot_id": "co2", "label": "CO₂", "domain": "air_quality", "emphasis": "hero", "action": {"type": "details", "label": "View carbon dioxide details"}},
+      {"type": "metric", "slot_id": "pm25", "label": "PM2.5", "domain": "air_quality", "action": {"type": "details", "label": "View PM2.5 details"}},
+      {"type": "metric", "slot_id": "tvoc", "label": "TVOC", "domain": "air_quality", "action": {"type": "details", "label": "View TVOC details"}},
+      {"type": "metric", "slot_id": "temperature", "label": "Temperature", "format": "temperature", "domain": "temperature", "action": {"type": "details", "label": "View temperature details"}},
+      {"type": "metric", "slot_id": "humidity", "label": "Humidity", "format": "percent", "domain": "humidity", "action": {"type": "details", "label": "View humidity details"}},
+      {"type": "metric", "slot_id": "ozone", "label": "Ozone", "domain": "air_quality", "action": {"type": "details", "label": "View ozone details"}}
+    ]},
+    "certification": {
+      "schema_version": "1",
+      "verified_gates": ["runtime", "persistence", "binding", "states", "responsive", "themes", "accessibility", "save-reload", "performance"],
+      "evidence": {
+        "runtime": ["core-profile:declarative-v2/runtime"],
+        "persistence": ["core-profile:declarative-v2/persistence"],
+        "binding": ["core-profile:declarative-v2/binding"],
+        "states": ["core-profile:declarative-v2/states"],
+        "responsive": ["core-profile:declarative-v2/responsive"],
+        "themes": ["core-profile:declarative-v2/themes"],
+        "accessibility": ["core-profile:declarative-v2/accessibility"],
+        "save-reload": ["core-profile:declarative-v2/save-reload"],
+        "performance": ["core-profile:declarative-v2/performance"]
+      }
+    },
+    "default_column_span": 4,
+    "default_row_span": 3
+  }]
+}

@@ -1,0 +1,107 @@
+{
+  "entities": [
+    {
+      "id": "kaiterra-sensedge",
+      "name": "Office Kaiterra",
+      "device_id": "00000000-0031-0101-0000-00007e57c0de",
+      "entity_type": "sensor",
+      "capabilities": [
+        "connected",
+        "temperature_c",
+        "refresh",
+        "api_rate_limit_remaining",
+        "api_latency_ms",
+        "co2_ppm",
+        "humidity_percent",
+        "pm1_ug_m3",
+        "pm25_ug_m3",
+        "pm10_ug_m3",
+        "tvoc_ppb",
+        "ozone_ppb",
+        "sync_cloud"
+      ],
+      "available_commands": [
+        {
+          "id": "refresh",
+          "label": "Refresh",
+          "kind": "action"
+        },
+        {
+          "id": "sync_cloud",
+          "label": "Sync Cloud",
+          "kind": "action"
+        }
+      ],
+      "dashboard": {
+        "allowed_widgets": [
+          "tile",
+          "stat",
+          "button"
+        ],
+        "default_widget": "tile"
+      }
+    }
+  ],
+  "capabilities": {
+    "connected": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "temperature_c": {
+      "kind": "sensor",
+      "unit": "C"
+    },
+    "refresh": {
+      "kind": "action"
+    },
+    "api_rate_limit_remaining": {
+      "kind": "sensor",
+      "unit": "requests"
+    },
+    "api_latency_ms": {
+      "kind": "sensor",
+      "unit": "ms"
+    },
+    "co2_ppm": {
+      "kind": "sensor",
+      "unit": "ppm"
+    },
+    "humidity_percent": {
+      "kind": "sensor",
+      "unit": "%"
+    },
+    "pm1_ug_m3": {
+      "kind": "sensor",
+      "unit": "ug/m3"
+    },
+    "pm25_ug_m3": {
+      "kind": "sensor",
+      "unit": "ug/m3"
+    },
+    "pm10_ug_m3": {
+      "kind": "sensor",
+      "unit": "ug/m3"
+    },
+    "tvoc_ppb": {
+      "kind": "sensor",
+      "unit": "ppb"
+    },
+    "ozone_ppb": {
+      "kind": "sensor",
+      "unit": "ppb"
+    },
+    "sync_cloud": {
+      "kind": "action"
+    }
+  },
+  "commands": {
+    "refresh": {
+      "description": "Refresh the device state.",
+      "timeout_ms": 5000
+    },
+    "sync_cloud": {
+      "description": "Synchronize state from the vendor cloud.",
+      "timeout_ms": 15000
+    }
+  }
+}
