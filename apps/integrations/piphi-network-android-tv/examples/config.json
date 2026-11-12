@@ -1,0 +1,7 @@
+{
+  "id": "demo-device",
+  "host": "127.0.0.1",
+  "alias": "Demo Device",
+  "bridge_address": "tcp://127.0.0.1:9000",
+  "protocol": "mqtt"
+}

@@ -1,0 +1,207 @@
+{
+  "$schema": "./schema/piphi-manifest.schema.json",
+  "manifest_version": "1.0",
+  "id": "piphi-network-android-tv",
+  "name": "Android TV",
+  "version": "0.1.0",
+  "description": "Monitor and control Android TV, Google TV, and Fire TV devices through managed ADB.",
+  "metadata": {
+    "generator": "piphi-network-create",
+    "scaffold_version": "0.3.0",
+    "preset": "protocol-bridge",
+    "domain": "bridge",
+    "preset_summary": "Protocol bridge starter for translating an external local protocol."
+  },
+  "maintainer": {
+    "name": "PiPhi Network",
+    "website": "https://piphi.io"
+  },
+  "license": "Apache-2.0",
+  "image": "docker.io/piphinetwork/piphi-network-android-tv:0.1.0",
+  "platforms": [
+    "linux"
+  ],
+  "runtime": {
+    "linux": {
+      "type": "container",
+      "container": {
+        "image": "docker.io/piphinetwork/piphi-network-android-tv:0.1.0",
+        "ports": [
+          {
+            "container": 4220,
+            "host": 4220
+          }
+        ],
+        "environment": {
+          "LOG_LEVEL": "info"
+        },
+        "restart_policy": {
+          "name": "unless-stopped",
+          "maximum_retry_count": 0
+        }
+      },
+      "discovery": {
+        "method": "passive"
+      }
+    }
+  },
+  "api": {
+    "required": [
+      "health",
+      "entities",
+      "command",
+      "config",
+      "ui_config"
+    ],
+    "endpoints": {
+      "health": "/health",
+      "diagnostics": "/diagnostics",
+      "discover": "/discover",
+      "entities": "/entities",
+      "state": "/state",
+      "config": "/config",
+      "config_sync": "/config/sync",
+      "deconfigure": "/deconfigure",
+      "ui_config": "/ui-config",
+      "events": "/events",
+      "command": "/command"
+    }
+  },
+  "config": {
+    "source": "endpoint",
+    "endpoint": "/ui-config",
+    "required": true,
+    "editable_fields": [
+      "host",
+      "alias",
+      "bridge_address",
+      "protocol"
+    ],
+    "runtime_fields": [
+      "id",
+      "config_id",
+      "container_id",
+      "device_id"
+    ],
+    "identity_fields": [
+      "host"
+    ]
+  },
+  "identity": {
+    "fields": [
+      "host"
+    ]
+  },
+  "capabilities": {
+    "connected": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "refresh": {
+      "kind": "action"
+    }
+  },
+  "commands": {
+    "refresh": {
+      "description": "Refresh the device state.",
+      "timeout_ms": 5000
+    }
+  },
+  "entities": [
+    {
+      "id": "demo-device",
+      "name": "Demo Device",
+      "device_id": "demo-device",
+      "entity_type": "television",
+      "capabilities": [
+        "connected",
+        "refresh"
+      ],
+      "available_commands": [
+        {
+          "id": "refresh",
+          "label": "Refresh",
+          "kind": "action"
+        }
+      ],
+      "dashboard": {
+        "allowed_widgets": [
+          "tile",
+          "stat",
+          "button"
+        ],
+        "default_widget": "tile"
+      }
+    }
+  ],
+  "ui": {
+    "experience_packages": [
+      {
+        "registry_id": "io.piphi.android-tv-status",
+        "version_range": ">=0.1,<1",
+        "auto_install": true
+      }
+    ]
+  },
+  "marketplace": {
+    "metadata_version": 2,
+    "display_name": "Android TV",
+    "summary": "Monitor and control Android TV, Google TV, and Fire TV devices through managed ADB.",
+    "category": "media",
+    "regions": [
+      "WW"
+    ],
+    "languages": [
+      "en"
+    ],
+    "publisher": {
+      "name": "PiPhi Network",
+      "website_url": "https://piphi.io",
+      "support_url": "https://github.com/PiPhi-io/piphi-network-android-tv/issues",
+      "security_contact": "support@piphi.io"
+    },
+    "access": [
+      {
+        "id": "local_network",
+        "label": "Local network access",
+        "reason": "Discovers or communicates with supported services and devices on the homeowner's local network.",
+        "required": true
+      }
+    ],
+    "compatibility": [
+      {
+        "brand": "Google and Amazon",
+        "model": "Android TV, Google TV, and Fire TV devices with ADB enabled"
+      }
+    ],
+    "documentation_url": "https://github.com/PiPhi-io/piphi-network-android-tv",
+    "support_url": "https://github.com/PiPhi-io/piphi-network-android-tv/issues",
+    "changelog_url": "https://github.com/PiPhi-io/piphi-network-android-tv/releases",
+    "quality_tier": "unrated",
+    "governance": {
+      "schema_version": 1,
+      "publication_status": "draft",
+      "rollout_percent": 0,
+      "lifecycle_status": "active",
+      "qualification": {
+        "status": "unverified"
+      }
+    },
+    "device_types": [
+      "television",
+      "streaming device"
+    ],
+    "protocols": [
+      "ADB"
+    ],
+    "discovery_methods": [
+      "managed ADB discovery",
+      "manual"
+    ],
+    "connectivity": "local",
+    "offline_support": "full"
+  },
+  "onboarding": {
+    "mode": "discovery"
+  }
+}

@@ -1,0 +1,83 @@
+{
+  "catalog_version": "1.0",
+  "integration_id": "piphi-network-android-tv",
+  "coverage_mode": "device_platform_transport_permission_and_sidecar_negotiated",
+  "reviewed_at": "2026-09-07",
+  "sources": {
+    "android_adb": "https://developer.android.com/tools/adb",
+    "androidtv_python": "https://github.com/JeffLIrion/python-androidtv",
+    "ha_androidtv": "https://www.home-assistant.io/integrations/androidtv/",
+    "core_vocabulary": "PiPhi Network Core and maintained PiPhi integrations",
+    "adb_sidecar": "PiPhi managed ADB sidecar contract"
+  },
+  "groups": [
+    {
+      "id": "runtime-foundation", "status": "implemented", "scope": ["all-configurations"],
+      "source_refs": ["core_vocabulary"],
+      "reason": "The scaffold implements configuration presence, connectivity state, refresh dispatch, and its configuration event.",
+      "state": ["connected"], "events": ["runtime.config.applied"], "conditions": ["state_matches"], "actions": ["refresh"]
+    },
+    {
+      "id": "device-identity-and-transport", "status": "planned", "scope": ["android-tv-google-tv-and-fire-tv-devices"],
+      "source_refs": ["android_adb", "androidtv_python", "ha_androidtv", "adb_sidecar"],
+      "reason": "ADB authentication, platform-specific parsing, device identity, reconnect, and credential isolation need implementation and representative fixtures.",
+      "state": ["platform", "manufacturer", "model", "device_serial_suffix", "android_version", "android_api_level", "build_fingerprint_redacted", "transport_type", "adb_authorized", "last_seen_at", "command_latency_ms"],
+      "events": ["television.online", "television.offline", "adb.authorization_required", "transport.degraded", "transport.recovered"],
+      "conditions": ["television_is_online", "television_is_stale", "adb_is_authorized", "platform_is"],
+      "actions": ["reconnect_device", "request_pairing"]
+    },
+    {
+      "id": "power-display-and-audio", "status": "planned", "scope": ["devices-reporting-each-property"],
+      "source_refs": ["androidtv_python", "ha_androidtv"],
+      "reason": "Power, wake, screen, volume, and mute behavior varies across Android TV, Google TV, and Fire TV and must be negotiated.",
+      "state": ["power_state", "screen_on", "dreaming", "volume_level_percent", "muted", "audio_output", "hdmi_cec_active"],
+      "events": ["power.changed", "screen.changed", "volume.changed", "mute.changed", "audio_output.changed"],
+      "conditions": ["power_is", "screen_is_on", "volume_above", "mute_is", "audio_output_is"],
+      "actions": ["turn_on", "turn_off", "toggle_power", "set_volume", "volume_up", "volume_down", "set_mute", "toggle_mute"]
+    },
+    {
+      "id": "application-media-and-playback", "status": "planned", "scope": ["devices-with-readable-media-session-or-app-state"],
+      "source_refs": ["androidtv_python", "ha_androidtv"],
+      "reason": "Current-app and media-session output differs by firmware and app; metadata must be bounded and capability-filtered.",
+      "state": ["current_app_id", "current_app_name", "media_state", "media_title", "media_artist", "media_album", "media_duration_seconds", "media_position_seconds", "media_content_type", "media_session_available", "playback_speed"],
+      "events": ["application.changed", "media.started", "media.paused", "media.resumed", "media.stopped", "media.completed", "media.metadata_changed"],
+      "conditions": ["application_is", "media_state_is", "media_position_threshold", "media_type_is"],
+      "actions": ["media_play", "media_pause", "media_play_pause", "media_stop", "media_next", "media_previous", "media_rewind", "media_fast_forward", "media_seek", "launch_allowed_app", "stop_current_app"]
+    },
+    {
+      "id": "remote-navigation-text-and-inputs", "status": "planned", "scope": ["devices-supporting-each-key-or-input"],
+      "source_refs": ["android_adb", "androidtv_python", "ha_androidtv"],
+      "reason": "Key support, text encoding, source selection, and HDMI behavior vary by device; actions need strict enums, allow-lists, and conservative fanout.",
+      "state": ["input_source", "available_input_sources", "keyboard_visible", "focused_window", "launcher_visible"],
+      "events": ["input_source.changed", "keyboard.visibility_changed", "launcher.opened"],
+      "conditions": ["input_source_is", "keyboard_is_visible", "launcher_is_visible"],
+      "actions": ["key_up", "key_down", "key_left", "key_right", "key_center", "key_back", "key_home", "key_menu", "key_search", "send_allowed_key", "send_text", "delete_text", "set_input_source", "open_settings"]
+    },
+    {
+      "id": "managed-adb-sidecar-operations", "status": "planned", "scope": ["piphi-managed-adb-sidecar"],
+      "source_refs": ["adb_sidecar", "android_adb", "core_vocabulary"],
+      "reason": "The sidecar must own ADB keys, connection lifecycle, bounded queues, backpressure, timeouts, and recovery without exposing shell access.",
+      "state": ["sidecar_connected", "sidecar_device_count", "sidecar_queue_depth", "sidecar_queue_capacity", "sidecar_reconnect_count", "sidecar_command_timeout_count", "sidecar_last_error_code"],
+      "events": ["sidecar.connected", "sidecar.disconnected", "sidecar.queue_saturated", "sidecar.command_timed_out", "sidecar.recovered"],
+      "conditions": ["sidecar_is_healthy", "sidecar_queue_below", "sidecar_has_device_capacity"],
+      "actions": ["restart_device_session", "clear_failed_session"]
+    },
+    {
+      "id": "privacy-sensitive-observation", "status": "planned", "scope": ["explicitly-opted-in-compatible-devices"],
+      "source_refs": ["android_adb", "androidtv_python"],
+      "reason": "Screenshots and activity diagnostics can reveal private viewing or account data and require explicit opt-in, short retention, and redaction.",
+      "state": ["screenshot_available", "diagnostic_snapshot_available"],
+      "events": ["screenshot.captured"],
+      "conditions": ["screenshot_is_fresh"],
+      "actions": ["capture_screenshot", "capture_sanitized_diagnostics"]
+    },
+    {
+      "id": "unsafe-or-sensitive-surface", "status": "excluded", "scope": ["all-devices-and-sidecars"],
+      "source_refs": ["android_adb", "adb_sidecar"],
+      "reason": "ADB is a privileged debugging interface; keys, PINs, arbitrary shell/intents, package administration, files, and destructive controls must not enter PiPhi behaviors.",
+      "state": ["adb_private_key", "pairing_pin", "raw_shell_output", "account_identifiers", "unredacted_activity_history"],
+      "events": [], "conditions": [],
+      "actions": ["execute_arbitrary_shell", "send_arbitrary_intent", "install_apk", "uninstall_package", "read_arbitrary_file", "write_arbitrary_file", "enable_root", "factory_reset", "change_device_accounts", "bypass_drm", "record_screen_continuously"]
+    }
+  ]
+}
