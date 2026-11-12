@@ -1,0 +1,10 @@
+.venv/
+.pdm-python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+node_modules/
+*.tgz
+.coverage
+

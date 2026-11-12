@@ -1,0 +1,13 @@
+{
+  "catalog_version": "1.0",
+  "integration_id": "piphi-network-steam",
+  "reviewed_at": "2026-09-08",
+  "rows": [
+    {"id": "profile-presence", "status": "implemented", "capabilities": ["connected", "is_online", "persona_state"], "reason": "Official player summaries provide persona presence."},
+    {"id": "game-activity", "status": "implemented", "capabilities": ["is_in_game", "current_game_name"], "events": ["steam.game.started", "steam.game.stopped", "steam.game.changed"], "reason": "Player summaries expose current game activity when visible."},
+    {"id": "playtime-summary", "status": "implemented", "capabilities": ["owned_game_count", "recent_game_count", "total_playtime_minutes", "recent_playtime_minutes"], "reason": "Visible recent and owned-game endpoints supply aggregate playtime."},
+    {"id": "manual-refresh", "status": "implemented", "capabilities": ["refresh"], "reason": "A read-only refresh is safe and idempotent."},
+    {"id": "achievements", "status": "planned", "capabilities": [], "reason": "Deferred until the base activity contract is proven across privacy configurations."},
+    {"id": "launch-chat-commerce", "status": "excluded", "capabilities": [], "reason": "Launching games, messaging, purchases, and trading are outside the read-only monitoring scope."}
+  ]
+}

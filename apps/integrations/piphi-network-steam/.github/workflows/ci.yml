@@ -1,0 +1,32 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - uses: pdm-project/setup-pdm@v4
+        with: {python-version: "3.12", cache: true}
+      - run: pdm install -G dev
+      - run: pdm run ruff check .
+      - run: pdm run pytest
+      - uses: actions/setup-node@v4
+        with: {node-version: "22", cache: npm, cache-dependency-path: widgets/steam-activity/package-lock.json}
+      - run: npm ci
+        working-directory: widgets/steam-activity
+      - run: npm test
+        working-directory: widgets/steam-activity
+      - run: npm run build
+        working-directory: widgets/steam-activity
+      - run: npm run validate
+        working-directory: widgets/steam-activity
+      - run: npm run conformance
+        working-directory: widgets/steam-activity
+      - run: docker build -t piphinetwork/piphi-network-steam:test .

@@ -1,0 +1,34 @@
+{
+  "id": "io.piphi.steam.activity",
+  "name": "Steam activity",
+  "description": "See Steam presence, current game, and recent playtime at a glance.",
+  "version": "0.1.0",
+  "entry": "./dist/widget.js",
+  "binding_modes": ["read"],
+  "value_kinds": ["boolean", "numeric", "text"],
+  "capability_requirements": ["is_online", "is_in_game", "persona_state", "current_game_name", "recent_playtime_minutes", "owned_game_count"],
+  "sdk_compatibility": {"minimum": "0.6.1"},
+  "interaction_targets": [
+    {"id": "steam-activity-card", "label": "Steam activity", "kind": "card", "allowed_actions": ["more-info", "popout", "refresh"], "default_action": "more-info"}
+  ],
+  "conformance": {
+    "accessibility": "wcag2.2-aa",
+    "keyboard": true,
+    "themes": ["light", "dark"],
+    "directions": ["ltr", "rtl"],
+    "states": ["loading", "empty", "live", "stale", "offline", "reconnecting", "denied", "error"]
+  },
+  "settings_schema_version": "1",
+  "settings": [
+    {"id": "title", "type": "text", "label": "Title", "default": "Steam activity"},
+    {"id": "device", "type": "device", "label": "Steam account", "required": true}
+  ],
+  "layout": {"min_height": 230, "default_height": 320, "max_height": 520},
+  "previews": {"light": "./previews/light.svg", "dark": "./previews/dark.svg"},
+  "translations": {
+    "en": {"widget.title": "Steam activity", "widget.waiting": "Waiting for Steam activity"},
+    "es": {"widget.title": "Actividad de Steam", "widget.waiting": "Esperando actividad de Steam"},
+    "ar": {"widget.title": "نشاط Steam", "widget.waiting": "في انتظار نشاط Steam"}
+  },
+  "security": {"permissions": [], "sandbox": ["allow-scripts"], "csp": {"connect_src": []}}
+}

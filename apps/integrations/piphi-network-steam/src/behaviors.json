@@ -1,0 +1,29 @@
+{
+  "devices": [
+    {
+      "id": "steam_account",
+      "name": "Steam account",
+      "description": "A Steam player account observed through the official Web API.",
+      "deviceClass": "gaming_account",
+      "entityType": "account",
+      "capabilities": ["connected", "is_online", "is_in_game", "persona_state", "current_game_name", "owned_game_count", "recent_game_count", "total_playtime_minutes", "recent_playtime_minutes", "refresh"],
+      "conditions": [
+        {"id": "is_online", "label": "Player is online", "type": "boolean", "capability": "is_online", "runtime": {"source": "state", "field": "is_online", "operator": "eq"}, "freshness": {"maxAgeSeconds": 600, "staleDataMode": "block"}, "ui": {"group": "only_if"}},
+        {"id": "is_in_game", "label": "Player is in a game", "type": "boolean", "capability": "is_in_game", "runtime": {"source": "state", "field": "is_in_game", "operator": "eq"}, "freshness": {"maxAgeSeconds": 600, "staleDataMode": "block"}, "ui": {"group": "only_if"}}
+      ],
+      "actions": [
+        {
+          "id": "refresh",
+          "label": "Refresh Steam activity",
+          "capability": "refresh",
+          "runtime": {"command": "refresh"},
+          "targeting": {"fanoutSafe": true, "scopes": ["config", "configs", "selection"], "supportsMultiTarget": true},
+          "failure": {"strategy": "retry_then_continue", "retry": {"maxAttempts": 1, "delaySeconds": 2, "backoff": "fixed"}, "timeoutSeconds": 30, "continueOnPartialFailure": true, "idempotent": true},
+          "ui": {"group": "do_this"},
+          "safety": {"riskLevel": "low"}
+        }
+      ],
+      "freshness": {"maxAgeSeconds": 600, "staleDataMode": "block"}
+    }
+  ]
+}
