@@ -1,0 +1,6 @@
+{
+  "id": "demo-device",
+  "host": "127.0.0.1",
+  "alias": "Demo Device",
+  "service_name": "local-helper"
+}
