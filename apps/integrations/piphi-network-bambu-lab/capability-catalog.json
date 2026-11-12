@@ -1,0 +1,102 @@
+{
+  "catalog_version": "1.0",
+  "integration_id": "piphi-network-bambu-lab",
+  "coverage_mode": "printer_model_feature_negotiation",
+  "reviewed_at": "2026-09-07",
+  "sources": {
+    "ha_bambulab": "https://github.com/greghesp/ha-bambulab",
+    "ha_bambulab_triggers": "https://docs.page/greghesp/ha-bambulab/device-triggers",
+    "core_vocabulary": "PiPhi Network Core and maintained PiPhi integrations",
+    "openbambu_mqtt": "https://github.com/Doridian/OpenBambuAPI/blob/main/mqtt.md"
+  },
+  "groups": [
+    {
+      "id": "runtime-foundation",
+      "status": "implemented",
+      "scope": ["all-configurations"],
+      "source_refs": ["core_vocabulary"],
+      "reason": "Connection state is derived from an authenticated LAN MQTT session; full refresh is rate-limited to five minutes.",
+      "state": ["connected", "simulation_mode"],
+      "events": ["runtime.config.applied"],
+      "conditions": ["state_matches"],
+      "actions": ["refresh"]
+    },
+    {
+      "id": "read-only-print-monitoring",
+      "status": "implemented",
+      "scope": ["developer-mode-printers-on-private-lan"],
+      "source_refs": ["openbambu_mqtt"],
+      "reason": "Validated print.push_status reports provide current status, progress, time, layers, and one-nozzle/bed temperature measurements without exposing job metadata or printer controls.",
+      "state": ["print_status", "print_progress_percent", "remaining_time_minutes", "current_layer", "total_layers", "nozzle_temperature_c", "target_nozzle_temperature_c", "bed_temperature_c", "target_bed_temperature_c"],
+      "events": [],
+      "conditions": [],
+      "actions": []
+    },
+    {
+      "id": "print-lifecycle",
+      "status": "planned",
+      "scope": ["all-supported-printers"],
+      "source_refs": ["ha_bambulab", "ha_bambulab_triggers"],
+      "reason": "Lifecycle state and commands must be gated by current print state and control authorization.",
+      "state": ["print_stage", "print_start_time", "print_end_time", "print_file", "print_name", "print_type", "print_weight_g", "print_length_mm", "print_bed_type", "speed_profile", "timelapse_active", "total_usage_hours"],
+      "events": ["print.started", "print.paused", "print.resumed", "print.finished", "print.failed", "print.canceled", "print.error", "print.error_cleared", "printer.error", "printer.error_cleared", "printer.sdcard_missing"],
+      "conditions": ["print_status_is", "print_progress_threshold", "layer_threshold", "remaining_time_threshold", "speed_profile_is", "timelapse_is_active"],
+      "actions": ["pause_print", "resume_print", "stop_print", "set_print_speed", "start_project_file", "skip_objects"]
+    },
+    {
+      "id": "thermal-airflow-and-lighting",
+      "status": "planned",
+      "scope": ["feature-supported-printers"],
+      "source_refs": ["ha_bambulab"],
+      "reason": "Nozzle count, chamber heating, fan count, heatbed lighting, and airduct control vary by printer model.",
+      "state": ["left_nozzle_temperature_c", "left_target_nozzle_temperature_c", "right_nozzle_temperature_c", "right_target_nozzle_temperature_c", "chamber_temperature_c", "target_chamber_temperature_c", "cooling_fan_percent", "aux_fan_percent", "secondary_aux_fan_percent", "chamber_fan_percent", "heatbreak_fan_percent", "airduct_mode", "chamber_light_on", "heatbed_light_on"],
+      "events": ["temperature.threshold_crossed", "fan.changed", "light.changed"],
+      "conditions": ["nozzle_temperature_threshold", "bed_temperature_threshold", "chamber_temperature_threshold", "fan_speed_threshold", "light_is_on", "airduct_mode_is"],
+      "actions": ["set_nozzle_temperature", "set_bed_temperature", "set_chamber_temperature", "set_fan_speed", "set_airduct_mode", "set_chamber_light", "set_heatbed_light"]
+    },
+    {
+      "id": "safety-and-health",
+      "status": "planned",
+      "scope": ["model-supported-sensors"],
+      "source_refs": ["ha_bambulab", "ha_bambulab_triggers"],
+      "reason": "Safety transitions require baseline suppression, deduplication, and high-priority event severity.",
+      "state": ["door_open", "extruder_filament_present", "hms_error_active", "print_error_active", "firmware_update_available", "sdcard_present", "wifi_signal_dbm", "mqtt_mode", "mqtt_encrypted", "developer_lan_mode", "control_blocked"],
+      "events": ["door.changed", "filament.runout", "hms.error", "hms.error_cleared", "firmware.update_available", "device.online", "device.offline", "control.authorization_changed"],
+      "conditions": ["door_is_open", "filament_is_present", "error_is_active", "firmware_update_is_available", "sdcard_is_present", "signal_below", "control_is_available"],
+      "actions": ["silence_buzzer"]
+    },
+    {
+      "id": "ams-and-filament",
+      "status": "planned",
+      "scope": ["ams", "external-spool", "filament-drying-models"],
+      "source_refs": ["ha_bambulab"],
+      "reason": "AMS count, tray count, RFID, drying, and remaining-filament data are optional and model-dependent.",
+      "state": ["active_ams", "active_tray", "ams_humidity_percent", "ams_humidity_index", "ams_temperature_c", "tray_color", "tray_material", "tray_empty", "filament_remaining_percent", "filament_k_value", "filament_nozzle_min_c", "filament_nozzle_max_c", "spool_serial", "drying_active", "drying_temperature_c", "drying_remaining_minutes"],
+      "events": ["ams.tray_changed", "filament.low", "filament.empty", "drying.started", "drying.finished", "rfid.read"],
+      "conditions": ["active_tray_is", "ams_humidity_threshold", "filament_remaining_threshold", "tray_material_is", "drying_is_active"],
+      "actions": ["load_filament", "unload_filament", "retry_filament_load", "finish_filament_load", "set_filament_metadata", "read_filament_rfid", "start_filament_drying", "stop_filament_drying"]
+    },
+    {
+      "id": "manual-motion-and-service",
+      "status": "planned",
+      "scope": ["idle-and-authorized-printers"],
+      "source_refs": ["ha_bambulab"],
+      "reason": "Movement and extrusion can damage equipment unless bounded, state-gated, single-target, and confirmed.",
+      "state": ["tool_module", "nozzle_diameter_mm", "nozzle_type", "printable_objects", "skipped_objects"],
+      "events": ["tool.changed", "objects.skipped"],
+      "conditions": ["printer_is_idle", "tool_module_is", "nozzle_type_is"],
+      "actions": ["home_axes", "move_axis_bounded", "extrude_bounded", "retract_bounded"]
+    },
+    {
+      "id": "unsafe-generic-control",
+      "status": "excluded",
+      "scope": ["all-printers"],
+      "source_refs": ["ha_bambulab"],
+      "reason": "Arbitrary G-code, unbounded motion, and unattended firmware control cannot satisfy allow-list, physical-safety, or idempotency requirements.",
+      "state": [],
+      "events": [],
+      "conditions": [],
+      "actions": ["send_arbitrary_gcode", "move_axis_unbounded", "force_extrude_cold", "install_firmware_unattended"]
+    }
+  ]
+}

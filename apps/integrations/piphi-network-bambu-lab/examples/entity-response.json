@@ -1,0 +1,39 @@
+{
+  "entities": [
+    {
+      "id": "bambu-printer",
+      "name": "Bambu printer",
+      "device_id": "bambu-printer",
+      "entity_type": "sensor",
+      "capabilities": [
+        "connected",
+        "simulation_mode",
+        "print_status",
+        "print_progress_percent",
+        "remaining_time_minutes",
+        "current_layer",
+        "total_layers",
+        "nozzle_temperature_c",
+        "target_nozzle_temperature_c",
+        "bed_temperature_c",
+        "target_bed_temperature_c",
+        "refresh"
+      ],
+      "available_commands": [
+        {
+          "id": "refresh",
+          "label": "Refresh",
+          "kind": "action"
+        }
+      ],
+      "dashboard": {
+        "allowed_widgets": [
+          "tile",
+          "stat",
+          "external-widget"
+        ],
+        "default_widget": "external-widget"
+      }
+    }
+  ]
+}

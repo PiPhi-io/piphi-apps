@@ -1,0 +1,32 @@
+{
+  "catalog_version": "1.0",
+  "widget_id": "io.piphi.bambu.print-status",
+  "reviewed_at": "2026-09-20",
+  "sources": {"widget_sdk": "PiPhi Widget SDK 0.5.1 public host contract", "integration_manifest": "../../manifest.json"},
+  "rows": [
+    {
+      "id": "print-monitor",
+      "status": "implemented",
+      "consumes": ["connected", "simulation_mode", "print_status", "print_progress_percent", "remaining_time_minutes", "current_layer", "total_layers", "nozzle_temperature_c", "bed_temperature_c"],
+      "interactions": [],
+      "states": ["loading", "empty", "live", "stale", "offline", "reconnecting", "denied", "error"],
+      "reason": "Only validated, read-only LAN MQTT print status and numeric fields are rendered."
+    },
+    {
+      "id": "presentation-accessibility",
+      "status": "implemented",
+      "consumes": [],
+      "interactions": ["keyboard_navigation", "focus_visible"],
+      "states": ["responsive", "light_theme", "dark_theme", "rtl", "reduced_motion"],
+      "reason": "Uses semantic progress and text without device commands."
+    },
+    {
+      "id": "printer-control",
+      "status": "planned",
+      "consumes": [],
+      "interactions": [],
+      "states": [],
+      "reason": "Pause, resume, and stop are not offered until printer-specific safety and authorization are verified."
+    }
+  ]
+}

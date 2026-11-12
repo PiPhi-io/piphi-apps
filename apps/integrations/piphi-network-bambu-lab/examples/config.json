@@ -1,0 +1,8 @@
+{
+  "id": "bambu-printer",
+  "host": "192.168.1.50",
+  "alias": "Printer",
+  "serial": "ABC123456",
+  "access_code": "REPLACE_WITH_LAN_ACCESS_CODE",
+  "developer_mode_acknowledged": true
+}
