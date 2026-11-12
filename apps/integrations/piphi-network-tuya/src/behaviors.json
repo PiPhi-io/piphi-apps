@@ -1,0 +1,1482 @@
+{
+  "devices": [
+    {
+      "id": "tuya_plug",
+      "name": "Tuya plug",
+      "description": "Local Tuya smart plug or outlet controlled over the LAN with TinyTuya.",
+      "deviceClass": "outlet",
+      "entityType": "switch",
+      "capabilities": [
+        "connected",
+        "power",
+        "current_ma",
+        "power_w",
+        "voltage_v",
+        "refresh",
+        "turn_on",
+        "turn_off",
+        "set_dp"
+      ],
+      "conditions": [
+        {
+          "id": "connected",
+          "label": "Plug is connected",
+          "type": "boolean",
+          "capability": "sensor.connected",
+          "operators": [
+            "eq",
+            "neq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "connected",
+            "operator": "eq"
+          }
+        },
+        {
+          "id": "power_state",
+          "label": "Plug power state",
+          "type": "boolean",
+          "capability": "sensor.power",
+          "operators": [
+            "eq",
+            "neq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "power",
+            "operator": "eq"
+          }
+        },
+        {
+          "id": "power_draw",
+          "label": "Power draw",
+          "type": "number",
+          "params": [
+            {
+              "name": "watts",
+              "label": "Watts",
+              "type": "number",
+              "required": true,
+              "unit": "W"
+            }
+          ],
+          "capability": "sensor.power_w",
+          "operators": [
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "power_w",
+            "operator": ">"
+          }
+        }
+      ],
+      "actions": [
+        {
+          "id": "turn_on",
+          "label": "Turn on",
+          "runtime": {
+            "command": "turn_on"
+          },
+          "safety": {
+            "riskLevel": "medium"
+          }
+        },
+        {
+          "id": "turn_off",
+          "label": "Turn off",
+          "runtime": {
+            "command": "turn_off"
+          },
+          "safety": {
+            "riskLevel": "medium"
+          }
+        },
+        {
+          "id": "refresh",
+          "label": "Refresh",
+          "runtime": {
+            "command": "refresh"
+          },
+          "safety": {
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "triggers": [
+        {
+          "id": "state_changed",
+          "label": "Device state changes",
+          "description": "Start when Core records a changed Tuya device capability.",
+          "capability": "telemetry.state",
+          "runtime": {
+            "event": "device.state_changed",
+            "source": "integration"
+          },
+          "freshness": {
+            "maxAgeSeconds": 180,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "when"
+          }
+        }
+      ]
+    },
+    {
+      "id": "tuya_light",
+      "name": "Tuya light",
+      "description": "Local Tuya bulb or light strip with brightness, color temperature, and RGB controls.",
+      "deviceClass": "light",
+      "entityType": "light",
+      "capabilities": [
+        "connected",
+        "power",
+        "mode",
+        "brightness_percent",
+        "color_temp_percent",
+        "color_value",
+        "refresh",
+        "turn_on",
+        "turn_off",
+        "set_brightness",
+        "set_color_temp",
+        "set_color_rgb",
+        "set_mode"
+      ],
+      "conditions": [
+        {
+          "id": "connected",
+          "label": "Light is connected",
+          "type": "boolean",
+          "capability": "sensor.connected",
+          "operators": [
+            "eq",
+            "neq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "connected",
+            "operator": "eq"
+          }
+        },
+        {
+          "id": "power_state",
+          "label": "Light power state",
+          "type": "boolean",
+          "capability": "sensor.power",
+          "operators": [
+            "eq",
+            "neq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "power",
+            "operator": "eq"
+          }
+        },
+        {
+          "id": "brightness",
+          "label": "Brightness",
+          "type": "number",
+          "params": [
+            {
+              "name": "percent",
+              "label": "Brightness %",
+              "type": "number",
+              "required": true,
+              "unit": "%"
+            }
+          ],
+          "capability": "sensor.brightness_percent",
+          "operators": [
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "brightness_percent",
+            "operator": ">"
+          }
+        },
+        {
+          "id": "mode_equals",
+          "label": "Light mode",
+          "type": "text",
+          "params": [
+            {
+              "name": "mode",
+              "label": "Mode",
+              "type": "text",
+              "required": true
+            }
+          ],
+          "capability": "sensor.mode",
+          "operators": [
+            "eq",
+            "neq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "mode",
+            "operator": "eq"
+          }
+        }
+      ],
+      "actions": [
+        {
+          "id": "turn_on",
+          "label": "Turn on",
+          "runtime": {
+            "command": "turn_on"
+          },
+          "safety": {
+            "riskLevel": "medium"
+          }
+        },
+        {
+          "id": "turn_off",
+          "label": "Turn off",
+          "runtime": {
+            "command": "turn_off"
+          },
+          "safety": {
+            "riskLevel": "medium"
+          }
+        },
+        {
+          "id": "set_brightness",
+          "label": "Set brightness",
+          "runtime": {
+            "command": "set_brightness"
+          },
+          "safety": {
+            "riskLevel": "medium"
+          }
+        },
+        {
+          "id": "set_color_temp",
+          "label": "Set color temperature",
+          "runtime": {
+            "command": "set_color_temp"
+          },
+          "safety": {
+            "riskLevel": "medium"
+          }
+        },
+        {
+          "id": "set_color_rgb",
+          "label": "Set RGB color",
+          "runtime": {
+            "command": "set_color_rgb"
+          },
+          "safety": {
+            "riskLevel": "medium"
+          }
+        },
+        {
+          "id": "set_mode",
+          "label": "Set mode",
+          "runtime": {
+            "command": "set_mode"
+          },
+          "safety": {
+            "riskLevel": "medium"
+          }
+        },
+        {
+          "id": "refresh",
+          "label": "Refresh",
+          "runtime": {
+            "command": "refresh"
+          },
+          "safety": {
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "triggers": [
+        {
+          "id": "state_changed",
+          "label": "Device state changes",
+          "description": "Start when Core records a changed Tuya device capability.",
+          "capability": "telemetry.state",
+          "runtime": {
+            "event": "device.state_changed",
+            "source": "integration"
+          },
+          "freshness": {
+            "maxAgeSeconds": 180,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "when"
+          }
+        }
+      ]
+    },
+    {
+      "id": "tuya_fan",
+      "name": "Tuya fan",
+      "description": "Local Tuya fan with power, speed, oscillation, and optional mode controls.",
+      "deviceClass": "fan",
+      "entityType": "fan",
+      "capabilities": [
+        "connected",
+        "power",
+        "fan_speed_percent",
+        "oscillating",
+        "mode",
+        "refresh",
+        "turn_on",
+        "turn_off",
+        "set_fan_speed",
+        "set_oscillate",
+        "set_mode",
+        "set_dp"
+      ],
+      "conditions": [
+        {
+          "id": "connected",
+          "label": "Fan is connected",
+          "type": "boolean",
+          "capability": "sensor.connected",
+          "operators": [
+            "eq",
+            "neq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "connected",
+            "operator": "eq"
+          }
+        },
+        {
+          "id": "power_state",
+          "label": "Fan power state",
+          "type": "boolean",
+          "capability": "sensor.power",
+          "operators": [
+            "eq",
+            "neq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "power",
+            "operator": "eq"
+          }
+        },
+        {
+          "id": "fan_speed",
+          "label": "Fan speed",
+          "type": "number",
+          "params": [
+            {
+              "name": "percent",
+              "label": "Speed %",
+              "type": "number",
+              "required": true,
+              "unit": "%"
+            }
+          ],
+          "capability": "sensor.fan_speed_percent",
+          "operators": [
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "fan_speed_percent",
+            "operator": ">"
+          }
+        },
+        {
+          "id": "oscillating",
+          "label": "Fan is oscillating",
+          "type": "boolean",
+          "capability": "sensor.oscillating",
+          "operators": [
+            "eq",
+            "neq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "oscillating",
+            "operator": "eq"
+          }
+        },
+        {
+          "id": "mode_equals",
+          "label": "Fan mode",
+          "type": "text",
+          "params": [
+            {
+              "name": "mode",
+              "label": "Mode",
+              "type": "text",
+              "required": true
+            }
+          ],
+          "capability": "sensor.mode",
+          "operators": [
+            "eq",
+            "neq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "mode",
+            "operator": "eq"
+          }
+        }
+      ],
+      "actions": [
+        {
+          "id": "turn_on",
+          "label": "Turn on",
+          "runtime": {
+            "command": "turn_on"
+          },
+          "safety": {
+            "riskLevel": "medium"
+          }
+        },
+        {
+          "id": "turn_off",
+          "label": "Turn off",
+          "runtime": {
+            "command": "turn_off"
+          },
+          "safety": {
+            "riskLevel": "medium"
+          }
+        },
+        {
+          "id": "set_fan_speed",
+          "label": "Set fan speed",
+          "runtime": {
+            "command": "set_fan_speed"
+          },
+          "safety": {
+            "riskLevel": "medium"
+          }
+        },
+        {
+          "id": "set_oscillate",
+          "label": "Set oscillation",
+          "runtime": {
+            "command": "set_oscillate"
+          },
+          "safety": {
+            "riskLevel": "medium"
+          }
+        },
+        {
+          "id": "set_mode",
+          "label": "Set mode",
+          "runtime": {
+            "command": "set_mode"
+          },
+          "safety": {
+            "riskLevel": "medium"
+          }
+        },
+        {
+          "id": "refresh",
+          "label": "Refresh",
+          "runtime": {
+            "command": "refresh"
+          },
+          "safety": {
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "triggers": [
+        {
+          "id": "state_changed",
+          "label": "Device state changes",
+          "description": "Start when Core records a changed Tuya device capability.",
+          "capability": "telemetry.state",
+          "runtime": {
+            "event": "device.state_changed",
+            "source": "integration"
+          },
+          "freshness": {
+            "maxAgeSeconds": 180,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "when"
+          }
+        }
+      ]
+    },
+    {
+      "id": "tuya_cover",
+      "name": "Tuya cover",
+      "description": "Local Tuya curtain, blind, or shade with open, close, stop, and optional position controls.",
+      "deviceClass": "cover",
+      "entityType": "cover",
+      "capabilities": [
+        "connected",
+        "position_percent",
+        "motion_state",
+        "refresh",
+        "open_cover",
+        "close_cover",
+        "stop_cover",
+        "set_cover_position",
+        "set_dp"
+      ],
+      "conditions": [
+        {
+          "id": "connected",
+          "label": "Cover is connected",
+          "type": "boolean",
+          "capability": "sensor.connected",
+          "operators": [
+            "eq",
+            "neq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "connected",
+            "operator": "eq"
+          }
+        },
+        {
+          "id": "position",
+          "label": "Cover position",
+          "type": "number",
+          "params": [
+            {
+              "name": "percent",
+              "label": "Position %",
+              "type": "number",
+              "required": true,
+              "unit": "%"
+            }
+          ],
+          "capability": "sensor.position_percent",
+          "operators": [
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "position_percent",
+            "operator": ">"
+          }
+        },
+        {
+          "id": "motion_state",
+          "label": "Cover motion state",
+          "type": "text",
+          "params": [
+            {
+              "name": "motion_state",
+              "label": "Motion state",
+              "type": "text",
+              "required": true
+            }
+          ],
+          "capability": "sensor.motion_state",
+          "operators": [
+            "eq",
+            "neq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "motion_state",
+            "operator": "eq"
+          }
+        }
+      ],
+      "actions": [
+        {
+          "id": "open_cover",
+          "label": "Open",
+          "runtime": {
+            "command": "open_cover"
+          },
+          "safety": {
+            "riskLevel": "medium"
+          }
+        },
+        {
+          "id": "close_cover",
+          "label": "Close",
+          "runtime": {
+            "command": "close_cover"
+          },
+          "safety": {
+            "riskLevel": "medium"
+          }
+        },
+        {
+          "id": "stop_cover",
+          "label": "Stop",
+          "runtime": {
+            "command": "stop_cover"
+          },
+          "safety": {
+            "riskLevel": "medium"
+          }
+        },
+        {
+          "id": "set_cover_position",
+          "label": "Set position",
+          "runtime": {
+            "command": "set_cover_position"
+          },
+          "safety": {
+            "riskLevel": "medium"
+          }
+        },
+        {
+          "id": "refresh",
+          "label": "Refresh",
+          "runtime": {
+            "command": "refresh"
+          },
+          "safety": {
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "triggers": [
+        {
+          "id": "state_changed",
+          "label": "Device state changes",
+          "description": "Start when Core records a changed Tuya device capability.",
+          "capability": "telemetry.state",
+          "runtime": {
+            "event": "device.state_changed",
+            "source": "integration"
+          },
+          "freshness": {
+            "maxAgeSeconds": 180,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "when"
+          }
+        }
+      ]
+    },
+    {
+      "id": "tuya_climate",
+      "name": "Tuya climate",
+      "description": "Local Tuya thermostat or climate device with target temperature, current temperature, power, and optional mode controls.",
+      "deviceClass": "climate",
+      "entityType": "climate",
+      "capabilities": [
+        "connected",
+        "power",
+        "mode",
+        "temperature_c",
+        "target_temperature_c",
+        "refresh",
+        "turn_on",
+        "turn_off",
+        "set_temperature",
+        "set_mode",
+        "set_dp"
+      ],
+      "conditions": [
+        {
+          "id": "connected",
+          "label": "Climate device is connected",
+          "type": "boolean",
+          "capability": "sensor.connected",
+          "operators": [
+            "eq",
+            "neq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "connected",
+            "operator": "eq"
+          }
+        },
+        {
+          "id": "power_state",
+          "label": "Climate power state",
+          "type": "boolean",
+          "capability": "sensor.power",
+          "operators": [
+            "eq",
+            "neq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "power",
+            "operator": "eq"
+          }
+        },
+        {
+          "id": "current_temperature",
+          "label": "Current temperature",
+          "type": "number",
+          "params": [
+            {
+              "name": "temperature_c",
+              "label": "Temperature °C",
+              "type": "number",
+              "required": true,
+              "unit": "C"
+            }
+          ],
+          "capability": "sensor.temperature_c",
+          "operators": [
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "temperature_c",
+            "operator": ">"
+          }
+        },
+        {
+          "id": "target_temperature",
+          "label": "Target temperature",
+          "type": "number",
+          "params": [
+            {
+              "name": "target_temperature_c",
+              "label": "Target temperature °C",
+              "type": "number",
+              "required": true,
+              "unit": "C"
+            }
+          ],
+          "capability": "sensor.target_temperature_c",
+          "operators": [
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "target_temperature_c",
+            "operator": ">"
+          }
+        },
+        {
+          "id": "mode_equals",
+          "label": "Climate mode",
+          "type": "text",
+          "params": [
+            {
+              "name": "mode",
+              "label": "Mode",
+              "type": "text",
+              "required": true
+            }
+          ],
+          "capability": "sensor.mode",
+          "operators": [
+            "eq",
+            "neq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "mode",
+            "operator": "eq"
+          }
+        }
+      ],
+      "actions": [
+        {
+          "id": "turn_on",
+          "label": "Turn on",
+          "runtime": {
+            "command": "turn_on"
+          },
+          "safety": {
+            "riskLevel": "medium"
+          }
+        },
+        {
+          "id": "turn_off",
+          "label": "Turn off",
+          "runtime": {
+            "command": "turn_off"
+          },
+          "safety": {
+            "riskLevel": "medium"
+          }
+        },
+        {
+          "id": "set_temperature",
+          "label": "Set temperature",
+          "runtime": {
+            "command": "set_temperature"
+          },
+          "safety": {
+            "riskLevel": "medium"
+          }
+        },
+        {
+          "id": "set_mode",
+          "label": "Set mode",
+          "runtime": {
+            "command": "set_mode"
+          },
+          "safety": {
+            "riskLevel": "medium"
+          }
+        },
+        {
+          "id": "refresh",
+          "label": "Refresh",
+          "runtime": {
+            "command": "refresh"
+          },
+          "safety": {
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "triggers": [
+        {
+          "id": "state_changed",
+          "label": "Device state changes",
+          "description": "Start when Core records a changed Tuya device capability.",
+          "capability": "telemetry.state",
+          "runtime": {
+            "event": "device.state_changed",
+            "source": "integration"
+          },
+          "freshness": {
+            "maxAgeSeconds": 180,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "when"
+          }
+        }
+      ]
+    },
+    {
+      "id": "tuya_humidifier",
+      "name": "Tuya humidifier",
+      "description": "Local Tuya humidifier or diffuser with target humidity, current humidity, power, and optional mode controls.",
+      "deviceClass": "humidifier",
+      "entityType": "humidifier",
+      "capabilities": [
+        "connected",
+        "power",
+        "mode",
+        "humidity_percent",
+        "target_humidity_percent",
+        "refresh",
+        "turn_on",
+        "turn_off",
+        "set_humidity",
+        "set_mode",
+        "set_dp"
+      ],
+      "conditions": [
+        {
+          "id": "connected",
+          "label": "Humidifier is connected",
+          "type": "boolean",
+          "capability": "sensor.connected",
+          "operators": [
+            "eq",
+            "neq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "connected",
+            "operator": "eq"
+          }
+        },
+        {
+          "id": "power_state",
+          "label": "Humidifier power state",
+          "type": "boolean",
+          "capability": "sensor.power",
+          "operators": [
+            "eq",
+            "neq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "power",
+            "operator": "eq"
+          }
+        },
+        {
+          "id": "current_humidity",
+          "label": "Current humidity",
+          "type": "number",
+          "params": [
+            {
+              "name": "humidity_percent",
+              "label": "Humidity %",
+              "type": "number",
+              "required": true,
+              "unit": "%"
+            }
+          ],
+          "capability": "sensor.humidity_percent",
+          "operators": [
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "humidity_percent",
+            "operator": ">"
+          }
+        },
+        {
+          "id": "target_humidity",
+          "label": "Target humidity",
+          "type": "number",
+          "params": [
+            {
+              "name": "target_humidity_percent",
+              "label": "Target humidity %",
+              "type": "number",
+              "required": true,
+              "unit": "%"
+            }
+          ],
+          "capability": "sensor.target_humidity_percent",
+          "operators": [
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "target_humidity_percent",
+            "operator": ">"
+          }
+        },
+        {
+          "id": "mode_equals",
+          "label": "Humidifier mode",
+          "type": "text",
+          "params": [
+            {
+              "name": "mode",
+              "label": "Mode",
+              "type": "text",
+              "required": true
+            }
+          ],
+          "capability": "sensor.mode",
+          "operators": [
+            "eq",
+            "neq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "mode",
+            "operator": "eq"
+          }
+        }
+      ],
+      "actions": [
+        {
+          "id": "turn_on",
+          "label": "Turn on",
+          "runtime": {
+            "command": "turn_on"
+          },
+          "safety": {
+            "riskLevel": "medium"
+          }
+        },
+        {
+          "id": "turn_off",
+          "label": "Turn off",
+          "runtime": {
+            "command": "turn_off"
+          },
+          "safety": {
+            "riskLevel": "medium"
+          }
+        },
+        {
+          "id": "set_humidity",
+          "label": "Set humidity",
+          "runtime": {
+            "command": "set_humidity"
+          },
+          "safety": {
+            "riskLevel": "medium"
+          }
+        },
+        {
+          "id": "set_mode",
+          "label": "Set mode",
+          "runtime": {
+            "command": "set_mode"
+          },
+          "safety": {
+            "riskLevel": "medium"
+          }
+        },
+        {
+          "id": "refresh",
+          "label": "Refresh",
+          "runtime": {
+            "command": "refresh"
+          },
+          "safety": {
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "triggers": [
+        {
+          "id": "state_changed",
+          "label": "Device state changes",
+          "description": "Start when Core records a changed Tuya device capability.",
+          "capability": "telemetry.state",
+          "runtime": {
+            "event": "device.state_changed",
+            "source": "integration"
+          },
+          "freshness": {
+            "maxAgeSeconds": 180,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "when"
+          }
+        }
+      ]
+    },
+    {
+      "id": "tuya_air_purifier",
+      "name": "Tuya air purifier",
+      "description": "Local Tuya air purifier with power, optional speed and mode controls, and optional air quality readings.",
+      "deviceClass": "air_purifier",
+      "entityType": "air_purifier",
+      "capabilities": [
+        "connected",
+        "power",
+        "mode",
+        "fan_speed_percent",
+        "air_quality_index",
+        "refresh",
+        "turn_on",
+        "turn_off",
+        "set_fan_speed",
+        "set_mode",
+        "set_dp"
+      ],
+      "conditions": [
+        {
+          "id": "connected",
+          "label": "Air purifier is connected",
+          "type": "boolean",
+          "capability": "sensor.connected",
+          "operators": [
+            "eq",
+            "neq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "connected",
+            "operator": "eq"
+          }
+        },
+        {
+          "id": "power_state",
+          "label": "Air purifier power state",
+          "type": "boolean",
+          "capability": "sensor.power",
+          "operators": [
+            "eq",
+            "neq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "power",
+            "operator": "eq"
+          }
+        },
+        {
+          "id": "fan_speed",
+          "label": "Purifier fan speed",
+          "type": "number",
+          "params": [
+            {
+              "name": "percent",
+              "label": "Speed %",
+              "type": "number",
+              "required": true,
+              "unit": "%"
+            }
+          ],
+          "capability": "sensor.fan_speed_percent",
+          "operators": [
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "fan_speed_percent",
+            "operator": ">"
+          }
+        },
+        {
+          "id": "air_quality",
+          "label": "Air quality index",
+          "type": "number",
+          "params": [
+            {
+              "name": "aqi",
+              "label": "AQI",
+              "type": "number",
+              "required": true,
+              "unit": "AQI"
+            }
+          ],
+          "capability": "sensor.air_quality_index",
+          "operators": [
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "air_quality_index",
+            "operator": ">"
+          }
+        },
+        {
+          "id": "mode_equals",
+          "label": "Purifier mode",
+          "type": "text",
+          "params": [
+            {
+              "name": "mode",
+              "label": "Mode",
+              "type": "text",
+              "required": true
+            }
+          ],
+          "capability": "sensor.mode",
+          "operators": [
+            "eq",
+            "neq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "mode",
+            "operator": "eq"
+          }
+        }
+      ],
+      "actions": [
+        {
+          "id": "turn_on",
+          "label": "Turn on",
+          "runtime": {
+            "command": "turn_on"
+          },
+          "safety": {
+            "riskLevel": "medium"
+          }
+        },
+        {
+          "id": "turn_off",
+          "label": "Turn off",
+          "runtime": {
+            "command": "turn_off"
+          },
+          "safety": {
+            "riskLevel": "medium"
+          }
+        },
+        {
+          "id": "set_fan_speed",
+          "label": "Set speed",
+          "runtime": {
+            "command": "set_fan_speed"
+          },
+          "safety": {
+            "riskLevel": "medium"
+          }
+        },
+        {
+          "id": "set_mode",
+          "label": "Set mode",
+          "runtime": {
+            "command": "set_mode"
+          },
+          "safety": {
+            "riskLevel": "medium"
+          }
+        },
+        {
+          "id": "refresh",
+          "label": "Refresh",
+          "runtime": {
+            "command": "refresh"
+          },
+          "safety": {
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "triggers": [
+        {
+          "id": "state_changed",
+          "label": "Device state changes",
+          "description": "Start when Core records a changed Tuya device capability.",
+          "capability": "telemetry.state",
+          "runtime": {
+            "event": "device.state_changed",
+            "source": "integration"
+          },
+          "freshness": {
+            "maxAgeSeconds": 180,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "when"
+          }
+        }
+      ]
+    }
+  ],
+  "telemetry": {
+    "capabilityMappings": [
+      {
+        "nativeMetric": "air_quality_index",
+        "capability": "sensor.air_quality_index"
+      },
+      {
+        "nativeMetric": "brightness_percent",
+        "capability": "sensor.brightness_percent"
+      },
+      {
+        "nativeMetric": "color_temp_percent",
+        "capability": "sensor.color_temp_percent"
+      },
+      {
+        "nativeMetric": "color_value",
+        "capability": "sensor.color_value"
+      },
+      {
+        "nativeMetric": "connected",
+        "capability": "sensor.connected"
+      },
+      {
+        "nativeMetric": "current_ma",
+        "capability": "sensor.current_ma"
+      },
+      {
+        "nativeMetric": "fan_speed_percent",
+        "capability": "sensor.fan_speed_percent"
+      },
+      {
+        "nativeMetric": "humidity_percent",
+        "capability": "sensor.humidity_percent"
+      },
+      {
+        "nativeMetric": "mode",
+        "capability": "sensor.mode"
+      },
+      {
+        "nativeMetric": "motion_state",
+        "capability": "sensor.motion_state"
+      },
+      {
+        "nativeMetric": "oscillating",
+        "capability": "sensor.oscillating"
+      },
+      {
+        "nativeMetric": "position_percent",
+        "capability": "sensor.position_percent"
+      },
+      {
+        "nativeMetric": "power",
+        "capability": "sensor.power"
+      },
+      {
+        "nativeMetric": "power_w",
+        "capability": "sensor.power_w"
+      },
+      {
+        "nativeMetric": "set_dp",
+        "capability": "sensor.set_dp"
+      },
+      {
+        "nativeMetric": "target_humidity_percent",
+        "capability": "sensor.target_humidity_percent"
+      },
+      {
+        "nativeMetric": "target_temperature_c",
+        "capability": "sensor.target_temperature_c"
+      },
+      {
+        "nativeMetric": "temperature_c",
+        "capability": "sensor.temperature_c"
+      },
+      {
+        "nativeMetric": "voltage_v",
+        "capability": "sensor.voltage_v"
+      }
+    ]
+  },
+  "behaviorSchemaVersion": "integration.behaviors.v2",
+  "templates": [
+    {
+      "id": "tuya_high_power_cutoff",
+      "label": "Turn off a high-draw Tuya plug",
+      "description": "Turn off a selected Tuya plug when power draw exceeds 1,500 W, with a five-minute cooldown.",
+      "category": "Energy safety",
+      "deviceKey": "tuya_plug",
+      "config": {
+        "automation_schema_version": "automation.behavior.v2",
+        "triggers": [
+          {
+            "id": "state_changed",
+            "label": "Tuya plug state changes",
+            "type": "integration_event",
+            "event": "device.state_changed",
+            "capability": "telemetry.state",
+            "enabled": true,
+            "sourceRef": {
+              "integrationId": "{{integrationId}}",
+              "integrationKey": "{{integrationKey}}",
+              "configId": "{{configId}}",
+              "behaviorDeviceKey": "tuya_plug",
+              "optionKey": "state_changed",
+              "capability": "telemetry.state"
+            }
+          }
+        ],
+        "trigger": {
+          "id": "state_changed",
+          "label": "Tuya plug state changes",
+          "type": "integration_event",
+          "event": "device.state_changed",
+          "capability": "telemetry.state",
+          "enabled": true
+        },
+        "intent": "energy_safety",
+        "conditionTree": {
+          "id": "tuya_high_power_cutoff_condition",
+          "label": "Power draw is above 1,500 W",
+          "field": "power_w",
+          "operator": ">",
+          "value": 1500,
+          "sourceRef": {
+            "integrationId": "{{integrationId}}",
+            "integrationKey": "{{integrationKey}}",
+            "configId": "{{configId}}",
+            "behaviorDeviceKey": "tuya_plug",
+            "optionKey": "power_draw",
+            "capability": "sensor.power_w"
+          }
+        },
+        "actions": [
+          {
+            "id": "tuya_high_power_cutoff_action",
+            "label": "Turn off Tuya plug",
+            "action": "turn_off",
+            "capability": "switch.turn_off",
+            "sourceRef": {
+              "integrationId": "{{integrationId}}",
+              "integrationKey": "{{integrationKey}}",
+              "configId": "{{configId}}",
+              "behaviorDeviceKey": "tuya_plug",
+              "optionKey": "turn_off",
+              "capability": "switch.turn_off"
+            },
+            "target": {
+              "mode": "selection",
+              "configIds": [
+                "{{configId}}"
+              ]
+            }
+          }
+        ],
+        "safety": {
+          "staleDataMode": "block",
+          "maxAgeSeconds": 300,
+          "requireFreshTrigger": true,
+          "dryRunFirst": true
+        },
+        "failure": {
+          "strategy": "follow_edges",
+          "fallbackBehaviorId": "",
+          "conditionTree": {
+            "op": "and",
+            "children": []
+          }
+        },
+        "stop": {
+          "never": true
+        },
+        "override": {
+          "mode": "continue"
+        },
+        "execution": {
+          "failureStrategy": "follow_edges",
+          "fallbackBehaviorId": "",
+          "dispatchMode": "runtime"
+        },
+        "policies": {
+          "execution": {
+            "failureStrategy": "follow_edges",
+            "fallbackBehaviorId": "",
+            "dispatchMode": "runtime"
+          },
+          "freshness": {
+            "staleDataMode": "block"
+          },
+          "manualOverride": {
+            "mode": "continue"
+          },
+          "cooldownSeconds": 300
+        }
+      },
+      "metadata": {
+        "recommended": true,
+        "requiresReview": true
+      }
+    }
+  ]
+}

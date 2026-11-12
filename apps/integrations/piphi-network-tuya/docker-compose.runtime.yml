@@ -1,0 +1,21 @@
+services:
+  piphi-network-tuya:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: piphi-network-tuya:local
+    container_name: piphi-network-tuya
+    restart: unless-stopped
+    ports:
+      - "4191:4191"
+    environment:
+      PIPHI_RUNTIME_PORT: "4191"
+      PIPHI_CONTAINER_ID: "runtime-123"
+      PIPHI_INTEGRATION_INTERNAL_TOKEN: "replace-me"
+      PIPHI_LOG_LEVEL: "INFO"
+      PIPHI_TUYA_IO_TIMEOUT_SECONDS: "8"
+      PIPHI_TUYA_DISCOVERY_TIMEOUT_SECONDS: "20"
+      PIPHI_TUYA_STRICT_CONFIG_VALIDATION: "true"
+      PIPHI_TUYA_POLL_JITTER_SECONDS: "2"
+      PIPHI_TUYA_POLL_FAILURE_BACKOFF_SECONDS: "15"
+      PIPHI_TUYA_POLL_ERROR_EVENT_COOLDOWN_SECONDS: "300"
