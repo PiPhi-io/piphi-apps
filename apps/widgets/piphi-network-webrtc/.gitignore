@@ -1,0 +1,5 @@
+node_modules/
+widgets/*/node_modules/
+widgets/*/dist/
+widgets/*/*.tgz
+npm-debug.log*

@@ -1,0 +1,209 @@
+{
+  "id": "io.piphi.webrtc.camera",
+  "name": "WebRTC camera",
+  "version": "0.1.0",
+  "description": "Low-latency camera playback through PiPhi's brokered WebRTC host contract.",
+  "entry": "./dist/widget.js",
+  "artifact": {
+    "release_asset": "piphi-webrtc-camera-widget-0.1.0.tgz"
+  },
+  "binding_modes": [
+    "read"
+  ],
+  "value_kinds": [
+    "json"
+  ],
+  "capability_requirements": [
+    "camera_stream"
+  ],
+  "sdk_compatibility": {
+    "minimum": "0.4.0"
+  },
+  "conformance": {
+    "accessibility": "wcag2.2-aa",
+    "keyboard": true,
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "directions": [
+      "ltr",
+      "rtl"
+    ],
+    "states": [
+      "loading",
+      "live",
+      "stale",
+      "offline",
+      "reconnecting",
+      "denied",
+      "error"
+    ]
+  },
+  "settings_schema_version": "1",
+  "settings": [
+    {
+      "id": "title",
+      "type": "text",
+      "label": "Title",
+      "default": "Live camera"
+    },
+    {
+      "id": "camera",
+      "type": "device",
+      "label": "Camera",
+      "required": true
+    },
+    {
+      "id": "include_audio",
+      "type": "boolean",
+      "label": "Play camera audio",
+      "default": false
+    },
+    {
+      "id": "start_muted",
+      "type": "boolean",
+      "label": "Start camera audio muted",
+      "default": true
+    },
+    {
+      "id": "autoplay",
+      "type": "boolean",
+      "label": "Start automatically",
+      "default": true
+    }
+  ],
+  "layout": {
+    "min_height": 240,
+    "default_height": 360,
+    "max_height": 720,
+    "transparent": false
+  },
+  "previews": {
+    "light": "./previews/light.svg",
+    "dark": "./previews/dark.svg"
+  },
+  "translations": {
+    "en": {
+      "widget.title": "Live camera",
+      "widget.waiting": "Waiting for camera",
+      "widget.connect": "Connect",
+      "widget.reconnect": "Reconnect",
+      "widget.connecting": "Connecting",
+      "widget.live": "Live",
+      "widget.offline": "Camera unavailable",
+      "widget.denied": "Camera access denied",
+      "widget.mute": "Mute audio",
+      "widget.unmute": "Unmute audio",
+      "widget.snapshot": "Capture snapshot",
+      "widget.snapshotUnavailable": "Camera frame is not ready",
+      "widget.closeSnapshot": "Close snapshot",
+      "widget.pictureInPicture": "Picture in picture",
+      "widget.fullscreen": "Fullscreen",
+      "widget.zoom": "Zoom"
+    },
+    "es": {
+      "widget.title": "Cámara en vivo",
+      "widget.waiting": "Esperando la cámara",
+      "widget.connect": "Conectar",
+      "widget.reconnect": "Reconectar",
+      "widget.connecting": "Conectando",
+      "widget.live": "En vivo",
+      "widget.offline": "Cámara no disponible",
+      "widget.denied": "Acceso a la cámara denegado",
+      "widget.mute": "Silenciar audio",
+      "widget.unmute": "Activar audio",
+      "widget.snapshot": "Capturar imagen",
+      "widget.snapshotUnavailable": "El fotograma de la cámara no está listo",
+      "widget.closeSnapshot": "Cerrar captura",
+      "widget.pictureInPicture": "Imagen en imagen",
+      "widget.fullscreen": "Pantalla completa",
+      "widget.zoom": "Zoom"
+    },
+    "ar": {
+      "widget.title": "الكاميرا المباشرة",
+      "widget.waiting": "في انتظار الكاميرا",
+      "widget.connect": "اتصال",
+      "widget.reconnect": "إعادة الاتصال",
+      "widget.connecting": "جارٍ الاتصال",
+      "widget.live": "مباشر",
+      "widget.offline": "الكاميرا غير متاحة",
+      "widget.denied": "تم رفض الوصول إلى الكاميرا",
+      "widget.mute": "كتم الصوت",
+      "widget.unmute": "تشغيل الصوت",
+      "widget.snapshot": "حفظ لقطة",
+      "widget.snapshotUnavailable": "إطار الكاميرا غير جاهز",
+      "widget.closeSnapshot": "إغلاق اللقطة",
+      "widget.pictureInPicture": "صورة داخل صورة",
+      "widget.fullscreen": "ملء الشاشة",
+      "widget.zoom": "تكبير"
+    }
+  },
+  "security": {
+    "permissions": [
+      "camera",
+      "fullscreen"
+    ],
+    "sandbox": [
+      "allow-scripts"
+    ],
+    "csp": {
+      "connect_src": []
+    }
+  },
+  "marketplace": {
+    "metadata_version": 2,
+    "display_name": "WebRTC camera",
+    "summary": "Watch a low-latency live camera from a PiPhi dashboard.",
+    "category": "camera",
+    "regions": [
+      "WW"
+    ],
+    "languages": [
+      "en",
+      "es",
+      "ar"
+    ],
+    "publisher": {
+      "name": "PiPhi Network",
+      "website_url": "https://piphi.io",
+      "support_url": "https://github.com/PiPhi-io/piphi_network_webRTC/issues",
+      "security_contact": "support@piphi.io"
+    },
+    "access": [
+      {
+        "id": "camera_stream",
+        "label": "Camera stream access",
+        "reason": "Receives video, and optional audio, from the camera selected in the dashboard.",
+        "required": true
+      },
+      {
+        "id": "fullscreen",
+        "label": "Fullscreen display",
+        "reason": "Lets the homeowner expand the active camera view after pressing the fullscreen control.",
+        "required": false
+      }
+    ],
+    "compatibility": [
+      {
+        "capability": "camera_stream",
+        "host_protocol": "piphi.widget.host/1",
+        "widget_sdk": ">=0.4.0"
+      }
+    ],
+    "documentation_url": "https://github.com/PiPhi-io/piphi_network_webRTC",
+    "support_url": "https://github.com/PiPhi-io/piphi_network_webRTC/issues",
+    "changelog_url": "https://github.com/PiPhi-io/piphi_network_webRTC/releases",
+    "quality_tier": "unrated",
+    "governance": {
+      "schema_version": 1,
+      "publication_status": "draft",
+      "rollout_percent": 0,
+      "lifecycle_status": "active",
+      "qualification": {
+        "status": "unverified"
+      }
+    }
+  },
+  "integrity": "sha256-pS3HUbeaTvDk4P29dhEB+tJzGtGYU6AgDjlSlsZ8gvc="
+}
