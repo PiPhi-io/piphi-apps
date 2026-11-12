@@ -1,0 +1,176 @@
+{
+  "schema_version": "1",
+  "identity": {
+    "publisher_id": "io.piphi",
+    "package_id": "passive-ble-monitor-status",
+    "version": "0.2.3"
+  },
+  "name": "Passive BLE Sensor Overview",
+  "description": "A compact live overview of a configured BTHome sensor's useful measurements.",
+  "origin": "integration",
+  "owning_integration_id": "piphi-network-passive-ble-monitor",
+  "sdk_version_range": ">=0.6.1,<0.7",
+  "requires_integrations": [
+    {
+      "integration_id": "piphi-network-passive-ble-monitor",
+      "version_range": ">=0.2,<1",
+      "optional": false
+    }
+  ],
+  "recommended_for_integrations": ["piphi-network-passive-ble-monitor"],
+  "widgets": [
+    {
+      "id": "connection-status",
+      "name": "BTHome Sensor Overview",
+      "description": "Shows environmental, battery, and signal readings from a configured BTHome sensor.",
+      "runtime": "declarative",
+      "presentation": {
+        "contract_version": "1",
+        "shell": "core",
+        "content_surface": "transparent",
+        "typography": "core",
+        "appearance_controls": ["icon", "title", "surface", "opacity", "radius", "shadow"]
+      },
+      "interaction_targets": [
+        {
+          "id": "card",
+          "label": "BTHome sensor",
+          "kind": "card",
+          "allowed_actions": ["more-info", "popout", "refresh"],
+          "default_action": "more-info"
+        },
+        {
+          "id": "temperature",
+          "label": "Temperature",
+          "kind": "binding",
+          "binding_slot_id": "temperature",
+          "allowed_actions": ["more-info", "history", "popout"],
+          "default_action": "more-info"
+        },
+        {
+          "id": "humidity",
+          "label": "Humidity",
+          "kind": "binding",
+          "binding_slot_id": "humidity",
+          "allowed_actions": ["more-info", "history", "popout"],
+          "default_action": "more-info"
+        },
+        {
+          "id": "battery",
+          "label": "Battery",
+          "kind": "binding",
+          "binding_slot_id": "battery",
+          "allowed_actions": ["more-info", "history", "popout"],
+          "default_action": "more-info"
+        },
+        {
+          "id": "signal",
+          "label": "Signal",
+          "kind": "binding",
+          "binding_slot_id": "signal",
+          "allowed_actions": ["more-info", "history", "popout"],
+          "default_action": "more-info"
+        }
+      ],
+      "binding_slots": [
+        {
+          "id": "temperature",
+          "label": "Temperature",
+          "required": true,
+          "binding_modes": ["read"],
+          "value_kinds": ["numeric"],
+          "capability_requirements": ["temperature_c"],
+          "compatible_integration_ids": ["piphi-network-passive-ble-monitor"],
+          "data_delivery": {"mode": "stream_preferred", "stale_after_seconds": 120}
+        },
+        {
+          "id": "humidity",
+          "label": "Humidity",
+          "required": false,
+          "binding_modes": ["read"],
+          "value_kinds": ["numeric"],
+          "capability_requirements": ["humidity_percent"],
+          "compatible_integration_ids": ["piphi-network-passive-ble-monitor"],
+          "data_delivery": {"mode": "stream_preferred", "stale_after_seconds": 120}
+        },
+        {
+          "id": "battery",
+          "label": "Battery",
+          "required": false,
+          "binding_modes": ["read"],
+          "value_kinds": ["numeric"],
+          "capability_requirements": ["battery_percent"],
+          "compatible_integration_ids": ["piphi-network-passive-ble-monitor"],
+          "data_delivery": {"mode": "stream_preferred", "stale_after_seconds": 120}
+        },
+        {
+          "id": "signal",
+          "label": "Signal",
+          "required": false,
+          "binding_modes": ["read"],
+          "value_kinds": ["numeric"],
+          "capability_requirements": ["rssi_dbm"],
+          "compatible_integration_ids": ["piphi-network-passive-ble-monitor"],
+          "data_delivery": {"mode": "stream_preferred", "stale_after_seconds": 120}
+        }
+      ],
+      "recipe": {
+        "schema_version": "1",
+        "layout": "grid",
+        "columns": 2,
+        "items": [
+          {
+            "type": "metric",
+            "slot_id": "temperature",
+            "label": "Temperature",
+            "format": "temperature",
+            "domain": "temperature",
+            "emphasis": "hero",
+            "action": {"type": "details", "label": "View temperature details"}
+          },
+          {
+            "type": "metric",
+            "slot_id": "humidity",
+            "label": "Humidity",
+            "format": "percent",
+            "domain": "humidity",
+            "action": {"type": "details", "label": "View humidity details"}
+          },
+          {
+            "type": "progress",
+            "slot_id": "battery",
+            "label": "Battery",
+            "minimum": 0,
+            "maximum": 100,
+            "domain": "battery",
+            "show_value": true
+          },
+          {
+            "type": "metric",
+            "slot_id": "signal",
+            "label": "Signal",
+            "domain": "generic",
+            "action": {"type": "details", "label": "View signal details"}
+          }
+        ]
+      },
+      "certification": {
+        "schema_version": "1",
+        "verified_gates": ["runtime", "persistence", "binding", "states", "responsive", "themes", "accessibility", "save-reload", "performance"],
+        "evidence": {
+          "runtime": ["core-profile:declarative-v2/runtime"],
+          "persistence": ["core-profile:declarative-v2/persistence"],
+          "binding": ["core-profile:declarative-v2/binding"],
+          "states": ["core-profile:declarative-v2/states"],
+          "responsive": ["core-profile:declarative-v2/responsive"],
+          "themes": ["core-profile:declarative-v2/themes"],
+          "accessibility": ["core-profile:declarative-v2/accessibility"],
+          "save-reload": ["core-profile:declarative-v2/save-reload"],
+          "performance": ["core-profile:declarative-v2/performance"]
+        }
+      },
+      "default_column_span": 4,
+      "default_row_span": 2
+    }
+  ]
+}

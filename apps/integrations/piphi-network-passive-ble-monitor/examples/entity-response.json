@@ -1,0 +1,65 @@
+{
+  "entities": [
+    {
+      "id": "living-room-bthome",
+      "name": "Living room sensor",
+      "config_id": "living-room-bthome",
+      "device_id": "living-room-bthome",
+      "entity_type": "sensor",
+      "capabilities": [
+        "connected",
+        "temperature_c",
+        "humidity_percent",
+        "battery_percent",
+        "rssi_dbm",
+        "refresh"
+      ],
+      "available_commands": [
+        {
+          "id": "refresh",
+          "label": "Refresh",
+          "kind": "action"
+        }
+      ],
+      "dashboard": {
+        "allowed_widgets": [
+          "tile",
+          "stat",
+          "button"
+        ],
+        "default_widget": "tile"
+      }
+    }
+  ],
+  "capabilities": {
+    "connected": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "temperature_c": {
+      "kind": "sensor",
+      "unit": "°C"
+    },
+    "humidity_percent": {
+      "kind": "sensor",
+      "unit": "%"
+    },
+    "battery_percent": {
+      "kind": "sensor",
+      "unit": "%"
+    },
+    "rssi_dbm": {
+      "kind": "sensor",
+      "unit": "dBm"
+    },
+    "refresh": {
+      "kind": "action"
+    }
+  },
+  "commands": {
+    "refresh": {
+      "description": "Run a bounded Bluetooth scan for this sensor.",
+      "timeout_ms": 10000
+    }
+  }
+}
