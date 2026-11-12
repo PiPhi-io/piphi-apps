@@ -1,0 +1,6 @@
+{
+  "id": "demo-device",
+  "source_url": "rtsp://camera.local/live",
+  "alias": "Demo Camera",
+  "preferred_transport": "tcp"
+}

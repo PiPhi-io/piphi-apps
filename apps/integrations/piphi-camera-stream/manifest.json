@@ -1,0 +1,225 @@
+{
+  "$schema": "./schema/piphi-manifest.schema.json",
+  "manifest_version": "1.0",
+  "id": "piphi-camera-stream",
+  "name": "Piphi Camera Stream",
+  "version": "0.1.5",
+  "description": "Connect an RTSP or RTSPS camera to PiPhi while keeping its source URL inside the integration and media sidecar boundary.",
+  "metadata": {
+    "generator": "piphi-network-create",
+    "scaffold_version": "0.3.0",
+    "preset": "protocol-bridge",
+    "domain": "local-device",
+    "preset_summary": "Protocol bridge starter for translating an external local protocol."
+  },
+  "maintainer": {
+    "name": "PiPhi Network",
+    "website": "https://piphi.io"
+  },
+  "license": "Apache-2.0",
+  "image": "ghcr.io/piphi-io/piphi-camera-stream:0.1.5",
+  "platforms": [
+    "linux"
+  ],
+  "runtime": {
+    "linux": {
+      "type": "container",
+      "container": {
+        "image": "ghcr.io/piphi-io/piphi-camera-stream:0.1.5",
+        "ports": [
+          {
+            "container": 8090
+          }
+        ],
+        "environment": {
+          "LOG_LEVEL": "info"
+        },
+        "restart_policy": {
+          "name": "unless-stopped",
+          "maximum_retry_count": 0
+        }
+      }
+    }
+  },
+  "runtime_contract": {
+    "version": 1,
+    "port_binding": "core_allocated",
+    "port_env": "PORT"
+  },
+  "requires": {
+    "services": [
+      {
+        "id": "piphi.service.webrtc-sidecar",
+        "kind": "platform_service",
+        "version_range": ">=0.3.0,<0.4.0",
+        "recommended_version": "0.3.0",
+        "required": true,
+        "shared": true,
+        "auto_install": true,
+        "reason": "Provides shared camera media sessions and low-latency WebRTC playback."
+      }
+    ]
+  },
+  "api": {
+    "required": [
+      "health",
+      "entities",
+      "command",
+      "config",
+      "ui_config"
+    ],
+    "endpoints": {
+      "health": "/health",
+      "diagnostics": "/diagnostics",
+      "entities": "/entities",
+      "state": "/state",
+      "config": "/config",
+      "config_sync": "/config/sync",
+      "deconfigure": "/deconfigure",
+      "ui_config": "/ui-config",
+      "events": "/events",
+      "command": "/command",
+      "camera_source": "/v1/cameras/{config_id}/source"
+    }
+  },
+  "config": {
+    "source": "endpoint",
+    "endpoint": "/ui-config",
+    "required": true,
+    "editable_fields": [
+      "source_url",
+      "username",
+      "password",
+      "alias",
+      "preferred_transport"
+    ],
+    "runtime_fields": [
+      "id",
+      "config_id",
+      "container_id",
+      "device_id"
+    ],
+    "identity_fields": [
+      "source_url"
+    ]
+  },
+  "identity": {
+    "fields": [
+      "source_url"
+    ]
+  },
+  "capabilities": {
+    "camera_stream": {
+      "kind": "camera",
+      "value_kind": "camera",
+      "camera": {
+        "contract_version": "camera.media.v1",
+        "gateway_source_endpoint": "/v1/cameras/{config_id}/source",
+        "refresh_seconds": 15
+      }
+    },
+    "refresh": {
+      "kind": "action"
+    }
+  },
+  "commands": {
+    "refresh": {
+      "description": "Refresh camera availability.",
+      "timeout_ms": 5000
+    }
+  },
+  "entities": [
+    {
+      "id": "camera",
+      "name": "Camera",
+      "device_id": "camera",
+      "entity_type": "camera",
+      "capabilities": [
+        "camera_stream",
+        "refresh"
+      ],
+      "available_commands": [
+        {
+          "id": "refresh",
+          "label": "Refresh",
+          "kind": "action"
+        }
+      ],
+      "dashboard": {
+        "allowed_widgets": [
+          "camera",
+          "camera-card",
+          "io.piphi.webrtc.camera"
+        ],
+        "default_widget": "camera"
+      }
+    }
+  ],
+  "marketplace": {
+    "metadata_version": 2,
+    "display_name": "RTSP Camera",
+    "summary": "Connect an RTSP camera or NVR stream to PiPhi dashboards.",
+    "category": "security",
+    "device_types": [
+      "camera",
+      "nvr"
+    ],
+    "protocols": [
+      "rtsp",
+      "rtsps"
+    ],
+    "regions": [
+      "WW"
+    ],
+    "languages": [
+      "en"
+    ],
+    "discovery_methods": [
+      "manual"
+    ],
+    "connectivity": "local",
+    "offline_support": "partial",
+    "publisher": {
+      "name": "PiPhi Network",
+      "website_url": "https://piphi.io",
+      "support_url": "https://github.com/PiPhi-io/piphi-camera-stream/issues",
+      "security_contact": "support@piphi.io"
+    },
+    "access": [
+      {
+        "id": "local_network",
+        "label": "Local camera access",
+        "reason": "Connects to the RTSP camera or NVR address entered during setup.",
+        "required": true
+      },
+      {
+        "id": "camera_credentials",
+        "label": "Camera sign-in",
+        "reason": "Keeps credentials from the saved RTSP URL inside the protected integration and media boundary.",
+        "required": false
+      }
+    ],
+    "compatibility": [
+      {
+        "brand": "Generic",
+        "model": "RTSP or RTSPS camera/NVR stream"
+      }
+    ],
+    "documentation_url": "https://github.com/PiPhi-io/piphi-camera-stream",
+    "support_url": "https://github.com/PiPhi-io/piphi-camera-stream/issues",
+    "changelog_url": "https://github.com/PiPhi-io/piphi-camera-stream/releases",
+    "quality_tier": "unrated",
+    "governance": {
+      "schema_version": 1,
+      "publication_status": "draft",
+      "rollout_percent": 0,
+      "lifecycle_status": "active",
+      "qualification": {
+        "status": "unverified"
+      }
+    }
+  },
+  "onboarding": {
+    "mode": "manual"
+  }
+}

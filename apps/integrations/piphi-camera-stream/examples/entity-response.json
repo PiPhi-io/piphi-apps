@@ -1,0 +1,72 @@
+{
+  "entities": [
+    {
+      "id": "demo-device",
+      "name": "Demo Device",
+      "device_id": "demo-device",
+      "entity_type": "sensor",
+      "capabilities": [
+        "connected",
+        "temperature_c",
+        "refresh",
+        "bridge_connected",
+        "messages_per_minute",
+        "resync_bridge"
+      ],
+      "available_commands": [
+        {
+          "id": "refresh",
+          "label": "Refresh",
+          "kind": "action"
+        },
+        {
+          "id": "resync_bridge",
+          "label": "Resync Bridge",
+          "kind": "action"
+        }
+      ],
+      "dashboard": {
+        "allowed_widgets": [
+          "tile",
+          "stat",
+          "button"
+        ],
+        "default_widget": "tile"
+      }
+    }
+  ],
+  "capabilities": {
+    "connected": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "temperature_c": {
+      "kind": "sensor",
+      "unit": "C"
+    },
+    "refresh": {
+      "kind": "action"
+    },
+    "bridge_connected": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "messages_per_minute": {
+      "kind": "sensor",
+      "unit": "msg/min"
+    },
+    "resync_bridge": {
+      "kind": "action"
+    }
+  },
+  "commands": {
+    "refresh": {
+      "description": "Refresh the device state.",
+      "timeout_ms": 5000
+    },
+    "resync_bridge": {
+      "description": "Resynchronize protocol bridge state.",
+      "timeout_ms": 10000
+    }
+  }
+}
