@@ -1,0 +1,103 @@
+{
+  "catalog_version": "1.0",
+  "integration_id": "piphi-network-midea-ac-lan",
+  "coverage_mode": "device_type_model_and_attribute_negotiation",
+  "reviewed_at": "2026-09-07",
+  "sources": {
+    "midea_ac_lan": "https://github.com/wuwentao/midea_ac_lan",
+    "midea_entity_matrix": "https://github.com/wuwentao/midea_ac_lan/blob/master/custom_components/midea_ac_lan/midea_devices.py",
+    "midea_local": "https://github.com/mill1000/midea-local",
+    "home_assistant_midea": "https://www.home-assistant.io/integrations/midea/",
+    "core_vocabulary": "PiPhi Network Core and maintained PiPhi integrations"
+  },
+  "groups": [
+    {
+      "id": "runtime-foundation",
+      "status": "implemented",
+      "scope": ["all-configurations"],
+      "source_refs": ["core_vocabulary"],
+      "reason": "The runtime implements configuration presence, connectivity state, refresh dispatch, and its configuration event.",
+      "state": ["connected"],
+      "events": ["runtime.config.applied"],
+      "conditions": ["state_matches"],
+      "actions": ["refresh"]
+    },
+    {
+      "id": "air-conditioner-core-climate",
+      "status": "implemented",
+      "scope": ["device-type-0xac", "attributes-reported-by-model"],
+      "source_refs": ["midea_local"],
+      "reason": "The msmart-ng adapter normalizes safe common AC controls, negotiates model-reported fan and swing support, exposes supported presets, and derives demand action with read-after-write confirmation.",
+      "state": ["power", "hvac_mode", "hvac_action", "target_temperature_c", "indoor_temperature_c", "outdoor_temperature_c", "fan_speed_percent", "fan_mode", "fan_modes_supported", "swing_mode", "swing_modes_supported", "preset_mode", "preset_modes_supported"],
+      "events": [],
+      "conditions": [],
+      "actions": ["set_power", "set_hvac_mode", "set_target_temperature", "set_fan_mode", "set_swing_mode", "set_preset_mode"]
+    },
+    {
+      "id": "air-conditioner-climate",
+      "status": "planned",
+      "scope": ["device-type-0xac", "attributes-reported-by-model"],
+      "source_refs": ["midea_ac_lan", "midea_entity_matrix", "midea_local", "home_assistant_midea"],
+      "reason": "Core climate controls require local protocol discovery and precise per-model mode, range, fan, and swing negotiation.",
+      "state": ["indoor_humidity_percent", "swing_horizontal", "swing_vertical", "horizontal_angle", "vertical_angle", "temperature_min_c", "temperature_max_c", "temperature_step_c"],
+      "events": ["climate.power_changed", "climate.mode_changed", "climate.target_changed", "climate.action_changed", "climate.threshold_crossed"],
+      "conditions": ["power_is", "hvac_mode_is", "hvac_action_is", "indoor_temperature_threshold", "outdoor_temperature_threshold", "humidity_threshold"],
+      "actions": ["set_fan_speed", "set_swing_horizontal", "set_swing_vertical", "set_horizontal_angle", "set_vertical_angle"]
+    },
+    {
+      "id": "air-conditioner-features",
+      "status": "planned",
+      "scope": ["device-type-0xac", "optional-advertised-attributes"],
+      "source_refs": ["midea_entity_matrix", "midea_local"],
+      "reason": "Comfort and maintenance switches vary widely by model and must be absent unless the device reports the backing attribute.",
+      "state": ["eco_mode", "ieco_mode", "boost_mode", "sleep_mode", "comfort_mode", "breezeless_mode", "indirect_wind", "natural_wind", "dry_mode", "frost_protect", "aux_heating", "outdoor_silent", "smart_eye", "anion_enabled", "prompt_tone_enabled", "sound_enabled", "screen_display_enabled", "self_clean_active", "dust_filter_full", "fresh_air_enabled", "fresh_air_mode", "fresh_air_exhaust_enabled", "fresh_air_exhaust_mode"],
+      "events": ["dust_filter.attention_required", "self_clean.started", "self_clean.completed", "comfort_feature.changed"],
+      "conditions": ["filter_requires_attention", "comfort_feature_is_enabled", "self_clean_is_active"],
+      "actions": ["set_eco_mode", "set_ieco_mode", "set_boost_mode", "set_sleep_mode", "set_comfort_mode", "set_breezeless_mode", "set_indirect_wind", "set_natural_wind", "set_dry_mode", "set_frost_protect", "set_aux_heating", "set_outdoor_silent", "set_smart_eye", "set_anion", "set_prompt_tone", "set_sound", "set_screen_display", "start_self_clean", "set_fresh_air", "set_fresh_air_mode", "set_fresh_air_exhaust", "set_fresh_air_exhaust_mode"]
+    },
+    {
+      "id": "energy-and-equipment-diagnostics",
+      "status": "planned",
+      "scope": ["models-reporting-energy-or-outdoor-unit-telemetry"],
+      "source_refs": ["midea_entity_matrix", "midea_local"],
+      "reason": "Energy counters and compressor diagnostics need unit normalization, counter-reset handling, and optional-endpoint isolation.",
+      "state": ["total_energy_kwh", "current_energy_kwh", "realtime_power_w", "error_code", "pmv", "compressor_frequency_hz", "target_compressor_frequency_hz", "compressor_current_a", "compressor_voltage_v", "outdoor_fan_speed_rpm", "high_pressure_mpa", "low_pressure_mpa", "refrigerant_temperature_c", "equipment_diagnostic_status"],
+      "events": ["energy.counter_reset", "power.threshold_crossed", "device.faulted", "device.fault_cleared", "equipment.diagnostic_changed"],
+      "conditions": ["power_threshold", "energy_threshold", "error_code_is", "equipment_is_healthy", "compressor_frequency_threshold"],
+      "actions": []
+    },
+    {
+      "id": "compatible-appliance-profiles",
+      "status": "planned",
+      "scope": ["discovered-midea-device-types-other-than-0xac"],
+      "source_refs": ["midea_ac_lan", "midea_entity_matrix", "midea_local"],
+      "reason": "The maintained LAN ecosystem includes fans, dehumidifiers, water heaters, lights, dishwashers, washers, air appliances, kitchen devices, and bathroom controllers; each profile needs fixtures and capability filtering.",
+      "state": ["appliance_type", "work_mode", "program", "progress_percent", "time_remaining_min", "door_open", "child_lock", "tank_level_percent", "tank_full", "water_temperature_c", "target_water_temperature_c", "water_level", "filter_life_percent", "filter_attention_required", "rinse_aid_low", "salt_low", "light_on", "fan_on", "humidifier_on", "humidity_target_percent", "occupancy_detected", "storage_remaining_hours"],
+      "events": ["appliance.started", "appliance.paused", "appliance.completed", "door.changed", "tank.full", "supply.low", "filter.attention_required", "occupancy.changed"],
+      "conditions": ["appliance_type_is", "work_mode_is", "program_is", "progress_threshold", "door_is_open", "tank_is_full", "supply_is_low", "occupancy_is_detected"],
+      "actions": ["start_appliance", "pause_appliance", "stop_appliance", "set_program", "set_child_lock", "set_water_temperature", "set_water_level", "set_humidity_target", "set_light", "set_fan", "set_humidifier"]
+    },
+    {
+      "id": "local-transport-and-discovery",
+      "status": "planned",
+      "scope": ["lan-devices", "v2-v3-protocol-variants"],
+      "source_refs": ["midea_ac_lan", "midea_local"],
+      "reason": "Initial token/key acquisition, local push reconnect, encryption variants, and cloud-bootstrap degradation require explicit operational modeling without exposing secrets.",
+      "state": ["protocol_version", "local_push_connected", "last_status_at", "last_command_at", "command_latency_ms", "reconnect_count", "cloud_bootstrap_required", "discovery_status"],
+      "events": ["device.discovered", "device.online", "device.offline", "local_push.disconnected", "local_push.reconnected", "authentication.failed"],
+      "conditions": ["device_is_online", "local_push_is_connected", "last_status_age_threshold", "cloud_bootstrap_is_required"],
+      "actions": ["rediscover_devices", "reconnect_local_push"]
+    },
+    {
+      "id": "unsafe-or-unportable-operations",
+      "status": "excluded",
+      "scope": ["all-device-types"],
+      "source_refs": ["midea_ac_lan", "midea_local"],
+      "reason": "Raw command injection, arbitrary attribute writes, credential disclosure, unsupported firmware administration, and unbounded multi-device mutation violate the allow-listed local integration boundary.",
+      "state": ["cloud_password", "local_encryption_key", "local_token", "raw_protocol_payload"],
+      "events": [],
+      "conditions": [],
+      "actions": ["send_raw_command", "set_arbitrary_attribute", "install_firmware", "factory_reset", "execute_cross_device_command"]
+    }
+  ]
+}

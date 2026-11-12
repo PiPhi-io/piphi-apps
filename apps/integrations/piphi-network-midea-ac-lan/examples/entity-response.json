@@ -1,0 +1,188 @@
+{
+  "entities": [
+    {
+      "id": "demo-device",
+      "name": "Demo Device",
+      "device_id": "demo-device",
+      "entity_type": "climate",
+      "capabilities": [
+        "connected",
+        "power",
+        "hvac_mode",
+        "hvac_action",
+        "target_temperature_c",
+        "indoor_temperature_c",
+        "outdoor_temperature_c",
+        "fan_speed_percent",
+        "fan_mode",
+        "fan_modes_supported",
+        "swing_mode",
+        "swing_modes_supported",
+        "preset_mode",
+        "preset_modes_supported",
+        "set_power",
+        "set_hvac_mode",
+        "set_target_temperature",
+        "set_fan_mode",
+        "set_swing_mode",
+        "set_preset_mode",
+        "refresh"
+      ],
+      "available_commands": [
+        {
+          "id": "refresh",
+          "label": "Refresh",
+          "kind": "action"
+        },
+        {
+          "id": "set_power",
+          "label": "Set power",
+          "kind": "action"
+        },
+        {
+          "id": "set_hvac_mode",
+          "label": "Set HVAC mode",
+          "kind": "action"
+        },
+        {
+          "id": "set_target_temperature",
+          "label": "Set target temperature",
+          "kind": "action"
+        },
+        {
+          "id": "set_fan_mode",
+          "label": "Set fan mode",
+          "kind": "action"
+        },
+        {
+          "id": "set_swing_mode",
+          "label": "Set swing mode",
+          "kind": "action"
+        },
+        {
+          "id": "set_preset_mode",
+          "label": "Set preset mode",
+          "kind": "action"
+        }
+      ],
+      "dashboard": {
+        "allowed_widgets": [
+          "tile",
+          "stat",
+          "button"
+        ],
+        "default_widget": "tile"
+      }
+    }
+  ],
+  "capabilities": {
+    "connected": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "refresh": {
+      "kind": "action"
+    },
+    "power": {
+      "kind": "actuator",
+      "unit": "bool"
+    },
+    "hvac_mode": {
+      "kind": "actuator",
+      "value_kind": "enum"
+    },
+    "hvac_action": {
+      "kind": "sensor",
+      "value_kind": "enum"
+    },
+    "target_temperature_c": {
+      "kind": "actuator",
+      "value_kind": "numeric",
+      "unit": "°C"
+    },
+    "indoor_temperature_c": {
+      "kind": "sensor",
+      "unit": "°C"
+    },
+    "outdoor_temperature_c": {
+      "kind": "sensor",
+      "unit": "°C"
+    },
+    "fan_speed_percent": {
+      "kind": "sensor",
+      "unit": "%"
+    },
+    "fan_mode": {
+      "kind": "actuator",
+      "value_kind": "enum"
+    },
+    "fan_modes_supported": {
+      "kind": "sensor",
+      "value_kind": "text"
+    },
+    "swing_mode": {
+      "kind": "actuator",
+      "value_kind": "enum"
+    },
+    "swing_modes_supported": {
+      "kind": "sensor",
+      "value_kind": "text"
+    },
+    "preset_mode": {
+      "kind": "actuator",
+      "value_kind": "enum"
+    },
+    "preset_modes_supported": {
+      "kind": "sensor",
+      "value_kind": "text"
+    },
+    "set_power": {
+      "kind": "action"
+    },
+    "set_hvac_mode": {
+      "kind": "action"
+    },
+    "set_target_temperature": {
+      "kind": "action"
+    },
+    "set_fan_mode": {
+      "kind": "action"
+    },
+    "set_swing_mode": {
+      "kind": "action"
+    },
+    "set_preset_mode": {
+      "kind": "action"
+    }
+  },
+  "commands": {
+    "refresh": {
+      "description": "Refresh the device state.",
+      "timeout_ms": 5000
+    },
+    "set_power": {
+      "description": "Turn the configured air conditioner on or off.",
+      "timeout_ms": 10000
+    },
+    "set_hvac_mode": {
+      "description": "Set a supported HVAC operating mode.",
+      "timeout_ms": 10000
+    },
+    "set_target_temperature": {
+      "description": "Set the target temperature within the device-reported range.",
+      "timeout_ms": 10000
+    },
+    "set_fan_mode": {
+      "description": "Set a fan speed reported as supported by the device.",
+      "timeout_ms": 10000
+    },
+    "set_swing_mode": {
+      "description": "Set a louver swing mode reported as supported by the device.",
+      "timeout_ms": 10000
+    },
+    "set_preset_mode": {
+      "description": "Activate a supported comfort preset or clear the active preset.",
+      "timeout_ms": 10000
+    }
+  }
+}
