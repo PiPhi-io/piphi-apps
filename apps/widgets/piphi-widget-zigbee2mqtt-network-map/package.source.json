@@ -1,0 +1,64 @@
+{
+  "schema_version": "1",
+  "identity": {"publisher_id": "io.piphi", "package_id": "zigbee2mqtt-network-map", "version": "0.1.0"},
+  "name": "Zigbee network map",
+  "description": "Interactive topology, device-role, route and link-quality map for Zigbee2MQTT networks.",
+  "origin": "integration",
+  "owning_integration_id": "piphi.service.zigbee2mqtt-sidecar",
+  "sdk_version_range": ">=0.8.1,<0.9",
+  "requires_integrations": [
+    {"integration_id": "piphi.service.zigbee2mqtt-sidecar", "version_range": ">=0.1.15,<1", "optional": false}
+  ],
+  "recommended_for_integrations": ["piphi.service.zigbee2mqtt-sidecar"],
+  "widgets": [
+    {
+      "id": "network-map",
+      "name": "Zigbee network map",
+      "description": "Explore a Zigbee mesh and manually request a fresh topology scan.",
+      "runtime": "sandboxed_bundle",
+      "entry": "dist/widget.js",
+      "themes": [
+        {"id": "network-map", "name": "Network map", "description": "Role-aware Zigbee topology colors that follow Core's light or dark surface.", "stylesheet": "dist/widget.css", "color_scheme": "auto"}
+      ],
+      "default_theme_id": "network-map",
+      "presentation": {"contract_version": "1", "shell": "core", "content_surface": "transparent", "typography": "core", "appearance_controls": ["icon", "title", "surface", "opacity", "radius"]},
+      "interaction_targets": [
+        {"id": "topology-details", "label": "Open Zigbee network details", "kind": "binding", "binding_slot_id": "bridge", "allowed_actions": ["more-info", "popout"], "default_action": "more-info"}
+      ],
+      "binding_slots": [
+        {"id": "bridge", "label": "Zigbee2MQTT bridge", "required": true, "binding_modes": ["read-write"], "value_kinds": ["json", "command"], "capability_requirements": ["zigbee_network_topology"], "compatible_integration_ids": ["piphi.service.zigbee2mqtt-sidecar"], "data_delivery": {"mode": "snapshot", "stale_after_seconds": 86400}}
+      ],
+      "permissions": ["host.executeCommand"],
+      "allowed_commands": ["refresh_network_map"],
+      "settings_schema_version": "1",
+      "settings": [
+        {"id": "title", "type": "text", "label": "Title", "default": "Zigbee network"},
+        {"id": "show_link_quality", "type": "boolean", "label": "Show link quality", "default": true},
+        {"id": "include_routes", "type": "boolean", "label": "Include routes when scanning", "default": false},
+        {"id": "show_identifiers", "type": "boolean", "label": "Show device identifiers", "default": false}
+      ],
+      "default_column_span": 8,
+      "default_row_span": 6
+    }
+  ],
+  "marketplace": {
+    "metadata_version": 2,
+    "display_name": "Zigbee network map",
+    "summary": "See Zigbee2MQTT coordinators, routers, end devices, routes, and link quality in one interactive map.",
+    "category": "networking",
+    "regions": ["WW"],
+    "languages": ["en", "es", "ar"],
+    "publisher": {"name": "PiPhi Network", "website_url": "https://piphi.io", "support_url": "https://github.com/PiPhi-io/piphi-widget-zigbee2mqtt-network-map/issues", "security_contact": "support@piphi.io"},
+    "access": [
+      {"id": "network_scan", "label": "Manual Zigbee network scan", "reason": "Requests a raw topology scan from the bound Zigbee2MQTT bridge only after the user activates Scan network.", "required": false}
+    ],
+    "compatibility": [
+      {"capability": "zigbee_network_topology", "host_protocol": "piphi.widget.host/1", "widget_sdk": ">=0.8.1,<0.9"}
+    ],
+    "documentation_url": "https://github.com/PiPhi-io/piphi-widget-zigbee2mqtt-network-map",
+    "support_url": "https://github.com/PiPhi-io/piphi-widget-zigbee2mqtt-network-map/issues",
+    "changelog_url": "https://github.com/PiPhi-io/piphi-widget-zigbee2mqtt-network-map/releases",
+    "quality_tier": "unrated",
+    "governance": {"schema_version": 1, "publication_status": "draft", "rollout_percent": 0, "lifecycle_status": "active", "qualification": {"status": "unverified"}}
+  }
+}

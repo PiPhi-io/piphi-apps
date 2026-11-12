@@ -1,0 +1,43 @@
+{
+  "catalog_version": "1.0",
+  "widget_id": "io.piphi.zigbee2mqtt-network-map",
+  "reviewed_at": "2026-10-30",
+  "sources": {
+    "widget_sdk": "PiPhi Widget SDK 0.8.1 public host contract",
+    "zigbee2mqtt": "https://www.zigbee2mqtt.io/guide/usage/mqtt_topics_and_messages.html#zigbee2mqtt-bridge-request-networkmap"
+  },
+  "rows": [
+    {
+      "id": "topology-map",
+      "status": "implemented",
+      "consumes": ["zigbee_network_topology"],
+      "interactions": ["zoom", "pan", "inspect_node", "open_details"],
+      "states": ["loading", "empty", "live", "stale", "offline", "reconnecting", "denied", "error"],
+      "reason": "Renders bounded normalized nodes and links supplied by the PiPhi runtime without direct broker access."
+    },
+    {
+      "id": "manual-scan",
+      "status": "implemented",
+      "consumes": [],
+      "interactions": ["refresh_network_map"],
+      "states": ["idle", "working", "command_denied", "command_failed"],
+      "reason": "The disruptive topology scan is explicit, warning-labeled, single-flight, and restricted to one allow-listed command."
+    },
+    {
+      "id": "presentation-accessibility",
+      "status": "implemented",
+      "consumes": [],
+      "interactions": ["keyboard_navigation", "focus_visible"],
+      "states": ["responsive", "light_theme", "dark_theme", "rtl", "reduced_motion", "high_contrast"],
+      "reason": "SVG nodes have semantic keyboard targets, a text inspector, visible focus, adaptive sizing, and non-color role labels."
+    },
+    {
+      "id": "network-administration",
+      "status": "excluded",
+      "consumes": [],
+      "interactions": ["permit_join", "remove_device", "rename_device", "bind", "unbind", "restart_bridge"],
+      "states": [],
+      "reason": "Pairing and administrative mutations do not belong in a topology visualization."
+    }
+  ]
+}
