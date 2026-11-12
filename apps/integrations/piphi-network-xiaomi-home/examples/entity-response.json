@@ -1,0 +1,80 @@
+{
+  "entities": [
+    {
+      "id": "demo-device",
+      "name": "Demo Device",
+      "device_id": "demo-device",
+      "entity_type": "sensor",
+      "capabilities": [
+        "connected",
+        "temperature_c",
+        "refresh",
+        "target_state",
+        "set_power",
+        "identify"
+      ],
+      "available_commands": [
+        {
+          "id": "refresh",
+          "label": "Refresh",
+          "kind": "action"
+        },
+        {
+          "id": "set_power",
+          "label": "Set Power",
+          "kind": "action"
+        },
+        {
+          "id": "identify",
+          "label": "Identify",
+          "kind": "action"
+        }
+      ],
+      "dashboard": {
+        "allowed_widgets": [
+          "tile",
+          "stat",
+          "button"
+        ],
+        "default_widget": "tile"
+      }
+    }
+  ],
+  "capabilities": {
+    "connected": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "temperature_c": {
+      "kind": "sensor",
+      "unit": "C"
+    },
+    "refresh": {
+      "kind": "action"
+    },
+    "target_state": {
+      "kind": "sensor",
+      "unit": "state"
+    },
+    "set_power": {
+      "kind": "action"
+    },
+    "identify": {
+      "kind": "action"
+    }
+  },
+  "commands": {
+    "refresh": {
+      "description": "Refresh the device state.",
+      "timeout_ms": 5000
+    },
+    "set_power": {
+      "description": "Set actuator power state.",
+      "timeout_ms": 5000
+    },
+    "identify": {
+      "description": "Ask the device to identify itself.",
+      "timeout_ms": 5000
+    }
+  }
+}

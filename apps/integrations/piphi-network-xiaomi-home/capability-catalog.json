@@ -1,0 +1,90 @@
+{
+  "catalog_version": "1.0",
+  "integration_id": "piphi-network-xiaomi-home",
+  "coverage_mode": "dynamic_miot_spec_v2",
+  "reviewed_at": "2026-09-07",
+  "sources": {
+    "xiaomi_home": "https://github.com/XiaoMi/ha_xiaomi_home",
+    "miot_model": "MIoT-Spec-V2 properties, events, actions, and services",
+    "core_vocabulary": "PiPhi Network Core and maintained PiPhi integrations"
+  },
+  "groups": [
+    {
+      "id": "runtime-foundation",
+      "status": "implemented",
+      "scope": ["all-configurations"],
+      "source_refs": ["core_vocabulary"],
+      "reason": "The scaffold implements configuration presence, connectivity state, refresh dispatch, and a normalized state-change event.",
+      "state": ["connected"],
+      "events": ["runtime.config.applied"],
+      "conditions": ["state_matches"],
+      "actions": ["refresh"]
+    },
+    {
+      "id": "switching-and-lighting",
+      "status": "planned",
+      "scope": ["miot-switch", "miot-light"],
+      "source_refs": ["xiaomi_home", "miot_model"],
+      "reason": "Expose only when discovery reports matching readable or writable MIoT properties.",
+      "state": ["switch_on", "brightness_percent", "color_rgb", "color_temperature_k", "light_effect", "device_mode"],
+      "events": ["switch.changed", "light.changed"],
+      "conditions": ["is_on", "brightness_threshold", "color_temperature_threshold", "mode_is"],
+      "actions": ["turn_on", "turn_off", "toggle", "set_brightness", "set_color", "set_color_temperature", "set_light_effect", "set_mode"]
+    },
+    {
+      "id": "climate-and-environment",
+      "status": "planned",
+      "scope": ["miot-climate", "miot-fan", "miot-humidifier", "miot-water-heater", "miot-sensor"],
+      "source_refs": ["xiaomi_home", "miot_model"],
+      "reason": "Properties and value ranges are model-specific and must be negotiated during discovery.",
+      "state": ["temperature_c", "target_temperature_c", "humidity_percent", "target_humidity_percent", "hvac_mode", "fan_speed_percent", "fan_preset", "air_quality_index", "pm25_ugm3", "co2_ppm", "voc_ppb", "illuminance_lux", "water_heater_state"],
+      "events": ["climate.changed", "environment.threshold_crossed"],
+      "conditions": ["temperature_threshold", "humidity_threshold", "air_quality_threshold", "hvac_mode_is", "fan_speed_threshold"],
+      "actions": ["set_target_temperature", "set_target_humidity", "set_hvac_mode", "set_fan_speed", "set_fan_preset"]
+    },
+    {
+      "id": "security-and-binary-sensors",
+      "status": "planned",
+      "scope": ["miot-binary-sensor", "miot-event"],
+      "source_refs": ["xiaomi_home", "miot_model"],
+      "reason": "Translate MIoT events and readable properties into typed transitions after a baseline exists.",
+      "state": ["contact_open", "motion_detected", "occupancy_detected", "presence_detected", "leak_detected", "smoke_alarm", "gas_alarm", "tamper_detected", "battery_percent", "battery_low"],
+      "events": ["contact.changed", "motion.detected", "occupancy.changed", "leak.detected", "smoke.detected", "gas.detected", "button.pressed", "battery.low", "device.online", "device.offline"],
+      "conditions": ["contact_is_open", "motion_is_detected", "occupancy_is_detected", "alarm_is_active", "battery_below"],
+      "actions": []
+    },
+    {
+      "id": "covers-and-vacuums",
+      "status": "planned",
+      "scope": ["miot-cover", "miot-vacuum"],
+      "source_refs": ["xiaomi_home", "miot_model"],
+      "reason": "Commands require per-model action and position support checks.",
+      "state": ["cover_position", "cover_state", "vacuum_state", "cleaning_progress_percent", "cleaning_area_m2", "consumable_percent"],
+      "events": ["cover.changed", "vacuum.started", "vacuum.finished", "vacuum.error"],
+      "conditions": ["cover_position_threshold", "cover_state_is", "vacuum_state_is", "consumable_below"],
+      "actions": ["open", "close", "stop_cover", "set_cover_position", "vacuum_start", "vacuum_pause", "vacuum_stop", "return_to_base", "locate_vacuum"]
+    },
+    {
+      "id": "media-notify-and-generic-properties",
+      "status": "planned",
+      "scope": ["miot-media-player", "miot-notify", "miot-number", "miot-select", "miot-text", "miot-button"],
+      "source_refs": ["xiaomi_home", "miot_model"],
+      "reason": "Use typed MIoT schemas and immutable allow-lists rather than a raw action or property escape hatch.",
+      "state": ["playback_state", "volume_percent", "muted", "media_title", "media_source", "device_setting_number", "device_setting_option", "device_setting_text"],
+      "events": ["media.changed", "miot.event"],
+      "conditions": ["playback_is", "setting_matches", "numeric_setting_threshold"],
+      "actions": ["play", "pause", "stop_media", "next_track", "previous_track", "set_volume", "set_mute", "select_source", "send_notification", "press_device_button", "set_device_number", "select_device_option", "set_device_text", "invoke_allowlisted_miot_action"]
+    },
+    {
+      "id": "unsafe-generic-access",
+      "status": "excluded",
+      "scope": ["all-devices"],
+      "source_refs": ["miot_model"],
+      "reason": "Arbitrary MIoT writes or actions bypass capability negotiation, typing, permissions, and safety review.",
+      "state": [],
+      "events": [],
+      "conditions": [],
+      "actions": ["write_arbitrary_miot_property", "invoke_arbitrary_miot_action", "change_wifi_credentials"]
+    }
+  ]
+}
