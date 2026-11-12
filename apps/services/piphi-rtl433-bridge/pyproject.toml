@@ -1,0 +1,33 @@
+[project]
+name = "piphi-rtl433-bridge"
+version = "0.1.6"
+description = "Default template for PDM package"
+authors = [
+    { name = "PiPhi Network" },
+    {name = "KelvinSan", email = "kelvin.sanyaolu@gmail.com"},
+]
+dependencies = [
+    "aiomqtt>=2.4,<3.0",
+    "click>=8.1.0",
+    "fastapi>=0.116.1",
+    "httpx>=0.27,<1.0",
+    "uvicorn>=0.35,<1.0",
+]
+requires-python = "==3.12.*"
+readme = "README.md"
+license = { text = "MIT" }
+
+[tool.pdm.dev-dependencies]
+dev = [
+    "pytest>=9.0.3",
+]
+
+[tool.pdm]
+distribution = false
+
+[tool.pdm.scripts]
+bridge = "python -m piphi_rtl433_bridge"
+test = "pytest"
+
+[tool.setuptools.packages.find]
+where = ["src"]
