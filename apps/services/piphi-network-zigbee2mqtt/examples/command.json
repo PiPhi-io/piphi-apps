@@ -1,0 +1,14 @@
+{
+  "contract_version": "automation.runtime.command.v1",
+  "command": "refresh",
+  "target": {
+    "config_id": "zigbee2mqtt-bridge",
+    "device_id": "zigbee2mqtt-bridge",
+    "entity_id": null
+  },
+  "params": {},
+  "capability": "device.refresh",
+  "capability_requirements": [
+    "device.refresh"
+  ]
+}

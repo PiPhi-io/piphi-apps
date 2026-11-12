@@ -1,0 +1,10 @@
+{
+  "id": "zigbee2mqtt-bridge",
+  "host": "127.0.0.1",
+  "alias": "Zigbee2MQTT Bridge",
+  "serial_port": "/dev/ttyZigbee",
+  "adapter": "ember",
+  "mqtt_server": "mqtt://127.0.0.1:1883",
+  "mqtt_base_topic": "zigbee2mqtt",
+  "data_path": "/app/data"
+}

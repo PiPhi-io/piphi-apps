@@ -1,0 +1,72 @@
+{
+  "entities": [
+    {
+      "id": "demo-device",
+      "name": "Demo Device",
+      "device_id": "demo-device",
+      "entity_type": "service",
+      "capabilities": [
+        "connected",
+        "temperature_c",
+        "refresh",
+        "service_available",
+        "request_latency_ms",
+        "reload_registry"
+      ],
+      "available_commands": [
+        {
+          "id": "refresh",
+          "label": "Refresh",
+          "kind": "action"
+        },
+        {
+          "id": "reload_registry",
+          "label": "Reload Registry",
+          "kind": "action"
+        }
+      ],
+      "dashboard": {
+        "allowed_widgets": [
+          "tile",
+          "stat",
+          "button"
+        ],
+        "default_widget": "tile"
+      }
+    }
+  ],
+  "capabilities": {
+    "connected": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "temperature_c": {
+      "kind": "sensor",
+      "unit": "C"
+    },
+    "refresh": {
+      "kind": "action"
+    },
+    "service_available": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "request_latency_ms": {
+      "kind": "sensor",
+      "unit": "ms"
+    },
+    "reload_registry": {
+      "kind": "action"
+    }
+  },
+  "commands": {
+    "refresh": {
+      "description": "Refresh the device state.",
+      "timeout_ms": 5000
+    },
+    "reload_registry": {
+      "description": "Reload the platform service registry.",
+      "timeout_ms": 10000
+    }
+  }
+}
