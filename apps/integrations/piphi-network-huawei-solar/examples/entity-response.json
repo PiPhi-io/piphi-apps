@@ -1,0 +1,20 @@
+{
+  "entities": [],
+  "capabilities": {
+    "connected": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "active_power_w": {"kind": "sensor", "unit": "W", "value_kind": "numeric"},
+    "daily_yield_kwh": {"kind": "sensor", "unit": "kWh", "value_kind": "numeric"},
+    "refresh": {
+      "kind": "action"
+    }
+  },
+  "commands": {
+    "refresh": {
+      "description": "Refresh the device state.",
+      "timeout_ms": 15000
+    }
+  }
+}

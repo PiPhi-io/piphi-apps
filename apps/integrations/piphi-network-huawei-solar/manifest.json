@@ -1,0 +1,202 @@
+{
+  "$schema": "./schema/piphi-manifest.schema.json",
+  "manifest_version": "1.0",
+  "id": "piphi-network-huawei-solar",
+  "name": "Huawei Solar",
+  "version": "0.1.0",
+  "description": "Read active power and daily generated energy from supported Huawei SUN2000 inverters over local Modbus TCP.",
+  "metadata": {
+    "generator": "piphi-network-create",
+    "scaffold_version": "0.3.0",
+    "preset": "protocol-bridge",
+    "domain": "bridge",
+    "preset_summary": "Protocol bridge starter for translating an external local protocol."
+  },
+  "maintainer": {
+    "name": "PiPhi Network",
+    "website": "https://piphi.io"
+  },
+  "license": "Apache-2.0",
+  "image": "docker.io/piphinetwork/piphi-network-huawei-solar:0.1.0",
+  "platforms": [
+    "linux"
+  ],
+  "runtime": {
+    "linux": {
+      "type": "container",
+      "container": {
+        "image": "docker.io/piphinetwork/piphi-network-huawei-solar:0.1.0",
+        "ports": [
+          {
+            "container": 4213,
+            "host": 4213
+          }
+        ],
+        "environment": {
+          "LOG_LEVEL": "info"
+        },
+        "restart_policy": {
+          "name": "unless-stopped",
+          "maximum_retry_count": 0
+        }
+      },
+      "discovery": {
+        "method": "passive"
+      }
+    }
+  },
+  "api": {
+    "required": [
+      "health",
+      "entities",
+      "command",
+      "config",
+      "ui_config"
+    ],
+    "endpoints": {
+      "health": "/health",
+      "diagnostics": "/diagnostics",
+      "discover": "/discover",
+      "entities": "/entities",
+      "state": "/state",
+      "config": "/config",
+      "config_sync": "/config/sync",
+      "deconfigure": "/deconfigure",
+      "ui_config": "/ui-config",
+      "events": "/events",
+      "command": "/command"
+    }
+  },
+  "config": {
+    "source": "endpoint",
+    "endpoint": "/ui-config",
+    "required": true,
+    "editable_fields": [
+      "host",
+      "alias",
+      "unit_id",
+      "poll_interval_seconds"
+    ],
+    "runtime_fields": [
+      "id",
+      "config_id",
+      "container_id",
+      "device_id"
+    ],
+    "identity_fields": [
+      "host"
+    ]
+  },
+  "identity": {
+    "fields": [
+      "host"
+    ]
+  },
+  "capabilities": {
+    "connected": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "active_power_w": {"kind": "sensor", "unit": "W", "value_kind": "numeric"},
+    "daily_yield_kwh": {"kind": "sensor", "unit": "kWh", "value_kind": "numeric"},
+    "refresh": {
+      "kind": "action"
+    }
+  },
+  "commands": {
+    "refresh": {
+      "description": "Refresh the device state.",
+      "timeout_ms": 15000
+    }
+  },
+  "entities": [
+    {
+      "id": "demo-device",
+      "name": "Demo Device",
+      "device_id": "demo-device",
+      "entity_type": "solar_system",
+      "capabilities": [
+        "connected",
+        "active_power_w",
+        "daily_yield_kwh",
+        "refresh"
+      ],
+      "available_commands": [
+        {
+          "id": "refresh",
+          "label": "Refresh",
+          "kind": "action"
+        }
+      ],
+      "dashboard": {
+        "allowed_widgets": [
+          "tile",
+          "stat",
+          "button"
+        ],
+        "default_widget": "tile"
+      }
+    }
+  ],
+  "ui": {
+    "experience_packages": [
+      {"registry_id": "io.piphi.huawei-solar-production", "version_range": ">=0.1,<1", "auto_install": true}
+    ]
+  },
+  "marketplace": {
+    "metadata_version": 2,
+    "display_name": "Huawei Solar",
+    "summary": "Read active power and daily generated energy from supported Huawei SUN2000 inverters over local Modbus TCP.",
+    "category": "energy",
+    "regions": [
+      "WW"
+    ],
+    "languages": [
+      "en"
+    ],
+    "publisher": {
+      "name": "PiPhi Network",
+      "website_url": "https://piphi.io",
+      "support_url": "https://github.com/PiPhi-io/piphi-network-huawei-solar/issues",
+      "security_contact": "support@piphi.io"
+    },
+    "access_declared": true,
+    "access": [
+      {
+        "id": "local_network",
+        "label": "Local network access",
+        "reason": "Discovers or communicates with supported services and devices on the homeowner's local network.",
+        "required": true
+      }
+    ],
+    "compatibility": [
+      {
+        "brand": "Huawei",
+        "model": "SUN2000 models exposing Modbus V3 registers 32080 and 32114"
+      }
+    ],
+    "documentation_url": "https://github.com/PiPhi-io/piphi-network-huawei-solar",
+    "support_url": "https://github.com/PiPhi-io/piphi-network-huawei-solar/issues",
+    "changelog_url": "https://github.com/PiPhi-io/piphi-network-huawei-solar/releases",
+    "quality_tier": "unrated",
+    "governance": {
+      "schema_version": 1,
+      "publication_status": "draft",
+      "rollout_percent": 0,
+      "lifecycle_status": "active",
+      "qualification": {
+        "status": "unverified"
+      }
+    },
+    "device_types": ["solar inverter"],
+    "protocols": [
+      "Modbus TCP"
+    ],
+    "discovery_methods": ["manual"],
+    "connectivity": "local",
+    "offline_support": "full"
+  },
+  "onboarding": {
+    "mode": "discovery"
+  }
+}
