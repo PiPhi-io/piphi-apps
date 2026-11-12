@@ -1,0 +1,203 @@
+{
+  "$schema": "./schema/piphi-manifest.schema.json",
+  "manifest_version": "1.0",
+  "id": "piphi-network-octopus-energy",
+  "name": "Octopus Energy",
+  "version": "0.1.0",
+  "description": "Monitor current and upcoming Octopus Energy electricity tariff rates.",
+  "metadata": {
+    "generator": "piphi-network-create",
+    "scaffold_version": "0.3.0",
+    "preset": "cloud-polling-api",
+    "domain": "cloud-api",
+    "preset_summary": "Cloud API starter with vendor endpoint and token-oriented configuration."
+  },
+  "maintainer": {
+    "name": "PiPhi Network",
+    "website": "https://piphi.io"
+  },
+  "license": "Apache-2.0",
+  "image": "docker.io/piphinetwork/piphi-network-octopus-energy:0.1.0",
+  "platforms": [
+    "linux"
+  ],
+  "runtime": {
+    "linux": {
+      "type": "container",
+      "container": {
+        "image": "docker.io/piphinetwork/piphi-network-octopus-energy:0.1.0",
+        "ports": [
+          {
+            "container": 4212,
+            "host": 4212
+          }
+        ],
+        "environment": {
+          "LOG_LEVEL": "info"
+        },
+        "restart_policy": {
+          "name": "unless-stopped",
+          "maximum_retry_count": 0
+        }
+      },
+      "discovery": {
+        "method": "passive"
+      }
+    }
+  },
+  "api": {
+    "required": [
+      "health",
+      "entities",
+      "command",
+      "config",
+      "ui_config"
+    ],
+    "endpoints": {
+      "health": "/health",
+      "diagnostics": "/diagnostics",
+      "discover": "/discover",
+      "entities": "/entities",
+      "state": "/state",
+      "config": "/config",
+      "config_sync": "/config/sync",
+      "deconfigure": "/deconfigure",
+      "ui_config": "/ui-config",
+      "events": "/events",
+      "command": "/command"
+    }
+  },
+  "config": {
+    "source": "endpoint",
+    "endpoint": "/ui-config",
+    "required": true,
+    "editable_fields": [
+      "alias",
+      "poll_interval_seconds",
+      "product_code",
+      "tariff_code"
+    ],
+    "runtime_fields": [
+      "id",
+      "config_id",
+      "container_id",
+      "device_id"
+    ],
+    "identity_fields": [
+      "product_code",
+      "tariff_code"
+    ]
+  },
+  "identity": {
+    "fields": [
+      "product_code",
+      "tariff_code"
+    ]
+  },
+  "capabilities": {
+    "connected": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "current_rate": {"kind": "sensor", "value_kind": "numeric", "unit": "p/kWh"},
+    "next_rate": {"kind": "sensor", "value_kind": "numeric", "unit": "p/kWh"},
+    "refresh": {
+      "kind": "action"
+    }
+  },
+  "commands": {
+    "refresh": {
+      "description": "Refresh the device state.",
+      "timeout_ms": 12000
+    }
+  },
+  "entities": [
+    {
+      "id": "demo-device",
+      "name": "Demo Device",
+      "device_id": "demo-device",
+      "entity_type": "energy_account",
+      "capabilities": [
+        "connected",
+        "current_rate",
+        "next_rate",
+        "refresh"
+      ],
+      "available_commands": [
+        {
+          "id": "refresh",
+          "label": "Refresh",
+          "kind": "action"
+        }
+      ],
+      "dashboard": {
+        "allowed_widgets": [
+          "tile",
+          "stat",
+          "button"
+        ],
+        "default_widget": "tile"
+      }
+    }
+  ],
+  "ui": {
+    "experience_packages": [
+      {"registry_id": "io.piphi.octopus-rates", "version_range": ">=0.1,<1", "auto_install": true}
+    ]
+  },
+  "marketplace": {
+    "metadata_version": 2,
+    "display_name": "Octopus Energy",
+    "summary": "Monitor current and upcoming Octopus Energy electricity tariff rates.",
+    "category": "energy",
+    "regions": [
+      "GB"
+    ],
+    "languages": [
+      "en"
+    ],
+    "publisher": {
+      "name": "PiPhi Network",
+      "website_url": "https://piphi.io",
+      "support_url": "https://github.com/PiPhi-io/piphi-network-octopus-energy/issues",
+      "security_contact": "support@piphi.io"
+    },
+    "access_declared": true,
+    "access": [],
+    "compatibility": [
+      {
+        "brand": "Octopus Energy",
+        "model": "Public electricity tariffs"
+      }
+    ],
+    "documentation_url": "https://github.com/PiPhi-io/piphi-network-octopus-energy",
+    "support_url": "https://github.com/PiPhi-io/piphi-network-octopus-energy/issues",
+    "changelog_url": "https://github.com/PiPhi-io/piphi-network-octopus-energy/releases",
+    "quality_tier": "unrated",
+    "governance": {
+      "schema_version": 1,
+      "publication_status": "draft",
+      "rollout_percent": 0,
+      "lifecycle_status": "active",
+      "qualification": {
+        "status": "unverified"
+      }
+    },
+    "device_types": [
+      "electricity tariff"
+    ],
+    "protocols": [
+      "Octopus Energy API",
+      "HTTPS"
+    ],
+    "discovery_methods": [
+      "product and tariff code configuration"
+    ],
+    "connectivity": "cloud",
+    "offline_support": "none",
+    "privacy_url": "https://github.com/PiPhi-io/piphi-network-octopus-energy/blob/main/docs/privacy.md"
+  },
+  "onboarding": {
+    "mode": "account"
+  }
+}
