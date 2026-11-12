@@ -1,0 +1,132 @@
+{
+  "behaviorSchemaVersion": "integration.behaviors.v2",
+  "templates": [],
+  "telemetry": {
+    "capabilityMappings": [
+      {"capability": "sensor.connected", "nativeMetric": "connected"},
+      {"capability": "sensor.production_power", "nativeMetric": "production_power_w"},
+      {"capability": "sensor.consumption_power", "nativeMetric": "consumption_power_w"},
+      {"capability": "sensor.grid_power", "nativeMetric": "grid_power_w"},
+      {"capability": "sensor.battery_power", "nativeMetric": "battery_power_w"},
+      {"capability": "sensor.battery_soc", "nativeMetric": "battery_soc_percent"},
+      {"capability": "sensor.today_energy", "nativeMetric": "today_energy_kwh"},
+      {"capability": "sensor.month_energy", "nativeMetric": "month_energy_kwh"},
+      {"capability": "sensor.year_energy", "nativeMetric": "year_energy_kwh"},
+      {"capability": "sensor.lifetime_energy", "nativeMetric": "lifetime_energy_kwh"},
+      {"capability": "sensor.lifetime_revenue", "nativeMetric": "lifetime_revenue"}
+    ]
+  },
+  "devices": [
+    {
+      "id": "solar_edge_site",
+      "name": "SolarEdge site",
+      "description": "Read-only power flow, storage state, and production totals for one SolarEdge Monitoring site.",
+      "deviceClass": "energy_monitor",
+      "entityType": "solar_energy_system",
+      "capabilities": [
+        "connected", "production_power_w", "consumption_power_w", "grid_power_w",
+        "battery_power_w", "battery_soc_percent", "today_energy_kwh", "month_energy_kwh",
+        "year_energy_kwh", "lifetime_energy_kwh", "lifetime_revenue", "refresh"
+      ],
+      "targeting": {
+        "scopes": ["config", "selection"],
+        "fanout": {"supported": false, "defaultMode": "config", "allowedModes": ["config", "selection"]}
+      },
+      "freshness": {"maxAgeSeconds": 1200, "staleDataMode": "block"},
+      "ui": {"icon": "sun", "category": "energy"},
+      "triggers": [
+        {
+          "id": "production_changed", "label": "Solar production changes",
+          "description": "Start when SolarEdge reports a new production power value.",
+          "capability": "sensor.production_power",
+          "runtime": {"event": "device.state_changed", "source": "integration"},
+          "freshness": {"maxAgeSeconds": 1200, "staleDataMode": "block"}, "ui": {"group": "when"}
+        },
+        {
+          "id": "grid_power_changed", "label": "Grid flow changes",
+          "description": "Start when grid import or export power changes.",
+          "capability": "sensor.grid_power",
+          "runtime": {"event": "device.state_changed", "source": "integration"},
+          "freshness": {"maxAgeSeconds": 1200, "staleDataMode": "block"}, "ui": {"group": "when"}
+        },
+        {
+          "id": "battery_soc_changed", "label": "Battery charge changes",
+          "description": "Start when a connected SolarEdge battery reports a new charge percentage.",
+          "capability": "sensor.battery_soc",
+          "runtime": {"event": "device.state_changed", "source": "integration"},
+          "freshness": {"maxAgeSeconds": 1200, "staleDataMode": "block"}, "ui": {"group": "when"}
+        },
+        {
+          "id": "connection_changed", "label": "Connection changes",
+          "description": "Start when the SolarEdge site connection state changes.",
+          "capability": "sensor.connected",
+          "runtime": {"event": "device.state_changed", "source": "integration"},
+          "freshness": {"maxAgeSeconds": 1200, "staleDataMode": "block"}, "ui": {"group": "when"}
+        }
+      ],
+      "intents": [
+        {"id": "monitor_solar_energy", "label": "Monitor solar energy", "description": "Build read-only automations around production, grid flow, and battery state."}
+      ],
+      "conditions": [
+        {
+          "id": "production_power_threshold", "label": "Production power",
+          "description": "Compare current solar production with a watt threshold.", "type": "number",
+          "capability": "sensor.production_power", "operators": ["gt", "gte", "lt", "lte", "eq"],
+          "runtime": {"source": "state", "field": "production_power_w", "operator": "gt"},
+          "freshness": {"maxAgeSeconds": 1200, "staleDataMode": "block"}, "ui": {"group": "only_if"},
+          "params": [{"name": "value", "label": "Watts", "type": "number", "required": true, "unit": "W"}]
+        },
+        {
+          "id": "consumption_power_threshold", "label": "Consumption power",
+          "description": "Compare current site consumption with a watt threshold.", "type": "number",
+          "capability": "sensor.consumption_power", "operators": ["gt", "gte", "lt", "lte", "eq"],
+          "runtime": {"source": "state", "field": "consumption_power_w", "operator": "gt"},
+          "freshness": {"maxAgeSeconds": 1200, "staleDataMode": "block"}, "ui": {"group": "only_if"},
+          "params": [{"name": "value", "label": "Watts", "type": "number", "required": true, "unit": "W"}]
+        },
+        {
+          "id": "grid_power_threshold", "label": "Grid power",
+          "description": "Compare signed grid power: positive imports and negative exports.", "type": "number",
+          "capability": "sensor.grid_power", "operators": ["gt", "gte", "lt", "lte", "eq"],
+          "runtime": {"source": "state", "field": "grid_power_w", "operator": "gt"},
+          "freshness": {"maxAgeSeconds": 1200, "staleDataMode": "block"}, "ui": {"group": "only_if"},
+          "params": [{"name": "value", "label": "Signed watts", "type": "number", "required": true, "unit": "W"}]
+        },
+        {
+          "id": "battery_soc_threshold", "label": "Battery charge",
+          "description": "Compare battery state of charge with a percentage threshold.", "type": "number",
+          "capability": "sensor.battery_soc", "operators": ["gt", "gte", "lt", "lte", "eq"],
+          "runtime": {"source": "state", "field": "battery_soc_percent", "operator": "lt"},
+          "freshness": {"maxAgeSeconds": 1200, "staleDataMode": "block"}, "ui": {"group": "only_if"},
+          "params": [{"name": "value", "label": "Charge", "type": "number", "required": true, "unit": "%", "min": 0, "max": 100}]
+        },
+        {
+          "id": "today_energy_threshold", "label": "Energy produced today",
+          "description": "Compare today's generated energy with a kWh threshold.", "type": "number",
+          "capability": "sensor.today_energy", "operators": ["gt", "gte", "lt", "lte", "eq"],
+          "runtime": {"source": "state", "field": "today_energy_kwh", "operator": "gte"},
+          "freshness": {"maxAgeSeconds": 7200, "staleDataMode": "block"}, "ui": {"group": "only_if"},
+          "params": [{"name": "value", "label": "Energy", "type": "number", "required": true, "unit": "kWh", "min": 0}]
+        }
+      ],
+      "actions": [
+        {
+          "id": "refresh", "label": "Refresh SolarEdge data",
+          "description": "Request current power flow and energy totals from SolarEdge now.",
+          "capability": "device.refresh", "capabilityRequirements": ["device.refresh"],
+          "runtime": {"command": "refresh", "endpoint": "/command", "method": "POST", "timeoutSeconds": 30},
+          "safety": {"riskLevel": "low", "requiresConfirmation": false, "liveRunAllowed": true},
+          "targeting": {"fanoutSafe": false, "supportsMultiTarget": false, "scopes": ["config", "selection"]},
+          "failure": {
+            "strategy": "retry_then_stop",
+            "retry": {"maxAttempts": 2, "delaySeconds": 30, "backoff": "exponential"},
+            "timeoutSeconds": 30, "continueOnPartialFailure": false, "idempotent": true
+          },
+          "ui": {"group": "do_this"}
+        }
+      ],
+      "stop": [],
+      "manualOverride": []
+    }
+  ]
+}

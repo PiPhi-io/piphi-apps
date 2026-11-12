@@ -1,0 +1,33 @@
+[project]
+name = "piphi-network-solaredge"
+version = "0.2.2"
+description = "PiPhi Network integration for SolarEdge Monitoring sites."
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.115.0",
+  "uvicorn[standard]>=0.30.0",
+  "piphi-runtime-kit-python>=0.8.1,<1.0.0",
+  "solaredge>=1.1.1,<2.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0.0",
+  "httpx>=0.27.0",
+  "cryptography>=43.0.0",
+  "piphi-runtime-testkit-python>=0.1.4,<0.2.0",
+]
+
+
+[project.scripts]
+piphi_network_solaredge = "solar_edge.main:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/solar_edge"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"src/behaviors.json" = "solar_edge/behaviors.json"

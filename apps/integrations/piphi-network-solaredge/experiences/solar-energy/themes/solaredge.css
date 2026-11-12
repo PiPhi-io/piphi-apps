@@ -1,0 +1,11 @@
+:root {
+  --piphi-experience-accent: #46a758;
+  --piphi-experience-surface: transparent;
+  --piphi-experience-tile-surface: color-mix(in srgb, currentColor 5%, transparent);
+  --piphi-experience-tile-border: transparent;
+  --piphi-experience-shadow: none;
+  --piphi-experience-tile-shadow: none;
+  --piphi-experience-radius: 14px;
+  --piphi-experience-gap: 8px;
+  --piphi-experience-energy-accent: #d4a017;
+}

@@ -1,0 +1,39 @@
+{
+  "entities": [
+    {
+      "id": "solaredge-1234567",
+      "name": "Home solar",
+      "config_id": "home-solar",
+      "device_id": "solaredge-1234567",
+      "entity_type": "solar_energy_system",
+      "capabilities": [
+        "connected", "production_power_w", "consumption_power_w", "grid_power_w",
+        "battery_power_w", "battery_soc_percent", "today_energy_kwh",
+        "month_energy_kwh", "year_energy_kwh", "lifetime_energy_kwh",
+        "lifetime_revenue", "refresh"
+      ],
+      "available_commands": [{"id": "refresh", "label": "Refresh", "kind": "action"}],
+      "dashboard": {
+        "allowed_widgets": ["energy-flow", "gauge", "line-chart", "stat", "external-widget"],
+        "default_widget": "energy-flow"
+      }
+    }
+  ],
+  "capabilities": {
+    "connected": {"kind": "sensor", "unit": "bool"},
+    "production_power_w": {"kind": "sensor", "unit": "W"},
+    "consumption_power_w": {"kind": "sensor", "unit": "W"},
+    "grid_power_w": {"kind": "sensor", "unit": "W"},
+    "battery_power_w": {"kind": "sensor", "unit": "W"},
+    "battery_soc_percent": {"kind": "sensor", "unit": "%"},
+    "today_energy_kwh": {"kind": "sensor", "unit": "kWh"},
+    "month_energy_kwh": {"kind": "sensor", "unit": "kWh"},
+    "year_energy_kwh": {"kind": "sensor", "unit": "kWh"},
+    "lifetime_energy_kwh": {"kind": "sensor", "unit": "kWh"},
+    "lifetime_revenue": {"kind": "sensor", "unit": "currency"},
+    "refresh": {"kind": "action"}
+  },
+  "commands": {
+    "refresh": {"description": "Refresh SolarEdge power flow and energy totals.", "timeout_ms": 15000}
+  }
+}

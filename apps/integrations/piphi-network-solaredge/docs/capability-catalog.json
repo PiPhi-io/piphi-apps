@@ -1,0 +1,29 @@
+{
+  "schema_version": "1",
+  "integration_id": "piphi-network-solaredge",
+  "catalog_version": "0.2.2",
+  "completion": {
+    "status": "release_candidate",
+    "scope": "Read-only SolarEdge Monitoring API V1 aggregate-site telemetry",
+    "automated_validation": "passed",
+    "physical_site_validation": "pending",
+    "blocking_item": "oauth_v2"
+  },
+  "capabilities": [
+    {"id": "connected", "status": "implemented", "source": "runtime poll outcome", "history": "heartbeat on every poll"},
+    {"id": "production_power_w", "status": "implemented", "source": "Monitoring API currentPowerFlow", "history": "sample on every successful poll"},
+    {"id": "consumption_power_w", "status": "implemented", "source": "Monitoring API currentPowerFlow", "history": "sample when provided on every successful poll"},
+    {"id": "grid_power_w", "status": "implemented", "source": "Monitoring API currentPowerFlow", "history": "sample when provided on every successful poll"},
+    {"id": "battery_power_w", "status": "implemented", "source": "Monitoring API currentPowerFlow", "history": "sample when storage is present"},
+    {"id": "battery_soc_percent", "status": "implemented", "source": "Monitoring API currentPowerFlow", "history": "sample when storage is present"},
+    {"id": "today_energy_kwh", "status": "implemented", "source": "Monitoring API energyDetails", "history": "deduplicated summary sample"},
+    {"id": "month_energy_kwh", "status": "implemented", "source": "Monitoring API energyDetails", "history": "deduplicated summary sample"},
+    {"id": "year_energy_kwh", "status": "implemented", "source": "Monitoring API energyDetails", "history": "deduplicated summary sample"},
+    {"id": "lifetime_energy_kwh", "status": "implemented", "source": "Monitoring API overview", "history": "deduplicated summary sample"},
+    {"id": "lifetime_revenue", "status": "implemented", "source": "Monitoring API overview", "history": "deduplicated summary sample when provided"},
+    {"id": "refresh", "status": "implemented", "source": "Runtime SDK command and automation action", "history": "not applicable"},
+    {"id": "oauth_v2", "status": "planned", "source": "SolarEdge API transition", "reason": "Monitoring API V1 deprecation requires a later authentication migration"},
+    {"id": "equipment_inventory", "status": "excluded", "source": "Monitoring API equipment endpoints", "reason": "This integration models one aggregate site and does not claim inverter-level entities"},
+    {"id": "mutating_controls", "status": "excluded", "source": "SolarEdge control APIs", "reason": "The integration is intentionally read-only"}
+  ]
+}
