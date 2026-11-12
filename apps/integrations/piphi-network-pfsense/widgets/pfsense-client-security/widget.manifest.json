@@ -1,0 +1,31 @@
+{
+  "id": "io.piphi.pfsense.client-security",
+  "name": "pfSense Devices & Security",
+  "version": "0.1.8",
+  "entry": "./dist/widget.js",
+  "binding_modes": ["read"],
+  "value_kinds": ["numeric", "boolean", "text", "json"],
+  "capability_requirements": ["client_count", "clients_online", "certificates_expiring", "certificates_expired", "security_log_count", "ha_enabled", "clients"],
+  "sdk_compatibility": {"minimum": "0.6.1"},
+  "interaction_targets": [
+    {"id": "client-security-card", "label": "pfSense devices and security", "kind": "card", "allowed_actions": ["more-info", "popout", "refresh"], "default_action": "more-info"}
+  ],
+  "conformance": {
+    "accessibility": "wcag2.2-aa", "keyboard": true,
+    "themes": ["light", "dark"], "directions": ["ltr", "rtl"],
+    "states": ["loading", "live", "stale", "offline", "reconnecting", "denied", "error"]
+  },
+  "settings_schema_version": "1",
+  "settings": [
+    {"id": "title", "type": "text", "label": "Title", "default": "Devices & security"},
+    {"id": "firewall", "type": "device", "label": "Router", "required": true}
+  ],
+  "layout": {"transparent": true, "min_height": 120, "default_height": 160, "max_height": 260},
+  "previews": {"light": "./previews/light.svg", "dark": "./previews/dark.svg"},
+  "translations": {
+    "en": {"widget.title": "Devices & security", "widget.waiting": "Waiting for device data", "widget.region": "Device and security summary", "metric.online": "Devices online", "metric.known": "Known devices", "metric.certificates": "Certificates expiring", "metric.events": "Recent security events", "status.updating": "Updating device list…", "status.stale": "Last known values · update delayed", "status.offline": "Router is offline", "status.error": "Unable to update device list", "action.retry": "Retry", "action.retrying": "Retrying…"},
+    "es": {"widget.title": "Dispositivos y seguridad", "widget.waiting": "Esperando datos de dispositivos", "widget.region": "Resumen de dispositivos y seguridad", "metric.online": "Dispositivos conectados", "metric.known": "Dispositivos conocidos", "metric.certificates": "Certificados por vencer", "metric.events": "Eventos de seguridad recientes", "status.updating": "Actualizando la lista de dispositivos…", "status.stale": "Últimos valores conocidos · actualización demorada", "status.offline": "El router está sin conexión", "status.error": "No se pudo actualizar la lista de dispositivos", "action.retry": "Reintentar", "action.retrying": "Reintentando…"},
+    "ar": {"widget.title": "الأجهزة والأمان", "widget.waiting": "في انتظار بيانات الأجهزة", "widget.region": "ملخص الأجهزة والأمان", "metric.online": "الأجهزة المتصلة", "metric.known": "الأجهزة المعروفة", "metric.certificates": "شهادات قاربت على الانتهاء", "metric.events": "أحداث الأمان الأخيرة", "status.updating": "جارٍ تحديث قائمة الأجهزة…", "status.stale": "آخر قيم معروفة · التحديث متأخر", "status.offline": "الموجّه غير متصل", "status.error": "تعذّر تحديث قائمة الأجهزة", "action.retry": "إعادة المحاولة", "action.retrying": "جارٍ إعادة المحاولة…"}
+  },
+  "security": {"permissions": [], "sandbox": ["allow-scripts"], "csp": {"connect_src": []}}
+}

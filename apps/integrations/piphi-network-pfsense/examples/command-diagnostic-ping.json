@@ -1,0 +1,14 @@
+{
+  "contract_version": "automation.runtime.command.v1",
+  "command": "diagnostic_ping",
+  "target": {
+    "config_id": "home-firewall",
+    "device_id": "home-firewall"
+  },
+  "params": {
+    "host": "1.1.1.1",
+    "count": 3
+  },
+  "capability": "action.diagnostic_ping",
+  "capability_requirements": ["action.diagnostic_ping"]
+}

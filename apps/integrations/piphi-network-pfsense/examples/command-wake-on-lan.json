@@ -1,0 +1,8 @@
+{
+  "contract_version": "automation.runtime.command.v1",
+  "command": "wake_on_lan",
+  "target": {"config_id": "home-firewall", "device_id": "home-firewall"},
+  "params": {"target_id": "office-pc"},
+  "capability": "action.wake_on_lan",
+  "capability_requirements": ["action.wake_on_lan"]
+}

@@ -1,0 +1,546 @@
+{
+  "behaviorSchemaVersion": "integration.behaviors.v2",
+  "templates": [
+    {
+      "id": "notify_on_state_change",
+      "label": "Tell me when this device changes",
+      "description": "Starts from a saved device update and sends a simple notification.",
+      "category": "Starter",
+      "deviceKey": "piphi_network_pfsense_device",
+      "config": {
+        "automation_schema_version": "automation.behavior.v2",
+        "triggers": [
+          {
+            "id": "state_changed",
+            "label": "Device updates",
+            "type": "integration_event",
+            "event": "device.state_changed",
+            "capability": "telemetry.state",
+            "enabled": true,
+            "sourceRef": {
+              "integrationId": "{{integrationId}}",
+              "integrationKey": "{{integrationKey}}",
+              "configId": "{{configId}}",
+              "behaviorDeviceKey": "piphi_network_pfsense_device",
+              "optionKey": "state_changed",
+              "capability": "telemetry.state"
+            }
+          }
+        ],
+        "trigger": {
+          "id": "state_changed",
+          "label": "Device updates",
+          "type": "integration_event",
+          "event": "device.state_changed",
+          "capability": "telemetry.state",
+          "enabled": true
+        },
+        "intent": "keep_updated",
+        "conditionTree": {
+          "op": "and",
+          "children": []
+        },
+        "actions": [
+          {
+            "id": "starter_notification",
+            "label": "Send notification",
+            "action": "refresh",
+            "sourceRef": {
+              "integrationId": "{{integrationId}}",
+              "integrationKey": "{{integrationKey}}",
+              "configId": "{{configId}}",
+              "behaviorDeviceKey": "piphi_network_pfsense_device",
+              "optionKey": "refresh"
+            },
+            "target": {
+              "mode": "selection",
+              "configIds": [
+                "{{configId}}"
+              ]
+            },
+            "failure": {
+              "strategy": "retry_then_continue",
+              "retry": {
+                "maxAttempts": 2,
+                "delaySeconds": 2,
+                "timeoutSeconds": 10,
+                "backoff": "fixed"
+              },
+              "continueOnPartialFailure": true
+            }
+          }
+        ],
+        "safety": {
+          "staleDataMode": "block",
+          "maxAgeSeconds": 300,
+          "requireFreshTrigger": true,
+          "dryRunFirst": false
+        },
+        "failure": {
+          "strategy": "follow_edges",
+          "fallbackBehaviorId": "",
+          "conditionTree": {
+            "op": "and",
+            "children": []
+          }
+        },
+        "stop": {
+          "never": true
+        },
+        "override": {
+          "mode": "continue"
+        },
+        "execution": {
+          "failureStrategy": "follow_edges",
+          "fallbackBehaviorId": "",
+          "dispatchMode": "runtime"
+        },
+        "policies": {
+          "execution": {
+            "failureStrategy": "follow_edges",
+            "fallbackBehaviorId": "",
+            "dispatchMode": "runtime"
+          },
+          "freshness": {
+            "staleDataMode": "block"
+          },
+          "manualOverride": {
+            "mode": "continue"
+          },
+          "cooldownSeconds": 0
+        }
+      },
+      "metadata": {
+        "generated": true,
+        "recommended": true
+      }
+    }
+  ],
+  "devices": [
+    {
+      "id": "piphi_network_pfsense_device",
+      "name": "pfSense Firewall",
+      "description": "Read-only health and connectivity automation metadata for pfSense.",
+      "deviceClass": "network_gateway",
+      "entityType": "network_gateway",
+      "capabilities": [
+        "connected",
+        "api_latency_ms",
+        "cpu_usage_percent",
+        "memory_usage_percent",
+        "disk_usage_percent",
+        "temperature_c",
+        "gateways_online",
+        "gateways_offline",
+        "gateway_max_latency_ms",
+        "gateway_max_loss_percent",
+        "interfaces_up",
+        "receive_rate_bps",
+        "transmit_rate_bps",
+        "services_down",
+        "vpn_tunnels_up",
+        "vpn_connected",
+        "client_count",
+        "clients_online",
+        "certificates_expiring",
+        "certificates_expired",
+        "ha_enabled",
+        "ha_sync_enabled",
+        "carp_primary_count",
+        "security_log_count",
+        "refresh",
+        "diagnostic_ping",
+        "restart_service",
+        "start_service",
+        "wake_on_lan"
+      ],
+      "targeting": {
+        "scopes": [
+          "config",
+          "configs",
+          "room",
+          "rooms",
+          "group",
+          "groups",
+          "tag",
+          "tags",
+          "capability",
+          "selection",
+          "all_matching"
+        ],
+        "fanout": {
+          "supported": true,
+          "defaultMode": "selection",
+          "allowedModes": [
+            "config",
+            "configs",
+            "room",
+            "rooms",
+            "group",
+            "groups",
+            "tag",
+            "tags",
+            "capability",
+            "selection",
+            "all_matching"
+          ]
+        }
+      },
+      "freshness": {
+        "maxAgeSeconds": 300,
+        "staleDataMode": "block"
+      },
+      "ui": {
+        "icon": "activity",
+        "category": "local-device"
+      },
+      "triggers": [
+        {
+          "id": "state_changed",
+          "label": "Device updates",
+          "description": "Start when this device reports a new state.",
+          "capability": "telemetry.state",
+          "runtime": {
+            "event": "device.state_changed",
+            "source": "integration"
+          },
+          "freshness": {
+            "maxAgeSeconds": 300,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "when"
+          }
+        },
+        {
+          "id": "gateway_online",
+          "label": "Gateway comes online",
+          "capability": "gateway_online",
+          "runtime": {"event": "network.gateway.online", "source": "integration"},
+          "ui": {"group": "when"}
+        },
+        {
+          "id": "gateway_offline",
+          "label": "Gateway goes offline",
+          "capability": "gateway_online",
+          "runtime": {"event": "network.gateway.offline", "source": "integration"},
+          "ui": {"group": "when"}
+        },
+        {
+          "id": "interface_up",
+          "label": "Interface comes up",
+          "capability": "interface_up",
+          "runtime": {"event": "network.interface.up", "source": "integration"},
+          "ui": {"group": "when"}
+        },
+        {
+          "id": "interface_down",
+          "label": "Interface goes down",
+          "capability": "interface_up",
+          "runtime": {"event": "network.interface.down", "source": "integration"},
+          "ui": {"group": "when"}
+        },
+        {
+          "id": "service_recovered",
+          "label": "Service recovers",
+          "capability": "services_down",
+          "runtime": {"event": "network.service.recovered", "source": "integration"},
+          "ui": {"group": "when"}
+        },
+        {
+          "id": "service_stopped",
+          "label": "Service stops",
+          "capability": "services_down",
+          "runtime": {"event": "network.service.stopped", "source": "integration"},
+          "ui": {"group": "when"}
+        },
+        {
+          "id": "client_discovered", "label": "Client is discovered", "capability": "clients_online",
+          "runtime": {"event": "network.client.discovered", "source": "integration"}, "ui": {"group": "when"}
+        },
+        {
+          "id": "client_online", "label": "Client comes online", "capability": "clients_online",
+          "runtime": {"event": "network.client.online", "source": "integration"}, "ui": {"group": "when"}
+        },
+        {
+          "id": "client_offline", "label": "Client goes offline", "capability": "clients_online",
+          "runtime": {"event": "network.client.offline", "source": "integration"}, "ui": {"group": "when"}
+        },
+        {
+          "id": "certificate_expiring", "label": "Certificate is expiring", "capability": "certificates_expiring",
+          "runtime": {"event": "network.certificate.expiring", "source": "integration"}, "ui": {"group": "when"}
+        },
+        {
+          "id": "certificate_expired", "label": "Certificate expires", "capability": "certificates_expired",
+          "runtime": {"event": "network.certificate.expired", "source": "integration"}, "ui": {"group": "when"}
+        },
+        {
+          "id": "ha_role_changed", "label": "CARP role changes", "capability": "carp_primary_count",
+          "runtime": {"event": "network.ha.role_changed", "source": "integration"}, "ui": {"group": "when"}
+        },
+        {
+          "id": "firewall_log", "label": "Firewall security event", "capability": "security_log_count",
+          "runtime": {"event": "network.security.firewall_log", "source": "integration"}, "ui": {"group": "when"}
+        },
+        {
+          "id": "auth_log", "label": "Authentication event", "capability": "security_log_count",
+          "runtime": {"event": "network.security.auth_log", "source": "integration"}, "ui": {"group": "when"}
+        },
+        {
+          "id": "dhcp_log", "label": "DHCP event", "capability": "security_log_count",
+          "runtime": {"event": "network.client.dhcp_event", "source": "integration"}, "ui": {"group": "when"}
+        },
+        {
+          "id": "system_log", "label": "System log event", "capability": "security_log_count",
+          "runtime": {"event": "network.system.log_event", "source": "integration"}, "ui": {"group": "when"}
+        }
+      ],
+      "intents": [
+        {
+          "id": "keep_updated",
+          "label": "Keep this device useful",
+          "description": "Build automations around this device's state and commands."
+        }
+      ],
+      "conditions": [
+        {
+          "id": "state_matches",
+          "label": "State matches",
+          "description": "Only run when a reported state value matches what you choose.",
+          "type": "text",
+          "capability": "telemetry.state",
+          "operators": [
+            "eq",
+            "neq",
+            "contains"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "state",
+            "operator": "eq"
+          },
+          "freshness": {
+            "maxAgeSeconds": 300,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "only_if"
+          },
+          "params": [
+            {
+              "name": "field",
+              "label": "State field",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "value",
+              "label": "Value",
+              "type": "text",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "id": "refresh",
+          "label": "Refresh",
+          "description": "Run refresh on the selected device.",
+          "capability": "device.refresh",
+          "capabilityRequirements": [
+            "device.refresh"
+          ],
+          "runtime": {
+            "command": "refresh",
+            "endpoint": "/command",
+            "method": "POST",
+            "timeoutSeconds": 30
+          },
+          "safety": {
+            "riskLevel": "low",
+            "requiresConfirmation": false,
+            "liveRunAllowed": true
+          },
+          "targeting": {
+            "fanoutSafe": true,
+            "supportsMultiTarget": true,
+            "scopes": [
+              "config",
+              "configs",
+              "room",
+              "rooms",
+              "group",
+              "groups",
+              "tag",
+              "tags",
+              "capability",
+              "selection",
+              "all_matching"
+            ]
+          },
+          "failure": {
+            "strategy": "retry_then_continue",
+            "retry": {
+              "maxAttempts": 1,
+              "delaySeconds": 2,
+              "backoff": "fixed"
+            },
+            "timeoutSeconds": 30,
+            "continueOnPartialFailure": true,
+            "idempotent": true
+          },
+          "ui": {
+            "group": "do_this"
+          }
+        },
+        {
+          "id": "diagnostic_ping",
+          "label": "Diagnostic ping",
+          "description": "Ping an allow-listed target from the pfSense firewall.",
+          "capability": "action.diagnostic_ping",
+          "capabilityRequirements": ["action.diagnostic_ping"],
+          "params": [
+            {"name": "host", "label": "Allowed target", "type": "text", "required": true},
+            {"name": "count", "label": "Ping count", "type": "number", "default": 3, "required": false}
+          ],
+          "runtime": {
+            "command": "diagnostic_ping",
+            "endpoint": "/command",
+            "method": "POST",
+            "timeoutSeconds": 30
+          },
+          "safety": {
+            "riskLevel": "medium",
+            "requiresConfirmation": false,
+            "liveRunAllowed": true
+          },
+          "targeting": {
+            "fanoutSafe": true,
+            "supportsMultiTarget": true,
+            "scopes": ["config", "configs", "selection"]
+          },
+          "failure": {
+            "strategy": "retry_then_continue",
+            "retry": {"maxAttempts": 1, "delaySeconds": 2, "backoff": "fixed"},
+            "timeoutSeconds": 30,
+            "continueOnPartialFailure": true,
+            "idempotent": true
+          },
+          "ui": {"group": "do_this"}
+        },
+        {
+          "id": "restart_service",
+          "label": "Restart service",
+          "description": "Restart an explicitly allow-listed pfSense service.",
+          "capability": "action.restart_service",
+          "capabilityRequirements": ["action.restart_service"],
+          "params": [
+            {"name": "service", "label": "Allowed service", "type": "text", "required": true}
+          ],
+          "runtime": {
+            "command": "restart_service",
+            "endpoint": "/command",
+            "method": "POST",
+            "timeoutSeconds": 60
+          },
+          "safety": {
+            "riskLevel": "medium",
+            "requiresConfirmation": true,
+            "liveRunAllowed": true
+          },
+          "targeting": {
+            "fanoutSafe": false,
+            "supportsMultiTarget": false,
+            "scopes": ["config", "selection"]
+          },
+          "failure": {
+            "strategy": "stop",
+            "retry": {"maxAttempts": 0, "delaySeconds": 0, "backoff": "fixed"},
+            "timeoutSeconds": 60,
+            "continueOnPartialFailure": false,
+            "idempotent": true
+          },
+          "ui": {"group": "do_this"}
+        },
+        {
+          "id": "start_service",
+          "label": "Start service",
+          "description": "Start an explicitly allow-listed pfSense service.",
+          "capability": "action.start_service",
+          "capabilityRequirements": ["action.start_service"],
+          "params": [
+            {"name": "service", "label": "Allowed service", "type": "text", "required": true}
+          ],
+          "runtime": {"command": "start_service", "endpoint": "/command", "method": "POST", "timeoutSeconds": 60},
+          "safety": {"riskLevel": "medium", "requiresConfirmation": true, "liveRunAllowed": true},
+          "targeting": {"fanoutSafe": false, "supportsMultiTarget": false, "scopes": ["config", "selection"]},
+          "failure": {
+            "strategy": "stop",
+            "retry": {"maxAttempts": 0, "delaySeconds": 0, "backoff": "fixed"},
+            "timeoutSeconds": 60,
+            "continueOnPartialFailure": false,
+            "idempotent": true
+          },
+          "ui": {"group": "do_this"}
+        },
+        {
+          "id": "wake_on_lan",
+          "label": "Wake device",
+          "description": "Wake a preconfigured device through pfSense.",
+          "capability": "action.wake_on_lan",
+          "capabilityRequirements": ["action.wake_on_lan"],
+          "params": [
+            {"name": "target_id", "label": "Allowed target", "type": "text", "required": true}
+          ],
+          "runtime": {"command": "wake_on_lan", "endpoint": "/command", "method": "POST", "timeoutSeconds": 30},
+          "safety": {"riskLevel": "low", "requiresConfirmation": false, "liveRunAllowed": true},
+          "targeting": {"fanoutSafe": false, "supportsMultiTarget": false, "scopes": ["config", "selection"]},
+          "failure": {
+            "strategy": "stop",
+            "retry": {"maxAttempts": 0, "delaySeconds": 0, "backoff": "fixed"},
+            "timeoutSeconds": 30,
+            "continueOnPartialFailure": false,
+            "idempotent": true
+          },
+          "ui": {"group": "do_this"}
+        }
+      ],
+      "stop": [
+        {
+          "id": "after_duration",
+          "label": "After a set time",
+          "type": "duration",
+          "params": [
+            {
+              "name": "duration",
+              "label": "How long",
+              "type": "duration",
+              "default": "30m",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "manualOverride": [
+        {
+          "id": "continue",
+          "label": "Keep running"
+        },
+        {
+          "id": "pause",
+          "label": "Pause",
+          "params": [
+            {
+              "name": "duration",
+              "label": "Pause time",
+              "type": "duration",
+              "default": "30m",
+              "required": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "contract_version": "automation.runtime.command.v1",
+  "command": "start_service",
+  "target": {"config_id": "home-firewall", "device_id": "home-firewall"},
+  "params": {"service": "unbound"},
+  "capability": "action.start_service",
+  "capability_requirements": ["action.start_service"]
+}

@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: [self-hosted, Linux, X64, self-hosted-machine-1]
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install pdm
+      - run: pdm install -G dev
+      - run: pdm run pytest
+      - run: pdm run ruff check src tests
+      - run: pdm run mypy --strict src
+      - run: pdm run python scripts/validate.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm ci --ignore-scripts
+        working-directory: widgets/pfsense-overview
+      - run: npm audit --omit=dev
+        working-directory: widgets/pfsense-overview
+      - run: npm test
+        working-directory: widgets/pfsense-overview
+      - run: npm run validate
+        working-directory: widgets/pfsense-overview
+      - run: npm run conformance
+        working-directory: widgets/pfsense-overview
+      - run: npm ci --ignore-scripts
+        working-directory: widgets/pfsense-client-security
+      - run: npm audit --omit=dev
+        working-directory: widgets/pfsense-client-security
+      - run: npm test
+        working-directory: widgets/pfsense-client-security
+      - run: npm run validate
+        working-directory: widgets/pfsense-client-security
+      - run: npm run conformance
+        working-directory: widgets/pfsense-client-security
+      - name: Log in to Docker Hub for trusted smoke builds
+        if: ${{ github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository }}
+        uses: docker/login-action@v4
+        with:
+          username: piphinetwork
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - run: docker build -t piphi-runtime-smoke .

@@ -1,0 +1,30 @@
+{
+  "id": "home-firewall",
+  "host": "pfsense.example.lan",
+  "api_key": "replace-with-a-least-privilege-api-key",
+  "alias": "Home Firewall",
+  "port": 443,
+  "scheme": "https",
+  "verify_tls": true,
+  "poll_interval_seconds": 60,
+  "collect_dhcp_leases": false,
+  "collect_vpn_status": false,
+  "collect_client_inventory": true,
+  "collect_security_logs": true,
+  "collect_certificates": true,
+  "collect_ha_status": false,
+  "enable_diagnostic_ping": true,
+  "allowed_ping_hosts": ["1.1.1.1", "gateway.example.lan"],
+  "enable_service_restart": true,
+  "enable_service_start": true,
+  "allowed_services": ["unbound"],
+  "enable_wake_on_lan": true,
+  "wake_on_lan_targets": [
+    {
+      "id": "office-pc",
+      "label": "Office PC",
+      "interface": "lan",
+      "mac_addr": "aa:bb:cc:dd:ee:ff"
+    }
+  ]
+}

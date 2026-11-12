@@ -1,0 +1,14 @@
+{
+  "contract_version": "automation.runtime.command.v1",
+  "command": "refresh",
+  "target": {
+    "config_id": "home-firewall",
+    "device_id": "home-firewall",
+    "entity_id": null
+  },
+  "params": {},
+  "capability": "device.refresh",
+  "capability_requirements": [
+    "device.refresh"
+  ]
+}

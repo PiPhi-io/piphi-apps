@@ -1,0 +1,46 @@
+{
+  "entities": [
+    {
+      "id": "home-firewall",
+      "name": "Home Firewall",
+      "config_id": "home-firewall",
+      "device_id": "home-firewall",
+      "device_type": "firewall",
+      "device_class": "network_gateway",
+      "entity_type": "network_gateway",
+      "capabilities": [
+        "connected",
+        "api_latency_ms",
+        "cpu_usage_percent",
+        "memory_usage_percent",
+        "disk_usage_percent",
+        "temperature_c",
+        "gateways_online",
+        "gateways_offline",
+        "services_down",
+        "refresh",
+        "diagnostic_ping",
+        "restart_service"
+      ],
+      "available_commands": [
+        {"id": "refresh", "label": "Refresh", "kind": "action"},
+        {"id": "diagnostic_ping", "label": "Diagnostic ping", "kind": "action"},
+        {"id": "restart_service", "label": "Restart service", "kind": "action"}
+      ],
+      "dashboard": {
+        "allowed_widgets": ["status-list", "gauge", "line-chart", "stat", "button"],
+        "default_widget": "status-list"
+      }
+    },
+    {
+      "id": "home-firewall:interface:wan",
+      "name": "WAN",
+      "config_id": "home-firewall",
+      "device_id": "home-firewall:interface:wan",
+      "parent_device_id": "home-firewall",
+      "device_type": "network_interface",
+      "entity_type": "network_interface",
+      "capabilities": ["interface_up", "bytes_received", "bytes_sent", "errors_in", "errors_out"]
+    }
+  ]
+}

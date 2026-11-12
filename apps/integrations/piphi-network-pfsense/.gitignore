@@ -1,0 +1,10 @@
+.venv/
+.pdm-python
+__pycache__/
+*.pyc
+.env
+dist/
+build/
+node_modules/
+*.spec
+data/

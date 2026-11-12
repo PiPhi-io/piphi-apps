@@ -1,0 +1,13 @@
+{
+  "contract_version": "automation.runtime.command.v1",
+  "command": "restart_service",
+  "target": {
+    "config_id": "home-firewall",
+    "device_id": "home-firewall"
+  },
+  "params": {
+    "service": "unbound"
+  },
+  "capability": "action.restart_service",
+  "capability_requirements": ["action.restart_service"]
+}
