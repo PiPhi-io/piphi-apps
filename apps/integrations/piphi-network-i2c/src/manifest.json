@@ -1,0 +1,431 @@
+{
+  "manifest_version": "1.0",
+  "id": "piphi-network-i2c",
+  "name": "PiPhi Network I2C Sensors",
+  "version": "0.1.3",
+  "description": "Local I2C sensor integration for BME680, BME280, BMP280, AHT20, PMSA003I particulate sensors, and generic I2C devices.",
+  "maintainer": {
+    "name": "PiPhi Integrations Team",
+    "website": "https://github.com/PiPhi-io"
+  },
+  "license": "Apache-2.0",
+  "image": "piphinetwork/i2c-integration:0.1.3",
+  "platforms": [
+    "linux"
+  ],
+  "runtime": {
+    "linux": {
+      "type": "container",
+      "container": {
+        "image": "piphinetwork/i2c-integration:0.1.3",
+        "ports": [
+          {
+            "container": 3674,
+            "host": 3674,
+            "protocol": "tcp"
+          }
+        ],
+        "environment": {
+          "PIPHI_I2C_PORT": "3674",
+          "PIPHI_ALLOW_MOCK_HARDWARE": "false"
+        },
+        "privileged": true,
+        "restart_policy": {
+          "name": "unless-stopped",
+          "maximum_retry_count": 0
+        }
+      },
+      "discovery": {
+        "method": "direct",
+        "inputs": [
+          {
+            "name": "adapter",
+            "label": "Adapter",
+            "type": "select",
+            "required": true,
+            "options": [
+              "linux_i2c",
+              "mcp2221a",
+              "ft232h",
+              "mock"
+            ],
+            "description": "Use linux_i2c for direct GPIO headers, mcp2221a for Adafruit product 4471, ft232h for FT232H bridges, or mock only when PIPHI_ALLOW_MOCK_HARDWARE=true."
+          },
+          {
+            "name": "bus",
+            "label": "I2C Bus",
+            "type": "number",
+            "required": true,
+            "placeholder": "1"
+          },
+          {
+            "name": "address",
+            "label": "Address",
+            "type": "text",
+            "required": false,
+            "placeholder": "0x76"
+          },
+          {
+            "name": "sensor_model",
+            "label": "Sensor Model",
+            "type": "select",
+            "required": true,
+            "options": [
+              "auto",
+              "bme680",
+              "bme280",
+              "bmp280",
+              "aht20",
+              "pmsa003i",
+              "generic"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "api": {
+    "base_url": "http://127.0.0.1:3674",
+    "required": [
+      "health",
+      "entities",
+      "state",
+      "command",
+      "config",
+      "ui_config"
+    ],
+    "endpoints": {
+      "health": "/health",
+      "discover": "/discover",
+      "entities": "/entities",
+      "state": "/state",
+      "command": "/command",
+      "config": "/config",
+      "config_sync": "/configs/sync",
+      "deconfigure": "/deconfigure",
+      "ui_config": "/ui-config",
+      "events": "/events"
+    }
+  },
+  "config": {
+    "source": "endpoint",
+    "endpoint": "/ui-config",
+    "required": true,
+    "editable_fields": [
+      "adapter",
+      "bus",
+      "address",
+      "sensor_model",
+      "poll_interval_seconds"
+    ],
+    "identity_fields": [
+      "adapter",
+      "bus",
+      "address",
+      "sensor_model"
+    ]
+  },
+  "identity": {
+    "fields": [
+      "adapter",
+      "bus",
+      "address",
+      "sensor_model"
+    ]
+  },
+  "capabilities": {
+    "connected": {
+      "kind": "sensor",
+      "value_kind": "boolean",
+      "unit": "bool",
+      "dashboard": {
+        "allowed_widgets": [
+          "stat",
+          "sensor-card",
+          "availability-card"
+        ],
+        "default_widget": "stat"
+      }
+    },
+    "temperature_c": {
+      "kind": "sensor",
+      "value_kind": "numeric",
+      "unit": "C",
+      "dashboard": {
+        "allowed_widgets": [
+          "stat",
+          "sensor-card",
+          "line-chart",
+          "room-climate-card"
+        ],
+        "default_widget": "stat"
+      }
+    },
+    "humidity_percent": {
+      "kind": "sensor",
+      "value_kind": "numeric",
+      "unit": "%",
+      "dashboard": {
+        "allowed_widgets": [
+          "stat",
+          "sensor-card",
+          "line-chart",
+          "room-climate-card"
+        ],
+        "default_widget": "stat"
+      }
+    },
+    "pressure_hpa": {
+      "kind": "sensor",
+      "value_kind": "numeric",
+      "unit": "hPa",
+      "dashboard": {
+        "allowed_widgets": [
+          "stat",
+          "sensor-card",
+          "line-chart",
+          "weather"
+        ],
+        "default_widget": "stat"
+      }
+    },
+    "gas_ohms": {
+      "kind": "sensor",
+      "value_kind": "numeric",
+      "unit": "ohm",
+      "dashboard": {
+        "allowed_widgets": [
+          "stat",
+          "sensor-card",
+          "line-chart",
+          "air-quality-card"
+        ],
+        "default_widget": "stat"
+      }
+    },
+    "pm1_0_standard_ugm3": {
+      "kind": "sensor",
+      "value_kind": "numeric",
+      "unit": "ug/m3",
+      "dashboard": {
+        "allowed_widgets": [
+          "stat",
+          "sensor-card",
+          "line-chart",
+          "air-quality-card"
+        ],
+        "default_widget": "stat"
+      }
+    },
+    "pm2_5_standard_ugm3": {
+      "kind": "sensor",
+      "value_kind": "numeric",
+      "unit": "ug/m3",
+      "dashboard": {
+        "allowed_widgets": [
+          "stat",
+          "sensor-card",
+          "line-chart",
+          "air-quality-card"
+        ],
+        "default_widget": "stat"
+      }
+    },
+    "pm10_standard_ugm3": {
+      "kind": "sensor",
+      "value_kind": "numeric",
+      "unit": "ug/m3",
+      "dashboard": {
+        "allowed_widgets": [
+          "stat",
+          "sensor-card",
+          "line-chart",
+          "air-quality-card"
+        ],
+        "default_widget": "stat"
+      }
+    },
+    "pm1_0_env_ugm3": {
+      "kind": "sensor",
+      "value_kind": "numeric",
+      "unit": "ug/m3",
+      "dashboard": {
+        "allowed_widgets": [
+          "stat",
+          "sensor-card",
+          "line-chart",
+          "air-quality-card"
+        ],
+        "default_widget": "stat"
+      }
+    },
+    "pm2_5_env_ugm3": {
+      "kind": "sensor",
+      "value_kind": "numeric",
+      "unit": "ug/m3",
+      "dashboard": {
+        "allowed_widgets": [
+          "stat",
+          "sensor-card",
+          "line-chart",
+          "air-quality-card"
+        ],
+        "default_widget": "stat"
+      }
+    },
+    "pm10_env_ugm3": {
+      "kind": "sensor",
+      "value_kind": "numeric",
+      "unit": "ug/m3",
+      "dashboard": {
+        "allowed_widgets": [
+          "stat",
+          "sensor-card",
+          "line-chart",
+          "air-quality-card"
+        ],
+        "default_widget": "stat"
+      }
+    },
+    "particles_0_3um_per_0_1l": {
+      "kind": "sensor",
+      "value_kind": "numeric",
+      "unit": "count/0.1L",
+      "dashboard": {
+        "allowed_widgets": [
+          "stat",
+          "sensor-card",
+          "line-chart"
+        ],
+        "default_widget": "stat"
+      }
+    },
+    "particles_0_5um_per_0_1l": {
+      "kind": "sensor",
+      "value_kind": "numeric",
+      "unit": "count/0.1L",
+      "dashboard": {
+        "allowed_widgets": [
+          "stat",
+          "sensor-card",
+          "line-chart"
+        ],
+        "default_widget": "stat"
+      }
+    },
+    "particles_1_0um_per_0_1l": {
+      "kind": "sensor",
+      "value_kind": "numeric",
+      "unit": "count/0.1L",
+      "dashboard": {
+        "allowed_widgets": [
+          "stat",
+          "sensor-card",
+          "line-chart"
+        ],
+        "default_widget": "stat"
+      }
+    },
+    "particles_2_5um_per_0_1l": {
+      "kind": "sensor",
+      "value_kind": "numeric",
+      "unit": "count/0.1L",
+      "dashboard": {
+        "allowed_widgets": [
+          "stat",
+          "sensor-card",
+          "line-chart"
+        ],
+        "default_widget": "stat"
+      }
+    },
+    "particles_5_0um_per_0_1l": {
+      "kind": "sensor",
+      "value_kind": "numeric",
+      "unit": "count/0.1L",
+      "dashboard": {
+        "allowed_widgets": [
+          "stat",
+          "sensor-card",
+          "line-chart"
+        ],
+        "default_widget": "stat"
+      }
+    },
+    "particles_10um_per_0_1l": {
+      "kind": "sensor",
+      "value_kind": "numeric",
+      "unit": "count/0.1L",
+      "dashboard": {
+        "allowed_widgets": [
+          "stat",
+          "sensor-card",
+          "line-chart"
+        ],
+        "default_widget": "stat"
+      }
+    },
+    "refresh": {
+      "kind": "action",
+      "value_kind": "command",
+      "dashboard": {
+        "allowed_widgets": [
+          "button",
+          "command-strip"
+        ],
+        "default_widget": "button"
+      }
+    }
+  },
+  "commands": {
+    "refresh": {
+      "description": "Read the sensor immediately.",
+      "timeout_ms": 5000
+    }
+  },
+  "entities": [
+    {
+      "id": "i2c-environmental-sensor",
+      "name": "I2C Environmental Sensor",
+      "device_id": "i2c-environmental-sensor",
+      "entity_type": "sensor",
+      "capabilities": [
+        "connected",
+        "temperature_c",
+        "humidity_percent",
+        "pressure_hpa",
+        "gas_ohms",
+        "refresh"
+      ],
+      "available_commands": [
+        {
+          "id": "refresh",
+          "label": "Refresh",
+          "kind": "action"
+        }
+      ],
+      "dashboard": {
+        "allowed_widgets": [
+          "sensor-card",
+          "stat",
+          "line-chart",
+          "air-quality-card",
+          "room-climate-card"
+        ],
+        "default_widget": "sensor-card"
+      }
+    }
+  ],
+  "ui": {
+    "experience_packages": [
+      {
+        "registry_id": "io.piphi.i2c-environment",
+        "version_range": ">=0.1,<1",
+        "auto_install": true
+      }
+    ]
+  },
+  "onboarding": {
+    "mode": "discovery"
+  }
+}
