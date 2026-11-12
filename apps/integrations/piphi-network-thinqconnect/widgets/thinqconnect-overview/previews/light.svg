@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="414" height="160" viewBox="0 0 414 160" role="img" aria-label="Compact LG appliance status preview in light mode">
+  <rect width="414" height="160" rx="16" fill="#f8fafc"/>
+  <rect x="12" y="10" width="32" height="32" rx="10" fill="#a50034"/>
+  <text x="28" y="31" fill="#fff" text-anchor="middle" font-family="system-ui" font-size="11" font-weight="800">LG</text>
+  <text x="54" y="30" fill="#0f172a" font-family="system-ui" font-size="14" font-weight="700">Air purifier</text>
+  <rect x="12" y="50" width="192" height="50" rx="11" fill="#f1f5f9" stroke="#d7e0eb"/>
+  <text x="22" y="68" fill="#52647a" font-family="system-ui" font-size="10">Temperature</text>
+  <text x="22" y="89" fill="#0f172a" font-family="system-ui" font-size="15" font-weight="750">23.5 °C</text>
+  <rect x="210" y="50" width="192" height="50" rx="11" fill="#f1f5f9" stroke="#d7e0eb"/>
+  <text x="220" y="68" fill="#52647a" font-family="system-ui" font-size="10">Humidity</text>
+  <text x="220" y="89" fill="#0f172a" font-family="system-ui" font-size="15" font-weight="750">46 %</text>
+  <rect x="12" y="106" width="192" height="42" rx="11" fill="#f1f5f9" stroke="#d7e0eb"/>
+  <text x="22" y="122" fill="#52647a" font-family="system-ui" font-size="10">PM2.5</text>
+  <text x="22" y="141" fill="#0f172a" font-family="system-ui" font-size="15" font-weight="750">6.2 µg/m³</text>
+  <rect x="210" y="106" width="192" height="42" rx="11" fill="#f1f5f9" stroke="#d7e0eb"/>
+  <text x="220" y="122" fill="#52647a" font-family="system-ui" font-size="10">Filter</text>
+  <text x="220" y="141" fill="#0f172a" font-family="system-ui" font-size="15" font-weight="750">74 %</text>
+</svg>

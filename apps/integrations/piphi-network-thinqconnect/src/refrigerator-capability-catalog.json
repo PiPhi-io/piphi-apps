@@ -1,0 +1,23 @@
+{
+  "catalog_version": "1.0",
+  "provider": "LG ThinQ Connect",
+  "reviewed_at": "2026-11-06",
+  "source": "pythinqconnect 1.0.14 refrigerator profile and LG ThinQ research assessment",
+  "rows": [
+    {"id": "door.open", "provider_properties": ["doorStatus[].doorState"], "kind": "state", "status": "implemented", "permission": "device/status", "risk": "read-only"},
+    {"id": "temperature.target", "provider_properties": ["temperatureInUnits[].targetTemperatureC", "temperatureInUnits[].targetTemperatureF"], "kind": "state-action", "status": "implemented", "permission": "device/status control", "risk": "medium"},
+    {"id": "mode.power_save", "provider_properties": ["powerSave.powerSaveEnabled"], "kind": "state-action", "status": "implemented", "permission": "device/status control", "risk": "medium"},
+    {"id": "mode.eco", "provider_properties": ["ecoFriendly.ecoFriendlyMode"], "kind": "state-action", "status": "implemented", "permission": "device/status control", "risk": "medium"},
+    {"id": "mode.sabbath", "provider_properties": ["sabbath.sabbathMode"], "kind": "state-action", "status": "implemented", "permission": "device/status control", "risk": "medium"},
+    {"id": "freezing.rapid", "provider_properties": ["refrigeration.rapidFreeze"], "kind": "state-action", "status": "implemented", "permission": "device/status control", "risk": "medium"},
+    {"id": "cooling.express_mode", "provider_properties": ["refrigeration.expressMode"], "kind": "state-action", "status": "implemented", "permission": "device/status control", "risk": "medium"},
+    {"id": "cooling.express_fridge", "provider_properties": ["refrigeration.expressFridge"], "kind": "state-action", "status": "implemented", "permission": "device/status control", "risk": "medium"},
+    {"id": "filter.fresh_air", "provider_properties": ["refrigeration.freshAirFilter", "refrigeration.freshAirFilterRemainPercent"], "kind": "state", "status": "implemented", "permission": "device/status", "risk": "read-only", "reason": "Writes remain disabled until enum fixtures are qualified."},
+    {"id": "filter.water", "provider_properties": ["waterFilterInfo.waterFilterState", "waterFilterInfo.waterFilter1RemainPercent", "waterFilterInfo.waterFilter2RemainPercent", "waterFilterInfo.waterFilter3RemainPercent", "waterFilterInfo.usedTime"], "kind": "state", "status": "implemented", "permission": "device/status", "risk": "read-only"},
+    {"id": "notification", "provider_properties": ["notification.eventType"], "kind": "event-state", "status": "implemented", "permission": "event", "risk": "read-only", "reason": "Unknown codes remain informational."},
+    {"id": "energy.daily", "provider_properties": ["energy profile"], "kind": "telemetry", "status": "planned", "permission": "energy", "risk": "read-only", "reason": "Requires delayed-through-yesterday query scheduling and fixtures."},
+    {"id": "profile.unknown_readable", "provider_properties": ["profile property wildcard"], "kind": "diagnostics", "status": "implemented", "permission": "device/status", "risk": "read-only", "reason": "Bounded, scalar, redacted additional-capability surface."},
+    {"id": "profile.unknown_writable", "provider_properties": ["profile writable wildcard"], "kind": "action", "status": "excluded", "permission": "control", "risk": "denied", "reason": "Unknown writes fail closed pending semantic and safety review."},
+    {"id": "events.mqtt_push", "provider_properties": ["AWS IoT event subscription"], "kind": "transport", "status": "implemented", "permission": "event push", "risk": "operational", "reason": "Opt-in account-shared MQTT with polling fallback, bounded deduplication, daily renewal, reconnect reconciliation, and normalized events."}
+  ]
+}
