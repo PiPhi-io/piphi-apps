@@ -1,0 +1,17 @@
+{
+  "entities": [
+    {
+      "id": "front-door",
+      "name": "Front door camera",
+      "config_id": "front-door",
+      "device_id": "front-door",
+      "entity_type": "camera",
+      "capabilities": ["camera_stream", "service_available", "refresh"],
+      "available_commands": [{"id": "refresh", "label": "Refresh", "kind": "action"}],
+      "dashboard": {
+        "allowed_widgets": ["tile", "stat", "button", "io.piphi.webrtc.camera"],
+        "default_widget": "io.piphi.webrtc.camera"
+      }
+    }
+  ]
+}

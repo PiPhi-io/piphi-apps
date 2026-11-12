@@ -1,0 +1,5 @@
+{
+  "id": "front-door",
+  "source_url": "rtsp://user:password@camera.local/live",
+  "alias": "Front door camera"
+}

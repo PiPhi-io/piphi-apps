@@ -1,0 +1,58 @@
+{
+  "contract": "camera.media.compatibility.v1",
+  "browser_target": "Chromium WebRTC",
+  "source_protocols": ["rtsp", "rtsps"],
+  "strategies": [
+    {
+      "input": "h264-baseline-or-constrained-baseline",
+      "constraints": {
+        "maximum_level": 42,
+        "pixel_formats": ["yuv420p", "yuvj420p"],
+        "maximum_width": 3840,
+        "maximum_height": 2160,
+        "maximum_frames_per_second": 60
+      },
+      "primary_strategy": "ffmpeg-copy",
+      "status": "implemented"
+    },
+    {
+      "input": "h264-main-or-high",
+      "primary_strategy": "ffmpeg-h264",
+      "status": "implemented"
+    },
+    {
+      "input": "hevc",
+      "primary_strategy": "ffmpeg-h264",
+      "status": "implemented"
+    },
+    {
+      "input": "mjpeg-or-other-video",
+      "primary_strategy": "ffmpeg-h264",
+      "status": "implemented"
+    },
+    {
+      "input": "probe-failed-or-unknown",
+      "primary_strategy": "ffmpeg-h264",
+      "status": "implemented",
+      "reason": "Fail toward browser compatibility instead of optimistic passthrough."
+    },
+    {
+      "input": "audio-normalization",
+      "primary_strategy": "copy",
+      "status": "planned",
+      "reason": "The camera card is video-only by default; audio negotiation remains opt-in."
+    },
+    {
+      "input": "hls-browser-fallback",
+      "primary_strategy": "go2rtc-hls-fmp4",
+      "status": "planned",
+      "reason": "Requires a Core-authenticated resource proxy and session cleanup contract."
+    },
+    {
+      "input": "hardware-accelerated-transcode",
+      "primary_strategy": "platform-specific",
+      "status": "planned",
+      "reason": "Requires host GPU capability negotiation and safe device grants."
+    }
+  ]
+}
