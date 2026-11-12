@@ -1,0 +1,49 @@
+{
+  "version": "1.0",
+  "cases": [
+    {
+      "id": "health",
+      "method": "GET",
+      "path": "/health",
+      "status": 200,
+      "required_keys": [
+        "status",
+        "service_id",
+        "version",
+        "go2rtc_available",
+        "go2rtc_version"
+      ]
+    },
+    {
+      "id": "contract",
+      "method": "GET",
+      "path": "/contract",
+      "status": 200,
+      "required_keys": [
+        "service_id",
+        "integration_id",
+        "name",
+        "version",
+        "kind",
+        "preset",
+        "domain",
+        "endpoints",
+        "required"
+      ]
+    },
+    {
+      "id": "camera_media_status",
+      "method": "GET",
+      "path": "/v1/camera-media/status",
+      "status": 200,
+      "required_keys": [
+        "contract_version",
+        "message_type",
+        "audience",
+        "ready",
+        "active_sessions",
+        "session_capacity"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,136 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://piphi.io/schemas/piphi-manifest.schema.json",
+  "title": "PiPhi Runtime Manifest",
+  "type": "object",
+  "required": [
+    "manifest_version",
+    "id",
+    "name",
+    "version",
+    "runtime",
+    "api",
+    "capabilities"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "manifest_version": {
+      "type": "string"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string"
+    },
+    "license": {
+      "type": "string"
+    },
+    "metadata": {
+      "type": "object"
+    },
+    "maintainer": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "website": {
+          "type": "string"
+        }
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "required": [
+        "linux"
+      ],
+      "properties": {
+        "linux": {
+          "type": "object",
+          "required": [
+            "container"
+          ],
+          "properties": {
+            "container": {
+              "type": "object",
+              "required": [
+                "image",
+                "ports"
+              ],
+              "properties": {
+                "image": {
+                  "type": "string"
+                },
+                "ports": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "container"
+                    ],
+                    "properties": {
+                      "container": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 65535
+                      },
+                      "host": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 65535
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "api": {
+      "type": "object",
+      "required": [
+        "required",
+        "endpoints"
+      ],
+      "properties": {
+        "required": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "endpoints": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^/"
+          }
+        }
+      }
+    },
+    "capabilities": {
+      "type": "object"
+    },
+    "commands": {
+      "type": "object"
+    },
+    "entities": {
+      "type": "array"
+    }
+  }
+}

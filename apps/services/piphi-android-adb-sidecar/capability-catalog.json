@@ -1,0 +1,67 @@
+{
+  "catalog_version": "1.0",
+  "integration_id": "piphi-android-adb-sidecar",
+  "coverage_mode": "adb_server_usb_wireless_pairing_device_transport_queue_and_parent_contract",
+  "reviewed_at": "2026-09-07",
+  "sources": {
+    "android_adb": "https://developer.android.com/tools/adb",
+    "adb_protocol": "https://android.googlesource.com/platform/packages/modules/adb/+/refs/heads/main/SERVICES.TXT",
+    "adb_source": "https://android.googlesource.com/platform/packages/modules/adb/",
+    "core_vocabulary": "PiPhi Network Core and maintained PiPhi integrations",
+    "parent_contract": "PiPhi Android TV and Android device integration transport contract"
+  },
+  "groups": [
+    {
+      "id": "runtime-foundation", "status": "implemented", "scope": ["sidecar-service"], "source_refs": ["core_vocabulary"],
+      "reason": "The scaffold implements configuration presence, connectivity state, refresh dispatch, and sanitized runtime events.",
+      "state": ["connected"], "events": ["runtime.config.applied", "runtime.config.removed", "runtime.command.received"], "conditions": [], "actions": ["refresh"]
+    },
+    {
+      "id": "adb-server-lifecycle", "status": "planned", "scope": ["managed-platform-tools-adb-server"], "source_refs": ["android_adb", "adb_protocol", "adb_source"],
+      "reason": "Binary discovery, version negotiation, local server port 5037, startup, shutdown, health, contention, stdout/stderr bounds, and recovery need a real ADB adapter plus fixtures.",
+      "state": ["service_available", "adb_binary_path_redacted", "adb_version", "platform_tools_version", "server_running", "server_host", "server_port", "server_pid_redacted", "server_uptime_s", "server_latency_ms", "server_error_count", "server_restart_count", "protocol_version", "host_features", "usb_backend", "mdns_backend", "burst_mode_supported", "last_server_success_at"],
+      "events": ["server.started", "server.stopped", "server.failed", "server.recovered", "server.version_changed", "server.contention_detected", "platform_tools.missing", "platform_tools.incompatible"],
+      "conditions": ["server_is_available", "server_version_is_compatible", "server_error_count_above", "server_latency_above", "server_success_age_above"],
+      "actions": ["start_adb_server", "stop_adb_server", "restart_adb_server", "refresh_adb_server_status"]
+    },
+    {
+      "id": "device-discovery-and-transport", "status": "planned", "scope": ["allow-listed-usb-emulator-and-network-devices"], "source_refs": ["android_adb", "adb_protocol", "parent_contract"],
+      "reason": "Track-devices, stable target selection, USB/network/emulator transports, authorization, offline states, reconnect, feature negotiation, and privacy-safe identity require device fixtures.",
+      "state": ["device_count", "authorized_device_count", "offline_device_count", "device_serial_suffix", "transport_id", "transport_type", "transport_state", "device_product", "device_model", "device_name", "device_features", "device_api_level", "device_build_version", "device_connection_latency_ms", "device_reconnect_count", "device_last_seen_at", "usb_speed", "connection_endpoint_redacted"],
+      "events": ["device.discovered", "device.connected", "device.disconnected", "device.offline", "device.unauthorized", "device.authorized", "device.transport_changed", "device.features_changed", "device.recovered"],
+      "conditions": ["device_is_connected", "device_is_authorized", "device_is_offline", "transport_type_is", "device_feature_is_available", "device_last_seen_age_above"],
+      "actions": ["connect_allowlisted_device", "disconnect_device", "reconnect_device", "refresh_device_list", "wait_for_device"]
+    },
+    {
+      "id": "wireless-pairing-and-mdns", "status": "planned", "scope": ["android-11-plus-wireless-debugging", "android-tv-13-plus"], "source_refs": ["android_adb", "adb_source"],
+      "reason": "mDNS discovery, TLS connect services, pairing-code exchange, one-time secret handling, trusted-network reconnect, expiration, and revocation need explicit user interaction and redacted fixtures.",
+      "state": ["mdns_available", "mdns_service_count", "wireless_debugging_available", "pairing_state", "pairing_service_version", "pairing_endpoint_redacted", "connect_service_count", "trusted_network", "pairing_expires_at", "paired_device_count", "last_mdns_event_at"],
+      "events": ["mdns.service_added", "mdns.service_removed", "pairing.requested", "pairing.completed", "pairing.failed", "pairing.expired", "wireless.connected", "wireless.disconnected"],
+      "conditions": ["mdns_is_available", "pairing_is_pending", "wireless_device_is_connected", "pairing_has_expired", "trusted_network_is_active"],
+      "actions": ["pair_with_one_time_code", "cancel_pairing", "connect_paired_device", "disconnect_wireless_device", "forget_paired_endpoint"]
+    },
+    {
+      "id": "bounded-parent-operations", "status": "planned", "scope": ["parent-declared-command-allow-lists", "single-explicit-target"], "source_refs": ["android_adb", "adb_protocol", "parent_contract"],
+      "reason": "Android integrations need typed, allow-listed shell-free operations for media keys, input, activity queries, screenshots, logs, and package discovery with strict time/output boundaries.",
+      "state": ["active_package", "active_activity", "screen_power_state", "display_resolution", "display_density", "audio_output", "media_session_count", "package_count", "command_queue_depth", "command_queue_capacity", "command_latency_ms", "commands_completed_total", "commands_failed_total", "commands_timed_out_total", "output_truncated_count", "last_command_success_at"],
+      "events": ["command.queued", "command.started", "command.completed", "command.failed", "command.timed_out", "output.truncated", "active_app.changed", "screen.power_changed", "media_session.changed"],
+      "conditions": ["command_queue_below", "screen_is_awake", "active_package_is", "command_error_count_above", "last_command_success_age_above"],
+      "actions": ["send_allowlisted_keyevent", "launch_allowlisted_activity", "stop_allowlisted_package", "query_active_activity", "query_display_state", "capture_brokered_screenshot", "read_bounded_log_events", "list_installed_packages"]
+    },
+    {
+      "id": "queue-backpressure-and-recovery", "status": "planned", "scope": ["sidecar-worker", "parent-consumers"], "source_refs": ["adb_protocol", "parent_contract", "core_vocabulary"],
+      "reason": "Multiplexed device commands need target isolation, bounded queues, fairness, cancellation, backpressure, retry policy, idempotency, restart reconciliation, and degraded health.",
+      "state": ["queue_high_watermark", "active_command_count", "consumer_count", "slow_consumer_count", "oldest_command_age_ms", "dropped_command_count", "retry_count", "backpressure_active", "circuit_breaker_state", "degraded_reason", "restart_recovery_count", "orphaned_command_count", "idempotency_entry_count", "health_status"],
+      "events": ["queue.saturated", "queue.recovered", "consumer.connected", "consumer.disconnected", "consumer.slow", "backpressure.started", "backpressure.ended", "circuit.opened", "circuit.closed", "restart.reconciled", "command.orphaned"],
+      "conditions": ["queue_is_saturated", "backpressure_is_active", "consumer_is_healthy", "circuit_is_open", "oldest_command_age_above"],
+      "actions": ["cancel_queued_command", "drain_consumer_queue", "retry_failed_command", "reset_circuit_breaker", "purge_expired_idempotency_entries"]
+    },
+    {
+      "id": "unsafe-sensitive-and-integration-owned", "status": "excluded", "scope": ["all-devices-transports-and-consumers"], "source_refs": ["android_adb", "adb_protocol", "parent_contract"],
+      "reason": "Arbitrary shells, files, packages, port forwarding, privilege escalation, raw credentials, broad fanout, and device semantics are outside the safe sidecar contract.",
+      "state": ["adb_private_key", "adb_public_key_material", "pairing_code", "raw_device_serial", "raw_shell_output", "raw_logcat", "raw_screenshot_bytes"],
+      "events": [], "conditions": [],
+      "actions": ["execute_arbitrary_shell", "install_arbitrary_apk", "uninstall_arbitrary_package", "push_arbitrary_file", "pull_arbitrary_file", "open_arbitrary_port_forward", "open_reverse_tunnel", "run_as_root", "remount_system", "reboot_bootloader", "reboot_recovery", "factory_reset", "grant_arbitrary_permission", "broadcast_arbitrary_intent", "execute_all_devices", "expose_adb_keys"]
+    }
+  ]
+}

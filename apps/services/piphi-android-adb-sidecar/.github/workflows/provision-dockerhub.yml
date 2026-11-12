@@ -1,0 +1,147 @@
+name: Provision Docker Hub repositories
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type CREATE_28_PUBLIC_REPOSITORIES
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  provision:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      DOCKERHUB_USERNAME: ${{ vars.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+      CONFIRMATION: ${{ inputs.confirmation }}
+    steps:
+      - name: Require exact confirmation and configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$CONFIRMATION" != "CREATE_28_PUBLIC_REPOSITORIES" ]]; then
+            echo "Exact confirmation CREATE_28_PUBLIC_REPOSITORIES is required." >&2
+            exit 1
+          fi
+          if [[ "$DOCKERHUB_USERNAME" != "piphinetwork" ]]; then
+            echo "DOCKERHUB_USERNAME must be piphinetwork." >&2
+            exit 1
+          fi
+          if [[ -z "$DOCKERHUB_TOKEN" ]]; then
+            echo "DOCKERHUB_TOKEN is not configured." >&2
+            exit 1
+          fi
+
+      - name: Create missing public repositories
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          repositories=(
+            piphi-android-adb-sidecar
+            piphi-ble-gateway-sidecar
+            piphi-modbus-rtu-sidecar
+            piphi-network-android-tv
+            piphi-network-bacnet
+            piphi-network-bambu-lab
+            piphi-network-bermuda-presence
+            piphi-network-daikin-onecta
+            piphi-network-dyson
+            piphi-network-eufy-security
+            piphi-network-huawei-solar
+            piphi-network-kia-hyundai-connect
+            piphi-network-knx
+            piphi-network-llm-vision
+            piphi-network-midea-ac-lan
+            piphi-network-mikrotik-router
+            piphi-network-modbus
+            piphi-network-nord-pool
+            piphi-network-octopus-energy
+            piphi-network-openepaperlink
+            piphi-network-passive-ble-monitor
+            piphi-network-sonoff-lan
+            piphi-network-tapo-cameras
+            piphi-network-washdata
+            piphi-network-waste-collection
+            piphi-network-xiaomi-home
+            piphi-network-zwave
+            piphi-zwave-js-sidecar
+          )
+
+          auth_payload="$(
+            jq -n \
+              --arg identifier "$DOCKERHUB_USERNAME" \
+              --arg secret "$DOCKERHUB_TOKEN" \
+              '{identifier: $identifier, secret: $secret}'
+          )"
+          auth_response="$(
+            curl --fail-with-body --silent --show-error \
+              --request POST \
+              --header 'Content-Type: application/json' \
+              --data "$auth_payload" \
+              https://hub.docker.com/v2/auth/token
+          )"
+          access_token="$(jq -er '.access_token' <<< "$auth_response")"
+          echo "::add-mask::$access_token"
+
+          created=0
+          existing=0
+          for repository in "${repositories[@]}"; do
+            endpoint="https://hub.docker.com/v2/namespaces/${DOCKERHUB_USERNAME}/repositories/${repository}"
+            status="$(
+              curl --silent --show-error \
+                --output /tmp/dockerhub-repository.json \
+                --write-out '%{http_code}' \
+                --header "Authorization: Bearer $access_token" \
+                "$endpoint"
+            )"
+
+            if [[ "$status" == "200" ]]; then
+              echo "Exists: ${DOCKERHUB_USERNAME}/${repository}"
+              existing=$((existing + 1))
+              continue
+            fi
+            if [[ "$status" != "404" ]]; then
+              echo "Unexpected Docker Hub status $status while checking $repository." >&2
+              jq -c . /tmp/dockerhub-repository.json >&2 || true
+              exit 1
+            fi
+
+            create_payload="$(
+              jq -n \
+                --arg name "$repository" \
+                --arg namespace "$DOCKERHUB_USERNAME" \
+                --arg description "Official PiPhi runtime image for ${repository}." \
+                '{
+                  name: $name,
+                  namespace: $namespace,
+                  description: $description,
+                  registry: "docker.io",
+                  is_private: false
+                }'
+            )"
+            curl --fail-with-body --silent --show-error \
+              --request POST \
+              --header "Authorization: Bearer $access_token" \
+              --header 'Content-Type: application/json' \
+              --data "$create_payload" \
+              "https://hub.docker.com/v2/namespaces/${DOCKERHUB_USERNAME}/repositories" \
+              >/tmp/dockerhub-created-repository.json
+            test "$(jq -r '.name' /tmp/dockerhub-created-repository.json)" = "$repository"
+            test "$(jq -r '.namespace' /tmp/dockerhub-created-repository.json)" = "$DOCKERHUB_USERNAME"
+            test "$(jq -r '.is_private' /tmp/dockerhub-created-repository.json)" = "false"
+            echo "Created: ${DOCKERHUB_USERNAME}/${repository}"
+            created=$((created + 1))
+          done
+
+          echo "### Docker Hub provisioning" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Namespace: $DOCKERHUB_USERNAME" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Created: $created" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Already existed: $existing" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Requested: ${#repositories[@]}" >> "$GITHUB_STEP_SUMMARY"
+          test "$((created + existing))" -eq "${#repositories[@]}"

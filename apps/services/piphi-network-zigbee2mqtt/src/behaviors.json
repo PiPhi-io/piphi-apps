@@ -1,0 +1,201 @@
+{
+  "behaviorSchemaVersion": "integration.behaviors.v2",
+  "devices": [
+    {
+      "id": "zigbee2mqtt_bridge",
+      "name": "Zigbee2MQTT Bridge",
+      "actions": [
+        {
+          "id": "refresh",
+          "name": "Refresh bridge status",
+          "runtime": {
+            "command": "refresh"
+          },
+          "safety": {
+            "riskLevel": "low"
+          }
+        },
+        {
+          "id": "render_config",
+          "name": "Render bridge configuration",
+          "runtime": {
+            "command": "render_config"
+          },
+          "safety": {
+            "riskLevel": "medium"
+          }
+        }
+      ],
+      "triggers": [
+        {
+          "id": "state_changed",
+          "label": "Bridge state changes",
+          "description": "Start when the Zigbee2MQTT bridge publishes a changed runtime state.",
+          "capability": "telemetry.state",
+          "runtime": {
+            "event": "device.state_changed",
+            "source": "integration"
+          },
+          "freshness": {
+            "maxAgeSeconds": 180,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "when"
+          }
+        }
+      ],
+      "conditions": [
+        {
+          "id": "connected",
+          "label": "Bridge connection state",
+          "type": "boolean",
+          "capability": "sensor.connected",
+          "operators": [
+            "eq",
+            "neq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "connected",
+            "operator": "eq"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        }
+      ]
+    }
+  ],
+  "templates": [
+    {
+      "id": "zigbee2mqtt_recovery_check",
+      "label": "Refresh a disconnected Zigbee2MQTT bridge",
+      "description": "Request fresh bridge status when Zigbee2MQTT reports disconnected, limited to once every five minutes.",
+      "category": "Connectivity",
+      "deviceKey": "zigbee2mqtt_bridge",
+      "config": {
+        "automation_schema_version": "automation.behavior.v2",
+        "triggers": [
+          {
+            "id": "state_changed",
+            "label": "Bridge state changes",
+            "type": "integration_event",
+            "event": "device.state_changed",
+            "capability": "telemetry.state",
+            "enabled": true,
+            "sourceRef": {
+              "integrationId": "{{integrationId}}",
+              "integrationKey": "{{integrationKey}}",
+              "configId": "{{configId}}",
+              "behaviorDeviceKey": "zigbee2mqtt_bridge",
+              "optionKey": "state_changed",
+              "capability": "telemetry.state"
+            }
+          }
+        ],
+        "trigger": {
+          "id": "state_changed",
+          "label": "Bridge state changes",
+          "type": "integration_event",
+          "event": "device.state_changed",
+          "capability": "telemetry.state",
+          "enabled": true
+        },
+        "intent": "bridge_recovery",
+        "conditionTree": {
+          "id": "zigbee2mqtt_recovery_check_condition",
+          "label": "Bridge is disconnected",
+          "field": "connected",
+          "operator": "eq",
+          "value": false,
+          "sourceRef": {
+            "integrationId": "{{integrationId}}",
+            "integrationKey": "{{integrationKey}}",
+            "configId": "{{configId}}",
+            "behaviorDeviceKey": "zigbee2mqtt_bridge",
+            "optionKey": "connected",
+            "capability": "sensor.connected"
+          }
+        },
+        "actions": [
+          {
+            "id": "zigbee2mqtt_recovery_check_action",
+            "label": "Refresh bridge status",
+            "action": "refresh",
+            "capability": "device.refresh",
+            "sourceRef": {
+              "integrationId": "{{integrationId}}",
+              "integrationKey": "{{integrationKey}}",
+              "configId": "{{configId}}",
+              "behaviorDeviceKey": "zigbee2mqtt_bridge",
+              "optionKey": "refresh",
+              "capability": "device.refresh"
+            },
+            "target": {
+              "mode": "selection",
+              "configIds": [
+                "{{configId}}"
+              ]
+            }
+          }
+        ],
+        "safety": {
+          "staleDataMode": "block",
+          "maxAgeSeconds": 300,
+          "requireFreshTrigger": true,
+          "dryRunFirst": true
+        },
+        "failure": {
+          "strategy": "follow_edges",
+          "fallbackBehaviorId": "",
+          "conditionTree": {
+            "op": "and",
+            "children": []
+          }
+        },
+        "stop": {
+          "never": true
+        },
+        "override": {
+          "mode": "continue"
+        },
+        "execution": {
+          "failureStrategy": "follow_edges",
+          "fallbackBehaviorId": "",
+          "dispatchMode": "runtime"
+        },
+        "policies": {
+          "execution": {
+            "failureStrategy": "follow_edges",
+            "fallbackBehaviorId": "",
+            "dispatchMode": "runtime"
+          },
+          "freshness": {
+            "staleDataMode": "block"
+          },
+          "manualOverride": {
+            "mode": "continue"
+          },
+          "cooldownSeconds": 300
+        }
+      },
+      "metadata": {
+        "recommended": true,
+        "requiresReview": true
+      }
+    }
+  ],
+  "telemetry": {
+    "capabilityMappings": [
+      {
+        "nativeMetric": "connected",
+        "capability": "sensor.connected"
+      },
+      {
+        "nativeMetric": "temperature_c",
+        "capability": "sensor.temperature_c"
+      }
+    ]
+  }
+}

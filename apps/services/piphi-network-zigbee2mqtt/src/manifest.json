@@ -1,0 +1,408 @@
+{
+  "$schema": "./schema/piphi-manifest.schema.json",
+  "manifest_version": "1.0",
+  "kind": "platform_service",
+  "id": "piphi.service.zigbee2mqtt-sidecar",
+  "name": "Zigbee2MQTT Sidecar",
+  "version": "0.1.17",
+  "description": "PiPhi sidecar service for detecting Zigbee coordinators and rendering Zigbee2MQTT bridge configuration.",
+  "metadata": {
+    "generator": "piphi-network-create",
+    "scaffold_version": "0.2.0",
+    "preset": "platform-service",
+    "domain": "sidecar-service",
+    "preset_summary": "Platform service starter for shared local dependencies.",
+    "bridge_helper": {
+      "service": "zigbee2mqtt",
+      "linux": {
+        "mode": "container",
+        "supervisor": "docker",
+        "recommended_for": [
+          "usb_coordinator",
+          "network_coordinator"
+        ]
+      },
+      "windows": {
+        "mode": "native_process",
+        "supervisor": "pm2",
+        "recommended_for": [
+          "usb_coordinator"
+        ],
+        "docker_supported_for": [
+          "network_coordinator"
+        ]
+      },
+      "macos": {
+        "mode": "native_process",
+        "supervisor": "pm2",
+        "recommended_for": [
+          "usb_coordinator"
+        ],
+        "docker_supported_for": [
+          "network_coordinator"
+        ]
+      }
+    }
+  },
+  "maintainer": {
+    "name": "PiPhi Network",
+    "website": "https://piphi.io"
+  },
+  "license": "Apache-2.0",
+  "image": "piphinetwork/zigbee2mqtt-sidecar:0.1.17",
+  "platforms": [
+    "linux",
+    "windows",
+    "macos"
+  ],
+  "runtime": {
+    "linux": {
+      "type": "container",
+      "container": {
+        "image": "piphinetwork/zigbee2mqtt-sidecar:0.1.17",
+        "ports": [
+          {
+            "container": 8720
+          }
+        ],
+        "environment": {
+          "LOG_LEVEL": "info",
+          "ZIGBEE2MQTT_BRIDGE_CONTAINER": "piphi-zigbee2mqtt",
+          "ZIGBEE2MQTT_BRIDGE_IMAGE": "ghcr.io/koenkk/zigbee2mqtt:latest",
+          "ZIGBEE2MQTT_CONTAINER_DATA_PATH": "/app/data",
+          "ZIGBEE2MQTT_DATA_PATH": "/app/data",
+          "ZIGBEE2MQTT_HOST_DATA_PATH": "/var/lib/piphi/zigbee2mqtt",
+          "ZIGBEE2MQTT_NETWORK_MODE": "host"
+        },
+        "volumes": [
+          {
+            "host": "/var/lib/piphi/zigbee2mqtt",
+            "container": "/app/data",
+            "mode": "rw"
+          },
+          {
+            "host": "/var/run/docker.sock",
+            "container": "/var/run/docker.sock",
+            "mode": "rw"
+          }
+        ],
+        "devices": [
+          {
+            "host": "/dev/bus/usb",
+            "container": "/dev/bus/usb",
+            "permissions": "rwm"
+          }
+        ],
+        "privileged": true,
+        "restart_policy": {
+          "name": "unless-stopped",
+          "maximum_retry_count": 0
+        }
+      },
+      "discovery": {
+        "method": "passive"
+      }
+    },
+    "windows": {
+      "type": "proxy",
+      "proxy": {
+        "port": 8720,
+        "process": {
+          "kind": "python_executable",
+          "command": "piphi_network_zigbee2mqtt",
+          "supervisor": "chief"
+        },
+        "managed_helpers": [
+          {
+            "id": "zigbee2mqtt",
+            "kind": "node_process",
+            "supervisor": "pm2",
+            "process_name": "piphi-zigbee2mqtt",
+            "config_path": "%PROGRAMDATA%\\PiPhi\\zigbee2mqtt\\configuration.yaml",
+            "data_path": "%PROGRAMDATA%\\PiPhi\\zigbee2mqtt",
+            "coordinator_ports": [
+              "COM*"
+            ],
+            "preferred_for": [
+              "usb_coordinator"
+            ],
+            "docker_mode": {
+              "supported": true,
+              "preferred_for": [
+                "network_coordinator"
+              ],
+              "reason": "Avoid Docker Desktop USB serial passthrough for local USB coordinators."
+            }
+          }
+        ]
+      },
+      "discovery": {
+        "method": "proxy",
+        "inputs": [
+          {
+            "name": "serial_port",
+            "label": "Coordinator Port",
+            "type": "text",
+            "required": false,
+            "placeholder": "COM4"
+          },
+          {
+            "name": "adapter",
+            "label": "Adapter Type",
+            "type": "select",
+            "required": false,
+            "options": [
+              "zstack",
+              "ember",
+              "deconz",
+              "zigate",
+              "zboss"
+            ]
+          }
+        ]
+      }
+    },
+    "macos": {
+      "type": "proxy",
+      "proxy": {
+        "port": 8720,
+        "process": {
+          "kind": "python_executable",
+          "command": "piphi_network_zigbee2mqtt",
+          "supervisor": "chief"
+        },
+        "managed_helpers": [
+          {
+            "id": "zigbee2mqtt",
+            "kind": "node_process",
+            "supervisor": "pm2",
+            "process_name": "piphi-zigbee2mqtt",
+            "config_path": "~/Library/Application Support/PiPhi/zigbee2mqtt/configuration.yaml",
+            "data_path": "~/Library/Application Support/PiPhi/zigbee2mqtt",
+            "coordinator_ports": [
+              "/dev/cu.usbserial-*",
+              "/dev/cu.usbmodem-*"
+            ],
+            "preferred_for": [
+              "usb_coordinator"
+            ],
+            "docker_mode": {
+              "supported": true,
+              "preferred_for": [
+                "network_coordinator"
+              ],
+              "reason": "Avoid Docker Desktop USB serial passthrough for local USB coordinators."
+            }
+          }
+        ]
+      },
+      "discovery": {
+        "method": "proxy",
+        "inputs": [
+          {
+            "name": "serial_port",
+            "label": "Coordinator Port",
+            "type": "text",
+            "required": false,
+            "placeholder": "/dev/cu.usbmodem1101"
+          },
+          {
+            "name": "adapter",
+            "label": "Adapter Type",
+            "type": "select",
+            "required": false,
+            "options": [
+              "zstack",
+              "ember",
+              "deconz",
+              "zigate",
+              "zboss"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "requires": {
+    "services": [
+      {
+        "id": "piphi.service.mqtt-broker",
+        "kind": "platform_service",
+        "version_range": ">=0.1.0,<1.0.0",
+        "required": true,
+        "shared": true,
+        "auto_install": true,
+        "reason": "Provides the MQTT broker Zigbee2MQTT uses for device state, availability, and control topics."
+      }
+    ]
+  },
+  "api": {
+    "required": [
+      "health",
+      "entities",
+      "command",
+      "config",
+      "ui_config"
+    ],
+    "endpoints": {
+      "health": "/health",
+      "diagnostics": "/diagnostics",
+      "discover": "/discover",
+      "entities": "/entities",
+      "state": "/state",
+      "config": "/config",
+      "config_sync": "/config/sync",
+      "deconfigure": "/deconfigure",
+      "ui_config": "/ui-config",
+      "events": "/events",
+      "command": "/command",
+      "bridge_snapshot": "/v1/snapshot",
+      "bridge_adapters": "/v1/adapters",
+      "bridge_config_render": "/v1/config/render",
+      "bridge_config_write": "/v1/config/write",
+      "bridge_apply": "/v1/apply",
+      "bridge_supervisor_status": "/v1/supervisor/status",
+      "bridge_supervisor_start": "/v1/supervisor/start",
+      "bridge_supervisor_stop": "/v1/supervisor/stop",
+      "bridge_supervisor_restart": "/v1/supervisor/restart",
+      "bridge_supervisor_logs": "/v1/supervisor/logs",
+      "bridge_prerequisites": "/v1/prerequisites",
+      "bridge_mqtt_check": "/v1/mqtt/check",
+      "bridge_devices": "/v1/devices",
+      "bridge_permit_join": "/v1/permit-join",
+      "bridge_network_map": "/v1/network-map"
+    }
+  },
+  "config": {
+    "source": "endpoint",
+    "endpoint": "/ui-config",
+    "required": true,
+    "editable_fields": [
+      "serial_port",
+      "adapter",
+      "mqtt_server",
+      "mqtt_base_topic",
+      "data_path"
+    ],
+    "runtime_fields": [
+      "id",
+      "config_id",
+      "container_id",
+      "device_id"
+    ],
+    "identity_fields": [
+      "serial_port"
+    ]
+  },
+  "identity": {
+    "fields": [
+      "serial_port"
+    ]
+  },
+  "capabilities": {
+    "connected": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "refresh": {
+      "kind": "action"
+    },
+    "service_available": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "bridge_configured": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "adapter_detected": {
+      "kind": "sensor",
+      "unit": "count"
+    },
+    "render_config": {
+      "kind": "action"
+    },
+    "zigbee_network_topology": {
+      "kind": "sensor",
+      "unit": "json"
+    },
+    "refresh_network_map": {
+      "kind": "action"
+    }
+  },
+  "commands": {
+    "refresh": {
+      "description": "Refresh the device state.",
+      "timeout_ms": 5000
+    },
+    "render_config": {
+      "description": "Render or write Zigbee2MQTT configuration.yaml.",
+      "timeout_ms": 10000
+    },
+    "refresh_network_map": {
+      "description": "Manually scan the Zigbee mesh and refresh its network topology.",
+      "timeout_ms": 130000
+    }
+  },
+  "entities": [
+    {
+      "id": "zigbee2mqtt-bridge",
+      "name": "Zigbee2MQTT Bridge",
+      "device_id": "zigbee2mqtt-bridge",
+      "entity_type": "service",
+      "capabilities": [
+        "connected",
+        "refresh",
+        "service_available",
+        "bridge_configured",
+        "adapter_detected",
+        "render_config",
+        "zigbee_network_topology",
+        "refresh_network_map"
+      ],
+      "available_commands": [
+        {
+          "id": "refresh",
+          "label": "Refresh",
+          "kind": "action"
+        },
+        {
+          "id": "render_config",
+          "label": "Render Config",
+          "kind": "action"
+        },
+        {
+          "id": "refresh_network_map",
+          "label": "Scan Network Map",
+          "kind": "action"
+        }
+      ],
+      "dashboard": {
+        "allowed_widgets": [
+          "tile",
+          "stat",
+          "button",
+          "io.piphi.zigbee2mqtt-network-map"
+        ],
+        "default_widget": "tile"
+      }
+    }
+  ],
+  "onboarding": {
+    "mode": "service"
+  },
+  "runtime_contract": {
+    "version": 1,
+    "port_binding": "core_allocated",
+    "port_env": "PORT"
+  },
+  "ui": {
+    "experience_packages": [
+      {
+        "registry_id": "io.piphi.zigbee2mqtt-network-map",
+        "version_range": ">=0.1,<1",
+        "auto_install": true
+      }
+    ]
+  }
+}

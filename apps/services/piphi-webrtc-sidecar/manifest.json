@@ -1,0 +1,170 @@
+{
+  "$schema": "./schema/piphi-manifest.schema.json",
+  "manifest_version": "1.0",
+  "kind": "platform_service",
+  "deployment_mode": "sidecar",
+  "id": "piphi.service.webrtc-sidecar",
+  "name": "PiPhi Camera Media Service",
+  "version": "0.3.4",
+  "description": "Shared go2rtc-backed camera media service for PiPhi camera integrations and dashboard cards.",
+  "metadata": {
+    "generator": "piphi-network-create",
+    "scaffold_version": "0.3.0",
+    "preset": "platform-service",
+    "domain": "camera-media",
+    "upstream": {
+      "name": "go2rtc",
+      "version": "1.9.15",
+      "repository": "https://github.com/AlexxIT/go2rtc"
+    }
+  },
+  "maintainer": {
+    "name": "PiPhi-io",
+    "website": "https://github.com/PiPhi-io",
+    "support_email": "support@piphi.io"
+  },
+  "license": "MIT",
+  "image": "ghcr.io/piphi-io/piphi-webrtc-sidecar:0.3.4",
+  "platforms": [
+    "linux"
+  ],
+  "runtime_requirements": [
+    "sidecar_runtime",
+    "local_network_access",
+    "secrets_or_api_tokens",
+    "webrtc_udp_8555"
+  ],
+  "runtime": {
+    "linux": {
+      "type": "container",
+      "container": {
+        "image": "ghcr.io/piphi-io/piphi-webrtc-sidecar:0.3.4",
+        "ports": [
+          {
+            "container": 8090
+          },
+          {
+            "container": 8555,
+            "host": 8555,
+            "protocol": "tcp"
+          },
+          {
+            "container": 8555,
+            "host": 8555,
+            "protocol": "udp"
+          }
+        ],
+        "environment": {
+          "LOG_LEVEL": "info",
+          "PIPHI_ENV": "production",
+          "GO2RTC_URL": "http://127.0.0.1:1984"
+        },
+        "restart_policy": {
+          "name": "unless-stopped",
+          "maximum_retry_count": 0
+        }
+      }
+    }
+  },
+  "provides": {
+    "services": [
+      {
+        "id": "piphi.service.webrtc-sidecar",
+        "kind": "platform_service",
+        "capabilities": [
+          "camera.media.v1"
+        ],
+        "shared": true
+      }
+    ]
+  },
+  "api": {
+    "required": [
+      "health",
+      "camera_media_status",
+      "camera_media_sessions"
+    ],
+    "endpoints": {
+      "health": "/health",
+      "diagnostics": "/diagnostics",
+      "contract": "/contract",
+      "camera_media_status": "/v1/camera-media/status",
+      "camera_media_sessions": "/v1/camera-media/sessions"
+    }
+  },
+  "capabilities": {},
+  "marketplace": {
+    "metadata_version": 2,
+    "display_name": "Camera Media Service",
+    "summary": "Runs one shared local media bridge for camera integrations and low-latency dashboards.",
+    "category": "camera",
+    "device_types": [
+      "camera_media_service",
+      "platform_service"
+    ],
+    "protocols": [
+      "rtsp",
+      "rtsps",
+      "webrtc",
+      "wyze-p2p"
+    ],
+    "regions": [
+      "WW"
+    ],
+    "languages": [
+      "en"
+    ],
+    "discovery_methods": [],
+    "connectivity": "local",
+    "offline_support": "full",
+    "access_declared": true,
+    "publisher": {
+      "name": "PiPhi-io",
+      "website_url": "https://github.com/PiPhi-io",
+      "support_url": "https://github.com/PiPhi-io/piphi-webrtc-sidecar/issues",
+      "security_contact": "support@piphi.io"
+    },
+    "access": [
+      {
+        "id": "companion_service",
+        "label": "Background camera media service",
+        "reason": "Keeps the shared local camera media bridge available to compatible PiPhi apps.",
+        "required": true
+      },
+      {
+        "id": "local_camera_network",
+        "label": "Local camera network",
+        "reason": "Connects only to camera sources supplied by installed camera integrations.",
+        "required": true
+      },
+      {
+        "id": "camera_credentials",
+        "label": "Camera credentials",
+        "reason": "Uses short-lived camera sources supplied by Core without exposing them to dashboards, state, or logs.",
+        "required": false
+      }
+    ],
+    "compatibility": [],
+    "documentation_url": "https://github.com/PiPhi-io/piphi-webrtc-sidecar",
+    "support_url": "https://github.com/PiPhi-io/piphi-webrtc-sidecar/issues",
+    "changelog_url": "https://github.com/PiPhi-io/piphi-webrtc-sidecar/releases",
+    "quality_tier": "unrated",
+    "governance": {
+      "schema_version": 1,
+      "publication_status": "beta",
+      "rollout_percent": 1,
+      "lifecycle_status": "active",
+      "qualification": {
+        "status": "unverified"
+      }
+    }
+  },
+  "onboarding": {
+    "mode": "service"
+  },
+  "runtime_contract": {
+    "version": 1,
+    "port_binding": "core_allocated",
+    "port_env": "PORT"
+  }
+}

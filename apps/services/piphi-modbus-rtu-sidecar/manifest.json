@@ -1,0 +1,208 @@
+{
+  "$schema": "./schema/piphi-manifest.schema.json",
+  "manifest_version": "1.0",
+  "id": "piphi-modbus-rtu-sidecar",
+  "name": "Modbus RTU sidecar",
+  "version": "0.1.1",
+  "description": "Coordinate bounded Modbus RTU and ASCII requests over serial buses.",
+  "metadata": {
+    "generator": "piphi-network-create",
+    "scaffold_version": "0.3.0",
+    "preset": "sidecar-worker",
+    "domain": "sidecar-service",
+    "preset_summary": "Sidecar starter with service health and queue-oriented command hooks."
+  },
+  "maintainer": {
+    "name": "PiPhi Network",
+    "website": "https://piphi.io"
+  },
+  "license": "Apache-2.0",
+  "image": "docker.io/piphinetwork/piphi-modbus-rtu-sidecar:0.1.1",
+  "platforms": [
+    "linux"
+  ],
+  "runtime": {
+    "linux": {
+      "type": "container",
+      "container": {
+        "image": "docker.io/piphinetwork/piphi-modbus-rtu-sidecar:0.1.1",
+        "ports": [
+          {
+            "container": 4212
+          }
+        ],
+        "environment": {
+          "LOG_LEVEL": "info"
+        },
+        "restart_policy": {
+          "name": "unless-stopped",
+          "maximum_retry_count": 0
+        }
+      },
+      "discovery": {
+        "method": "passive"
+      }
+    }
+  },
+  "api": {
+    "required": [
+      "health",
+      "entities",
+      "command",
+      "config",
+      "ui_config"
+    ],
+    "endpoints": {
+      "health": "/health",
+      "diagnostics": "/diagnostics",
+      "discover": "/discover",
+      "entities": "/entities",
+      "state": "/state",
+      "config": "/config",
+      "config_sync": "/config/sync",
+      "deconfigure": "/deconfigure",
+      "ui_config": "/ui-config",
+      "events": "/events",
+      "command": "/command"
+    }
+  },
+  "config": {
+    "source": "endpoint",
+    "endpoint": "/ui-config",
+    "required": true,
+    "editable_fields": [
+      "host",
+      "alias",
+      "service_name"
+    ],
+    "runtime_fields": [
+      "id",
+      "config_id",
+      "container_id",
+      "device_id"
+    ],
+    "identity_fields": [
+      "host"
+    ]
+  },
+  "identity": {
+    "fields": [
+      "host"
+    ]
+  },
+  "capabilities": {
+    "connected": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "refresh": {
+      "kind": "action"
+    }
+  },
+  "commands": {
+    "refresh": {
+      "description": "Refresh the device state.",
+      "timeout_ms": 5000
+    }
+  },
+  "entities": [
+    {
+      "id": "modbus-rtu-service",
+      "name": "Modbus RTU Service",
+      "device_id": "modbus-rtu-service",
+      "entity_type": "service",
+      "capabilities": [
+        "connected",
+        "refresh"
+      ],
+      "available_commands": [
+        {
+          "id": "refresh",
+          "label": "Refresh",
+          "kind": "action"
+        }
+      ],
+      "dashboard": {
+        "allowed_widgets": [
+          "tile",
+          "stat",
+          "button"
+        ],
+        "default_widget": "tile"
+      }
+    }
+  ],
+  "marketplace": {
+    "metadata_version": 2,
+    "display_name": "Modbus RTU sidecar",
+    "summary": "Coordinate bounded Modbus RTU and ASCII requests over serial buses.",
+    "category": "networking",
+    "regions": [
+      "WW"
+    ],
+    "languages": [
+      "en"
+    ],
+    "publisher": {
+      "name": "PiPhi Network",
+      "website_url": "https://piphi.io",
+      "support_url": "https://github.com/PiPhi-io/piphi-modbus-rtu-sidecar/issues",
+      "security_contact": "support@piphi.io"
+    },
+    "access": [
+      {
+        "id": "device_access",
+        "label": "Serial device access",
+        "reason": "Uses the explicitly configured host device to communicate with supported hardware.",
+        "required": true
+      },
+      {
+        "id": "sidecar_runtime",
+        "label": "Managed sidecar runtime",
+        "reason": "Runs as an isolated helper service consumed by a parent PiPhi integration.",
+        "required": true
+      }
+    ],
+    "compatibility": [
+      {
+        "brand": "Multi-vendor",
+        "model": "Modbus RTU and ASCII devices described by parent profiles"
+      }
+    ],
+    "documentation_url": "https://github.com/PiPhi-io/piphi-modbus-rtu-sidecar",
+    "support_url": "https://github.com/PiPhi-io/piphi-modbus-rtu-sidecar/issues",
+    "changelog_url": "https://github.com/PiPhi-io/piphi-modbus-rtu-sidecar/releases",
+    "quality_tier": "unrated",
+    "governance": {
+      "schema_version": 1,
+      "publication_status": "draft",
+      "rollout_percent": 0,
+      "lifecycle_status": "active",
+      "qualification": {
+        "status": "unverified"
+      }
+    },
+    "device_types": [
+      "Serial protocol gateway"
+    ],
+    "protocols": [
+      "Modbus RTU",
+      "Modbus ASCII",
+      "Serial"
+    ],
+    "discovery_methods": [
+      "manual",
+      "serial port enumeration"
+    ],
+    "connectivity": "local",
+    "offline_support": "full"
+  },
+  "onboarding": {
+    "mode": "service"
+  },
+  "runtime_contract": {
+    "version": 1,
+    "port_binding": "core_allocated",
+    "port_env": "PORT"
+  }
+}

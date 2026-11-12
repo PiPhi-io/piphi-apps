@@ -1,0 +1,61 @@
+{
+  "catalog_version": "1.0",
+  "integration_id": "piphi-ble-gateway-sidecar",
+  "coverage_mode": "linux_bluez_adapter_scan_gatt_queue_privacy_and_parent_contract",
+  "reviewed_at": "2026-09-07",
+  "sources": {
+    "bluez_adapter": "https://github.com/bluez/bluez/blob/master/doc/org.bluez.Adapter.rst",
+    "bluez_device": "https://github.com/bluez/bluez/blob/master/doc/org.bluez.Device.rst",
+    "bluez_gatt": "https://bluez.readthedocs.io/en/latest/gatt-api/",
+    "bluez_mgmt": "https://github.com/bluez/bluez/blob/master/doc/mgmt-api.txt",
+    "bluetooth_assigned_numbers": "https://www.bluetooth.com/specifications/assigned-numbers/",
+    "core_vocabulary": "PiPhi Network Core and maintained PiPhi integrations",
+    "parent_contract": "PiPhi BLE-consuming integration transport contract"
+  },
+  "groups": [
+    {
+      "id": "runtime-foundation", "status": "implemented", "scope": ["sidecar-service"], "source_refs": ["core_vocabulary"],
+      "reason": "The scaffold implements configuration presence, connectivity state, refresh dispatch, and sanitized configuration events.",
+      "state": ["connected"], "events": ["runtime.config.applied", "runtime.config.removed", "runtime.command.received"], "conditions": [], "actions": ["refresh"]
+    },
+    {
+      "id": "adapter-lifecycle-and-radio", "status": "planned", "scope": ["linux-bluez-adapters", "configured-adapter-allow-list"], "source_refs": ["bluez_adapter", "bluez_mgmt", "core_vocabulary"],
+      "reason": "Adapter enumeration, power state, discovery filters, contention, hotplug, rfkill, reset, and recovery require a real D-Bus adapter and deterministic mock fixtures.",
+      "state": ["service_available", "bluez_version", "adapter_count", "adapter_name", "adapter_address_redacted", "adapter_powered", "adapter_discovering", "adapter_pairable", "adapter_discoverable", "adapter_roles", "supported_instances", "active_instances", "rfkill_blocked", "adapter_last_seen_at", "adapter_error_count", "adapter_reconnect_count", "scan_session_count"],
+      "events": ["adapter.added", "adapter.removed", "adapter.powered", "adapter.unpowered", "adapter.blocked", "adapter.unblocked", "adapter.failed", "adapter.recovered", "bluez.lost", "bluez.recovered"],
+      "conditions": ["adapter_is_available", "adapter_is_powered", "adapter_is_discovering", "adapter_error_count_above", "bluez_is_available"],
+      "actions": ["start_adapter", "stop_adapter", "restart_scan_session", "resynchronize_adapters"]
+    },
+    {
+      "id": "scan-advertisement-and-identity", "status": "planned", "scope": ["le-passive-and-active-scanning", "parent-authorized-filters"], "source_refs": ["bluez_adapter", "bluez_device", "bluetooth_assigned_numbers", "parent_contract"],
+      "reason": "Observation delivery must normalize advertisements, rotating addresses, duplicates, filter arbitration, RSSI, manufacturer/service data, and multi-adapter provenance without leaking raw identifiers.",
+      "state": ["scan_mode", "scan_interval_ms", "scan_window_ms", "scan_filter_count", "duplicate_policy", "observations_received_total", "observations_forwarded_total", "observations_dropped_total", "unique_device_count", "last_observation_at", "rssi_dbm", "tx_power_dbm", "address_type", "identity_resolution_status", "manufacturer_id", "service_uuids", "advertising_flags", "connectable", "adapter_source", "observation_age_ms"],
+      "events": ["scan.started", "scan.stopped", "scan.failed", "scan.recovered", "advertisement.received", "device.first_seen", "device.reappeared", "device.expired", "identity.resolved", "identity.rotated", "observation.deduplicated"],
+      "conditions": ["scan_is_active", "observation_is_fresh", "rssi_above", "manufacturer_is", "service_uuid_is_present", "device_was_seen_within"],
+      "actions": ["register_scan_consumer", "unregister_scan_consumer", "update_scan_filter", "expire_stale_observations"]
+    },
+    {
+      "id": "gatt-connections-and-operations", "status": "planned", "scope": ["explicitly-allow-listed-devices", "parent-requested-gatt-operations"], "source_refs": ["bluez_device", "bluez_gatt", "parent_contract"],
+      "reason": "Connections, service resolution, characteristic access, notifications, MTU, pairing, timeouts, and reconnect require per-device authorization and serialized resource ownership.",
+      "state": ["device_connected", "services_resolved", "gatt_service_count", "gatt_characteristic_count", "gatt_descriptor_count", "gatt_mtu", "connection_latency_ms", "connection_attempt_count", "connection_failure_count", "notification_subscription_count", "pending_gatt_operation_count", "paired", "trusted", "blocked", "battery_percent", "last_gatt_success_at"],
+      "events": ["device.connected", "device.disconnected", "services.resolved", "services.resolution_failed", "gatt.notification", "gatt.operation_failed", "gatt.timeout", "pairing.requested", "pairing.completed", "pairing.failed"],
+      "conditions": ["device_is_connected", "services_are_resolved", "gatt_queue_below", "device_is_paired", "gatt_success_age_below"],
+      "actions": ["connect_allowlisted_device", "disconnect_device", "read_characteristic", "write_allowlisted_characteristic", "subscribe_characteristic", "unsubscribe_characteristic", "pair_allowlisted_device", "cancel_pairing"]
+    },
+    {
+      "id": "delivery-queue-health-and-recovery", "status": "planned", "scope": ["parent-consumer-streams"], "source_refs": ["parent_contract", "core_vocabulary"],
+      "reason": "The shared gateway needs bounded fanout, consumer isolation, backpressure, reconnect, replay bounds, restart recovery, and degraded health before serving integrations.",
+      "state": ["queue_depth", "queue_capacity", "queue_high_watermark", "consumer_count", "slow_consumer_count", "delivery_latency_ms", "delivery_failure_count", "delivery_retry_count", "dropped_message_count", "oldest_message_age_ms", "backpressure_active", "degraded_reason", "last_success_at", "restart_recovery_count"],
+      "events": ["queue.saturated", "queue.recovered", "consumer.connected", "consumer.disconnected", "consumer.slow", "message.dropped", "delivery.failed", "delivery.recovered", "replay.started", "replay.completed"],
+      "conditions": ["queue_is_saturated", "queue_depth_above", "consumer_is_healthy", "delivery_is_degraded", "last_success_age_above"],
+      "actions": ["drain_consumer_queue", "disconnect_slow_consumer", "retry_failed_delivery", "clear_expired_messages"]
+    },
+    {
+      "id": "unsafe-sensitive-and-device-owned", "status": "excluded", "scope": ["all-adapters-devices-and-consumers"], "source_refs": ["bluez_device", "bluez_gatt", "parent_contract"],
+      "reason": "Raw persistent identifiers, unrestricted D-Bus/GATT access, arbitrary pairing, impersonation, mesh provisioning, audio/profile ownership, and destructive host control are outside the shared transport contract.",
+      "state": ["raw_device_address", "irk_key", "ltk_key", "link_key", "raw_advertisement_bytes", "raw_dbus_object_tree", "pairing_passkey", "unredacted_device_name"],
+      "events": [], "conditions": [],
+      "actions": ["execute_arbitrary_dbus_method", "write_arbitrary_characteristic", "connect_arbitrary_device", "pair_arbitrary_device", "trust_arbitrary_device", "spoof_advertisement", "provision_mesh_network", "capture_audio_profile", "remove_all_bonds", "reset_all_adapters", "disable_host_bluetooth"]
+    }
+  ]
+}
