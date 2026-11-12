@@ -1,0 +1,8 @@
+{
+  "id": "demo-device",
+  "host": "127.0.0.1",
+  "alias": "Demo Device",
+  "base_url": "https://api.vendor.example",
+  "api_key": "change-me",
+  "poll_interval_seconds": 15
+}

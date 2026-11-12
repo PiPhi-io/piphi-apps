@@ -1,0 +1,82 @@
+{
+  "catalog_version": "1.0",
+  "integration_id": "piphi-network-kia-hyundai-connect",
+  "coverage_mode": "region_brand_account_and_vehicle_negotiated",
+  "reviewed_at": "2026-09-07",
+  "sources": {
+    "connect_api": "https://github.com/Hyundai-Kia-Connect/hyundai_kia_connect_api",
+    "connect_vehicle": "https://github.com/Hyundai-Kia-Connect/hyundai_kia_connect_api/blob/master/hyundai_kia_connect_api/Vehicle.py",
+    "connect_impl": "https://github.com/Hyundai-Kia-Connect/hyundai_kia_connect_api/blob/master/hyundai_kia_connect_api/ApiImpl.py",
+    "core_vocabulary": "PiPhi Network Core and maintained PiPhi integrations"
+  },
+  "groups": [
+    {
+      "id": "runtime-foundation", "status": "implemented", "scope": ["all-configurations"],
+      "source_refs": ["core_vocabulary"],
+      "reason": "The scaffold implements configuration presence, connectivity state, refresh dispatch, and its configuration event.",
+      "state": ["connected"], "events": ["runtime.config.applied"], "conditions": ["state_matches"], "actions": ["refresh"]
+    },
+    {
+      "id": "account-region-and-api-health", "status": "planned", "scope": ["supported-hyundai-kia-genesis-regions"],
+      "source_refs": ["connect_api", "connect_impl"],
+      "reason": "Unofficial cloud endpoints, authentication, brands, regions, rate limits, and subscription entitlements need isolated adapters and fixtures.",
+      "state": ["brand", "region", "account_vehicle_count", "api_reachable", "token_expires_at", "rate_limit_remaining", "last_successful_sync_at", "data_age_seconds"],
+      "events": ["account.auth_failed", "account.auth_recovered", "api.rate_limited", "api.recovered"],
+      "conditions": ["api_is_reachable", "data_is_stale", "region_is"],
+      "actions": ["reauthenticate", "force_vehicle_refresh"]
+    },
+    {
+      "id": "vehicle-access-and-body", "status": "planned", "scope": ["vehicles-reporting-each-field"],
+      "source_refs": ["connect_vehicle", "connect_impl"],
+      "reason": "Door, window, lock, and body state differ by model and region; remote mutations need fresh-state checks, confirmation, and per-vehicle targeting.",
+      "state": ["locked", "door_front_left_open", "door_front_right_open", "door_rear_left_open", "door_rear_right_open", "window_front_left_open", "window_front_right_open", "window_rear_left_open", "window_rear_right_open", "trunk_open", "hood_open", "sunroof_open"],
+      "events": ["vehicle.locked", "vehicle.unlocked", "door.opened", "door.closed", "window.opened", "window.closed", "trunk.changed", "hood.changed"],
+      "conditions": ["vehicle_is_locked", "any_door_is_open", "any_window_is_open", "trunk_is_open", "hood_is_open"],
+      "actions": ["lock_vehicle", "unlock_vehicle", "set_windows"]
+    },
+    {
+      "id": "propulsion-energy-and-range", "status": "planned", "scope": ["ice-hev-phev-and-ev-variants"],
+      "source_refs": ["connect_vehicle"],
+      "reason": "Powertrain-specific fields and units require normalization and representative ICE, hybrid, plug-in hybrid, and EV fixtures.",
+      "state": ["engine_running", "odometer_km", "fuel_percent", "fuel_range_km", "ev_battery_percent", "ev_range_km", "aux_battery_percent", "charging", "plugged_in", "charge_speed_kw", "charge_time_remaining_minutes", "charge_limit_ac_percent", "charge_limit_dc_percent"],
+      "events": ["engine.started", "engine.stopped", "charging.started", "charging.stopped", "charging.completed", "plug.changed", "battery.low", "fuel.low"],
+      "conditions": ["engine_is_running", "fuel_below", "ev_battery_below", "charging_is", "plug_is_connected", "range_below"],
+      "actions": ["start_charging", "stop_charging", "set_ac_charge_limit", "set_dc_charge_limit"]
+    },
+    {
+      "id": "climate-and-comfort", "status": "planned", "scope": ["vehicles-and-regions-supporting-remote-climate"],
+      "source_refs": ["connect_impl", "connect_vehicle"],
+      "reason": "Climate options are region- and model-specific and require temperature/duration bounds, explicit enablement, and confirmation.",
+      "state": ["climate_active", "climate_target_temperature_c", "defrost_active", "heated_steering_active", "seat_front_left_level", "seat_front_right_level", "seat_rear_left_level", "seat_rear_right_level"],
+      "events": ["climate.started", "climate.stopped", "defrost.changed"],
+      "conditions": ["climate_is_active", "climate_target_is", "defrost_is_active"],
+      "actions": ["start_climate", "stop_climate", "set_climate_options"]
+    },
+    {
+      "id": "location-trip-and-maintenance", "status": "planned", "scope": ["vehicles-reporting-location-or-diagnostics"],
+      "source_refs": ["connect_api", "connect_vehicle"],
+      "reason": "Location is privacy-sensitive, trip data and diagnostics vary by region, and all fields need opt-in retention and redaction policies.",
+      "state": ["location_available", "latitude", "longitude", "heading_degrees", "location_updated_at", "tire_pressure_warning", "service_due", "service_distance_remaining_km", "diagnostic_warning", "valet_mode", "last_trip_distance_km"],
+      "events": ["vehicle.location_changed", "tire_pressure.warning", "service.due", "diagnostic.warning", "valet_mode.changed"],
+      "conditions": ["vehicle_is_in_zone", "location_is_stale", "tire_pressure_warning_is_active", "service_is_due", "valet_mode_is"],
+      "actions": ["request_location", "set_valet_mode"]
+    },
+    {
+      "id": "signals-and-remote-feedback", "status": "planned", "scope": ["vehicles-and-regions-supporting-each-command"],
+      "source_refs": ["connect_impl"],
+      "reason": "Remote requests are asynchronous and need order-status tracking, timeouts, deduplication, and honest partial-failure reporting.",
+      "state": ["last_command_status", "last_command_type", "last_command_completed_at"],
+      "events": ["remote_command.accepted", "remote_command.succeeded", "remote_command.failed"],
+      "conditions": ["last_command_succeeded", "no_command_in_progress"],
+      "actions": ["flash_lights", "sound_horn"]
+    },
+    {
+      "id": "unsafe-or-sensitive-surface", "status": "excluded", "scope": ["all-accounts-and-vehicles"],
+      "source_refs": ["connect_api", "connect_impl"],
+      "reason": "Credentials, tokens, unrestricted endpoint access, destructive account operations, covert tracking, and propulsion or safety-system control are outside the behavior contract.",
+      "state": ["account_password", "access_token", "refresh_token", "full_vin", "location_history"],
+      "events": [], "conditions": [],
+      "actions": ["call_arbitrary_vehicle_endpoint", "delete_account", "share_vehicle_access", "disable_immobilizer", "drive_vehicle", "disable_safety_system", "track_without_consent"]
+    }
+  ]
+}
