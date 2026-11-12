@@ -1,0 +1,1193 @@
+{
+  "schema_version": "1",
+  "identity": {
+    "publisher_id": "io.piphi",
+    "package_id": "aqara-devices",
+    "version": "0.1.3"
+  },
+  "name": "Aqara Devices",
+  "description": "Native read-only dashboard views for Aqara Devices.",
+  "origin": "integration",
+  "owning_integration_id": "aqara-open-api",
+  "sdk_version_range": ">=0.6.1,<0.7",
+  "requires_integrations": [
+    {
+      "integration_id": "aqara-open-api",
+      "version_range": ">=0.1,<1",
+      "optional": false
+    }
+  ],
+  "recommended_for_integrations": [
+    "aqara-open-api"
+  ],
+  "widgets": [
+    {
+      "id": "environment",
+      "name": "Aqara Environment",
+      "description": "Temperature, humidity, and pressure",
+      "runtime": "declarative",
+      "presentation": {
+        "contract_version": "1",
+        "shell": "core",
+        "content_surface": "transparent",
+        "typography": "core",
+        "appearance_controls": [
+          "icon",
+          "title",
+          "surface",
+          "opacity",
+          "radius",
+          "shadow"
+        ]
+      },
+      "interaction_targets": [
+        {
+          "id": "card",
+          "label": "Aqara Environment",
+          "kind": "card",
+          "allowed_actions": [
+            "more-info",
+            "popout",
+            "refresh"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "temperature_c",
+          "label": "Temperature",
+          "kind": "binding",
+          "binding_slot_id": "temperature_c",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "humidity_percent",
+          "label": "Humidity",
+          "kind": "binding",
+          "binding_slot_id": "humidity_percent",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "pressure_hpa",
+          "label": "Pressure",
+          "kind": "binding",
+          "binding_slot_id": "pressure_hpa",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        }
+      ],
+      "binding_slots": [
+        {
+          "id": "temperature_c",
+          "label": "Temperature",
+          "required": true,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "temperature_c"
+          ],
+          "compatible_integration_ids": [
+            "aqara-open-api"
+          ]
+        },
+        {
+          "id": "humidity_percent",
+          "label": "Humidity",
+          "required": false,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "humidity_percent"
+          ],
+          "compatible_integration_ids": [
+            "aqara-open-api"
+          ]
+        },
+        {
+          "id": "pressure_hpa",
+          "label": "Pressure",
+          "required": false,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "pressure_hpa"
+          ],
+          "compatible_integration_ids": [
+            "aqara-open-api"
+          ]
+        }
+      ],
+      "recipe": {
+        "schema_version": "1",
+        "layout": "grid",
+        "columns": 2,
+        "items": [
+          {
+            "type": "metric",
+            "slot_id": "temperature_c",
+            "label": "Temperature",
+            "format": "temperature",
+            "domain": "temperature",
+            "action": {
+              "type": "details",
+              "label": "View temperature details"
+            }
+          },
+          {
+            "type": "metric",
+            "slot_id": "humidity_percent",
+            "label": "Humidity",
+            "format": "percent",
+            "domain": "humidity",
+            "action": {
+              "type": "details",
+              "label": "View humidity details"
+            }
+          },
+          {
+            "type": "metric",
+            "slot_id": "pressure_hpa",
+            "label": "Pressure",
+            "action": {
+              "type": "details",
+              "label": "View pressure details"
+            }
+          }
+        ]
+      },
+      "certification": {
+        "schema_version": "1",
+        "verified_gates": ["runtime", "persistence", "binding", "states", "responsive", "themes", "accessibility", "save-reload", "performance"],
+        "evidence": {
+          "runtime": ["core-profile:declarative-v2/runtime"],
+          "persistence": ["core-profile:declarative-v2/persistence"],
+          "binding": ["core-profile:declarative-v2/binding"],
+          "states": ["core-profile:declarative-v2/states"],
+          "responsive": ["core-profile:declarative-v2/responsive"],
+          "themes": ["core-profile:declarative-v2/themes"],
+          "accessibility": ["core-profile:declarative-v2/accessibility"],
+          "save-reload": ["core-profile:declarative-v2/save-reload"],
+          "performance": ["core-profile:declarative-v2/performance"]
+        }
+      },
+      "default_column_span": 4,
+      "default_row_span": 2
+    },
+    {
+      "id": "air-quality",
+      "name": "Aqara Air Quality",
+      "description": "Carbon dioxide, VOC, and fine particles",
+      "runtime": "declarative",
+      "presentation": {
+        "contract_version": "1",
+        "shell": "core",
+        "content_surface": "transparent",
+        "typography": "core",
+        "appearance_controls": [
+          "icon",
+          "title",
+          "surface",
+          "opacity",
+          "radius",
+          "shadow"
+        ]
+      },
+      "interaction_targets": [
+        {
+          "id": "card",
+          "label": "Aqara Air Quality",
+          "kind": "card",
+          "allowed_actions": [
+            "more-info",
+            "popout",
+            "refresh"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "co2_ppm",
+          "label": "CO₂",
+          "kind": "binding",
+          "binding_slot_id": "co2_ppm",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "voc_ppb",
+          "label": "VOC",
+          "kind": "binding",
+          "binding_slot_id": "voc_ppb",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "pm25_ugm3",
+          "label": "PM2.5",
+          "kind": "binding",
+          "binding_slot_id": "pm25_ugm3",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        }
+      ],
+      "binding_slots": [
+        {
+          "id": "co2_ppm",
+          "label": "CO₂",
+          "required": true,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "co2_ppm"
+          ],
+          "compatible_integration_ids": [
+            "aqara-open-api"
+          ]
+        },
+        {
+          "id": "voc_ppb",
+          "label": "VOC",
+          "required": false,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "voc_ppb"
+          ],
+          "compatible_integration_ids": [
+            "aqara-open-api"
+          ]
+        },
+        {
+          "id": "pm25_ugm3",
+          "label": "PM2.5",
+          "required": false,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "pm25_ugm3"
+          ],
+          "compatible_integration_ids": [
+            "aqara-open-api"
+          ]
+        }
+      ],
+      "recipe": {
+        "schema_version": "1",
+        "layout": "grid",
+        "columns": 2,
+        "items": [
+          {
+            "type": "metric",
+            "slot_id": "co2_ppm",
+            "label": "CO₂",
+            "domain": "air_quality",
+            "action": {
+              "type": "details",
+              "label": "View co₂ details"
+            }
+          },
+          {
+            "type": "metric",
+            "slot_id": "voc_ppb",
+            "label": "VOC",
+            "domain": "air_quality",
+            "action": {
+              "type": "details",
+              "label": "View voc details"
+            }
+          },
+          {
+            "type": "metric",
+            "slot_id": "pm25_ugm3",
+            "label": "PM2.5",
+            "domain": "air_quality",
+            "action": {
+              "type": "details",
+              "label": "View pm2.5 details"
+            }
+          }
+        ]
+      },
+      "certification": {
+        "schema_version": "1",
+        "verified_gates": ["runtime", "persistence", "binding", "states", "responsive", "themes", "accessibility", "save-reload", "performance"],
+        "evidence": {
+          "runtime": ["core-profile:declarative-v2/runtime"],
+          "persistence": ["core-profile:declarative-v2/persistence"],
+          "binding": ["core-profile:declarative-v2/binding"],
+          "states": ["core-profile:declarative-v2/states"],
+          "responsive": ["core-profile:declarative-v2/responsive"],
+          "themes": ["core-profile:declarative-v2/themes"],
+          "accessibility": ["core-profile:declarative-v2/accessibility"],
+          "save-reload": ["core-profile:declarative-v2/save-reload"],
+          "performance": ["core-profile:declarative-v2/performance"]
+        }
+      },
+      "default_column_span": 4,
+      "default_row_span": 2
+    },
+    {
+      "id": "contact",
+      "name": "Aqara Contact",
+      "description": "Door or window contact and battery",
+      "runtime": "declarative",
+      "presentation": {
+        "contract_version": "1",
+        "shell": "core",
+        "content_surface": "transparent",
+        "typography": "core",
+        "appearance_controls": [
+          "icon",
+          "title",
+          "surface",
+          "opacity",
+          "radius",
+          "shadow"
+        ]
+      },
+      "interaction_targets": [
+        {
+          "id": "card",
+          "label": "Aqara Contact",
+          "kind": "card",
+          "allowed_actions": [
+            "more-info",
+            "popout",
+            "refresh"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "contact_open",
+          "label": "Contact",
+          "kind": "binding",
+          "binding_slot_id": "contact_open",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "battery_percent",
+          "label": "Battery",
+          "kind": "binding",
+          "binding_slot_id": "battery_percent",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "tamper_detected",
+          "label": "Tamper",
+          "kind": "binding",
+          "binding_slot_id": "tamper_detected",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        }
+      ],
+      "binding_slots": [
+        {
+          "id": "contact_open",
+          "label": "Contact",
+          "required": true,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "contact_open"
+          ],
+          "compatible_integration_ids": [
+            "aqara-open-api"
+          ]
+        },
+        {
+          "id": "battery_percent",
+          "label": "Battery",
+          "required": false,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "battery_percent"
+          ],
+          "compatible_integration_ids": [
+            "aqara-open-api"
+          ]
+        },
+        {
+          "id": "tamper_detected",
+          "label": "Tamper",
+          "required": false,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "tamper_detected"
+          ],
+          "compatible_integration_ids": [
+            "aqara-open-api"
+          ]
+        }
+      ],
+      "recipe": {
+        "schema_version": "1",
+        "layout": "grid",
+        "columns": 2,
+        "items": [
+          {
+            "type": "status",
+            "slot_id": "contact_open",
+            "label": "Contact",
+            "domain": "door",
+            "action": {
+              "type": "details",
+              "label": "View contact details"
+            }
+          },
+          {
+            "type": "progress",
+            "slot_id": "battery_percent",
+            "label": "Battery",
+            "minimum": 0,
+            "maximum": 100,
+            "domain": "battery",
+            "show_value": true,
+            "action": {
+              "type": "details",
+              "label": "View battery details"
+            }
+          },
+          {
+            "type": "status",
+            "slot_id": "tamper_detected",
+            "label": "Tamper",
+            "domain": "generic",
+            "action": {
+              "type": "details",
+              "label": "View tamper details"
+            }
+          }
+        ]
+      },
+      "certification": {
+        "schema_version": "1",
+        "verified_gates": ["runtime", "persistence", "binding", "states", "responsive", "themes", "accessibility", "save-reload", "performance"],
+        "evidence": {
+          "runtime": ["core-profile:declarative-v2/runtime"],
+          "persistence": ["core-profile:declarative-v2/persistence"],
+          "binding": ["core-profile:declarative-v2/binding"],
+          "states": ["core-profile:declarative-v2/states"],
+          "responsive": ["core-profile:declarative-v2/responsive"],
+          "themes": ["core-profile:declarative-v2/themes"],
+          "accessibility": ["core-profile:declarative-v2/accessibility"],
+          "save-reload": ["core-profile:declarative-v2/save-reload"],
+          "performance": ["core-profile:declarative-v2/performance"]
+        }
+      },
+      "default_column_span": 4,
+      "default_row_span": 2
+    },
+    {
+      "id": "leak",
+      "name": "Aqara Leak",
+      "description": "Water leak status and battery",
+      "runtime": "declarative",
+      "presentation": {
+        "contract_version": "1",
+        "shell": "core",
+        "content_surface": "transparent",
+        "typography": "core",
+        "appearance_controls": [
+          "icon",
+          "title",
+          "surface",
+          "opacity",
+          "radius",
+          "shadow"
+        ]
+      },
+      "interaction_targets": [
+        {
+          "id": "card",
+          "label": "Aqara Leak",
+          "kind": "card",
+          "allowed_actions": [
+            "more-info",
+            "popout",
+            "refresh"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "leak_detected",
+          "label": "Leak detected",
+          "kind": "binding",
+          "binding_slot_id": "leak_detected",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "battery_percent",
+          "label": "Battery",
+          "kind": "binding",
+          "binding_slot_id": "battery_percent",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        }
+      ],
+      "binding_slots": [
+        {
+          "id": "leak_detected",
+          "label": "Leak detected",
+          "required": true,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "leak_detected"
+          ],
+          "compatible_integration_ids": [
+            "aqara-open-api"
+          ]
+        },
+        {
+          "id": "battery_percent",
+          "label": "Battery",
+          "required": false,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "battery_percent"
+          ],
+          "compatible_integration_ids": [
+            "aqara-open-api"
+          ]
+        }
+      ],
+      "recipe": {
+        "schema_version": "1",
+        "layout": "grid",
+        "columns": 2,
+        "items": [
+          {
+            "type": "status",
+            "slot_id": "leak_detected",
+            "label": "Leak detected",
+            "domain": "generic",
+            "action": {
+              "type": "details",
+              "label": "View leak detected details"
+            }
+          },
+          {
+            "type": "progress",
+            "slot_id": "battery_percent",
+            "label": "Battery",
+            "minimum": 0,
+            "maximum": 100,
+            "domain": "battery",
+            "show_value": true,
+            "action": {
+              "type": "details",
+              "label": "View battery details"
+            }
+          }
+        ]
+      },
+      "certification": {
+        "schema_version": "1",
+        "verified_gates": ["runtime", "persistence", "binding", "states", "responsive", "themes", "accessibility", "save-reload", "performance"],
+        "evidence": {
+          "runtime": ["core-profile:declarative-v2/runtime"],
+          "persistence": ["core-profile:declarative-v2/persistence"],
+          "binding": ["core-profile:declarative-v2/binding"],
+          "states": ["core-profile:declarative-v2/states"],
+          "responsive": ["core-profile:declarative-v2/responsive"],
+          "themes": ["core-profile:declarative-v2/themes"],
+          "accessibility": ["core-profile:declarative-v2/accessibility"],
+          "save-reload": ["core-profile:declarative-v2/save-reload"],
+          "performance": ["core-profile:declarative-v2/performance"]
+        }
+      },
+      "default_column_span": 4,
+      "default_row_span": 2
+    },
+    {
+      "id": "energy",
+      "name": "Aqara Energy",
+      "description": "Live power and accumulated energy",
+      "runtime": "declarative",
+      "presentation": {
+        "contract_version": "1",
+        "shell": "core",
+        "content_surface": "transparent",
+        "typography": "core",
+        "appearance_controls": [
+          "icon",
+          "title",
+          "surface",
+          "opacity",
+          "radius",
+          "shadow"
+        ]
+      },
+      "interaction_targets": [
+        {
+          "id": "card",
+          "label": "Aqara Energy",
+          "kind": "card",
+          "allowed_actions": [
+            "more-info",
+            "popout",
+            "refresh"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "power_w",
+          "label": "Power",
+          "kind": "binding",
+          "binding_slot_id": "power_w",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "energy_kwh",
+          "label": "Energy",
+          "kind": "binding",
+          "binding_slot_id": "energy_kwh",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "voltage_v",
+          "label": "Voltage",
+          "kind": "binding",
+          "binding_slot_id": "voltage_v",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        }
+      ],
+      "binding_slots": [
+        {
+          "id": "power_w",
+          "label": "Power",
+          "required": true,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "power_w"
+          ],
+          "compatible_integration_ids": [
+            "aqara-open-api"
+          ]
+        },
+        {
+          "id": "energy_kwh",
+          "label": "Energy",
+          "required": false,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "energy_kwh"
+          ],
+          "compatible_integration_ids": [
+            "aqara-open-api"
+          ]
+        },
+        {
+          "id": "voltage_v",
+          "label": "Voltage",
+          "required": false,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "voltage_v"
+          ],
+          "compatible_integration_ids": [
+            "aqara-open-api"
+          ]
+        }
+      ],
+      "recipe": {
+        "schema_version": "1",
+        "layout": "grid",
+        "columns": 2,
+        "items": [
+          {
+            "type": "metric",
+            "slot_id": "power_w",
+            "label": "Power",
+            "domain": "power",
+            "action": {
+              "type": "details",
+              "label": "View power details"
+            }
+          },
+          {
+            "type": "metric",
+            "slot_id": "energy_kwh",
+            "label": "Energy",
+            "domain": "energy",
+            "action": {
+              "type": "details",
+              "label": "View energy details"
+            }
+          },
+          {
+            "type": "metric",
+            "slot_id": "voltage_v",
+            "label": "Voltage",
+            "action": {
+              "type": "details",
+              "label": "View voltage details"
+            }
+          }
+        ]
+      },
+      "certification": {
+        "schema_version": "1",
+        "verified_gates": ["runtime", "persistence", "binding", "states", "responsive", "themes", "accessibility", "save-reload", "performance"],
+        "evidence": {
+          "runtime": ["core-profile:declarative-v2/runtime"],
+          "persistence": ["core-profile:declarative-v2/persistence"],
+          "binding": ["core-profile:declarative-v2/binding"],
+          "states": ["core-profile:declarative-v2/states"],
+          "responsive": ["core-profile:declarative-v2/responsive"],
+          "themes": ["core-profile:declarative-v2/themes"],
+          "accessibility": ["core-profile:declarative-v2/accessibility"],
+          "save-reload": ["core-profile:declarative-v2/save-reload"],
+          "performance": ["core-profile:declarative-v2/performance"]
+        }
+      },
+      "default_column_span": 4,
+      "default_row_span": 2
+    },
+    {
+      "id": "light-level",
+      "name": "Aqara Light Level",
+      "description": "On state and brightness",
+      "runtime": "declarative",
+      "presentation": {
+        "contract_version": "1",
+        "shell": "core",
+        "content_surface": "transparent",
+        "typography": "core",
+        "appearance_controls": [
+          "icon",
+          "title",
+          "surface",
+          "opacity",
+          "radius",
+          "shadow"
+        ]
+      },
+      "interaction_targets": [
+        {
+          "id": "card",
+          "label": "Aqara Light Level",
+          "kind": "card",
+          "allowed_actions": [
+            "more-info",
+            "popout",
+            "refresh"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "switch_on",
+          "label": "On",
+          "kind": "binding",
+          "binding_slot_id": "switch_on",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "brightness_percent",
+          "label": "Brightness",
+          "kind": "binding",
+          "binding_slot_id": "brightness_percent",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        }
+      ],
+      "binding_slots": [
+        {
+          "id": "switch_on",
+          "label": "On",
+          "required": true,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "switch_on"
+          ],
+          "compatible_integration_ids": [
+            "aqara-open-api"
+          ]
+        },
+        {
+          "id": "brightness_percent",
+          "label": "Brightness",
+          "required": false,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "brightness_percent"
+          ],
+          "compatible_integration_ids": [
+            "aqara-open-api"
+          ]
+        }
+      ],
+      "recipe": {
+        "schema_version": "1",
+        "layout": "grid",
+        "columns": 2,
+        "items": [
+          {
+            "type": "status",
+            "slot_id": "switch_on",
+            "label": "On",
+            "domain": "light",
+            "action": {
+              "type": "details",
+              "label": "View on details"
+            }
+          },
+          {
+            "type": "progress",
+            "slot_id": "brightness_percent",
+            "label": "Brightness",
+            "minimum": 0,
+            "maximum": 100,
+            "domain": "level",
+            "show_value": true,
+            "action": {
+              "type": "details",
+              "label": "View brightness details"
+            }
+          }
+        ]
+      },
+      "certification": {
+        "schema_version": "1",
+        "verified_gates": ["runtime", "persistence", "binding", "states", "responsive", "themes", "accessibility", "save-reload", "performance"],
+        "evidence": {
+          "runtime": ["core-profile:declarative-v2/runtime"],
+          "persistence": ["core-profile:declarative-v2/persistence"],
+          "binding": ["core-profile:declarative-v2/binding"],
+          "states": ["core-profile:declarative-v2/states"],
+          "responsive": ["core-profile:declarative-v2/responsive"],
+          "themes": ["core-profile:declarative-v2/themes"],
+          "accessibility": ["core-profile:declarative-v2/accessibility"],
+          "save-reload": ["core-profile:declarative-v2/save-reload"],
+          "performance": ["core-profile:declarative-v2/performance"]
+        }
+      },
+      "default_column_span": 4,
+      "default_row_span": 2
+    },
+    {
+      "id": "cover-position",
+      "name": "Aqara Cover Position",
+      "description": "Current cover position",
+      "runtime": "declarative",
+      "presentation": {
+        "contract_version": "1",
+        "shell": "core",
+        "content_surface": "transparent",
+        "typography": "core",
+        "appearance_controls": [
+          "icon",
+          "title",
+          "surface",
+          "opacity",
+          "radius",
+          "shadow"
+        ]
+      },
+      "interaction_targets": [
+        {
+          "id": "card",
+          "label": "Aqara Cover Position",
+          "kind": "card",
+          "allowed_actions": [
+            "more-info",
+            "popout",
+            "refresh"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "cover_position",
+          "label": "Position",
+          "kind": "binding",
+          "binding_slot_id": "cover_position",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        }
+      ],
+      "binding_slots": [
+        {
+          "id": "cover_position",
+          "label": "Position",
+          "required": true,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "cover_position"
+          ],
+          "compatible_integration_ids": [
+            "aqara-open-api"
+          ]
+        }
+      ],
+      "recipe": {
+        "schema_version": "1",
+        "layout": "grid",
+        "columns": 2,
+        "items": [
+          {
+            "type": "progress",
+            "slot_id": "cover_position",
+            "label": "Position",
+            "minimum": 0,
+            "maximum": 100,
+            "domain": "level",
+            "show_value": true,
+            "action": {
+              "type": "details",
+              "label": "View position details"
+            }
+          }
+        ]
+      },
+      "certification": {
+        "schema_version": "1",
+        "verified_gates": ["runtime", "persistence", "binding", "states", "responsive", "themes", "accessibility", "save-reload", "performance"],
+        "evidence": {
+          "runtime": ["core-profile:declarative-v2/runtime"],
+          "persistence": ["core-profile:declarative-v2/persistence"],
+          "binding": ["core-profile:declarative-v2/binding"],
+          "states": ["core-profile:declarative-v2/states"],
+          "responsive": ["core-profile:declarative-v2/responsive"],
+          "themes": ["core-profile:declarative-v2/themes"],
+          "accessibility": ["core-profile:declarative-v2/accessibility"],
+          "save-reload": ["core-profile:declarative-v2/save-reload"],
+          "performance": ["core-profile:declarative-v2/performance"]
+        }
+      },
+      "default_column_span": 4,
+      "default_row_span": 2
+    },
+    {
+      "id": "lock-state",
+      "name": "Aqara Lock",
+      "description": "Lock and jam status",
+      "runtime": "declarative",
+      "presentation": {
+        "contract_version": "1",
+        "shell": "core",
+        "content_surface": "transparent",
+        "typography": "core",
+        "appearance_controls": [
+          "icon",
+          "title",
+          "surface",
+          "opacity",
+          "radius",
+          "shadow"
+        ]
+      },
+      "interaction_targets": [
+        {
+          "id": "card",
+          "label": "Aqara Lock",
+          "kind": "card",
+          "allowed_actions": [
+            "more-info",
+            "popout",
+            "refresh"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "locked",
+          "label": "Locked",
+          "kind": "binding",
+          "binding_slot_id": "locked",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "lock_jammed",
+          "label": "Jammed",
+          "kind": "binding",
+          "binding_slot_id": "lock_jammed",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        }
+      ],
+      "binding_slots": [
+        {
+          "id": "locked",
+          "label": "Locked",
+          "required": true,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "locked"
+          ],
+          "compatible_integration_ids": [
+            "aqara-open-api"
+          ]
+        },
+        {
+          "id": "lock_jammed",
+          "label": "Jammed",
+          "required": false,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "lock_jammed"
+          ],
+          "compatible_integration_ids": [
+            "aqara-open-api"
+          ]
+        }
+      ],
+      "recipe": {
+        "schema_version": "1",
+        "layout": "grid",
+        "columns": 2,
+        "items": [
+          {
+            "type": "status",
+            "slot_id": "locked",
+            "label": "Locked",
+            "domain": "lock",
+            "action": {
+              "type": "details",
+              "label": "View locked details"
+            }
+          },
+          {
+            "type": "status",
+            "slot_id": "lock_jammed",
+            "label": "Jammed",
+            "domain": "generic",
+            "action": {
+              "type": "details",
+              "label": "View jammed details"
+            }
+          }
+        ]
+      },
+      "certification": {
+        "schema_version": "1",
+        "verified_gates": ["runtime", "persistence", "binding", "states", "responsive", "themes", "accessibility", "save-reload", "performance"],
+        "evidence": {
+          "runtime": ["core-profile:declarative-v2/runtime"],
+          "persistence": ["core-profile:declarative-v2/persistence"],
+          "binding": ["core-profile:declarative-v2/binding"],
+          "states": ["core-profile:declarative-v2/states"],
+          "responsive": ["core-profile:declarative-v2/responsive"],
+          "themes": ["core-profile:declarative-v2/themes"],
+          "accessibility": ["core-profile:declarative-v2/accessibility"],
+          "save-reload": ["core-profile:declarative-v2/save-reload"],
+          "performance": ["core-profile:declarative-v2/performance"]
+        }
+      },
+      "default_column_span": 4,
+      "default_row_span": 2
+    }
+  ]
+}
