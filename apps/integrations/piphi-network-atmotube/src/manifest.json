@@ -1,0 +1,201 @@
+{
+  "manifest_version": "1.0",
+  "id": "atmotube-pro-ble",
+  "name": "Atmotube Pro (BLE)",
+  "version": "0.1.1",
+  "description": "Integration for the Atmotube Pro over Bluetooth Low Energy using tinygo.org/x/bluetooth.",
+  "maintainer": {
+    "name": "PiPhi Network",
+    "website": "https://piphi.io",
+    "support_email": "support@piphi.io"
+  },
+  "platforms": [
+    "linux",
+    "windows",
+    "macos"
+  ],
+  "runtime": {
+    "linux": {
+      "type": "proxy",
+      "proxy": {
+        "port": 2026
+      },
+      "discovery": {
+        "method": "proxy",
+        "inputs": []
+      }
+    },
+    "windows": {
+      "type": "proxy",
+      "proxy": {
+        "port": 2026
+      },
+      "discovery": {
+        "method": "proxy",
+        "inputs": []
+      }
+    },
+    "macos": {
+      "type": "proxy",
+      "proxy": {
+        "port": 2026
+      },
+      "discovery": {
+        "method": "proxy",
+        "inputs": []
+      }
+    }
+  },
+  "api": {
+    "base_url": "http://127.0.0.1:2026",
+    "endpoints": {
+      "health": "/health",
+      "discover": "/discover",
+      "entities": "/entities",
+      "state": "/state",
+      "command": "/command",
+      "config": "/config",
+      "config_sync": "/config/sync",
+      "deconfigure": "/deconfigure",
+      "ui_config": "/ui",
+      "events": "/events"
+    }
+  },
+  "config": {
+    "source": "endpoint",
+    "endpoint": "/ui",
+    "required": true
+  },
+  "identity": {
+    "fields": [
+      "address"
+    ]
+  },
+  "capabilities": {
+    "voc_ppb": {
+      "kind": "sensor",
+      "unit": "ppb",
+      "dashboard": {
+        "allowed_widgets": [
+          "stat",
+          "line_chart",
+          "gauge"
+        ],
+        "default_widget": "stat"
+      }
+    },
+    "temperature_c": {
+      "kind": "sensor",
+      "unit": "°C",
+      "dashboard": {
+        "allowed_widgets": [
+          "stat",
+          "line_chart",
+          "gauge"
+        ],
+        "default_widget": "stat"
+      }
+    },
+    "humidity_percent": {
+      "kind": "sensor",
+      "unit": "%",
+      "dashboard": {
+        "allowed_widgets": [
+          "stat",
+          "line_chart",
+          "gauge"
+        ],
+        "default_widget": "stat"
+      }
+    },
+    "pressure_mbar": {
+      "kind": "sensor",
+      "unit": "mbar",
+      "dashboard": {
+        "allowed_widgets": [
+          "stat",
+          "line_chart"
+        ],
+        "default_widget": "stat"
+      }
+    },
+    "battery_percent": {
+      "kind": "sensor",
+      "unit": "%",
+      "dashboard": {
+        "allowed_widgets": [
+          "stat",
+          "gauge"
+        ],
+        "default_widget": "stat"
+      }
+    },
+    "pm25_ugm3": {
+      "kind": "sensor",
+      "unit": "ug/m3",
+      "dashboard": {
+        "allowed_widgets": [
+          "stat",
+          "line_chart",
+          "gauge"
+        ],
+        "default_widget": "stat"
+      }
+    },
+    "telemetry": {
+      "kind": "sensor",
+      "dashboard": {
+        "allowed_widgets": [
+          "stat",
+          "line_chart"
+        ],
+        "default_widget": "stat"
+      }
+    },
+    "refresh": {
+      "kind": "action",
+      "dashboard": {
+        "allowed_widgets": [
+          "button"
+        ],
+        "default_widget": "button"
+      }
+    }
+  },
+  "commands": {
+    "refresh": {
+      "description": "Read and publish a fresh Atmotube sensor snapshot.",
+      "timeout_ms": 15000
+    }
+  },
+  "entities": [
+    {
+      "id": "atmotube_pro",
+      "name": "Atmotube Pro",
+      "device_class": "air_quality_sensor",
+      "entity_type": "sensor",
+      "capabilities": [
+        "voc_ppb",
+        "temperature_c",
+        "humidity_percent",
+        "pressure_mbar",
+        "battery_percent",
+        "pm25_ugm3",
+        "telemetry",
+        "refresh"
+      ]
+    }
+  ],
+  "ui": {
+    "experience_packages": [
+      {
+        "registry_id": "io.piphi.atmotube-air-quality",
+        "version_range": ">=0.1,<1",
+        "auto_install": true
+      }
+    ]
+  },
+  "onboarding": {
+    "mode": "discovery"
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "schema_version": "1",
+  "identity": {"publisher_id": "io.piphi", "package_id": "atmotube-air-quality", "version": "0.1.1"},
+  "name": "Atmotube Air Quality",
+  "description": "Particulate matter, VOC, room conditions, and sensor battery at a glance.",
+  "origin": "integration",
+  "owning_integration_id": "atmotube-pro-ble",
+  "sdk_version_range": ">=0.6.1,<0.7",
+  "requires_integrations": [{"integration_id": "atmotube-pro-ble", "version_range": ">=0.1,<1", "optional": false}],
+  "recommended_for_integrations": ["atmotube-pro-ble"],
+  "widgets": [{
+    "id": "air-quality-overview",
+    "name": "Atmotube Air Quality Overview",
+    "description": "Air quality, comfort, and battery from one Atmotube Pro.",
+    "runtime": "declarative",
+    "certification": {
+      "schema_version": "1",
+      "verified_gates": ["runtime", "persistence", "binding", "states", "responsive", "themes", "accessibility", "save-reload", "performance"],
+      "evidence": {
+        "runtime": ["core-profile:declarative-v1/runtime"],
+        "persistence": ["core-profile:declarative-v1/persistence"],
+        "binding": ["repo:experience_test.go::TestAirQualityExperienceMatchesManifest"],
+        "states": ["core-profile:declarative-v1/states"],
+        "responsive": ["core-profile:declarative-v1/responsive"],
+        "themes": ["core-profile:declarative-v1/themes"],
+        "accessibility": ["core-profile:declarative-v1/accessibility"],
+        "save-reload": ["core-profile:declarative-v1/save-reload"],
+        "performance": ["core-profile:declarative-v1/performance"]
+      }
+    },
+    "presentation": {"contract_version": "1", "shell": "core", "content_surface": "transparent", "typography": "core", "appearance_controls": ["icon", "title", "surface", "opacity", "radius", "shadow"]},
+    "interaction_targets": [
+      {"id": "card", "label": "Atmotube air quality", "kind": "card", "allowed_actions": ["more-info", "popout", "refresh"], "default_action": "more-info"},
+      {"id": "voc", "label": "VOC", "kind": "binding", "binding_slot_id": "voc", "allowed_actions": ["more-info", "history", "popout"], "default_action": "more-info"},
+      {"id": "pm25", "label": "PM2.5", "kind": "binding", "binding_slot_id": "pm25", "allowed_actions": ["more-info", "history", "popout"], "default_action": "more-info"},
+      {"id": "temperature", "label": "Temperature", "kind": "binding", "binding_slot_id": "temperature", "allowed_actions": ["more-info", "history", "popout"], "default_action": "more-info"},
+      {"id": "humidity", "label": "Humidity", "kind": "binding", "binding_slot_id": "humidity", "allowed_actions": ["more-info", "history", "popout"], "default_action": "more-info"},
+      {"id": "pressure", "label": "Pressure", "kind": "binding", "binding_slot_id": "pressure", "allowed_actions": ["more-info", "history", "popout"], "default_action": "more-info"},
+      {"id": "battery", "label": "Battery", "kind": "binding", "binding_slot_id": "battery", "allowed_actions": ["more-info", "history", "popout"], "default_action": "more-info"}
+    ],
+    "binding_slots": [
+      {"id": "voc", "label": "VOC", "required": true, "binding_modes": ["read"], "capability_requirements": ["voc_ppb"], "compatible_integration_ids": ["atmotube-pro-ble"]},
+      {"id": "pm25", "label": "PM2.5", "required": false, "binding_modes": ["read"], "capability_requirements": ["pm25_ugm3"], "compatible_integration_ids": ["atmotube-pro-ble"]},
+      {"id": "temperature", "label": "Temperature", "required": false, "binding_modes": ["read"], "capability_requirements": ["temperature_c"], "compatible_integration_ids": ["atmotube-pro-ble"]},
+      {"id": "humidity", "label": "Humidity", "required": false, "binding_modes": ["read"], "capability_requirements": ["humidity_percent"], "compatible_integration_ids": ["atmotube-pro-ble"]},
+      {"id": "pressure", "label": "Pressure", "required": false, "binding_modes": ["read"], "capability_requirements": ["pressure_mbar"], "compatible_integration_ids": ["atmotube-pro-ble"]},
+      {"id": "battery", "label": "Battery", "required": false, "binding_modes": ["read"], "capability_requirements": ["battery_percent"], "compatible_integration_ids": ["atmotube-pro-ble"]}
+    ],
+    "recipe": {"schema_version": "1", "layout": "grid", "columns": 2, "items": [
+      {"type": "metric", "slot_id": "voc", "label": "VOC", "domain": "air_quality", "emphasis": "hero", "action": {"type": "details", "label": "View VOC details"}},
+      {"type": "metric", "slot_id": "pm25", "label": "PM2.5", "domain": "air_quality", "action": {"type": "details", "label": "View PM2.5 details"}},
+      {"type": "metric", "slot_id": "temperature", "label": "Temperature", "format": "temperature", "domain": "temperature", "action": {"type": "details", "label": "View temperature details"}},
+      {"type": "metric", "slot_id": "humidity", "label": "Humidity", "format": "percent", "domain": "humidity", "action": {"type": "details", "label": "View humidity details"}},
+      {"type": "metric", "slot_id": "pressure", "label": "Pressure", "action": {"type": "details", "label": "View pressure details"}},
+      {"type": "progress", "slot_id": "battery", "label": "Battery", "minimum": 0, "maximum": 100, "domain": "battery", "show_value": true}
+    ]},
+    "default_column_span": 4,
+    "default_row_span": 3
+  }]
+}
