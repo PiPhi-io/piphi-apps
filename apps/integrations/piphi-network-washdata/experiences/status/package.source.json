@@ -1,0 +1,129 @@
+{
+  "schema_version": "1",
+  "identity": {
+    "publisher_id": "io.piphi",
+    "package_id": "washdata-status",
+    "version": "0.1.1"
+  },
+  "name": "WashData Connection",
+  "description": "A compact live connection view for the configured WashData runtime.",
+  "origin": "integration",
+  "owning_integration_id": "piphi-network-washdata",
+  "sdk_version_range": ">=0.6.1,<0.7",
+  "requires_integrations": [
+    {
+      "integration_id": "piphi-network-washdata",
+      "version_range": ">=0.1,<1",
+      "optional": false
+    }
+  ],
+  "recommended_for_integrations": [
+    "piphi-network-washdata"
+  ],
+  "widgets": [
+    {
+      "id": "connection-status",
+      "name": "WashData Connection",
+      "description": "Shows whether the configured WashData runtime is currently connected.",
+      "runtime": "declarative",
+      "presentation": {
+        "contract_version": "1",
+        "shell": "core",
+        "content_surface": "transparent",
+        "typography": "core",
+        "appearance_controls": [
+          "icon",
+          "title",
+          "surface",
+          "opacity",
+          "radius",
+          "shadow"
+        ]
+      },
+      "interaction_targets": [
+        {
+          "id": "card",
+          "label": "WashData runtime",
+          "kind": "card",
+          "allowed_actions": [
+            "more-info",
+            "popout",
+            "refresh"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "connection",
+          "label": "Connection status",
+          "kind": "binding",
+          "binding_slot_id": "connected",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        }
+      ],
+      "binding_slots": [
+        {
+          "id": "connected",
+          "label": "Connection",
+          "required": true,
+          "binding_modes": [
+            "read"
+          ],
+          "value_kinds": [
+            "boolean"
+          ],
+          "capability_requirements": [
+            "connected"
+          ],
+          "compatible_integration_ids": [
+            "piphi-network-washdata"
+          ],
+          "data_delivery": {
+            "mode": "stream_preferred",
+            "stale_after_seconds": 120
+          }
+        }
+      ],
+      "recipe": {
+        "schema_version": "1",
+        "layout": "grid",
+        "columns": 1,
+        "items": [
+          {
+            "type": "status",
+            "slot_id": "connected",
+            "label": "Connection",
+            "true_label": "Connected",
+            "false_label": "Offline",
+            "domain": "connectivity",
+            "action": {
+              "type": "details",
+              "label": "View connection details"
+            }
+          }
+        ]
+      },
+      "certification": {
+        "schema_version": "1",
+        "verified_gates": ["runtime", "persistence", "binding", "states", "responsive", "themes", "accessibility", "save-reload", "performance"],
+        "evidence": {
+          "runtime": ["core-profile:declarative-v2/runtime"],
+          "persistence": ["core-profile:declarative-v2/persistence"],
+          "binding": ["core-profile:declarative-v2/binding"],
+          "states": ["core-profile:declarative-v2/states"],
+          "responsive": ["core-profile:declarative-v2/responsive"],
+          "themes": ["core-profile:declarative-v2/themes"],
+          "accessibility": ["core-profile:declarative-v2/accessibility"],
+          "save-reload": ["core-profile:declarative-v2/save-reload"],
+          "performance": ["core-profile:declarative-v2/performance"]
+        }
+      },
+      "default_column_span": 3,
+      "default_row_span": 2
+    }
+  ]
+}
