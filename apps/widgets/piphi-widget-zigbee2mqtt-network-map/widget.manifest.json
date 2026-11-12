@@ -1,0 +1,224 @@
+{
+  "id": "io.piphi.zigbee2mqtt-network-map",
+  "name": "Zigbee network map",
+  "description": "Interactive topology, device-role, route and link-quality map for Zigbee2MQTT networks.",
+  "version": "0.1.0",
+  "entry": "./dist/widget.js",
+  "styles": [
+    "./dist/widget.css"
+  ],
+  "binding_modes": [
+    "read-write"
+  ],
+  "value_kinds": [
+    "json",
+    "command"
+  ],
+  "capability_requirements": [
+    "zigbee_network_topology"
+  ],
+  "sdk_compatibility": {
+    "minimum": "0.8.1"
+  },
+  "presentation": {
+    "contract_version": "1",
+    "shell": "core",
+    "content_surface": "transparent",
+    "typography": "core",
+    "appearance_controls": [
+      "icon",
+      "title",
+      "surface",
+      "opacity",
+      "radius"
+    ]
+  },
+  "interaction_contract_version": "2",
+  "interaction_targets": [
+    {
+      "id": "topology-details",
+      "label": "Open Zigbee network details",
+      "kind": "binding",
+      "binding_slot_id": "bridge",
+      "allowed_actions": [
+        "more-info",
+        "popout"
+      ],
+      "default_action": "more-info",
+      "semantic_role": "details",
+      "supported_inputs": [
+        "pointer",
+        "touch",
+        "keyboard"
+      ],
+      "affordance": "details",
+      "details_tab": "overview",
+      "capability_requirements": [
+        "zigbee_network_topology"
+      ],
+      "risk": "low",
+      "protection": "none",
+      "accessibility_label": "Open Zigbee network details",
+      "unavailable": "disable"
+    }
+  ],
+  "conformance": {
+    "accessibility": "wcag2.2-aa",
+    "keyboard": true,
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "directions": [
+      "ltr",
+      "rtl"
+    ],
+    "states": [
+      "loading",
+      "live",
+      "stale",
+      "offline",
+      "reconnecting",
+      "denied",
+      "error"
+    ]
+  },
+  "settings_schema_version": "1",
+  "settings": [
+    {
+      "id": "title",
+      "type": "text",
+      "label": "Title",
+      "default": "Zigbee network"
+    },
+    {
+      "id": "bridge",
+      "type": "device",
+      "label": "Zigbee2MQTT bridge",
+      "required": true
+    },
+    {
+      "id": "show_link_quality",
+      "type": "boolean",
+      "label": "Show link quality",
+      "default": true
+    },
+    {
+      "id": "include_routes",
+      "type": "boolean",
+      "label": "Include routes when scanning",
+      "default": false
+    },
+    {
+      "id": "show_identifiers",
+      "type": "boolean",
+      "label": "Show device identifiers",
+      "default": false
+    }
+  ],
+  "layout": {
+    "min_height": 300,
+    "default_height": 520,
+    "max_height": 820
+  },
+  "previews": {
+    "light": "./previews/light.svg",
+    "dark": "./previews/dark.svg"
+  },
+  "translations": {
+    "en": {
+      "widget.title": "Zigbee network",
+      "widget.waiting": "Scan the network to create its first map.",
+      "widget.empty": "No Zigbee devices were found.",
+      "widget.scan": "Scan network",
+      "widget.scanning": "Scanning…",
+      "widget.scan_warning": "A scan can make the Zigbee network less responsive for up to two minutes.",
+      "widget.retry": "Try again"
+    },
+    "es": {
+      "widget.title": "Red Zigbee",
+      "widget.waiting": "Escanea la red para crear su primer mapa.",
+      "widget.empty": "No se encontraron dispositivos Zigbee.",
+      "widget.scan": "Escanear red",
+      "widget.scanning": "Escaneando…",
+      "widget.scan_warning": "Un escaneo puede reducir la respuesta de la red Zigbee durante hasta dos minutos.",
+      "widget.retry": "Intentar de nuevo"
+    },
+    "ar": {
+      "widget.title": "شبكة Zigbee",
+      "widget.waiting": "افحص الشبكة لإنشاء أول خريطة لها.",
+      "widget.empty": "لم يتم العثور على أجهزة Zigbee.",
+      "widget.scan": "فحص الشبكة",
+      "widget.scanning": "جارٍ الفحص…",
+      "widget.scan_warning": "قد يقلل الفحص من استجابة شبكة Zigbee لمدة تصل إلى دقيقتين.",
+      "widget.retry": "حاول مرة أخرى"
+    }
+  },
+  "security": {
+    "permissions": [
+      "host.executeCommand"
+    ],
+    "allowed_commands": [
+      "refresh_network_map"
+    ],
+    "sandbox": [
+      "allow-scripts"
+    ],
+    "csp": {
+      "connect_src": []
+    }
+  },
+  "marketplace": {
+    "metadata_version": 2,
+    "display_name": "Zigbee network map",
+    "summary": "See Zigbee2MQTT coordinators, routers, end devices, routes, and link quality in one interactive map.",
+    "category": "networking",
+    "regions": [
+      "WW"
+    ],
+    "languages": [
+      "en",
+      "es",
+      "ar"
+    ],
+    "publisher": {
+      "name": "PiPhi Network",
+      "website_url": "https://piphi.io",
+      "support_url": "https://github.com/PiPhi-io/piphi-widget-zigbee2mqtt-network-map/issues",
+      "security_contact": "support@piphi.io"
+    },
+    "access": [
+      {
+        "id": "network_scan",
+        "label": "Manual Zigbee network scan",
+        "reason": "Requests a raw topology scan from the bound Zigbee2MQTT bridge only after the user activates Scan network.",
+        "required": false
+      }
+    ],
+    "compatibility": [
+      {
+        "capability": "zigbee_network_topology",
+        "host_protocol": "piphi.widget.host/1",
+        "widget_sdk": ">=0.8.1"
+      }
+    ],
+    "documentation_url": "https://github.com/PiPhi-io/piphi-widget-zigbee2mqtt-network-map",
+    "support_url": "https://github.com/PiPhi-io/piphi-widget-zigbee2mqtt-network-map/issues",
+    "changelog_url": "https://github.com/PiPhi-io/piphi-widget-zigbee2mqtt-network-map/releases",
+    "quality_tier": "unrated",
+    "governance": {
+      "schema_version": 1,
+      "publication_status": "draft",
+      "rollout_percent": 0,
+      "lifecycle_status": "active",
+      "qualification": {
+        "status": "unverified"
+      }
+    }
+  },
+  "artifact": {
+    "release_asset": "zigbee2mqtt-network-map-0.1.0.zip",
+    "integrity": null
+  },
+  "integrity": "sha256-kxQxY2lvFQXVeX2fr6oDJZ0iaYHH/TtS+PjHL1VVtAU="
+}

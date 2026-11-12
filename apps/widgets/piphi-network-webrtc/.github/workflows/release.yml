@@ -1,0 +1,35 @@
+name: Release widget
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+  artifact-metadata: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.ref }}
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
+      - run: npm run pack:widget
+      - run: npm run verify:artifact
+      - name: Write SHA-256 checksums
+        working-directory: widgets/webrtc-camera
+        run: sha256sum piphi-webrtc-camera-widget-*.tgz > SHA256SUMS
+      - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
+        with:
+          subject-path: widgets/webrtc-camera/piphi-webrtc-camera-widget-*.tgz
+      - name: Publish immutable release asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" widgets/webrtc-camera/piphi-webrtc-camera-widget-*.tgz widgets/webrtc-camera/SHA256SUMS --verify-tag --generate-notes

@@ -1,0 +1,21 @@
+{
+  "name": "@piphi/widget-awair-air-quality",
+  "version": "0.1.16",
+  "private": true,
+  "type": "module",
+  "description": "PiPhi dashboard widget for Awair Element air-quality integrations.",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "npm run build && node --test test/*.test.mjs",
+    "validate": "npm test && python3 scripts/build_package.py --check"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.10",
+    "jsdom": "26.1.0",
+    "piphi-network-widget-sdk": "0.6.1"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "license": "MIT"
+}

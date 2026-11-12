@@ -1,0 +1,22 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_ref:
+        description: Existing immutable release tag
+        required: true
+        default: v0.1.0
+        type: string
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+  artifact-metadata: write
+
+jobs:
+  release:
+    uses: PiPhi-io/.github/.github/workflows/release-widget.yml@56f0b24aabdce53d822e7cb91ffc7621d6602f71
+    with:
+      release_ref: ${{ inputs.release_ref }}

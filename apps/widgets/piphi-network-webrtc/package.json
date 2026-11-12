@@ -1,0 +1,18 @@
+{
+  "name": "piphi-network-webrtc",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": ["widgets/*"],
+  "scripts": {
+    "build": "npm run build --workspace piphi-webrtc-camera-widget",
+    "check": "npm run check --workspace piphi-webrtc-camera-widget && node scripts/validate-registry-entry.mjs",
+    "test": "npm test --workspace piphi-webrtc-camera-widget",
+    "validate": "npm run validate --workspace piphi-webrtc-camera-widget",
+    "conformance": "npm run conformance --workspace piphi-webrtc-camera-widget",
+    "pack:widget": "npm run pack --workspace piphi-webrtc-camera-widget",
+    "verify:artifact": "node scripts/verify-artifact.mjs"
+  },
+  "engines": { "node": ">=22" },
+  "license": "Apache-2.0"
+}

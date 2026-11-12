@@ -1,0 +1,52 @@
+{
+  "id": "io.piphi.webrtc.camera",
+  "name": "WebRTC camera",
+  "version": "0.1.0",
+  "type": "widget",
+  "platforms": ["web"],
+  "trust_level": "experimental",
+  "risk_level": "moderate",
+  "description": "Low-latency camera playback through PiPhi's brokered WebRTC host contract.",
+  "repo_url": "https://github.com/PiPhi-io/piphi_network_webRTC",
+  "owner": "PiPhi-io",
+  "repo_name": "piphi_network_webRTC",
+  "manifest_path": "widgets/webrtc-camera/widget.manifest.json",
+  "artifact": { "release_asset": "piphi-webrtc-camera-widget-0.1.0.tgz", "integrity": "sha256:94a85d84f05119590a9904397089164a732bc18c80934bba30815b41501af155" },
+  "tags": ["camera", "dashboard", "webrtc", "widget-sdk"],
+  "runtime_requirements": ["browser_webrtc", "camera_broker"],
+  "maintainer": {
+    "name": "PiPhi Network",
+    "website": "https://piphi.io",
+    "support_email": "support@piphi.io"
+  },
+  "marketplace": {
+    "metadata_version": 2,
+    "display_name": "WebRTC camera",
+    "summary": "Watch a low-latency live camera from a PiPhi dashboard.",
+    "category": "camera",
+    "regions": ["WW"],
+    "languages": ["en", "es", "ar"],
+    "publisher": {
+      "name": "PiPhi Network",
+      "website_url": "https://piphi.io",
+      "support_url": "https://github.com/PiPhi-io/piphi_network_webRTC/issues",
+      "security_contact": "support@piphi.io"
+    },
+    "access": [
+      { "id": "camera_stream", "label": "Camera stream access", "reason": "Receives video, and optional audio, from the camera selected in the dashboard.", "required": true },
+      { "id": "fullscreen", "label": "Fullscreen display", "reason": "Lets the homeowner expand the active camera view after pressing the fullscreen control.", "required": false }
+    ],
+    "compatibility": [{ "capability": "camera_stream", "host_protocol": "piphi.widget.host/1", "widget_sdk": ">=0.4.0" }],
+    "documentation_url": "https://github.com/PiPhi-io/piphi_network_webRTC",
+    "support_url": "https://github.com/PiPhi-io/piphi_network_webRTC/issues",
+    "changelog_url": "https://github.com/PiPhi-io/piphi_network_webRTC/releases",
+    "quality_tier": "unrated",
+    "governance": {
+      "schema_version": 1,
+      "publication_status": "draft",
+      "rollout_percent": 0,
+      "lifecycle_status": "active",
+      "qualification": { "status": "unverified" }
+    }
+  }
+}

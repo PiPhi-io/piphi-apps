@@ -1,0 +1,20 @@
+{
+  "name": "@piphi/widget-kasa-smart-home",
+  "version": "0.1.17",
+  "private": true,
+  "type": "module",
+  "description": "PiPhi dashboard widgets for TP-Link Kasa integrations.",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "npm run build && node --test test/*.test.mjs",
+    "validate": "npm test && python3 scripts/build_package.py --check"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.10",
+    "piphi-network-widget-sdk": "0.6.1"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "license": "MIT"
+}

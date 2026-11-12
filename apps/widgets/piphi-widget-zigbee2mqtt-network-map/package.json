@@ -1,0 +1,20 @@
+{
+  "name": "piphi-widget-zigbee2mqtt-network-map",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "mkdir -p dist && cp src/widget.js src/topology-model.js src/widget.css dist/",
+    "dev": "piphi-widget dev",
+    "validate": "piphi-widget validate",
+    "conformance": "piphi-widget conformance",
+    "test": "node --test test/*.test.mjs",
+    "pack": "piphi-widget pack"
+  },
+  "dependencies": {
+    "piphi-network-widget-sdk": "0.8.1"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

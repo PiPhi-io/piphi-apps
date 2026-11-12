@@ -1,0 +1,72 @@
+:root {
+  color-scheme: light dark;
+  font: 14px/1.4 var(--piphi-widget-font-family, system-ui, sans-serif);
+}
+
+* { box-sizing: border-box; }
+button { font: inherit; }
+.network-map { min-height: 300px; color: var(--piphi-widget-text, CanvasText); }
+.map-header { display: flex; align-items: start; justify-content: space-between; gap: 16px; }
+h2 { margin: 0; font-size: 1.05rem; }
+.summary, .scan-warning { margin: 4px 0 0; color: var(--piphi-widget-muted-text, color-mix(in srgb, CanvasText 66%, transparent)); }
+.scan-warning { max-width: 58ch; font-size: .78rem; }
+.scan-button, .toolbar button {
+  min-height: 36px;
+  border: 1px solid var(--piphi-widget-border, color-mix(in srgb, CanvasText 18%, transparent));
+  border-radius: 10px;
+  padding: 7px 12px;
+  color: inherit;
+  background: var(--piphi-widget-control-surface, color-mix(in srgb, Canvas 92%, CanvasText 8%));
+  cursor: pointer;
+}
+.scan-button { color: var(--piphi-widget-primary-foreground, white); background: var(--piphi-widget-primary, #0f766e); border-color: transparent; font-weight: 700; white-space: nowrap; }
+button:disabled { cursor: wait; opacity: .65; }
+button:focus-visible, .node:focus-visible { outline: 3px solid var(--piphi-widget-focus, #38bdf8); outline-offset: 3px; }
+.toolbar { display: flex; align-items: center; gap: 6px; margin-top: 14px; }
+.toolbar button { min-width: 38px; padding-inline: 9px; }
+.legend { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; margin-inline-start: auto; font-size: .75rem; color: var(--piphi-widget-muted-text, color-mix(in srgb, CanvasText 66%, transparent)); }
+.legend i { width: 9px; height: 9px; border-radius: 50%; margin-inline-start: 6px; }
+.legend .coordinator { background: #f97316; }
+.legend .router { background: #0ea5e9; }
+.legend .end-device { background: #14b8a6; }
+.map-stage { position: relative; min-height: 370px; margin-top: 8px; overflow: hidden; border-radius: 14px; background: color-mix(in srgb, var(--piphi-widget-surface, Canvas) 93%, #0f766e 7%); }
+.topology { display: block; width: 100%; height: 370px; touch-action: none; cursor: grab; }
+.topology:active { cursor: grabbing; }
+.link line { stroke: color-mix(in srgb, CanvasText 30%, transparent); stroke-width: 1.5; }
+.link.strong line { stroke: #16a34a; stroke-width: 2.3; }
+.link.fair line { stroke: #ca8a04; }
+.link.weak line { stroke: #dc2626; stroke-dasharray: 5 4; }
+.link text { fill: var(--piphi-widget-muted-text, CanvasText); font-size: 10px; text-anchor: middle; paint-order: stroke; stroke: var(--piphi-widget-surface, Canvas); stroke-width: 3px; }
+.node { cursor: pointer; }
+.node circle { fill: #14b8a6; stroke: color-mix(in srgb, CanvasText 28%, transparent); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.node.router circle { fill: #0ea5e9; }
+.node.coordinator circle { fill: #f97316; stroke-width: 4; }
+.node.end-device circle { stroke-dasharray: 4 3; }
+.node.selected circle { stroke: var(--piphi-widget-focus, #facc15); stroke-width: 5; }
+.node text { pointer-events: none; text-anchor: middle; }
+.glyph { fill: white; font-size: 12px; font-weight: 800; }
+.node-label { fill: var(--piphi-widget-text, CanvasText); font-size: 11px; font-weight: 650; paint-order: stroke; stroke: var(--piphi-widget-surface, Canvas); stroke-width: 4px; }
+.state-panel { display: grid; min-height: 370px; place-items: center; padding: 24px; text-align: center; color: var(--piphi-widget-muted-text, CanvasText); }
+.inspector { margin-top: 10px; padding: 12px; border: 1px solid var(--piphi-widget-border, color-mix(in srgb, CanvasText 15%, transparent)); border-radius: 12px; }
+.inspector > div { display: flex; justify-content: space-between; gap: 10px; }
+.inspector span { color: var(--piphi-widget-muted-text, CanvasText); }
+.inspector dl { display: grid; grid-template-columns: max-content 1fr; gap: 3px 12px; margin: 8px 0 0; font-size: .82rem; }
+.inspector dt { color: var(--piphi-widget-muted-text, CanvasText); }
+.inspector dd { margin: 0; overflow-wrap: anywhere; }
+
+@media (max-width: 480px) {
+  .map-header { align-items: stretch; flex-direction: column; }
+  .scan-button { align-self: start; }
+  .legend { width: 100%; margin: 6px 0 0; }
+  .toolbar { flex-wrap: wrap; }
+  .map-stage, .topology, .state-panel { min-height: 330px; height: 330px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
+}
+
+@media (forced-colors: active) {
+  .node circle, .link line { forced-color-adjust: auto; stroke: CanvasText; }
+  .glyph { fill: CanvasText; }
+}

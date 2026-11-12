@@ -1,0 +1,184 @@
+{
+  "id": "io.piphi.widget.vacuum-map",
+  "name": "Vacuum map",
+  "description": "Accessible robot-vacuum map, route, room and control card.",
+  "version": "0.1.0",
+  "entry": "./dist/widget.js",
+  "binding_modes": [
+    "read-write"
+  ],
+  "value_kinds": [
+    "json",
+    "numeric",
+    "enum",
+    "text",
+    "command"
+  ],
+  "capability_requirements": [
+    "vacuum_map",
+    "vacuum_state",
+    "battery_percent",
+    "vacuum_position",
+    "cleaning_path",
+    "vacuum_rooms",
+    "vacuum_error",
+    "fan_speed"
+  ],
+  "sdk_compatibility": {
+    "minimum": "0.4.0"
+  },
+  "conformance": {
+    "accessibility": "wcag2.2-aa",
+    "keyboard": true,
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "directions": [
+      "ltr",
+      "rtl"
+    ],
+    "states": [
+      "loading",
+      "live",
+      "stale",
+      "offline",
+      "reconnecting",
+      "denied",
+      "error"
+    ]
+  },
+  "settings_schema_version": "1",
+  "settings": [
+    {
+      "id": "title",
+      "type": "text",
+      "label": "Title",
+      "default": "Vacuum"
+    },
+    {
+      "id": "vacuum",
+      "type": "device",
+      "label": "Vacuum",
+      "required": true
+    },
+    {
+      "id": "show_path",
+      "type": "boolean",
+      "label": "Show cleaning path",
+      "default": true
+    },
+    {
+      "id": "show_rooms",
+      "type": "boolean",
+      "label": "Show room labels",
+      "default": true
+    },
+    {
+      "id": "confirm_room_clean",
+      "type": "boolean",
+      "label": "Confirm room cleaning",
+      "default": true
+    }
+  ],
+  "layout": {
+    "min_height": 300,
+    "default_height": 520,
+    "max_height": 820
+  },
+  "previews": {
+    "light": "./previews/light.svg",
+    "dark": "./previews/dark.svg"
+  },
+  "translations": {
+    "en": {
+      "widget.title": "Vacuum",
+      "widget.waiting": "Waiting for map data",
+      "widget.no_map": "Map unavailable",
+      "widget.controls": "Vacuum controls"
+    },
+    "es": {
+      "widget.title": "Aspiradora",
+      "widget.waiting": "Esperando datos del mapa",
+      "widget.no_map": "Mapa no disponible",
+      "widget.controls": "Controles de la aspiradora"
+    },
+    "ar": {
+      "widget.title": "المكنسة",
+      "widget.waiting": "في انتظار بيانات الخريطة",
+      "widget.no_map": "الخريطة غير متاحة",
+      "widget.controls": "عناصر تحكم المكنسة"
+    }
+  },
+  "security": {
+    "permissions": [
+      "host.executeCommand"
+    ],
+    "allowed_commands": [
+      "start",
+      "pause",
+      "return_home",
+      "locate",
+      "clean_rooms"
+    ],
+    "sandbox": [
+      "allow-scripts"
+    ],
+    "csp": {
+      "connect_src": []
+    }
+  },
+  "integrity": "sha256-cRyZ9CAYvCFYpQyEz6Bwi+5tfBiqWC/FFzHp6e/SZQw=",
+  "marketplace": {
+    "metadata_version": 2,
+    "display_name": "Vacuum map",
+    "summary": "View a robot vacuum map, route, rooms, battery, state, and allow-listed controls.",
+    "category": "appliances",
+    "regions": [
+      "WW"
+    ],
+    "languages": [
+      "en",
+      "es",
+      "ar"
+    ],
+    "publisher": {
+      "name": "PiPhi Network",
+      "website_url": "https://piphi.io",
+      "support_url": "https://github.com/PiPhi-io/piphi-widget-vacuum-map/issues",
+      "security_contact": "support@piphi.io"
+    },
+    "access": [
+      {
+        "id": "vacuum_control",
+        "label": "Vacuum controls",
+        "reason": "Runs only the start, pause, return-home, locate, and selected-room commands exposed by the bound vacuum.",
+        "required": false
+      }
+    ],
+    "compatibility": [
+      {
+        "capability": "vacuum_map",
+        "host_protocol": "piphi.widget.host/1",
+        "widget_sdk": ">=0.4.0"
+      }
+    ],
+    "documentation_url": "https://github.com/PiPhi-io/piphi-widget-vacuum-map",
+    "support_url": "https://github.com/PiPhi-io/piphi-widget-vacuum-map/issues",
+    "changelog_url": "https://github.com/PiPhi-io/piphi-widget-vacuum-map/releases",
+    "quality_tier": "unrated",
+    "governance": {
+      "schema_version": 1,
+      "publication_status": "draft",
+      "rollout_percent": 0,
+      "lifecycle_status": "active",
+      "qualification": {
+        "status": "unverified"
+      }
+    }
+  },
+  "artifact": {
+    "release_asset": "piphi-widget-vacuum-map-0.1.0.tgz",
+    "integrity": null
+  }
+}

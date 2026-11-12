@@ -1,0 +1,11 @@
+{
+  "catalog_version": "1.0", "widget_id": "io.piphi.widget.vacuum-map", "reviewed_at": "2026-09-07",
+  "sources": {"widget_sdk": "PiPhi Widget SDK 0.4.0 public host contract", "vacuum_contract": "https://developers.home-assistant.io/docs/core/entity/vacuum/"},
+  "rows": [
+    {"id": "map-and-live-state", "status": "implemented", "consumes": ["vacuum_map", "vacuum_state", "battery_percent", "vacuum_position", "cleaning_path", "vacuum_rooms", "vacuum_error", "fan_speed"], "interactions": ["select_room"], "states": ["loading", "empty", "live", "stale", "offline", "reconnecting", "denied", "error"], "reason": "Bounded map geometry, path, position, rooms and operational state are rendered from the public host."},
+    {"id": "safe-controls", "status": "implemented", "consumes": [], "interactions": ["start", "pause", "return_home", "locate", "clean_rooms"], "states": ["working", "command_denied", "command_failed"], "reason": "Only manifest-allow-listed commands are routed; room cleaning requires a selected known room."},
+    {"id": "presentation-accessibility", "status": "implemented", "consumes": [], "interactions": ["keyboard_navigation", "focus_visible"], "states": ["responsive", "light_theme", "dark_theme", "rtl", "reduced_motion"], "reason": "Semantic controls and adaptive CSS cover keyboard, theme, direction and reduced motion."},
+    {"id": "advanced-map-editing", "status": "planned", "consumes": ["no_go_zones", "virtual_walls", "carpet_areas", "dock_position"], "interactions": ["draw_zone", "edit_no_go_zone", "set_virtual_wall"], "states": [], "reason": "Editing needs a typed geometry contract, confirmation, model negotiation and stronger interaction tests."},
+    {"id": "unsafe-and-destructive", "status": "excluded", "consumes": [], "interactions": ["send_arbitrary_command", "upload_map", "delete_map", "factory_reset", "install_firmware"], "states": [], "reason": "Arbitrary, destructive and administrative commands do not belong in the dashboard card."}
+  ]
+}
