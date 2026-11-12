@@ -1,0 +1,68 @@
+{
+  "catalog_version": "1.0",
+  "integration_id": "piphi-zwave-js-sidecar",
+  "coverage_mode": "zwave_js_driver_server_controller_queue_security_and_parent_contract",
+  "reviewed_at": "2026-09-07",
+  "sources": {
+    "zwave_js": "https://github.com/zwave-js/zwave-js",
+    "zwave_js_server": "https://github.com/zwave-js/zwave-js-server",
+    "zwave_js_docs": "https://zwave-js.github.io/node-zwave-js/",
+    "silabs_serial_api": "https://www.silabs.com/documents/public/user-guides/INS13954-Instruction-Z-Wave-700-Getting-Started-for-End-Devices.pdf",
+    "core_vocabulary": "PiPhi Network Core and maintained PiPhi integrations",
+    "parent_contract": "PiPhi Z-Wave integration driver transport contract"
+  },
+  "groups": [
+    {
+      "id": "runtime-foundation", "status": "implemented", "scope": ["sidecar-service"], "source_refs": ["core_vocabulary"],
+      "reason": "The scaffold implements configuration presence, connectivity state, refresh dispatch, and sanitized configuration events.",
+      "state": ["connected"], "events": ["runtime.config.applied", "runtime.config.removed", "runtime.command.received"], "conditions": [], "actions": ["refresh"]
+    },
+    {
+      "id": "driver-controller-and-schema", "status": "planned", "scope": ["zwave-js-driver", "schema-versioned-server-clients"], "source_refs": ["zwave_js", "zwave_js_server", "zwave_js_docs", "parent_contract"],
+      "reason": "Driver startup, schema negotiation, controller identity, serial API initialization, cache restoration, listening, shutdown, and reconnect require the Node-native driver and deterministic fixtures.",
+      "state": ["service_available", "driver_version", "server_version", "schema_version", "minimum_schema_version", "maximum_schema_version", "driver_ready", "controller_ready", "controller_home_id", "controller_node_id", "controller_sdk_version", "controller_firmware_version", "controller_protocol_version", "controller_library_type", "serial_api_version", "listening", "cache_status", "driver_uptime_s", "last_driver_success_at"],
+      "events": ["driver.ready", "driver.failed", "driver.destroyed", "controller.ready", "controller.failed", "schema.negotiated", "schema.rejected", "listening.started", "listening.stopped", "cache.restored", "cache.failed"],
+      "conditions": ["driver_is_ready", "controller_is_ready", "schema_is_compatible", "listener_is_active", "driver_success_age_above"],
+      "actions": ["initialize_driver", "start_listening", "stop_listening", "reconnect_driver", "refresh_controller_information"]
+    },
+    {
+      "id": "serial-controller-and-radio-health", "status": "planned", "scope": ["allow-listed-controller-adapters", "500-700-800-series-controllers"], "source_refs": ["zwave_js", "zwave_js_docs", "silabs_serial_api"],
+      "reason": "Exclusive serial ownership, controller hotplug, RF region, transmit status, statistics, reconnect, soft reset, and NVM health require hardware fixtures and conservative recovery.",
+      "state": ["controller_connected", "controller_path_redacted", "controller_serial_suffix", "controller_chip_type", "controller_rf_region", "controller_tx_power_dbm", "controller_measured_output_power_dbm", "controller_maximum_long_range_power_dbm", "controller_statistics", "messages_tx_total", "messages_rx_total", "messages_dropped_total", "ack_timeout_count", "response_timeout_count", "callback_timeout_count", "controller_reconnect_count", "controller_reset_count", "controller_last_seen_at"],
+      "events": ["controller.connected", "controller.disconnected", "controller.added", "controller.removed", "controller.statistics_updated", "controller.jammed", "controller.unjammed", "controller.reset", "serial.failed", "serial.recovered"],
+      "conditions": ["controller_is_connected", "controller_is_jammed", "controller_error_count_above", "rf_region_is", "controller_last_seen_age_above"],
+      "actions": ["reopen_controller", "soft_reset_controller", "refresh_controller_statistics", "resynchronize_controller"]
+    },
+    {
+      "id": "node-value-event-transport", "status": "planned", "scope": ["parent-owned-zwave-nodes-and-endpoints"], "source_refs": ["zwave_js", "zwave_js_server", "parent_contract"],
+      "reason": "The sidecar must forward node lifecycle, endpoint, command-class, value metadata/update, notification, interview, wake-up, and statistics events without owning normalized device entities.",
+      "state": ["node_count", "ready_node_count", "sleeping_node_count", "dead_node_count", "interviewing_node_count", "value_count", "event_sequence", "last_event_at", "event_replay_cursor", "node_event_queue_depth", "node_event_queue_capacity", "dropped_node_event_count", "unknown_command_class_count", "interview_failure_count", "node_statistics_update_count"],
+      "events": ["node.added", "node.removed", "node.ready", "node.interview_started", "node.interview_completed", "node.interview_failed", "node.awake", "node.asleep", "node.dead", "node.alive", "node.value_added", "node.value_updated", "node.value_removed", "node.notification", "node.statistics_updated", "node.firmware_progress", "node.firmware_finished"],
+      "conditions": ["node_event_queue_below", "event_cursor_is_current", "node_transport_is_available", "interview_failure_count_above", "last_event_age_above"],
+      "actions": ["request_node_refresh", "request_node_interview", "ping_node", "refresh_node_values", "replay_events_from_cursor"]
+    },
+    {
+      "id": "controller-management-and-security-prompts", "status": "planned", "scope": ["explicitly-authorized-controller-administration"], "source_refs": ["zwave_js", "zwave_js_server", "zwave_js_docs"],
+      "reason": "Inclusion, exclusion, replacement, heal, security bootstrapping, SmartStart, provisioning, firmware, associations, and NVM operations require typed progress, user callbacks, confirmation, and persistent idempotency.",
+      "state": ["inclusion_state", "exclusion_state", "security_bootstrap_state", "requested_security_classes", "granted_security_classes", "dsk_suffix", "smartstart_entry_count", "provisioning_entry_count", "heal_progress", "firmware_update_progress", "nvm_backup_available", "nvm_backup_created_at", "management_operation_id", "management_operation_status", "management_operation_progress"],
+      "events": ["inclusion.started", "inclusion.stopped", "inclusion.failed", "exclusion.started", "exclusion.stopped", "exclusion.failed", "security.dsk_requested", "security.grant_requested", "security.bootstrap_completed", "security.bootstrap_failed", "heal.started", "heal.progress", "heal.completed", "firmware.update_started", "firmware.update_completed", "firmware.update_failed", "nvm.backup_completed", "nvm.restore_completed"],
+      "conditions": ["management_operation_is_idle", "inclusion_is_active", "exclusion_is_active", "security_prompt_is_pending", "heal_progress_above"],
+      "actions": ["begin_inclusion", "stop_inclusion", "begin_exclusion", "stop_exclusion", "grant_security_classes", "validate_dsk", "replace_failed_node", "remove_failed_node", "begin_network_heal", "stop_network_heal", "add_smartstart_entry", "remove_smartstart_entry", "backup_nvm", "restore_confirmed_nvm_backup"]
+    },
+    {
+      "id": "command-queue-health-and-recovery", "status": "planned", "scope": ["parent-consumers", "sidecar-worker"], "source_refs": ["zwave_js_server", "parent_contract", "core_vocabulary"],
+      "reason": "The driver service needs correlation, bounded queues, priority/fairness, supervision, retries, backpressure, consumer isolation, restart reconciliation, and degraded health.",
+      "state": ["command_queue_depth", "command_queue_capacity", "command_queue_high_watermark", "active_command_count", "consumer_count", "slow_consumer_count", "command_latency_ms", "commands_completed_total", "commands_failed_total", "commands_retried_total", "commands_cancelled_total", "supervised_command_count", "backpressure_active", "degraded_reason", "restart_recovery_count", "orphaned_command_count", "last_command_success_at"],
+      "events": ["command.queued", "command.started", "command.completed", "command.failed", "command.retried", "command.cancelled", "queue.saturated", "queue.recovered", "consumer.connected", "consumer.disconnected", "consumer.slow", "restart.reconciled", "command.orphaned"],
+      "conditions": ["command_queue_depth_above", "command_queue_is_saturated", "consumer_is_healthy", "backpressure_is_active", "last_command_success_age_above"],
+      "actions": ["submit_parent_command", "cancel_queued_command", "retry_failed_command", "drain_consumer_queue", "purge_expired_idempotency_entries"]
+    },
+    {
+      "id": "unsafe-sensitive-and-integration-owned", "status": "excluded", "scope": ["all-controllers-nodes-and-clients"], "source_refs": ["zwave_js", "zwave_js_server", "parent_contract"],
+      "reason": "Network keys, raw serial frames, unrestricted controller calls, factory reset, arbitrary firmware/NVM input, and normalized device semantics are outside the sidecar's normal contract.",
+      "state": ["s0_legacy_key", "s2_unauthenticated_key", "s2_authenticated_key", "s2_access_control_key", "lr_authenticated_key", "lr_access_control_key", "raw_serial_frame", "raw_nvm_contents", "full_dsk", "unredacted_controller_path"],
+      "events": [], "conditions": [],
+      "actions": ["execute_arbitrary_server_command", "send_raw_serial_frame", "factory_reset_controller", "restore_untrusted_nvm", "install_untrusted_controller_firmware", "expose_network_keys", "grant_unrequested_security_classes", "remove_all_nodes", "set_arbitrary_rf_region", "normalize_device_entities", "execute_unbounded_multicast"]
+    }
+  ]
+}
