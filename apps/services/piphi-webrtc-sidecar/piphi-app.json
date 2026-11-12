@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "$schema": "../../../contracts/piphi-app.schema.json",
+  "slug": "piphi-webrtc-sidecar",
+  "source": {
+    "imported_from": "https://github.com/PiPhi-io/piphi-webrtc-sidecar"
+  },
+  "languages": [
+    "python"
+  ],
+  "toolchains": {
+    "python": "3.12"
+  },
+  "ci": {
+    "enforcement": "legacy-static",
+    "commands": [
+      "pdm install --check",
+      "pdm run pytest"
+    ],
+    "build_container": false
+  },
+  "packages": [
+    {
+      "id": "piphi.service.webrtc-sidecar",
+      "type": "platform_service",
+      "version": "0.3.4",
+      "manifest": "manifest.json",
+      "release": {
+        "tag": "apps/{package_id}/v{version}",
+        "commands": []
+      },
+      "artifact": {
+        "kind": "oci",
+        "context": ".",
+        "dockerfile": "Dockerfile",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ]
+      },
+      "publishing": {
+        "mode": "piphi_managed",
+        "environment": "release-ghcr-io",
+        "primary": {
+          "registry": "ghcr.io",
+          "repository": "piphi-io/piphi-webrtc-sidecar"
+        },
+        "mirrors": []
+      }
+    }
+  ]
+}

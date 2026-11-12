@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "$schema": "../../../contracts/piphi-app.schema.json",
+  "slug": "piphi-network-atmotube",
+  "source": {
+    "imported_from": "https://github.com/KelvinSan/piphi-network-atmotube"
+  },
+  "languages": [
+    "go"
+  ],
+  "toolchains": {
+    "go": "1.25"
+  },
+  "ci": {
+    "enforcement": "legacy-static",
+    "commands": [
+      "go test ./...",
+      "go vet ./..."
+    ],
+    "build_container": false
+  },
+  "packages": [
+    {
+      "id": "atmotube-pro-ble",
+      "type": "integration",
+      "version": "0.1.1",
+      "manifest": "src/manifest.json",
+      "release": {
+        "tag": "apps/{package_id}/v{version}",
+        "commands": []
+      },
+      "artifact": {
+        "kind": "binary",
+        "output": "dist"
+      }
+    }
+  ]
+}

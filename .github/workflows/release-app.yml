@@ -1,0 +1,325 @@
+name: Release one app package
+
+on:
+  workflow_dispatch:
+    inputs:
+      package_id:
+        description: Exact package ID from piphi-app.json
+        required: true
+        type: string
+      version:
+        description: Exact semantic version already committed to the manifest
+        required: true
+        type: string
+      publish:
+        description: Push artifacts and create a release
+        required: true
+        default: false
+        type: boolean
+      external_digest:
+        description: Required sha256 digest for an externally published OCI image
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+  attestations: write
+
+concurrency:
+  group: release-${{ inputs.package_id }}
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      app_path: ${{ steps.plan.outputs.app_path }}
+      package_id: ${{ steps.plan.outputs.package_id }}
+      version: ${{ steps.plan.outputs.version }}
+      artifact_kind: ${{ steps.plan.outputs.artifact_kind }}
+      tag: ${{ steps.plan.outputs.tag }}
+      prerelease: ${{ steps.plan.outputs.prerelease }}
+      environment: ${{ steps.plan.outputs.environment }}
+      registry: ${{ steps.plan.outputs.registry }}
+      repository: ${{ steps.plan.outputs.repository }}
+      image: ${{ steps.plan.outputs.image }}
+      publishing_mode: ${{ steps.plan.outputs.publishing_mode }}
+      ghcr_required: ${{ steps.plan.outputs.ghcr_required }}
+      tags: ${{ steps.plan.outputs.tags }}
+      dockerfile: ${{ steps.plan.outputs.dockerfile }}
+      context: ${{ steps.plan.outputs.context }}
+      platforms: ${{ steps.plan.outputs.platforms }}
+      manifest: ${{ steps.plan.outputs.manifest }}
+      output: ${{ steps.plan.outputs.output }}
+      python: ${{ steps.plan.outputs.python }}
+      node: ${{ steps.plan.outputs.node }}
+      go: ${{ steps.plan.outputs.go }}
+      rust: ${{ steps.plan.outputs.rust }}
+      java: ${{ steps.plan.outputs.java }}
+      dotnet: ${{ steps.plan.outputs.dotnet }}
+      ruby: ${{ steps.plan.outputs.ruby }}
+      php: ${{ steps.plan.outputs.php }}
+      python_version: ${{ steps.plan.outputs.python_version }}
+      node_version: ${{ steps.plan.outputs.node_version }}
+      go_version: ${{ steps.plan.outputs.go_version }}
+      java_version: ${{ steps.plan.outputs.java_version }}
+      dotnet_version: ${{ steps.plan.outputs.dotnet_version }}
+      ruby_version: ${{ steps.plan.outputs.ruby_version }}
+      php_version: ${{ steps.plan.outputs.php_version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: plan
+        run: >-
+          python scripts/release_plan.py
+          --package "${{ inputs.package_id }}"
+          --version "${{ inputs.version }}"
+      - name: Require the protected default branch
+        run: test '${{ github.ref }}' = 'refs/heads/main'
+      - name: Ensure release tag does not exist
+        run: test -z "$(git tag --list '${{ steps.plan.outputs.tag }}')"
+
+  qualify:
+    needs: plan
+    uses: ./.github/workflows/reusable-app-ci.yml
+    with:
+      app_path: ${{ needs.plan.outputs.app_path }}
+      python: ${{ needs.plan.outputs.python == 'true' }}
+      node: ${{ needs.plan.outputs.node == 'true' }}
+      go: ${{ needs.plan.outputs.go == 'true' }}
+      rust: ${{ needs.plan.outputs.rust == 'true' }}
+      java: ${{ needs.plan.outputs.java == 'true' }}
+      dotnet: ${{ needs.plan.outputs.dotnet == 'true' }}
+      ruby: ${{ needs.plan.outputs.ruby == 'true' }}
+      php: ${{ needs.plan.outputs.php == 'true' }}
+      python_version: ${{ needs.plan.outputs.python_version }}
+      node_version: ${{ needs.plan.outputs.node_version }}
+      go_version: ${{ needs.plan.outputs.go_version }}
+      java_version: ${{ needs.plan.outputs.java_version }}
+      dotnet_version: ${{ needs.plan.outputs.dotnet_version }}
+      ruby_version: ${{ needs.plan.outputs.ruby_version }}
+      php_version: ${{ needs.plan.outputs.php_version }}
+      build_container: false
+
+  publish-oci:
+    needs: [plan, qualify]
+    if: needs.plan.outputs.artifact_kind == 'oci' && needs.plan.outputs.publishing_mode == 'piphi_managed'
+    runs-on: ubuntu-latest
+    environment: ${{ needs.plan.outputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - name: Log in to GHCR
+        if: needs.plan.outputs.ghcr_required == 'true' && inputs.publish
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Log in to configured OCI registry
+        if: needs.plan.outputs.registry != 'ghcr.io' && inputs.publish
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ needs.plan.outputs.registry }}
+          username: ${{ secrets.OCI_REGISTRY_USERNAME }}
+          password: ${{ secrets.OCI_REGISTRY_TOKEN }}
+      - name: Build and optionally publish
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ needs.plan.outputs.app_path }}/${{ needs.plan.outputs.context }}
+          file: ${{ needs.plan.outputs.app_path }}/${{ needs.plan.outputs.dockerfile }}
+          platforms: ${{ needs.plan.outputs.platforms }}
+          push: ${{ inputs.publish }}
+          tags: ${{ needs.plan.outputs.tags }}
+          provenance: mode=max
+          sbom: true
+          cache-from: type=gha,scope=${{ needs.plan.outputs.package_id }}
+          cache-to: type=gha,mode=max,scope=${{ needs.plan.outputs.package_id }}
+      - name: Attest published image
+        if: inputs.publish
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ${{ needs.plan.outputs.image }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+      - name: Write immutable release evidence
+        run: |
+          jq -n \
+            --arg package_id '${{ needs.plan.outputs.package_id }}' \
+            --arg version '${{ needs.plan.outputs.version }}' \
+            --arg image '${{ needs.plan.outputs.image }}' \
+            --arg digest '${{ steps.build.outputs.digest }}' \
+            --arg source '${{ github.server_url }}/${{ github.repository }}' \
+            --arg revision '${{ github.sha }}' \
+            '{schema_version:1, package_id:$package_id, version:$version, image:$image, digest:$digest, source:$source, revision:$revision}' \
+            > release-evidence.json
+      - name: Prepare registry cutover proposal
+        run: >-
+          python scripts/registry_proposal.py
+          --package '${{ needs.plan.outputs.package_id }}'
+          --version '${{ needs.plan.outputs.version }}'
+          --digest '${{ steps.build.outputs.digest }}'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ needs.plan.outputs.package_id }}-${{ needs.plan.outputs.version }}-evidence
+          path: |
+            release-evidence.json
+            registry-proposal.json
+      - name: Create namespaced GitHub release
+        if: inputs.publish
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.plan.outputs.tag }}
+          name: ${{ needs.plan.outputs.package_id }} v${{ needs.plan.outputs.version }}
+          prerelease: ${{ needs.plan.outputs.prerelease == 'true' }}
+          generate_release_notes: true
+          files: |
+            release-evidence.json
+            registry-proposal.json
+          body: |
+            Image: `${{ needs.plan.outputs.image }}:${{ needs.plan.outputs.version }}`
+            Digest: `${{ steps.build.outputs.digest }}`
+
+  verify-external-oci:
+    needs: [plan, qualify]
+    if: needs.plan.outputs.artifact_kind == 'oci' && needs.plan.outputs.publishing_mode == 'external'
+    runs-on: ubuntu-latest
+    environment: ${{ needs.plan.outputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Validate immutable digest input
+        run: |
+          [[ '${{ inputs.external_digest }}' =~ ^sha256:[0-9a-f]{64}$ ]]
+      - name: Verify externally published image is retrievable
+        run: >-
+          docker buildx imagetools inspect
+          '${{ needs.plan.outputs.image }}@${{ inputs.external_digest }}'
+      - name: Write external release evidence
+        run: |
+          jq -n \
+            --arg package_id '${{ needs.plan.outputs.package_id }}' \
+            --arg version '${{ needs.plan.outputs.version }}' \
+            --arg image '${{ needs.plan.outputs.image }}' \
+            --arg digest '${{ inputs.external_digest }}' \
+            --arg source '${{ github.server_url }}/${{ github.repository }}' \
+            --arg revision '${{ github.sha }}' \
+            '{schema_version:1, ownership:"external", package_id:$package_id, version:$version, image:$image, digest:$digest, source:$source, revision:$revision}' \
+            > release-evidence.json
+      - name: Prepare registry cutover proposal
+        run: >-
+          python scripts/registry_proposal.py
+          --package '${{ needs.plan.outputs.package_id }}'
+          --version '${{ needs.plan.outputs.version }}'
+          --digest '${{ inputs.external_digest }}'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ needs.plan.outputs.package_id }}-${{ needs.plan.outputs.version }}-external-evidence
+          path: |
+            release-evidence.json
+            registry-proposal.json
+      - name: Create namespaced GitHub release
+        if: inputs.publish
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.plan.outputs.tag }}
+          name: ${{ needs.plan.outputs.package_id }} v${{ needs.plan.outputs.version }}
+          prerelease: ${{ needs.plan.outputs.prerelease == 'true' }}
+          generate_release_notes: true
+          files: |
+            release-evidence.json
+            registry-proposal.json
+          body: |
+            Externally managed image: `${{ needs.plan.outputs.image }}@${{ inputs.external_digest }}`
+
+  package-non-oci:
+    needs: [plan, qualify]
+    if: needs.plan.outputs.artifact_kind != 'oci'
+    runs-on: ubuntu-latest
+    environment: ${{ needs.plan.outputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        if: needs.plan.outputs.node == 'true'
+        with:
+          node-version: ${{ needs.plan.outputs.node_version }}
+      - uses: actions/setup-python@v5
+        if: needs.plan.outputs.python == 'true'
+        with:
+          python-version: ${{ needs.plan.outputs.python_version }}
+      - uses: actions/setup-go@v5
+        if: needs.plan.outputs.go == 'true'
+        with:
+          go-version: ${{ needs.plan.outputs.go_version }}
+      - uses: actions/setup-java@v4
+        if: needs.plan.outputs.java == 'true'
+        with:
+          distribution: temurin
+          java-version: ${{ needs.plan.outputs.java_version }}
+      - uses: actions/setup-dotnet@v4
+        if: needs.plan.outputs.dotnet == 'true'
+        with:
+          dotnet-version: ${{ needs.plan.outputs.dotnet_version }}
+      - uses: ruby/setup-ruby@v1
+        if: needs.plan.outputs.ruby == 'true'
+        with:
+          ruby-version: ${{ needs.plan.outputs.ruby_version }}
+          bundler-cache: false
+      - name: Prepare Rust
+        if: needs.plan.outputs.rust == 'true'
+        run: rustup toolchain install stable --profile minimal
+      - name: Prepare PHP
+        if: needs.plan.outputs.php == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes php-cli composer
+          php -r "exit(version_compare(PHP_VERSION, '${{ needs.plan.outputs.php_version }}', '>=') ? 0 : 1);"
+      - name: Prepare Python package tooling
+        if: needs.plan.outputs.python == 'true'
+        run: python -m pip install "pdm==2.26.2"
+      - name: Build release output
+        working-directory: ${{ needs.plan.outputs.app_path }}
+        env:
+          PIPHI_WIDGET_SIGNING_KEY_PEM_BASE64: ${{ secrets.PIPHI_WIDGET_SIGNING_KEY_PEM_BASE64 }}
+        run: |
+          python "${{ github.workspace }}/scripts/run_release_commands.py" \
+            --package "${{ needs.plan.outputs.package_id }}" \
+            --version "${{ needs.plan.outputs.version }}"
+          test -e "${{ needs.plan.outputs.output }}"
+      - name: Archive package output
+        run: >-
+          tar -C "${{ needs.plan.outputs.app_path }}"
+          -czf "${{ needs.plan.outputs.package_id }}-${{ needs.plan.outputs.version }}.tgz"
+          "${{ needs.plan.outputs.output }}"
+      - name: Write checksum
+        run: sha256sum "${{ needs.plan.outputs.package_id }}-${{ needs.plan.outputs.version }}.tgz" > SHA256SUMS
+      - name: Prepare registry cutover proposal
+        run: >-
+          python scripts/registry_proposal.py
+          --package '${{ needs.plan.outputs.package_id }}'
+          --version '${{ needs.plan.outputs.version }}'
+          --digest "sha256:$(sha256sum '${{ needs.plan.outputs.package_id }}-${{ needs.plan.outputs.version }}.tgz' | cut -d' ' -f1)"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ needs.plan.outputs.package_id }}-${{ needs.plan.outputs.version }}
+          path: |
+            ${{ needs.plan.outputs.package_id }}-${{ needs.plan.outputs.version }}.tgz
+            SHA256SUMS
+            registry-proposal.json
+      - name: Create namespaced GitHub release
+        if: inputs.publish
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.plan.outputs.tag }}
+          name: ${{ needs.plan.outputs.package_id }} v${{ needs.plan.outputs.version }}
+          prerelease: ${{ needs.plan.outputs.prerelease == 'true' }}
+          generate_release_notes: true
+          files: |
+            ${{ needs.plan.outputs.package_id }}-${{ needs.plan.outputs.version }}.tgz
+            SHA256SUMS
+            registry-proposal.json

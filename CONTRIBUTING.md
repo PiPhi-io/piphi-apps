@@ -2,6 +2,10 @@
 
 Thank you for helping expand the PiPhi ecosystem.
 
+Start with [the app contribution guide](docs/contributing-apps.md). It explains
+the language-neutral OCI path, `piphi-app.json`, CI enforcement, and publishing
+destinations.
+
 ## Contribution flow
 
 1. Fork this repository and create a focused branch.
@@ -18,6 +22,9 @@ Direct pushes to `main` are not the contribution path.
 Each app must be independently buildable, testable, versioned, and releasable. Do not import another app's private source tree or rely on files outside the app directory unless they are part of an explicitly supported shared contract.
 
 SDKs are consumed as released dependencies and are not developed in this repository.
+
+Repository-specific workflows under an app directory are not accepted. The
+trusted root workflows detect the app and execute its reviewed metadata instead.
 
 ## Required app metadata
 

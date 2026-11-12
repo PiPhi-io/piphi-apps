@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "$schema": "../../../contracts/piphi-app.schema.json",
+  "slug": "piphi-camera-stream",
+  "source": {
+    "imported_from": "https://github.com/PiPhi-io/piphi-camera-stream"
+  },
+  "languages": [
+    "python"
+  ],
+  "toolchains": {
+    "python": "3.12"
+  },
+  "ci": {
+    "enforcement": "legacy-static",
+    "commands": [],
+    "build_container": false
+  },
+  "packages": [
+    {
+      "id": "piphi-camera-stream",
+      "type": "integration",
+      "version": "0.1.5",
+      "manifest": "manifest.json",
+      "release": {
+        "tag": "apps/{package_id}/v{version}",
+        "commands": []
+      },
+      "artifact": {
+        "kind": "oci",
+        "context": ".",
+        "dockerfile": "Dockerfile",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ]
+      },
+      "publishing": {
+        "mode": "piphi_managed",
+        "environment": "release-ghcr-io",
+        "primary": {
+          "registry": "ghcr.io",
+          "repository": "piphi-io/piphi-camera-stream"
+        },
+        "mirrors": []
+      }
+    }
+  ]
+}

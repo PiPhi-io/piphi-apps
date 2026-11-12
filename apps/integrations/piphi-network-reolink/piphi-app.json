@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "$schema": "../../../contracts/piphi-app.schema.json",
+  "slug": "piphi-network-reolink",
+  "source": {
+    "imported_from": "https://github.com/PiPhi-io/piphi-network-reolink"
+  },
+  "languages": [
+    "python"
+  ],
+  "toolchains": {
+    "python": "3.12"
+  },
+  "ci": {
+    "enforcement": "legacy-static",
+    "commands": [
+      "pdm install --check",
+      "pdm run pytest"
+    ],
+    "build_container": false
+  },
+  "packages": [
+    {
+      "id": "piphi-network-reolink",
+      "type": "integration",
+      "version": "0.1.0",
+      "manifest": "manifest.json",
+      "release": {
+        "tag": "apps/{package_id}/v{version}",
+        "commands": []
+      },
+      "artifact": {
+        "kind": "oci",
+        "context": ".",
+        "dockerfile": "Dockerfile",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ]
+      },
+      "publishing": {
+        "mode": "piphi_managed",
+        "environment": "release-ghcr-io",
+        "primary": {
+          "registry": "ghcr.io",
+          "repository": "piphi-io/piphi-network-reolink"
+        },
+        "mirrors": []
+      }
+    }
+  ]
+}

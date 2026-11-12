@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "$schema": "../../../contracts/piphi-app.schema.json",
+  "slug": "official-piphi-network-gps-integration",
+  "source": {
+    "imported_from": "https://github.com/KelvinSan/Official-PiPhi-Network-GPS-Integration"
+  },
+  "languages": [
+    "python",
+    "node"
+  ],
+  "toolchains": {
+    "python": "3.12",
+    "node": "22"
+  },
+  "ci": {
+    "enforcement": "legacy-static",
+    "commands": [
+      "npm ci",
+      "npm audit --omit=dev --audit-level=high",
+      "npm run check",
+      "npm run test",
+      "npm run build"
+    ],
+    "build_container": false
+  },
+  "packages": [
+    {
+      "id": "official-usb-gps-integration",
+      "type": "integration",
+      "version": "1.1.2",
+      "manifest": "src/manifest.json",
+      "release": {
+        "tag": "apps/{package_id}/v{version}",
+        "commands": []
+      },
+      "artifact": {
+        "kind": "oci",
+        "context": ".",
+        "dockerfile": "dockerfile",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ]
+      },
+      "publishing": {
+        "mode": "piphi_managed",
+        "environment": "release-docker-io",
+        "primary": {
+          "registry": "docker.io",
+          "repository": "piphinetwork/official-gps-integration"
+        },
+        "mirrors": []
+      }
+    }
+  ]
+}

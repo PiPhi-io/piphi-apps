@@ -1,0 +1,64 @@
+name: App CI
+
+on:
+  pull_request:
+    paths:
+      - "apps/**"
+      - "contracts/**"
+      - "scripts/**"
+      - ".github/workflows/**"
+  push:
+    branches: [main]
+    paths:
+      - "apps/**"
+      - "contracts/**"
+      - "scripts/**"
+      - ".github/workflows/**"
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+      has_apps: ${{ steps.plan.outputs.has_apps }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: plan
+        run: >-
+          python scripts/changed_apps.py
+          --base "${{ github.event.pull_request.base.sha || github.event.before }}"
+
+  apps:
+    needs: changes
+    if: needs.changes.outputs.has_apps == 'true'
+    strategy:
+      fail-fast: false
+      max-parallel: 8
+      matrix: ${{ fromJSON(needs.changes.outputs.matrix) }}
+    uses: ./.github/workflows/reusable-app-ci.yml
+    with:
+      app_path: ${{ matrix.path }}
+      python: ${{ matrix.python }}
+      node: ${{ matrix.node }}
+      go: ${{ matrix.go }}
+      rust: ${{ matrix.rust }}
+      java: ${{ matrix.java }}
+      dotnet: ${{ matrix.dotnet }}
+      ruby: ${{ matrix.ruby }}
+      php: ${{ matrix.php }}
+      python_version: ${{ matrix.python_version }}
+      node_version: ${{ matrix.node_version }}
+      go_version: ${{ matrix.go_version }}
+      java_version: ${{ matrix.java_version }}
+      dotnet_version: ${{ matrix.dotnet_version }}
+      ruby_version: ${{ matrix.ruby_version }}
+      php_version: ${{ matrix.php_version }}
+      build_container: ${{ matrix.build_container }}
+      dockerfile: ${{ matrix.dockerfile }}
+      context: ${{ matrix.context }}

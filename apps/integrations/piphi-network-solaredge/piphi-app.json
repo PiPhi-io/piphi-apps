@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "$schema": "../../../contracts/piphi-app.schema.json",
+  "slug": "piphi-network-solaredge",
+  "source": {
+    "imported_from": "https://github.com/PiPhi-io/piphi-network-SolarEdge"
+  },
+  "languages": [
+    "python"
+  ],
+  "toolchains": {
+    "python": "3.12"
+  },
+  "ci": {
+    "enforcement": "legacy-static",
+    "commands": [
+      "pdm install --check",
+      "pdm run pytest"
+    ],
+    "build_container": false
+  },
+  "packages": [
+    {
+      "id": "io.piphi.solaredge-solar-energy",
+      "type": "widget",
+      "version": "0.1.0",
+      "manifest": "experiences/solar-energy/package.source.json",
+      "release": {
+        "tag": "apps/{package_id}/v{version}",
+        "commands": []
+      },
+      "artifact": {
+        "kind": "widget",
+        "output": "dist"
+      }
+    },
+    {
+      "id": "piphi-network-solaredge",
+      "type": "integration",
+      "version": "0.2.2",
+      "manifest": "manifest.json",
+      "release": {
+        "tag": "apps/{package_id}/v{version}",
+        "commands": []
+      },
+      "artifact": {
+        "kind": "oci",
+        "context": ".",
+        "dockerfile": "Dockerfile",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ]
+      },
+      "publishing": {
+        "mode": "piphi_managed",
+        "environment": "release-docker-io",
+        "primary": {
+          "registry": "docker.io",
+          "repository": "piphinetwork/piphi-network-solaredge"
+        },
+        "mirrors": []
+      }
+    }
+  ]
+}

@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "$schema": "../../../contracts/piphi-app.schema.json",
+  "slug": "piphi-network-plex",
+  "source": {
+    "imported_from": "https://github.com/PiPhi-io/piphi-network-plex"
+  },
+  "languages": [
+    "python",
+    "node"
+  ],
+  "toolchains": {
+    "python": "3.12",
+    "node": "22"
+  },
+  "ci": {
+    "enforcement": "legacy-static",
+    "commands": [
+      "pdm install --check",
+      "pdm run pytest",
+      "npm ci",
+      "npm audit --omit=dev --audit-level=high",
+      "npm run test",
+      "npm run build"
+    ],
+    "build_container": false
+  },
+  "packages": [
+    {
+      "id": "piphi-network-plex",
+      "type": "integration",
+      "version": "0.1.1",
+      "manifest": "manifest.json",
+      "release": {
+        "tag": "apps/{package_id}/v{version}",
+        "commands": []
+      },
+      "artifact": {
+        "kind": "oci",
+        "context": ".",
+        "dockerfile": "Dockerfile",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ]
+      },
+      "publishing": {
+        "mode": "piphi_managed",
+        "environment": "release-docker-io",
+        "primary": {
+          "registry": "docker.io",
+          "repository": "piphinetwork/piphi-network-plex"
+        },
+        "mirrors": []
+      }
+    }
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "$schema": "../../../contracts/piphi-app.schema.json",
+  "slug": "piphi-widget-awair-air-quality",
+  "source": {
+    "imported_from": "https://github.com/PiPhi-io/piphi-widget-awair-air-quality"
+  },
+  "languages": [
+    "node"
+  ],
+  "toolchains": {
+    "node": "22"
+  },
+  "ci": {
+    "enforcement": "legacy-static",
+    "commands": [
+      "npm ci",
+      "npm audit --omit=dev --audit-level=high",
+      "npm run test",
+      "npm run validate",
+      "npm run build"
+    ],
+    "build_container": false
+  },
+  "packages": [
+    {
+      "id": "io.piphi.awair-air-quality",
+      "type": "widget",
+      "version": "0.1.16",
+      "manifest": "package.source.json",
+      "release": {
+        "tag": "apps/{package_id}/v{version}",
+        "commands": []
+      },
+      "artifact": {
+        "kind": "widget",
+        "output": "dist"
+      }
+    }
+  ]
+}
