@@ -1,0 +1,205 @@
+{
+  "$schema": "./schema/piphi-manifest.schema.json",
+  "manifest_version": "1.0",
+  "id": "piphi-network-bermuda-presence",
+  "name": "Bermuda presence",
+  "version": "0.1.0",
+  "description": "Turn supported BLE advertisements into room-level presence observations.",
+  "metadata": {
+    "generator": "piphi-network-create",
+    "scaffold_version": "0.3.0",
+    "preset": "sensor-device",
+    "domain": "sensor",
+    "preset_summary": "Local device starter with polling cadence and device diagnostics hooks."
+  },
+  "maintainer": {
+    "name": "PiPhi Network",
+    "website": "https://piphi.io"
+  },
+  "license": "Apache-2.0",
+  "image": "docker.io/piphinetwork/piphi-network-bermuda-presence:0.1.0",
+  "platforms": [
+    "linux"
+  ],
+  "runtime": {
+    "linux": {
+      "type": "container",
+      "container": {
+        "image": "docker.io/piphinetwork/piphi-network-bermuda-presence:0.1.0",
+        "ports": [
+          {
+            "container": 4206,
+            "host": 4206
+          }
+        ],
+        "environment": {
+          "LOG_LEVEL": "info"
+        },
+        "restart_policy": {
+          "name": "unless-stopped",
+          "maximum_retry_count": 0
+        }
+      },
+      "discovery": {
+        "method": "passive"
+      }
+    }
+  },
+  "api": {
+    "required": [
+      "health",
+      "entities",
+      "command",
+      "config",
+      "ui_config"
+    ],
+    "endpoints": {
+      "health": "/health",
+      "diagnostics": "/diagnostics",
+      "discover": "/discover",
+      "entities": "/entities",
+      "state": "/state",
+      "config": "/config",
+      "config_sync": "/config/sync",
+      "deconfigure": "/deconfigure",
+      "ui_config": "/ui-config",
+      "events": "/events",
+      "command": "/command"
+    }
+  },
+  "config": {
+    "source": "endpoint",
+    "endpoint": "/ui-config",
+    "required": true,
+    "editable_fields": [
+      "host",
+      "alias",
+      "poll_interval_seconds"
+    ],
+    "runtime_fields": [
+      "id",
+      "config_id",
+      "container_id",
+      "device_id"
+    ],
+    "identity_fields": [
+      "host"
+    ]
+  },
+  "identity": {
+    "fields": [
+      "host"
+    ]
+  },
+  "capabilities": {
+    "connected": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "refresh": {
+      "kind": "action"
+    }
+  },
+  "commands": {
+    "refresh": {
+      "description": "Refresh the device state.",
+      "timeout_ms": 5000
+    }
+  },
+  "entities": [
+    {
+      "id": "demo-device",
+      "name": "Demo Device",
+      "device_id": "demo-device",
+      "entity_type": "sensor",
+      "capabilities": [
+        "connected",
+        "refresh"
+      ],
+      "available_commands": [
+        {
+          "id": "refresh",
+          "label": "Refresh",
+          "kind": "action"
+        }
+      ],
+      "dashboard": {
+        "allowed_widgets": [
+          "tile",
+          "stat",
+          "button"
+        ],
+        "default_widget": "tile"
+      }
+    }
+  ],
+  "ui": {
+    "experience_packages": [
+      {
+        "registry_id": "io.piphi.bermuda-presence-status",
+        "version_range": ">=0.1,<1",
+        "auto_install": true
+      }
+    ]
+  },
+  "marketplace": {
+    "metadata_version": 2,
+    "display_name": "Bermuda presence",
+    "summary": "Turn supported BLE advertisements into room-level presence observations.",
+    "category": "sensors",
+    "regions": [
+      "WW"
+    ],
+    "languages": [
+      "en"
+    ],
+    "publisher": {
+      "name": "PiPhi Network",
+      "website_url": "https://piphi.io",
+      "support_url": "https://github.com/PiPhi-io/piphi-network-bermuda-presence/issues",
+      "security_contact": "support@piphi.io"
+    },
+    "access": [
+      {
+        "id": "device_access",
+        "label": "Bluetooth observation access",
+        "reason": "Uses the explicitly configured host device to communicate with supported hardware.",
+        "required": true
+      }
+    ],
+    "compatibility": [
+      {
+        "brand": "Multi-vendor",
+        "model": "Supported BLE beacons and personal devices"
+      }
+    ],
+    "documentation_url": "https://github.com/PiPhi-io/piphi-network-bermuda-presence",
+    "support_url": "https://github.com/PiPhi-io/piphi-network-bermuda-presence/issues",
+    "changelog_url": "https://github.com/PiPhi-io/piphi-network-bermuda-presence/releases",
+    "quality_tier": "unrated",
+    "governance": {
+      "schema_version": 1,
+      "publication_status": "draft",
+      "rollout_percent": 0,
+      "lifecycle_status": "active",
+      "qualification": {
+        "status": "unverified"
+      }
+    },
+    "device_types": [
+      "presence sensor",
+      "BLE beacon"
+    ],
+    "protocols": [
+      "Bluetooth Low Energy"
+    ],
+    "discovery_methods": [
+      "BLE advertisements"
+    ],
+    "connectivity": "local",
+    "offline_support": "full"
+  },
+  "onboarding": {
+    "mode": "discovery"
+  }
+}

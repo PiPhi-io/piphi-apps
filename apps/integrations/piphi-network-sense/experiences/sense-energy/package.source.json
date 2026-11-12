@@ -1,0 +1,102 @@
+{
+  "schema_version": "1",
+  "identity": {"publisher_id": "io.piphi", "package_id": "sense-energy", "version": "0.2.21"},
+  "name": "Sense Energy",
+  "description": "Live household, solar, and detected-appliance energy views for Sense monitors.",
+  "origin": "integration",
+  "owning_integration_id": "piphi-network-sense",
+  "sdk_version_range": ">=0.6.1,<0.7",
+  "requires_integrations": [{"integration_id": "piphi-network-sense", "version_range": ">=0.1,<1", "optional": false}],
+  "recommended_for_integrations": ["piphi-network-sense"],
+  "widgets": [
+    {
+      "id": "energy-overview",
+      "name": "Sense Energy Overview",
+      "description": "Live household and solar power with the most useful daily and background totals.",
+      "runtime": "sandboxed_bundle",
+      "entry": "assets/energy-overview.js",
+      "themes": [
+        {"id": "sense", "name": "Sense", "description": "A consumption-first presentation inspired by Sense.", "stylesheet": "themes/sense-overview.css", "color_scheme": "auto"}
+      ],
+      "default_theme_id": "sense",
+      "presentation": {"contract_version": "1", "shell": "core", "content_surface": "transparent", "typography": "core", "appearance_controls": ["icon", "title", "surface", "opacity", "radius", "shadow"]},
+      "interaction_targets": [
+        {"id": "energy-card", "label": "Sense energy overview", "kind": "card", "allowed_actions": ["more-info", "popout", "refresh"], "default_action": "more-info"},
+        {"id": "home-power", "label": "Household power", "kind": "binding", "binding_slot_id": "home-power", "allowed_actions": ["more-info", "history", "popout"], "default_action": "history"},
+        {"id": "solar-power", "label": "Solar power", "kind": "binding", "binding_slot_id": "solar-power", "allowed_actions": ["more-info", "history", "popout"], "default_action": "history"},
+        {"id": "usage-today", "label": "Energy used today", "kind": "binding", "binding_slot_id": "usage-today", "allowed_actions": ["more-info", "history", "popout"], "default_action": "history"},
+        {"id": "production-today", "label": "Energy produced today", "kind": "binding", "binding_slot_id": "production-today", "allowed_actions": ["more-info", "history", "popout"], "default_action": "history"}
+      ],
+      "core_card_replacements": [{"schema_version": "1", "id": "sense-energy-overview-v1", "source_card_types": ["sensor-card", "stat"], "source_capability_ids": ["active_power_w", "active_solar_power_w", "daily_usage_kwh", "daily_production_kwh"], "strategy": "same-device"}],
+      "binding_slots": [
+        {"id": "connected", "label": "Connection", "required": true, "binding_modes": ["read"], "value_kinds": ["boolean"], "capability_requirements": ["connected"], "compatible_integration_ids": ["piphi-network-sense"], "data_delivery": {"mode": "stream_preferred", "stale_after_seconds": 180}},
+        {"id": "home-power", "label": "Household power", "required": true, "binding_modes": ["read"], "value_kinds": ["numeric"], "capability_requirements": ["active_power_w"], "compatible_integration_ids": ["piphi-network-sense"], "data_delivery": {"mode": "stream_preferred", "stale_after_seconds": 180}},
+        {"id": "solar-power", "label": "Solar power", "required": false, "binding_modes": ["read"], "value_kinds": ["numeric"], "capability_requirements": ["active_solar_power_w"], "compatible_integration_ids": ["piphi-network-sense"], "data_delivery": {"mode": "stream_preferred", "stale_after_seconds": 180}},
+        {"id": "usage-today", "label": "Used today", "required": true, "binding_modes": ["read"], "value_kinds": ["numeric"], "capability_requirements": ["daily_usage_kwh"], "compatible_integration_ids": ["piphi-network-sense"], "data_delivery": {"mode": "snapshot", "stale_after_seconds": 1800}},
+        {"id": "production-today", "label": "Produced today", "required": false, "binding_modes": ["read"], "value_kinds": ["numeric"], "capability_requirements": ["daily_production_kwh"], "compatible_integration_ids": ["piphi-network-sense"], "data_delivery": {"mode": "snapshot", "stale_after_seconds": 1800}},
+        {"id": "always-on", "label": "Always on", "required": false, "binding_modes": ["read"], "value_kinds": ["numeric"], "capability_requirements": ["always_on_power_w"], "compatible_integration_ids": ["piphi-network-sense"], "data_delivery": {"mode": "stream_preferred", "stale_after_seconds": 180}},
+        {"id": "other", "label": "Other", "required": false, "binding_modes": ["read"], "value_kinds": ["numeric"], "capability_requirements": ["other_power_w"], "compatible_integration_ids": ["piphi-network-sense"], "data_delivery": {"mode": "stream_preferred", "stale_after_seconds": 180}}
+      ],
+      "certification": {
+        "schema_version": "1",
+        "verified_gates": ["runtime", "persistence", "binding", "states", "responsive", "themes", "accessibility", "save-reload", "performance"],
+        "evidence": {
+          "runtime": ["core-profile:sandbox-host-v1/runtime"],
+          "persistence": ["core-profile:sandbox-host-v1/persistence"],
+          "binding": ["repo-test:tests/test_widget_experience.py::test_energy_overview_binding_and_states"],
+          "states": ["repo-test:tests/test_widget_experience.py::test_energy_overview_binding_and_states"],
+          "responsive": ["repo-test:tests/test_widget_experience.py::test_energy_overview_presentation"],
+          "themes": ["repo-test:tests/test_widget_experience.py::test_energy_overview_presentation"],
+          "accessibility": ["repo-test:tests/test_widget_experience.py::test_energy_overview_presentation"],
+          "save-reload": ["core-profile:sandbox-host-v1/save-reload"],
+          "performance": ["core-profile:sandbox-host-v1/performance"]
+        }
+      },
+      "default_column_span": 6,
+      "default_row_span": 3
+    },
+    {
+      "id": "appliance-energy",
+      "name": "Sense Appliance Energy",
+      "description": "Current power and daily energy for one appliance detected by Sense.",
+      "runtime": "declarative",
+      "themes": [
+        {"id": "sense", "name": "Sense", "description": "A warm, high-contrast energy presentation.", "stylesheet": "themes/sense.css", "color_scheme": "auto"},
+        {"id": "quiet", "name": "Quiet", "description": "A restrained presentation that blends with Core.", "stylesheet": "themes/quiet.css", "color_scheme": "auto"}
+      ],
+      "default_theme_id": "sense",
+      "presentation": {"contract_version": "1", "shell": "core", "content_surface": "transparent", "typography": "core", "appearance_controls": ["icon", "title", "surface", "opacity", "radius", "shadow"]},
+      "interaction_targets": [
+        {"id": "appliance-card", "label": "Sense appliance energy", "kind": "card", "allowed_actions": ["more-info", "popout", "refresh"], "default_action": "more-info"},
+        {"id": "appliance-power", "label": "Appliance power", "kind": "binding", "binding_slot_id": "appliance-power", "allowed_actions": ["more-info", "history", "popout"], "default_action": "history"},
+        {"id": "appliance-daily", "label": "Appliance energy today", "kind": "binding", "binding_slot_id": "appliance-daily", "allowed_actions": ["more-info", "history", "popout"], "default_action": "history"}
+      ],
+      "core_card_replacements": [{"schema_version": "1", "id": "sense-appliance-energy-v1", "source_card_types": ["sensor-card", "stat"], "source_capability_ids": ["device_power_w", "device_daily_energy_kwh"], "strategy": "same-device"}],
+      "binding_slots": [
+        {"id": "appliance-power", "label": "Current power", "required": true, "binding_modes": ["read"], "value_kinds": ["numeric"], "capability_requirements": ["device_power_w"], "compatible_integration_ids": ["piphi-network-sense"], "data_delivery": {"mode": "stream_preferred", "stale_after_seconds": 180}},
+        {"id": "appliance-daily", "label": "Today", "required": true, "binding_modes": ["read"], "value_kinds": ["numeric"], "capability_requirements": ["device_daily_energy_kwh"], "compatible_integration_ids": ["piphi-network-sense"], "data_delivery": {"mode": "snapshot", "stale_after_seconds": 1800}}
+      ],
+      "recipe": {"schema_version": "1", "layout": "grid", "columns": 2, "items": [
+        {"type": "metric", "slot_id": "appliance-power", "label": "Now", "format": "number", "domain": "power", "emphasis": "hero", "show_freshness": true, "action": {"type": "details", "label": "View appliance power history"}},
+        {"type": "metric", "slot_id": "appliance-daily", "label": "Today", "format": "number", "domain": "energy", "emphasis": "compact", "show_freshness": true, "action": {"type": "details", "label": "View appliance energy history"}}
+      ]},
+      "certification": {
+        "schema_version": "1",
+        "verified_gates": ["runtime", "persistence", "binding", "states", "responsive", "themes", "accessibility", "save-reload", "performance"],
+        "evidence": {
+          "runtime": ["core-profile:declarative-v2/runtime"],
+          "persistence": ["core-profile:declarative-v2/persistence"],
+          "binding": ["core-profile:declarative-v2/binding"],
+          "states": ["core-profile:declarative-v2/states"],
+          "responsive": ["core-profile:declarative-v2/responsive"],
+          "themes": ["core-profile:declarative-v2/themes"],
+          "accessibility": ["core-profile:declarative-v2/accessibility"],
+          "save-reload": ["core-profile:declarative-v2/save-reload"],
+          "performance": ["core-profile:declarative-v2/performance"]
+        }
+      },
+      "default_column_span": 4,
+      "default_row_span": 2
+    }
+  ]
+}

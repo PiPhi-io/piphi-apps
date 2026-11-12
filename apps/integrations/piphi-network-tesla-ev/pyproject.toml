@@ -1,0 +1,35 @@
+[project]
+name = "piphi-network-tesla-ev"
+version = "0.2.3"
+description = "PiPhi Python runtime integration for Tesla Fleet API vehicle data."
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.115.0",
+  "httpx>=0.27.0",
+  "uvicorn[standard]>=0.30.0",
+  "piphi-runtime-kit-python>=0.8.1,<1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0.0",
+  "pytest-asyncio>=0.24.0",
+]
+
+[project.scripts]
+piphi-network-tesla-ev = "piphi_network_tesla_ev.main:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/piphi_network_tesla_ev"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"src/manifest.json" = "piphi_network_tesla_ev/manifest.json"
+"src/behaviors.json" = "piphi_network_tesla_ev/behaviors.json"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests_python"]

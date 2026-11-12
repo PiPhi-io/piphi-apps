@@ -1,0 +1,88 @@
+{
+  "entities": [
+    {
+      "id": "weatherxm-station",
+      "name": "WeatherXM Station",
+      "device_id": "weatherxm-station",
+      "entity_type": "sensor",
+      "capabilities": [
+        "connected",
+        "temperature_c",
+        "refresh",
+        "api_rate_limit_remaining",
+        "api_latency_ms",
+        "humidity_percent",
+        "precipitation_mm",
+        "precipitation_accumulated_mm",
+        "wind_speed_ms",
+        "wind_gust_ms",
+        "wind_direction_deg",
+        "pressure_hpa",
+        "uv_index",
+        "feels_like_c",
+        "dew_point_c",
+        "solar_irradiance_w_m2",
+        "qod_score",
+        "sync_cloud"
+      ],
+      "available_commands": [
+        {
+          "id": "refresh",
+          "label": "Refresh",
+          "kind": "action"
+        },
+        {
+          "id": "sync_cloud",
+          "label": "Sync Cloud",
+          "kind": "action"
+        }
+      ],
+      "dashboard": {
+        "allowed_widgets": [
+          "tile",
+          "stat",
+          "button"
+        ],
+        "default_widget": "tile"
+      }
+    }
+  ],
+  "capabilities": {
+    "connected": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "temperature_c": {
+      "kind": "sensor",
+      "unit": "C"
+    },
+    "humidity_percent": {
+      "kind": "sensor",
+      "unit": "%"
+    },
+    "wind_speed_ms": {
+      "kind": "sensor",
+      "unit": "m/s"
+    },
+    "qod_score": {
+      "kind": "sensor",
+      "unit": "score"
+    },
+    "refresh": {
+      "kind": "action"
+    },
+    "sync_cloud": {
+      "kind": "action"
+    }
+  },
+  "commands": {
+    "refresh": {
+      "description": "Refresh the device state.",
+      "timeout_ms": 5000
+    },
+    "sync_cloud": {
+      "description": "Synchronize state from the vendor cloud.",
+      "timeout_ms": 15000
+    }
+  }
+}

@@ -1,0 +1,280 @@
+{
+  "manifest_version": "1.0",
+  "id": "piphi-network-433mhz",
+  "name": "PiPhi Network 433MHz Devices",
+  "version": "0.1.7",
+  "description": "Generic rtl_433-based integration for supported sub-GHz sensors and devices.",
+  "maintainer": {
+    "name": "PiPhi Network",
+    "website": "https://piphi.io"
+  },
+  "image": "piphinetwork/piphi-network-433mhz:0.1.7",
+  "platforms": [
+    "linux"
+  ],
+  "runtime": {
+    "linux": {
+      "type": "container",
+      "container": {
+        "image": "piphinetwork/piphi-network-433mhz:0.1.7",
+        "ports": [
+          {
+            "container": 8090,
+            "host": 8090
+          }
+        ],
+        "environment": {
+          "LOG_LEVEL": "info",
+          "RTL433_DISCOVERY_WAIT_SECONDS": "8",
+          "RTL433_DISCOVERY_CACHE_PATH": "/tmp/piphi-network-433mhz-discovery.json"
+        },
+        "restart_policy": {
+          "name": "unless-stopped",
+          "maximum_retry_count": 0
+        }
+      },
+      "discovery": {
+        "method": "passive",
+        "inputs": [
+          {
+            "name": "radio_frequency",
+            "label": "Frequency",
+            "type": "text",
+            "required": false,
+            "placeholder": "433.92M",
+            "description": "Enter a band such as 315mhz, 433mhz, 868mhz, or 915mhz, or an exact rtl_433 frequency such as 344.975M. Leave blank for the current setting."
+          },
+          {
+            "name": "rtlsdr_device",
+            "label": "USB receiver or port",
+            "type": "text",
+            "required": false,
+            "placeholder": "auto",
+            "description": "Leave blank or use auto for one receiver. With multiple receivers, enter the rtl_433 device index or selector."
+          }
+        ]
+      }
+    }
+  },
+  "requires": {
+    "services": [
+      {
+        "id": "piphi.service.rtl433-bridge",
+        "kind": "platform_service",
+        "version_range": ">=0.1.0,<1.0.0",
+        "recommended_version": "0.1.4",
+        "required": true,
+        "shared": true,
+        "auto_install": true,
+        "reason": "Listens for supported sub-GHz rtl_433 radio packets and forwards decoded packets to this integration."
+      }
+    ]
+  },
+  "api": {
+    "endpoints": {
+      "health": "/health",
+      "diagnostics": "/diagnostics",
+      "discover": "/discover",
+      "entities": "/entities",
+      "state": "/state",
+      "config": "/config",
+      "config_sync": "/config/sync",
+      "deconfigure": "/deconfigure",
+      "ui_config": "/ui-config",
+      "events": "/events",
+      "command": "/command"
+    }
+  },
+  "config": {
+    "source": "endpoint",
+    "endpoint": "/ui-config",
+    "required": true,
+    "editable_fields": [
+      "profile",
+      "model",
+      "station_id",
+      "channel",
+      "alias"
+    ],
+    "runtime_fields": [
+      "id",
+      "config_id",
+      "container_id",
+      "device_id"
+    ],
+    "identity_fields": [
+      "model",
+      "station_id",
+      "channel"
+    ]
+  },
+  "identity": {
+    "fields": [
+      "model",
+      "station_id",
+      "channel"
+    ]
+  },
+  "capabilities": {
+    "temperature_c": {
+      "kind": "sensor",
+      "unit": "\u00b0C"
+    },
+    "humidity_percent": {
+      "kind": "sensor",
+      "unit": "%"
+    },
+    "battery_ok": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "wind_speed_kph": {
+      "kind": "sensor",
+      "unit": "km/h"
+    },
+    "rain_total_mm": {
+      "kind": "sensor",
+      "unit": "mm"
+    },
+    "contact_open": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "leak_detected": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "signal_rssi": {
+      "kind": "sensor",
+      "unit": "dBm"
+    },
+    "clear_discovery_cache": {
+      "kind": "action"
+    }
+  },
+  "commands": {
+    "clear_discovery_cache": {
+      "description": "Clear the cache of recently seen rtl_433 devices.",
+      "timeout_ms": 5000
+    }
+  },
+  "security": {
+    "contract_version": "1",
+    "event_mappings": [
+      {
+        "source_event_type": "rtl433.safety.leak.detected",
+        "canonical_event_type": "safety_leak_detected",
+        "status": "implemented",
+        "device_models": [
+          "rtl_433 leak_sensor profile"
+        ],
+        "required_permissions": [
+          "rtl_433 packet receive"
+        ]
+      },
+      {
+        "source_event_type": "rtl433.safety.leak.cleared",
+        "canonical_event_type": "safety_leak_cleared",
+        "status": "implemented",
+        "device_models": [
+          "rtl_433 leak_sensor profile"
+        ],
+        "required_permissions": [
+          "rtl_433 packet receive"
+        ]
+      },
+      {
+        "source_event_type": "rtl433.contact.opened",
+        "status": "excluded",
+        "device_models": [
+          "rtl_433 contact_sensor profile"
+        ],
+        "required_permissions": [
+          "rtl_433 packet receive"
+        ],
+        "notes": "An open contact is routine state and is not proof of forced entry."
+      },
+      {
+        "source_event_type": "rtl433.packet.matched",
+        "status": "excluded",
+        "device_models": [
+          "All rtl_433 profiles"
+        ],
+        "required_permissions": [
+          "rtl_433 packet receive"
+        ],
+        "notes": "This event multiplexes weather, contact, leak, and diagnostic packets and cannot safely represent a security incident."
+      }
+    ]
+  },
+  "entities": [
+    {
+      "id": "temperature_c",
+      "name": "Temperature",
+      "capabilities": [
+        "temperature_c"
+      ]
+    },
+    {
+      "id": "humidity_percent",
+      "name": "Humidity",
+      "capabilities": [
+        "humidity_percent"
+      ]
+    },
+    {
+      "id": "battery_ok",
+      "name": "Battery OK",
+      "capabilities": [
+        "battery_ok"
+      ]
+    },
+    {
+      "id": "wind_speed_kph",
+      "name": "Wind Speed",
+      "capabilities": [
+        "wind_speed_kph"
+      ]
+    },
+    {
+      "id": "rain_total_mm",
+      "name": "Rain Total",
+      "capabilities": [
+        "rain_total_mm"
+      ]
+    },
+    {
+      "id": "contact_open",
+      "name": "Contact Open",
+      "capabilities": [
+        "contact_open"
+      ]
+    },
+    {
+      "id": "leak_detected",
+      "name": "Leak Detected",
+      "capabilities": [
+        "leak_detected"
+      ]
+    },
+    {
+      "id": "signal_rssi",
+      "name": "Signal RSSI",
+      "capabilities": [
+        "signal_rssi"
+      ]
+    }
+  ],
+  "ui": {
+    "experience_packages": [
+      {
+        "registry_id": "io.piphi.radio-sensors",
+        "version_range": ">=0.1,<1",
+        "auto_install": true
+      }
+    ]
+  },
+  "onboarding": {
+    "mode": "discovery"
+  }
+}

@@ -1,0 +1,376 @@
+{
+  "behaviorSchemaVersion": "integration.behaviors.v2",
+  "devices": [
+    {
+      "id": "atmotube_pro",
+      "name": "Atmotube Pro",
+      "description": "Portable BLE air-quality monitor with VOC, particulate, comfort, pressure, and battery readings.",
+      "deviceClass": "air_quality_sensor",
+      "entityType": "sensor",
+      "capabilities": [
+        "voc_ppb",
+        "voc_ppm",
+        "temperature_c",
+        "humidity_percent",
+        "pressure_mbar",
+        "battery_percent",
+        "pm1_ugm3",
+        "pm25_ugm3",
+        "pm4_ugm3",
+        "pm10_ugm3"
+      ],
+      "intents": [
+        {
+          "id": "monitor_air_quality",
+          "label": "Monitor air quality",
+          "description": "React to VOC, particulate, comfort, pressure, and battery changes."
+        }
+      ],
+      "triggers": [
+        {
+          "id": "state_changed",
+          "label": "Air reading changes",
+          "description": "Start when Core records changed Atmotube capabilities.",
+          "capability": "telemetry.state",
+          "runtime": {
+            "event": "device.state_changed",
+            "source": "integration"
+          },
+          "freshness": {
+            "maxAgeSeconds": 180,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "when"
+          }
+        }
+      ],
+      "conditions": [
+        {
+          "id": "voc_threshold",
+          "label": "VOC threshold",
+          "type": "number",
+          "capability": "sensor.voc_ppb",
+          "operators": [
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "voc_ppb",
+            "operator": ">"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "pm25_threshold",
+          "label": "PM2.5 threshold",
+          "type": "number",
+          "capability": "sensor.pm25_ugm3",
+          "operators": [
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "pm25_ugm3",
+            "operator": ">"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "pm10_threshold",
+          "label": "PM10 threshold",
+          "type": "number",
+          "capability": "sensor.pm10_ugm3",
+          "operators": [
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "pm10_ugm3",
+            "operator": ">"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "temperature_threshold",
+          "label": "Temperature threshold",
+          "type": "number",
+          "capability": "sensor.temperature_c",
+          "operators": [
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "temperature_c",
+            "operator": ">"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "humidity_threshold",
+          "label": "Humidity threshold",
+          "type": "number",
+          "capability": "sensor.humidity_percent",
+          "operators": [
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "humidity_percent",
+            "operator": ">"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "battery_below",
+          "label": "Battery below threshold",
+          "type": "number",
+          "capability": "sensor.battery_percent",
+          "operators": [
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "battery_percent",
+            "operator": "<"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        }
+      ],
+      "actions": [
+        {
+          "id": "refresh",
+          "label": "Refresh sensor now",
+          "description": "Read and publish a fresh Atmotube sensor snapshot.",
+          "capability": "device.refresh",
+          "runtime": {
+            "command": "refresh"
+          },
+          "failure": {
+            "strategy": "retry_then_continue",
+            "retry": {
+              "maxAttempts": 1,
+              "delaySeconds": 2,
+              "backoff": "fixed"
+            },
+            "timeoutSeconds": 15,
+            "idempotent": true
+          },
+          "safety": {
+            "riskLevel": "low"
+          },
+          "ui": {
+            "group": "do_this"
+          }
+        }
+      ],
+      "freshness": {
+        "maxAgeSeconds": 180,
+        "staleDataMode": "block"
+      },
+      "ui": {
+        "icon": "wind",
+        "category": "air_quality_sensor"
+      }
+    }
+  ],
+  "templates": [
+    {
+      "id": "atmotube_pm25_guard",
+      "label": "Watch elevated Atmotube PM2.5",
+      "description": "Recheck the selected Atmotube when PM2.5 rises above 35 µg/m³, with a 15-minute cooldown.",
+      "category": "Air quality",
+      "deviceKey": "atmotube_pro",
+      "config": {
+        "automation_schema_version": "automation.behavior.v2",
+        "triggers": [
+          {
+            "id": "state_changed",
+            "label": "Atmotube reading changes",
+            "type": "integration_event",
+            "event": "device.state_changed",
+            "capability": "telemetry.state",
+            "enabled": true,
+            "sourceRef": {
+              "integrationId": "{{integrationId}}",
+              "integrationKey": "{{integrationKey}}",
+              "configId": "{{configId}}",
+              "behaviorDeviceKey": "atmotube_pro",
+              "optionKey": "state_changed",
+              "capability": "telemetry.state"
+            }
+          }
+        ],
+        "trigger": {
+          "id": "state_changed",
+          "label": "Atmotube reading changes",
+          "type": "integration_event",
+          "event": "device.state_changed",
+          "capability": "telemetry.state",
+          "enabled": true
+        },
+        "intent": "air_quality_monitoring",
+        "conditionTree": {
+          "id": "atmotube_pm25_guard_condition",
+          "label": "PM2.5 is above 35 µg/m³",
+          "field": "pm25_ugm3",
+          "operator": ">",
+          "value": 35,
+          "sourceRef": {
+            "integrationId": "{{integrationId}}",
+            "integrationKey": "{{integrationKey}}",
+            "configId": "{{configId}}",
+            "behaviorDeviceKey": "atmotube_pro",
+            "optionKey": "pm25_threshold",
+            "capability": "sensor.pm25_ugm3"
+          }
+        },
+        "actions": [
+          {
+            "id": "atmotube_pm25_guard_action",
+            "label": "Refresh Atmotube reading",
+            "action": "refresh",
+            "capability": "device.refresh",
+            "sourceRef": {
+              "integrationId": "{{integrationId}}",
+              "integrationKey": "{{integrationKey}}",
+              "configId": "{{configId}}",
+              "behaviorDeviceKey": "atmotube_pro",
+              "optionKey": "refresh",
+              "capability": "device.refresh"
+            },
+            "target": {
+              "mode": "selection",
+              "configIds": [
+                "{{configId}}"
+              ]
+            }
+          }
+        ],
+        "safety": {
+          "staleDataMode": "block",
+          "maxAgeSeconds": 300,
+          "requireFreshTrigger": true,
+          "dryRunFirst": true
+        },
+        "failure": {
+          "strategy": "follow_edges",
+          "fallbackBehaviorId": "",
+          "conditionTree": {
+            "op": "and",
+            "children": []
+          }
+        },
+        "stop": {
+          "never": true
+        },
+        "override": {
+          "mode": "continue"
+        },
+        "execution": {
+          "failureStrategy": "follow_edges",
+          "fallbackBehaviorId": "",
+          "dispatchMode": "runtime"
+        },
+        "policies": {
+          "execution": {
+            "failureStrategy": "follow_edges",
+            "fallbackBehaviorId": "",
+            "dispatchMode": "runtime"
+          },
+          "freshness": {
+            "staleDataMode": "block"
+          },
+          "manualOverride": {
+            "mode": "continue"
+          },
+          "cooldownSeconds": 900
+        }
+      },
+      "metadata": {
+        "recommended": true,
+        "requiresReview": true
+      }
+    }
+  ],
+  "telemetry": {
+    "capabilityMappings": [
+      {
+        "nativeMetric": "voc_ppb",
+        "capability": "sensor.voc_ppb"
+      },
+      {
+        "nativeMetric": "voc_ppm",
+        "capability": "sensor.voc_ppm"
+      },
+      {
+        "nativeMetric": "temperature_c",
+        "capability": "sensor.temperature_c"
+      },
+      {
+        "nativeMetric": "humidity_percent",
+        "capability": "sensor.humidity_percent"
+      },
+      {
+        "nativeMetric": "pressure_mbar",
+        "capability": "sensor.pressure_mbar"
+      },
+      {
+        "nativeMetric": "battery_percent",
+        "capability": "sensor.battery_percent"
+      },
+      {
+        "nativeMetric": "pm1_ugm3",
+        "capability": "sensor.pm1_ugm3"
+      },
+      {
+        "nativeMetric": "pm25_ugm3",
+        "capability": "sensor.pm25_ugm3"
+      },
+      {
+        "nativeMetric": "pm4_ugm3",
+        "capability": "sensor.pm4_ugm3"
+      },
+      {
+        "nativeMetric": "pm10_ugm3",
+        "capability": "sensor.pm10_ugm3"
+      }
+    ]
+  }
+}

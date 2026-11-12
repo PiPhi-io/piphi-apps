@@ -1,0 +1,164 @@
+{
+  "schema_version": "1",
+  "identity": {
+    "publisher_id": "io.piphi",
+    "package_id": "mikrotik-health",
+    "version": "0.1.1"
+  },
+  "name": "MikroTik Router Health",
+  "description": "CPU and memory usage from RouterOS read-only HTTPS REST resource data.",
+  "origin": "integration",
+  "owning_integration_id": "piphi-network-mikrotik-router",
+  "sdk_version_range": ">=0.6.1,<0.7",
+  "requires_integrations": [
+    {
+      "integration_id": "piphi-network-mikrotik-router",
+      "version_range": ">=0.1,<1",
+      "optional": false
+    }
+  ],
+  "recommended_for_integrations": [
+    "piphi-network-mikrotik-router"
+  ],
+  "widgets": [
+    {
+      "id": "resource-health",
+      "name": "Router Health",
+      "description": "Current CPU load and memory usage from a configured RouterOS device.",
+      "runtime": "declarative",
+      "presentation": {
+        "contract_version": "1",
+        "shell": "core",
+        "content_surface": "transparent",
+        "typography": "core",
+        "appearance_controls": [
+          "icon",
+          "title",
+          "surface",
+          "opacity",
+          "radius",
+          "shadow"
+        ]
+      },
+      "interaction_targets": [
+        {
+          "id": "card",
+          "label": "MikroTik router",
+          "kind": "card",
+          "allowed_actions": [
+            "more-info",
+            "popout",
+            "refresh"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "cpu",
+          "label": "CPU load",
+          "kind": "binding",
+          "binding_slot_id": "cpu",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "memory",
+          "label": "Memory used",
+          "kind": "binding",
+          "binding_slot_id": "memory",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        }
+      ],
+      "binding_slots": [
+        {
+          "id": "cpu",
+          "label": "CPU load",
+          "required": true,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "cpu_load_percent"
+          ],
+          "compatible_integration_ids": [
+            "piphi-network-mikrotik-router"
+          ],
+          "data_delivery": {"mode": "stream_preferred", "stale_after_seconds": 600}
+        },
+        {
+          "id": "memory",
+          "label": "Memory used",
+          "required": false,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "memory_used_percent"
+          ],
+          "compatible_integration_ids": [
+            "piphi-network-mikrotik-router"
+          ],
+          "data_delivery": {"mode": "stream_preferred", "stale_after_seconds": 600}
+        }
+      ],
+      "recipe": {
+        "schema_version": "1",
+        "layout": "grid",
+        "columns": 2,
+        "items": [
+          {
+            "type": "progress",
+            "slot_id": "cpu",
+            "label": "CPU",
+            "minimum": 0,
+            "maximum": 100,
+            "domain": "level",
+            "show_value": true,
+            "action": {
+              "type": "details",
+              "label": "View CPU history"
+            }
+          },
+          {
+            "type": "progress",
+            "slot_id": "memory",
+            "label": "Memory",
+            "minimum": 0,
+            "maximum": 100,
+            "domain": "level",
+            "show_value": true,
+            "action": {
+              "type": "details",
+              "label": "View memory history"
+            }
+          }
+        ]
+      },
+      "certification": {
+        "schema_version": "1",
+        "verified_gates": ["runtime", "persistence", "binding", "states", "responsive", "themes", "accessibility", "save-reload", "performance"],
+        "evidence": {
+          "runtime": ["core-profile:declarative-v2/runtime"],
+          "persistence": ["core-profile:declarative-v2/persistence"],
+          "binding": ["core-profile:declarative-v2/binding"],
+          "states": ["core-profile:declarative-v2/states"],
+          "responsive": ["core-profile:declarative-v2/responsive"],
+          "themes": ["core-profile:declarative-v2/themes"],
+          "accessibility": ["core-profile:declarative-v2/accessibility"],
+          "save-reload": ["core-profile:declarative-v2/save-reload"],
+          "performance": ["core-profile:declarative-v2/performance"]
+        }
+      },
+      "default_column_span": 3,
+      "default_row_span": 2
+    }
+  ]
+}

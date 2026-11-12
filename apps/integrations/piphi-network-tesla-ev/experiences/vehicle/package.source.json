@@ -1,0 +1,726 @@
+{
+  "schema_version": "1",
+  "identity": {
+    "publisher_id": "io.piphi",
+    "package_id": "tesla-vehicle",
+    "version": "0.2.1"
+  },
+  "name": "Tesla Vehicle",
+  "description": "Native read-only dashboard views for Tesla Vehicle.",
+  "origin": "integration",
+  "owning_integration_id": "piphi-network-tesla-ev",
+  "sdk_version_range": ">=0.6.1,<0.7",
+  "requires_integrations": [
+    {
+      "integration_id": "piphi-network-tesla-ev",
+      "version_range": ">=0.2,<1",
+      "optional": false
+    }
+  ],
+  "recommended_for_integrations": [
+    "piphi-network-tesla-ev"
+  ],
+  "widgets": [
+    {
+      "id": "charging",
+      "name": "Tesla Charging",
+      "description": "Current charging session and expected completion",
+      "runtime": "declarative",
+      "presentation": {
+        "contract_version": "1",
+        "shell": "core",
+        "content_surface": "transparent",
+        "typography": "core",
+        "appearance_controls": [
+          "icon",
+          "title",
+          "surface",
+          "opacity",
+          "radius",
+          "shadow"
+        ]
+      },
+      "interaction_targets": [
+        {
+          "id": "card",
+          "label": "Tesla Charging",
+          "kind": "card",
+          "allowed_actions": [
+            "more-info",
+            "popout",
+            "refresh"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "charging_state",
+          "label": "Charging state",
+          "kind": "binding",
+          "binding_slot_id": "charging_state",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "charger_power_kw",
+          "label": "Charge power",
+          "kind": "binding",
+          "binding_slot_id": "charger_power_kw",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "charge_limit_soc",
+          "label": "Charge limit",
+          "kind": "binding",
+          "binding_slot_id": "charge_limit_soc",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "time_to_full_charge_hours",
+          "label": "Time remaining",
+          "kind": "binding",
+          "binding_slot_id": "time_to_full_charge_hours",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "plugged_in",
+          "label": "Plugged in",
+          "kind": "binding",
+          "binding_slot_id": "plugged_in",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        }
+      ],
+      "binding_slots": [
+        {
+          "id": "charging_state",
+          "label": "Charging state",
+          "required": true,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "charging_state"
+          ],
+          "compatible_integration_ids": [
+            "piphi-network-tesla-ev"
+          ]
+        },
+        {
+          "id": "charger_power_kw",
+          "label": "Charge power",
+          "required": false,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "charger_power_kw"
+          ],
+          "compatible_integration_ids": [
+            "piphi-network-tesla-ev"
+          ]
+        },
+        {
+          "id": "charge_limit_soc",
+          "label": "Charge limit",
+          "required": false,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "charge_limit_soc"
+          ],
+          "compatible_integration_ids": [
+            "piphi-network-tesla-ev"
+          ]
+        },
+        {
+          "id": "time_to_full_charge_hours",
+          "label": "Time remaining",
+          "required": false,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "time_to_full_charge_hours"
+          ],
+          "compatible_integration_ids": [
+            "piphi-network-tesla-ev"
+          ]
+        },
+        {
+          "id": "plugged_in",
+          "label": "Plugged in",
+          "required": false,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "plugged_in"
+          ],
+          "compatible_integration_ids": [
+            "piphi-network-tesla-ev"
+          ]
+        }
+      ],
+      "recipe": {
+        "schema_version": "1",
+        "layout": "grid",
+        "columns": 2,
+        "items": [
+          {
+            "type": "metric",
+            "slot_id": "charging_state",
+            "label": "Charging state",
+            "action": {
+              "type": "details",
+              "label": "View charging state details"
+            }
+          },
+          {
+            "type": "metric",
+            "slot_id": "charger_power_kw",
+            "label": "Charge power",
+            "domain": "power",
+            "action": {
+              "type": "details",
+              "label": "View charge power details"
+            }
+          },
+          {
+            "type": "progress",
+            "slot_id": "charge_limit_soc",
+            "label": "Charge limit",
+            "minimum": 0,
+            "maximum": 100,
+            "domain": "level",
+            "show_value": true,
+            "action": {
+              "type": "details",
+              "label": "View charge limit details"
+            }
+          },
+          {
+            "type": "metric",
+            "slot_id": "time_to_full_charge_hours",
+            "label": "Time remaining",
+            "action": {
+              "type": "details",
+              "label": "View time remaining details"
+            }
+          },
+          {
+            "type": "status",
+            "slot_id": "plugged_in",
+            "label": "Plugged in",
+            "domain": "generic",
+            "action": {
+              "type": "details",
+              "label": "View plugged in details"
+            }
+          }
+        ]
+      },
+      "certification": {
+        "schema_version": "1",
+        "verified_gates": ["runtime", "persistence", "binding", "states", "responsive", "themes", "accessibility", "save-reload", "performance"],
+        "evidence": {
+          "runtime": ["core-profile:declarative-v2/runtime"],
+          "persistence": ["core-profile:declarative-v2/persistence"],
+          "binding": ["core-profile:declarative-v2/binding"],
+          "states": ["core-profile:declarative-v2/states"],
+          "responsive": ["core-profile:declarative-v2/responsive"],
+          "themes": ["core-profile:declarative-v2/themes"],
+          "accessibility": ["core-profile:declarative-v2/accessibility"],
+          "save-reload": ["core-profile:declarative-v2/save-reload"],
+          "performance": ["core-profile:declarative-v2/performance"]
+        }
+      },
+      "default_column_span": 4,
+      "default_row_span": 3
+    },
+    {
+      "id": "motion",
+      "name": "Tesla Motion",
+      "description": "Vehicle motion and drive state",
+      "runtime": "declarative",
+      "presentation": {
+        "contract_version": "1",
+        "shell": "core",
+        "content_surface": "transparent",
+        "typography": "core",
+        "appearance_controls": [
+          "icon",
+          "title",
+          "surface",
+          "opacity",
+          "radius",
+          "shadow"
+        ]
+      },
+      "interaction_targets": [
+        {
+          "id": "card",
+          "label": "Tesla Motion",
+          "kind": "card",
+          "allowed_actions": [
+            "more-info",
+            "popout",
+            "refresh"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "vehicle_state",
+          "label": "Vehicle state",
+          "kind": "binding",
+          "binding_slot_id": "vehicle_state",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "speed_mph",
+          "label": "Speed",
+          "kind": "binding",
+          "binding_slot_id": "speed_mph",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "shift_state",
+          "label": "Gear",
+          "kind": "binding",
+          "binding_slot_id": "shift_state",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        }
+      ],
+      "binding_slots": [
+        {
+          "id": "vehicle_state",
+          "label": "Vehicle state",
+          "required": true,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "vehicle_state"
+          ],
+          "compatible_integration_ids": [
+            "piphi-network-tesla-ev"
+          ]
+        },
+        {
+          "id": "speed_mph",
+          "label": "Speed",
+          "required": false,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "speed_mph"
+          ],
+          "compatible_integration_ids": [
+            "piphi-network-tesla-ev"
+          ]
+        },
+        {
+          "id": "shift_state",
+          "label": "Gear",
+          "required": false,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "shift_state"
+          ],
+          "compatible_integration_ids": [
+            "piphi-network-tesla-ev"
+          ]
+        }
+      ],
+      "recipe": {
+        "schema_version": "1",
+        "layout": "grid",
+        "columns": 2,
+        "items": [
+          {
+            "type": "metric",
+            "slot_id": "vehicle_state",
+            "label": "Vehicle state",
+            "action": {
+              "type": "details",
+              "label": "View vehicle state details"
+            }
+          },
+          {
+            "type": "metric",
+            "slot_id": "speed_mph",
+            "label": "Speed",
+            "action": {
+              "type": "details",
+              "label": "View speed details"
+            }
+          },
+          {
+            "type": "metric",
+            "slot_id": "shift_state",
+            "label": "Gear",
+            "action": {
+              "type": "details",
+              "label": "View gear details"
+            }
+          }
+        ]
+      },
+      "certification": {
+        "schema_version": "1",
+        "verified_gates": ["runtime", "persistence", "binding", "states", "responsive", "themes", "accessibility", "save-reload", "performance"],
+        "evidence": {
+          "runtime": ["core-profile:declarative-v2/runtime"],
+          "persistence": ["core-profile:declarative-v2/persistence"],
+          "binding": ["core-profile:declarative-v2/binding"],
+          "states": ["core-profile:declarative-v2/states"],
+          "responsive": ["core-profile:declarative-v2/responsive"],
+          "themes": ["core-profile:declarative-v2/themes"],
+          "accessibility": ["core-profile:declarative-v2/accessibility"],
+          "save-reload": ["core-profile:declarative-v2/save-reload"],
+          "performance": ["core-profile:declarative-v2/performance"]
+        }
+      },
+      "default_column_span": 4,
+      "default_row_span": 2
+    },
+    {
+      "id": "location",
+      "name": "Tesla Location",
+      "description": "Last reported coordinates and heading",
+      "runtime": "declarative",
+      "presentation": {
+        "contract_version": "1",
+        "shell": "core",
+        "content_surface": "transparent",
+        "typography": "core",
+        "appearance_controls": [
+          "icon",
+          "title",
+          "surface",
+          "opacity",
+          "radius",
+          "shadow"
+        ]
+      },
+      "interaction_targets": [
+        {
+          "id": "card",
+          "label": "Tesla Location",
+          "kind": "card",
+          "allowed_actions": [
+            "more-info",
+            "popout",
+            "refresh"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "latitude",
+          "label": "Latitude",
+          "kind": "binding",
+          "binding_slot_id": "latitude",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "longitude",
+          "label": "Longitude",
+          "kind": "binding",
+          "binding_slot_id": "longitude",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "heading_degrees",
+          "label": "Heading",
+          "kind": "binding",
+          "binding_slot_id": "heading_degrees",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        }
+      ],
+      "binding_slots": [
+        {
+          "id": "latitude",
+          "label": "Latitude",
+          "required": true,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "latitude"
+          ],
+          "compatible_integration_ids": [
+            "piphi-network-tesla-ev"
+          ]
+        },
+        {
+          "id": "longitude",
+          "label": "Longitude",
+          "required": false,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "longitude"
+          ],
+          "compatible_integration_ids": [
+            "piphi-network-tesla-ev"
+          ]
+        },
+        {
+          "id": "heading_degrees",
+          "label": "Heading",
+          "required": false,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "heading_degrees"
+          ],
+          "compatible_integration_ids": [
+            "piphi-network-tesla-ev"
+          ]
+        }
+      ],
+      "recipe": {
+        "schema_version": "1",
+        "layout": "grid",
+        "columns": 2,
+        "items": [
+          {
+            "type": "metric",
+            "slot_id": "latitude",
+            "label": "Latitude",
+            "action": {
+              "type": "details",
+              "label": "View latitude details"
+            }
+          },
+          {
+            "type": "metric",
+            "slot_id": "longitude",
+            "label": "Longitude",
+            "action": {
+              "type": "details",
+              "label": "View longitude details"
+            }
+          },
+          {
+            "type": "metric",
+            "slot_id": "heading_degrees",
+            "label": "Heading",
+            "action": {
+              "type": "details",
+              "label": "View heading details"
+            }
+          }
+        ]
+      },
+      "certification": {
+        "schema_version": "1",
+        "verified_gates": ["runtime", "persistence", "binding", "states", "responsive", "themes", "accessibility", "save-reload", "performance"],
+        "evidence": {
+          "runtime": ["core-profile:declarative-v2/runtime"],
+          "persistence": ["core-profile:declarative-v2/persistence"],
+          "binding": ["core-profile:declarative-v2/binding"],
+          "states": ["core-profile:declarative-v2/states"],
+          "responsive": ["core-profile:declarative-v2/responsive"],
+          "themes": ["core-profile:declarative-v2/themes"],
+          "accessibility": ["core-profile:declarative-v2/accessibility"],
+          "save-reload": ["core-profile:declarative-v2/save-reload"],
+          "performance": ["core-profile:declarative-v2/performance"]
+        }
+      },
+      "default_column_span": 4,
+      "default_row_span": 2
+    },
+    {
+      "id": "battery",
+      "name": "Tesla Battery",
+      "description": "Battery level and estimated range",
+      "runtime": "declarative",
+      "presentation": {
+        "contract_version": "1",
+        "shell": "core",
+        "content_surface": "transparent",
+        "typography": "core",
+        "appearance_controls": [
+          "icon",
+          "title",
+          "surface",
+          "opacity",
+          "radius",
+          "shadow"
+        ]
+      },
+      "interaction_targets": [
+        {
+          "id": "card",
+          "label": "Tesla Battery",
+          "kind": "card",
+          "allowed_actions": [
+            "more-info",
+            "popout",
+            "refresh"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "battery_level",
+          "label": "Battery",
+          "kind": "binding",
+          "binding_slot_id": "battery_level",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "battery_range_miles",
+          "label": "Range",
+          "kind": "binding",
+          "binding_slot_id": "battery_range_miles",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        }
+      ],
+      "binding_slots": [
+        {
+          "id": "battery_level",
+          "label": "Battery",
+          "required": true,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "battery_level"
+          ],
+          "compatible_integration_ids": [
+            "piphi-network-tesla-ev"
+          ]
+        },
+        {
+          "id": "battery_range_miles",
+          "label": "Range",
+          "required": false,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "battery_range_miles"
+          ],
+          "compatible_integration_ids": [
+            "piphi-network-tesla-ev"
+          ]
+        }
+      ],
+      "recipe": {
+        "schema_version": "1",
+        "layout": "grid",
+        "columns": 2,
+        "items": [
+          {
+            "type": "progress",
+            "slot_id": "battery_level",
+            "label": "Battery",
+            "minimum": 0,
+            "maximum": 100,
+            "domain": "battery",
+            "show_value": true,
+            "action": {
+              "type": "details",
+              "label": "View battery details"
+            }
+          },
+          {
+            "type": "metric",
+            "slot_id": "battery_range_miles",
+            "label": "Range",
+            "action": {
+              "type": "details",
+              "label": "View range details"
+            }
+          }
+        ]
+      },
+      "certification": {
+        "schema_version": "1",
+        "verified_gates": ["runtime", "persistence", "binding", "states", "responsive", "themes", "accessibility", "save-reload", "performance"],
+        "evidence": {
+          "runtime": ["core-profile:declarative-v2/runtime"],
+          "persistence": ["core-profile:declarative-v2/persistence"],
+          "binding": ["core-profile:declarative-v2/binding"],
+          "states": ["core-profile:declarative-v2/states"],
+          "responsive": ["core-profile:declarative-v2/responsive"],
+          "themes": ["core-profile:declarative-v2/themes"],
+          "accessibility": ["core-profile:declarative-v2/accessibility"],
+          "save-reload": ["core-profile:declarative-v2/save-reload"],
+          "performance": ["core-profile:declarative-v2/performance"]
+        }
+      },
+      "default_column_span": 4,
+      "default_row_span": 2
+    }
+  ]
+}

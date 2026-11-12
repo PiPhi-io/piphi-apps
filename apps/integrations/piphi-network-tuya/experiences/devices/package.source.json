@@ -1,0 +1,1403 @@
+{
+  "schema_version": "1",
+  "identity": {
+    "publisher_id": "io.piphi",
+    "package_id": "tuya-devices",
+    "version": "0.1.4"
+  },
+  "name": "Tuya Devices",
+  "description": "Native read-only dashboard views for Tuya Devices.",
+  "origin": "integration",
+  "owning_integration_id": "piphi-network-tuya",
+  "sdk_version_range": ">=0.6.1,<0.7",
+  "requires_integrations": [
+    {
+      "integration_id": "piphi-network-tuya",
+      "version_range": ">=0.1,<1",
+      "optional": false
+    }
+  ],
+  "recommended_for_integrations": [
+    "piphi-network-tuya"
+  ],
+  "widgets": [
+    {
+      "id": "plug",
+      "name": "Tuya Plug",
+      "description": "Power state and live electrical measurements",
+      "runtime": "declarative",
+      "presentation": {
+        "contract_version": "1",
+        "shell": "core",
+        "content_surface": "transparent",
+        "typography": "core",
+        "appearance_controls": [
+          "icon",
+          "title",
+          "surface",
+          "opacity",
+          "radius",
+          "shadow"
+        ]
+      },
+      "interaction_targets": [
+        {
+          "id": "card",
+          "label": "Tuya Plug",
+          "kind": "card",
+          "allowed_actions": [
+            "more-info",
+            "popout",
+            "refresh"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "power",
+          "label": "On",
+          "kind": "binding",
+          "binding_slot_id": "power",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "power_w",
+          "label": "Power",
+          "kind": "binding",
+          "binding_slot_id": "power_w",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "voltage_v",
+          "label": "Voltage",
+          "kind": "binding",
+          "binding_slot_id": "voltage_v",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "current_ma",
+          "label": "Current",
+          "kind": "binding",
+          "binding_slot_id": "current_ma",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        }
+      ],
+      "binding_slots": [
+        {
+          "id": "power",
+          "label": "On",
+          "required": true,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "power"
+          ],
+          "compatible_integration_ids": [
+            "piphi-network-tuya"
+          ]
+        },
+        {
+          "id": "power_w",
+          "label": "Power",
+          "required": false,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "power_w"
+          ],
+          "compatible_integration_ids": [
+            "piphi-network-tuya"
+          ]
+        },
+        {
+          "id": "voltage_v",
+          "label": "Voltage",
+          "required": false,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "voltage_v"
+          ],
+          "compatible_integration_ids": [
+            "piphi-network-tuya"
+          ]
+        },
+        {
+          "id": "current_ma",
+          "label": "Current",
+          "required": false,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "current_ma"
+          ],
+          "compatible_integration_ids": [
+            "piphi-network-tuya"
+          ]
+        }
+      ],
+      "recipe": {
+        "schema_version": "1",
+        "layout": "grid",
+        "columns": 2,
+        "items": [
+          {
+            "type": "status",
+            "slot_id": "power",
+            "label": "On",
+            "domain": "switch",
+            "action": {
+              "type": "details",
+              "label": "View on details"
+            }
+          },
+          {
+            "type": "metric",
+            "slot_id": "power_w",
+            "label": "Power",
+            "domain": "power",
+            "action": {
+              "type": "details",
+              "label": "View power details"
+            }
+          },
+          {
+            "type": "metric",
+            "slot_id": "voltage_v",
+            "label": "Voltage",
+            "action": {
+              "type": "details",
+              "label": "View voltage details"
+            }
+          },
+          {
+            "type": "metric",
+            "slot_id": "current_ma",
+            "label": "Current",
+            "action": {
+              "type": "details",
+              "label": "View current details"
+            }
+          }
+        ]
+      },
+      "certification": {
+        "schema_version": "1",
+        "verified_gates": [
+          "runtime",
+          "persistence",
+          "binding",
+          "states",
+          "responsive",
+          "themes",
+          "accessibility",
+          "save-reload",
+          "performance"
+        ],
+        "evidence": {
+          "runtime": [
+            "core-profile:declarative-v2/runtime"
+          ],
+          "persistence": [
+            "core-profile:declarative-v2/persistence"
+          ],
+          "binding": [
+            "core-profile:declarative-v2/binding"
+          ],
+          "states": [
+            "core-profile:declarative-v2/states"
+          ],
+          "responsive": [
+            "core-profile:declarative-v2/responsive"
+          ],
+          "themes": [
+            "core-profile:declarative-v2/themes"
+          ],
+          "accessibility": [
+            "core-profile:declarative-v2/accessibility"
+          ],
+          "save-reload": [
+            "core-profile:declarative-v2/save-reload"
+          ],
+          "performance": [
+            "core-profile:declarative-v2/performance"
+          ]
+        }
+      },
+      "default_column_span": 4,
+      "default_row_span": 2
+    },
+    {
+      "id": "light",
+      "name": "Tuya Light",
+      "description": "Power, brightness, and color temperature",
+      "runtime": "declarative",
+      "presentation": {
+        "contract_version": "1",
+        "shell": "core",
+        "content_surface": "transparent",
+        "typography": "core",
+        "appearance_controls": [
+          "icon",
+          "title",
+          "surface",
+          "opacity",
+          "radius",
+          "shadow"
+        ]
+      },
+      "interaction_targets": [
+        {
+          "id": "card",
+          "label": "Tuya Light",
+          "kind": "card",
+          "allowed_actions": [
+            "more-info",
+            "popout",
+            "refresh"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "power",
+          "label": "On",
+          "kind": "binding",
+          "binding_slot_id": "power",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "brightness_percent",
+          "label": "Brightness",
+          "kind": "binding",
+          "binding_slot_id": "brightness_percent",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "color_temp_percent",
+          "label": "Color temperature",
+          "kind": "binding",
+          "binding_slot_id": "color_temp_percent",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        }
+      ],
+      "binding_slots": [
+        {
+          "id": "power",
+          "label": "On",
+          "required": true,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "power"
+          ],
+          "compatible_integration_ids": [
+            "piphi-network-tuya"
+          ]
+        },
+        {
+          "id": "brightness_percent",
+          "label": "Brightness",
+          "required": false,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "brightness_percent"
+          ],
+          "compatible_integration_ids": [
+            "piphi-network-tuya"
+          ]
+        },
+        {
+          "id": "color_temp_percent",
+          "label": "Color temperature",
+          "required": false,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "color_temp_percent"
+          ],
+          "compatible_integration_ids": [
+            "piphi-network-tuya"
+          ]
+        }
+      ],
+      "recipe": {
+        "schema_version": "1",
+        "layout": "grid",
+        "columns": 2,
+        "items": [
+          {
+            "type": "status",
+            "slot_id": "power",
+            "label": "On",
+            "domain": "light",
+            "action": {
+              "type": "details",
+              "label": "View on details"
+            }
+          },
+          {
+            "type": "progress",
+            "slot_id": "brightness_percent",
+            "label": "Brightness",
+            "minimum": 0,
+            "maximum": 100,
+            "domain": "level",
+            "show_value": true,
+            "action": {
+              "type": "details",
+              "label": "View brightness details"
+            }
+          },
+          {
+            "type": "progress",
+            "slot_id": "color_temp_percent",
+            "label": "Color temperature",
+            "minimum": 0,
+            "maximum": 100,
+            "domain": "level",
+            "show_value": true,
+            "action": {
+              "type": "details",
+              "label": "View color temperature details"
+            }
+          }
+        ]
+      },
+      "certification": {
+        "schema_version": "1",
+        "verified_gates": [
+          "runtime",
+          "persistence",
+          "binding",
+          "states",
+          "responsive",
+          "themes",
+          "accessibility",
+          "save-reload",
+          "performance"
+        ],
+        "evidence": {
+          "runtime": [
+            "core-profile:declarative-v2/runtime"
+          ],
+          "persistence": [
+            "core-profile:declarative-v2/persistence"
+          ],
+          "binding": [
+            "core-profile:declarative-v2/binding"
+          ],
+          "states": [
+            "core-profile:declarative-v2/states"
+          ],
+          "responsive": [
+            "core-profile:declarative-v2/responsive"
+          ],
+          "themes": [
+            "core-profile:declarative-v2/themes"
+          ],
+          "accessibility": [
+            "core-profile:declarative-v2/accessibility"
+          ],
+          "save-reload": [
+            "core-profile:declarative-v2/save-reload"
+          ],
+          "performance": [
+            "core-profile:declarative-v2/performance"
+          ]
+        }
+      },
+      "default_column_span": 4,
+      "default_row_span": 2
+    },
+    {
+      "id": "fan",
+      "name": "Tuya Fan",
+      "description": "Power, speed, and oscillation",
+      "runtime": "declarative",
+      "presentation": {
+        "contract_version": "1",
+        "shell": "core",
+        "content_surface": "transparent",
+        "typography": "core",
+        "appearance_controls": [
+          "icon",
+          "title",
+          "surface",
+          "opacity",
+          "radius",
+          "shadow"
+        ]
+      },
+      "interaction_targets": [
+        {
+          "id": "card",
+          "label": "Tuya Fan",
+          "kind": "card",
+          "allowed_actions": [
+            "more-info",
+            "popout",
+            "refresh"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "power",
+          "label": "On",
+          "kind": "binding",
+          "binding_slot_id": "power",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "fan_speed_percent",
+          "label": "Speed",
+          "kind": "binding",
+          "binding_slot_id": "fan_speed_percent",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "oscillating",
+          "label": "Oscillating",
+          "kind": "binding",
+          "binding_slot_id": "oscillating",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        }
+      ],
+      "binding_slots": [
+        {
+          "id": "power",
+          "label": "On",
+          "required": true,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "power"
+          ],
+          "compatible_integration_ids": [
+            "piphi-network-tuya"
+          ]
+        },
+        {
+          "id": "fan_speed_percent",
+          "label": "Speed",
+          "required": false,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "fan_speed_percent"
+          ],
+          "compatible_integration_ids": [
+            "piphi-network-tuya"
+          ]
+        },
+        {
+          "id": "oscillating",
+          "label": "Oscillating",
+          "required": false,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "oscillating"
+          ],
+          "compatible_integration_ids": [
+            "piphi-network-tuya"
+          ]
+        }
+      ],
+      "recipe": {
+        "schema_version": "1",
+        "layout": "grid",
+        "columns": 2,
+        "items": [
+          {
+            "type": "status",
+            "slot_id": "power",
+            "label": "On",
+            "domain": "switch",
+            "action": {
+              "type": "details",
+              "label": "View on details"
+            }
+          },
+          {
+            "type": "progress",
+            "slot_id": "fan_speed_percent",
+            "label": "Speed",
+            "minimum": 0,
+            "maximum": 100,
+            "domain": "level",
+            "show_value": true,
+            "action": {
+              "type": "details",
+              "label": "View speed details"
+            }
+          },
+          {
+            "type": "status",
+            "slot_id": "oscillating",
+            "label": "Oscillating",
+            "domain": "generic",
+            "action": {
+              "type": "details",
+              "label": "View oscillating details"
+            }
+          }
+        ]
+      },
+      "certification": {
+        "schema_version": "1",
+        "verified_gates": [
+          "runtime",
+          "persistence",
+          "binding",
+          "states",
+          "responsive",
+          "themes",
+          "accessibility",
+          "save-reload",
+          "performance"
+        ],
+        "evidence": {
+          "runtime": [
+            "core-profile:declarative-v2/runtime"
+          ],
+          "persistence": [
+            "core-profile:declarative-v2/persistence"
+          ],
+          "binding": [
+            "core-profile:declarative-v2/binding"
+          ],
+          "states": [
+            "core-profile:declarative-v2/states"
+          ],
+          "responsive": [
+            "core-profile:declarative-v2/responsive"
+          ],
+          "themes": [
+            "core-profile:declarative-v2/themes"
+          ],
+          "accessibility": [
+            "core-profile:declarative-v2/accessibility"
+          ],
+          "save-reload": [
+            "core-profile:declarative-v2/save-reload"
+          ],
+          "performance": [
+            "core-profile:declarative-v2/performance"
+          ]
+        }
+      },
+      "default_column_span": 4,
+      "default_row_span": 2
+    },
+    {
+      "id": "cover",
+      "name": "Tuya Cover",
+      "description": "Position and motion state",
+      "runtime": "declarative",
+      "presentation": {
+        "contract_version": "1",
+        "shell": "core",
+        "content_surface": "transparent",
+        "typography": "core",
+        "appearance_controls": [
+          "icon",
+          "title",
+          "surface",
+          "opacity",
+          "radius",
+          "shadow"
+        ]
+      },
+      "interaction_targets": [
+        {
+          "id": "card",
+          "label": "Tuya Cover",
+          "kind": "card",
+          "allowed_actions": [
+            "more-info",
+            "popout",
+            "refresh"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "position_percent",
+          "label": "Position",
+          "kind": "binding",
+          "binding_slot_id": "position_percent",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "motion_state",
+          "label": "Motion",
+          "kind": "binding",
+          "binding_slot_id": "motion_state",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        }
+      ],
+      "binding_slots": [
+        {
+          "id": "position_percent",
+          "label": "Position",
+          "required": true,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "position_percent"
+          ],
+          "compatible_integration_ids": [
+            "piphi-network-tuya"
+          ]
+        },
+        {
+          "id": "motion_state",
+          "label": "Motion",
+          "required": false,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "motion_state"
+          ],
+          "compatible_integration_ids": [
+            "piphi-network-tuya"
+          ]
+        }
+      ],
+      "recipe": {
+        "schema_version": "1",
+        "layout": "grid",
+        "columns": 2,
+        "items": [
+          {
+            "type": "progress",
+            "slot_id": "position_percent",
+            "label": "Position",
+            "minimum": 0,
+            "maximum": 100,
+            "domain": "level",
+            "show_value": true,
+            "action": {
+              "type": "details",
+              "label": "View position details"
+            }
+          },
+          {
+            "type": "metric",
+            "slot_id": "motion_state",
+            "label": "Motion",
+            "action": {
+              "type": "details",
+              "label": "View motion details"
+            }
+          }
+        ]
+      },
+      "certification": {
+        "schema_version": "1",
+        "verified_gates": [
+          "runtime",
+          "persistence",
+          "binding",
+          "states",
+          "responsive",
+          "themes",
+          "accessibility",
+          "save-reload",
+          "performance"
+        ],
+        "evidence": {
+          "runtime": [
+            "core-profile:declarative-v2/runtime"
+          ],
+          "persistence": [
+            "core-profile:declarative-v2/persistence"
+          ],
+          "binding": [
+            "core-profile:declarative-v2/binding"
+          ],
+          "states": [
+            "core-profile:declarative-v2/states"
+          ],
+          "responsive": [
+            "core-profile:declarative-v2/responsive"
+          ],
+          "themes": [
+            "core-profile:declarative-v2/themes"
+          ],
+          "accessibility": [
+            "core-profile:declarative-v2/accessibility"
+          ],
+          "save-reload": [
+            "core-profile:declarative-v2/save-reload"
+          ],
+          "performance": [
+            "core-profile:declarative-v2/performance"
+          ]
+        }
+      },
+      "default_column_span": 4,
+      "default_row_span": 2
+    },
+    {
+      "id": "climate",
+      "name": "Tuya Climate",
+      "description": "Current and target temperature",
+      "runtime": "declarative",
+      "presentation": {
+        "contract_version": "1",
+        "shell": "core",
+        "content_surface": "transparent",
+        "typography": "core",
+        "appearance_controls": [
+          "icon",
+          "title",
+          "surface",
+          "opacity",
+          "radius",
+          "shadow"
+        ]
+      },
+      "interaction_targets": [
+        {
+          "id": "card",
+          "label": "Tuya Climate",
+          "kind": "card",
+          "allowed_actions": [
+            "more-info",
+            "popout",
+            "refresh"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "temperature_c",
+          "label": "Temperature",
+          "kind": "binding",
+          "binding_slot_id": "temperature_c",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "target_temperature_c",
+          "label": "Target",
+          "kind": "binding",
+          "binding_slot_id": "target_temperature_c",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "mode",
+          "label": "Mode",
+          "kind": "binding",
+          "binding_slot_id": "mode",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        }
+      ],
+      "binding_slots": [
+        {
+          "id": "temperature_c",
+          "label": "Temperature",
+          "required": true,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "temperature_c"
+          ],
+          "compatible_integration_ids": [
+            "piphi-network-tuya"
+          ]
+        },
+        {
+          "id": "target_temperature_c",
+          "label": "Target",
+          "required": false,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "target_temperature_c"
+          ],
+          "compatible_integration_ids": [
+            "piphi-network-tuya"
+          ]
+        },
+        {
+          "id": "mode",
+          "label": "Mode",
+          "required": false,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "mode"
+          ],
+          "compatible_integration_ids": [
+            "piphi-network-tuya"
+          ]
+        }
+      ],
+      "recipe": {
+        "schema_version": "1",
+        "layout": "grid",
+        "columns": 2,
+        "items": [
+          {
+            "type": "metric",
+            "slot_id": "temperature_c",
+            "label": "Temperature",
+            "format": "temperature",
+            "domain": "temperature",
+            "action": {
+              "type": "details",
+              "label": "View temperature details"
+            }
+          },
+          {
+            "type": "metric",
+            "slot_id": "target_temperature_c",
+            "label": "Target",
+            "format": "temperature",
+            "domain": "temperature",
+            "action": {
+              "type": "details",
+              "label": "View target details"
+            }
+          },
+          {
+            "type": "metric",
+            "slot_id": "mode",
+            "label": "Mode",
+            "action": {
+              "type": "details",
+              "label": "View mode details"
+            }
+          }
+        ]
+      },
+      "certification": {
+        "schema_version": "1",
+        "verified_gates": [
+          "runtime",
+          "persistence",
+          "binding",
+          "states",
+          "responsive",
+          "themes",
+          "accessibility",
+          "save-reload",
+          "performance"
+        ],
+        "evidence": {
+          "runtime": [
+            "core-profile:declarative-v2/runtime"
+          ],
+          "persistence": [
+            "core-profile:declarative-v2/persistence"
+          ],
+          "binding": [
+            "core-profile:declarative-v2/binding"
+          ],
+          "states": [
+            "core-profile:declarative-v2/states"
+          ],
+          "responsive": [
+            "core-profile:declarative-v2/responsive"
+          ],
+          "themes": [
+            "core-profile:declarative-v2/themes"
+          ],
+          "accessibility": [
+            "core-profile:declarative-v2/accessibility"
+          ],
+          "save-reload": [
+            "core-profile:declarative-v2/save-reload"
+          ],
+          "performance": [
+            "core-profile:declarative-v2/performance"
+          ]
+        }
+      },
+      "default_column_span": 4,
+      "default_row_span": 2
+    },
+    {
+      "id": "humidifier",
+      "name": "Tuya Humidifier",
+      "description": "Current and target humidity",
+      "runtime": "declarative",
+      "presentation": {
+        "contract_version": "1",
+        "shell": "core",
+        "content_surface": "transparent",
+        "typography": "core",
+        "appearance_controls": [
+          "icon",
+          "title",
+          "surface",
+          "opacity",
+          "radius",
+          "shadow"
+        ]
+      },
+      "interaction_targets": [
+        {
+          "id": "card",
+          "label": "Tuya Humidifier",
+          "kind": "card",
+          "allowed_actions": [
+            "more-info",
+            "popout",
+            "refresh"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "humidity_percent",
+          "label": "Humidity",
+          "kind": "binding",
+          "binding_slot_id": "humidity_percent",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "target_humidity_percent",
+          "label": "Target",
+          "kind": "binding",
+          "binding_slot_id": "target_humidity_percent",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "mode",
+          "label": "Mode",
+          "kind": "binding",
+          "binding_slot_id": "mode",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        }
+      ],
+      "binding_slots": [
+        {
+          "id": "humidity_percent",
+          "label": "Humidity",
+          "required": true,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "humidity_percent"
+          ],
+          "compatible_integration_ids": [
+            "piphi-network-tuya"
+          ]
+        },
+        {
+          "id": "target_humidity_percent",
+          "label": "Target",
+          "required": false,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "target_humidity_percent"
+          ],
+          "compatible_integration_ids": [
+            "piphi-network-tuya"
+          ]
+        },
+        {
+          "id": "mode",
+          "label": "Mode",
+          "required": false,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "mode"
+          ],
+          "compatible_integration_ids": [
+            "piphi-network-tuya"
+          ]
+        }
+      ],
+      "recipe": {
+        "schema_version": "1",
+        "layout": "grid",
+        "columns": 2,
+        "items": [
+          {
+            "type": "metric",
+            "slot_id": "humidity_percent",
+            "label": "Humidity",
+            "format": "percent",
+            "domain": "humidity",
+            "action": {
+              "type": "details",
+              "label": "View humidity details"
+            }
+          },
+          {
+            "type": "metric",
+            "slot_id": "target_humidity_percent",
+            "label": "Target",
+            "format": "percent",
+            "domain": "humidity",
+            "action": {
+              "type": "details",
+              "label": "View target details"
+            }
+          },
+          {
+            "type": "metric",
+            "slot_id": "mode",
+            "label": "Mode",
+            "action": {
+              "type": "details",
+              "label": "View mode details"
+            }
+          }
+        ]
+      },
+      "certification": {
+        "schema_version": "1",
+        "verified_gates": [
+          "runtime",
+          "persistence",
+          "binding",
+          "states",
+          "responsive",
+          "themes",
+          "accessibility",
+          "save-reload",
+          "performance"
+        ],
+        "evidence": {
+          "runtime": [
+            "core-profile:declarative-v2/runtime"
+          ],
+          "persistence": [
+            "core-profile:declarative-v2/persistence"
+          ],
+          "binding": [
+            "core-profile:declarative-v2/binding"
+          ],
+          "states": [
+            "core-profile:declarative-v2/states"
+          ],
+          "responsive": [
+            "core-profile:declarative-v2/responsive"
+          ],
+          "themes": [
+            "core-profile:declarative-v2/themes"
+          ],
+          "accessibility": [
+            "core-profile:declarative-v2/accessibility"
+          ],
+          "save-reload": [
+            "core-profile:declarative-v2/save-reload"
+          ],
+          "performance": [
+            "core-profile:declarative-v2/performance"
+          ]
+        }
+      },
+      "default_column_span": 4,
+      "default_row_span": 2
+    },
+    {
+      "id": "air-purifier",
+      "name": "Tuya Air Purifier",
+      "description": "Air quality and fan speed",
+      "runtime": "declarative",
+      "presentation": {
+        "contract_version": "1",
+        "shell": "core",
+        "content_surface": "transparent",
+        "typography": "core",
+        "appearance_controls": [
+          "icon",
+          "title",
+          "surface",
+          "opacity",
+          "radius",
+          "shadow"
+        ]
+      },
+      "interaction_targets": [
+        {
+          "id": "card",
+          "label": "Tuya Air Purifier",
+          "kind": "card",
+          "allowed_actions": [
+            "more-info",
+            "popout",
+            "refresh"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "air_quality_index",
+          "label": "Air quality",
+          "kind": "binding",
+          "binding_slot_id": "air_quality_index",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "fan_speed_percent",
+          "label": "Fan speed",
+          "kind": "binding",
+          "binding_slot_id": "fan_speed_percent",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "mode",
+          "label": "Mode",
+          "kind": "binding",
+          "binding_slot_id": "mode",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        }
+      ],
+      "binding_slots": [
+        {
+          "id": "air_quality_index",
+          "label": "Air quality",
+          "required": true,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "air_quality_index"
+          ],
+          "compatible_integration_ids": [
+            "piphi-network-tuya"
+          ]
+        },
+        {
+          "id": "fan_speed_percent",
+          "label": "Fan speed",
+          "required": false,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "fan_speed_percent"
+          ],
+          "compatible_integration_ids": [
+            "piphi-network-tuya"
+          ]
+        },
+        {
+          "id": "mode",
+          "label": "Mode",
+          "required": false,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "mode"
+          ],
+          "compatible_integration_ids": [
+            "piphi-network-tuya"
+          ]
+        }
+      ],
+      "recipe": {
+        "schema_version": "1",
+        "layout": "grid",
+        "columns": 2,
+        "items": [
+          {
+            "type": "metric",
+            "slot_id": "air_quality_index",
+            "label": "Air quality",
+            "domain": "air_quality",
+            "action": {
+              "type": "details",
+              "label": "View air quality details"
+            }
+          },
+          {
+            "type": "progress",
+            "slot_id": "fan_speed_percent",
+            "label": "Fan speed",
+            "minimum": 0,
+            "maximum": 100,
+            "domain": "level",
+            "show_value": true,
+            "action": {
+              "type": "details",
+              "label": "View fan speed details"
+            }
+          },
+          {
+            "type": "metric",
+            "slot_id": "mode",
+            "label": "Mode",
+            "action": {
+              "type": "details",
+              "label": "View mode details"
+            }
+          }
+        ]
+      },
+      "certification": {
+        "schema_version": "1",
+        "verified_gates": [
+          "runtime",
+          "persistence",
+          "binding",
+          "states",
+          "responsive",
+          "themes",
+          "accessibility",
+          "save-reload",
+          "performance"
+        ],
+        "evidence": {
+          "runtime": [
+            "core-profile:declarative-v2/runtime"
+          ],
+          "persistence": [
+            "core-profile:declarative-v2/persistence"
+          ],
+          "binding": [
+            "core-profile:declarative-v2/binding"
+          ],
+          "states": [
+            "core-profile:declarative-v2/states"
+          ],
+          "responsive": [
+            "core-profile:declarative-v2/responsive"
+          ],
+          "themes": [
+            "core-profile:declarative-v2/themes"
+          ],
+          "accessibility": [
+            "core-profile:declarative-v2/accessibility"
+          ],
+          "save-reload": [
+            "core-profile:declarative-v2/save-reload"
+          ],
+          "performance": [
+            "core-profile:declarative-v2/performance"
+          ]
+        }
+      },
+      "default_column_span": 4,
+      "default_row_span": 2
+    }
+  ]
+}

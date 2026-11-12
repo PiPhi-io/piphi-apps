@@ -1,0 +1,5 @@
+{
+  "id": "bambu-simulator",
+  "alias": "Simulated Bambu printer",
+  "simulation_mode": true
+}

@@ -1,0 +1,6 @@
+{
+  "inputs": {
+    "host": "pfsense.example.lan",
+    "alias": "Home Firewall"
+  }
+}

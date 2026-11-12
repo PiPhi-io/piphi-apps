@@ -1,0 +1,455 @@
+{
+  "devices": [
+    {
+      "id": "rtl433_device",
+      "name": "433MHz Device",
+      "description": "rtl_433-compatible weather, contact, leak, and general sensor devices",
+      "capabilities": [
+        "temperature_c",
+        "humidity_percent",
+        "battery_ok",
+        "wind_speed_kph",
+        "rain_total_mm",
+        "contact_open",
+        "leak_detected",
+        "signal_rssi",
+        "clear_discovery_cache"
+      ],
+      "intents": [
+        {
+          "id": "monitor_environment",
+          "label": "Monitor environment",
+          "description": "Track temperature, humidity, rain, and related readings"
+        },
+        {
+          "id": "watch_open_close",
+          "label": "Watch open and close events",
+          "description": "Monitor contact sensors such as doors and windows"
+        },
+        {
+          "id": "detect_water",
+          "label": "Detect water leaks",
+          "description": "Watch supported leak and moisture sensors"
+        }
+      ],
+      "conditions": [
+        {
+          "id": "temperature_above",
+          "label": "Temperature above",
+          "type": "number",
+          "params": [
+            {
+              "name": "celsius",
+              "label": "Temperature threshold",
+              "type": "number",
+              "default": 30,
+              "step": 0.5,
+              "unit": "\u00b0C",
+              "required": true
+            }
+          ],
+          "capability": "sensor.temperature",
+          "operators": [
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "temperature",
+            "operator": ">"
+          },
+          "freshness": {
+            "maxAgeSeconds": 300,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "contact_is_open",
+          "label": "Contact is open",
+          "type": "enum",
+          "params": [
+            {
+              "name": "state",
+              "label": "Contact state",
+              "type": "enum",
+              "options": [
+                "open"
+              ],
+              "default": "open",
+              "required": true
+            }
+          ],
+          "capability": "sensor.contact_is_open",
+          "operators": [
+            "eq",
+            "neq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "contact_is_open",
+            "operator": "eq"
+          },
+          "freshness": {
+            "maxAgeSeconds": 300,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "leak_detected",
+          "label": "Leak detected",
+          "type": "enum",
+          "params": [
+            {
+              "name": "state",
+              "label": "Leak state",
+              "type": "enum",
+              "options": [
+                "true"
+              ],
+              "default": "true",
+              "required": true
+            }
+          ],
+          "capability": "sensor.leak_detected",
+          "operators": [
+            "eq",
+            "neq",
+            "contains"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "leak_detected",
+            "operator": "eq"
+          },
+          "freshness": {
+            "maxAgeSeconds": 300,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        }
+      ],
+      "actions": [
+        {
+          "id": "clear_discovery_cache",
+          "label": "Clear discovery cache",
+          "capability": "action.clear_discovery_cache",
+          "runtime": {
+            "command": "clear_discovery_cache"
+          },
+          "targeting": {
+            "fanoutSafe": true,
+            "scopes": [
+              "config",
+              "configs",
+              "room",
+              "rooms",
+              "group",
+              "groups",
+              "selection",
+              "tag",
+              "tags",
+              "capability",
+              "all_matching"
+            ],
+            "supportsMultiTarget": true
+          },
+          "failure": {
+            "strategy": "retry_then_continue",
+            "retry": {
+              "maxAttempts": 1,
+              "delaySeconds": 2,
+              "backoff": "fixed"
+            },
+            "timeoutSeconds": 30,
+            "continueOnPartialFailure": true,
+            "idempotent": true
+          },
+          "ui": {
+            "group": "do_this"
+          },
+          "safety": {
+            "riskLevel": "low"
+          }
+        },
+        {
+          "id": "notify",
+          "label": "Send notification",
+          "params": [
+            {
+              "name": "message",
+              "label": "Notification message",
+              "type": "text",
+              "default": "433MHz device event detected",
+              "required": true
+            }
+          ],
+          "capability": "notification.send",
+          "runtime": {
+            "command": "notify"
+          },
+          "targeting": {
+            "fanoutSafe": true,
+            "scopes": [
+              "config",
+              "configs",
+              "room",
+              "rooms",
+              "group",
+              "groups",
+              "selection",
+              "tag",
+              "tags",
+              "capability",
+              "all_matching"
+            ],
+            "supportsMultiTarget": true
+          },
+          "failure": {
+            "strategy": "retry_then_continue",
+            "retry": {
+              "maxAttempts": 1,
+              "delaySeconds": 2,
+              "backoff": "fixed"
+            },
+            "timeoutSeconds": 30,
+            "continueOnPartialFailure": true,
+            "idempotent": true
+          },
+          "ui": {
+            "group": "do_this"
+          },
+          "safety": {
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "deviceClass": "radio_sensor",
+      "entityType": "sensor",
+      "targeting": {
+        "scopes": [
+          "config",
+          "configs",
+          "room",
+          "rooms",
+          "group",
+          "groups",
+          "selection",
+          "tag",
+          "tags",
+          "capability",
+          "all_matching"
+        ],
+        "fanout": {
+          "supported": true,
+          "defaultMode": "selection",
+          "allowedModes": [
+            "config",
+            "configs",
+            "room",
+            "rooms",
+            "group",
+            "groups",
+            "tag",
+            "tags",
+            "capability",
+            "selection",
+            "all_matching"
+          ]
+        }
+      },
+      "freshness": {
+        "maxAgeSeconds": 300,
+        "staleDataMode": "block"
+      },
+      "ui": {
+        "icon": "radio",
+        "category": "radio_sensor"
+      },
+      "triggers": [
+        {
+          "id": "state_changed",
+          "label": "Device updates",
+          "description": "Start when this device reports a new state.",
+          "capability": "telemetry.state",
+          "runtime": {
+            "event": "device.state_changed",
+            "source": "integration"
+          },
+          "freshness": {
+            "maxAgeSeconds": 300,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "when"
+          }
+        }
+      ]
+    }
+  ],
+  "templates": [
+    {
+      "id": "rtl433_leak_alert",
+      "label": "Tell me when a leak sensor reports water",
+      "description": "Watches rtl_433 updates and creates a simple alert path for water leak devices.",
+      "category": "Safety",
+      "deviceKey": "rtl433_device",
+      "config": {
+        "automation_schema_version": "automation.behavior.v2",
+        "triggers": [
+          {
+            "id": "state_changed",
+            "label": "433MHz device updates",
+            "type": "integration_event",
+            "event": "device.state_changed",
+            "capability": "telemetry.state",
+            "enabled": true,
+            "sourceRef": {
+              "integrationId": "{{integrationId}}",
+              "integrationKey": "{{integrationKey}}",
+              "configId": "{{configId}}",
+              "behaviorDeviceKey": "rtl433_device",
+              "optionKey": "state_changed",
+              "capability": "telemetry.state"
+            }
+          }
+        ],
+        "trigger": {
+          "id": "state_changed",
+          "label": "433MHz device updates",
+          "type": "integration_event",
+          "event": "device.state_changed",
+          "capability": "telemetry.state",
+          "enabled": true
+        },
+        "intent": "detect_water",
+        "conditionTree": {
+          "id": "leak_detected",
+          "label": "Leak detected",
+          "field": "leak_detected",
+          "operator": "eq",
+          "value": true,
+          "sourceRef": {
+            "integrationId": "{{integrationId}}",
+            "integrationKey": "{{integrationKey}}",
+            "configId": "{{configId}}",
+            "behaviorDeviceKey": "rtl433_device",
+            "optionKey": "leak_detected",
+            "capability": "sensor.leak"
+          }
+        },
+        "actions": [
+          {
+            "id": "send_notification",
+            "label": "Send notification",
+            "action": "notify",
+            "capability": "notification.send",
+            "sourceRef": {
+              "integrationId": "{{integrationId}}",
+              "integrationKey": "{{integrationKey}}",
+              "configId": "{{configId}}",
+              "behaviorDeviceKey": "rtl433_device",
+              "optionKey": "notify",
+              "capability": "notification.send"
+            },
+            "target": {
+              "mode": "selection",
+              "configIds": [
+                "{{configId}}"
+              ]
+            },
+            "parameters": {
+              "message": "A 433MHz leak sensor reported water.",
+              "channel": "in_app"
+            },
+            "failure": {
+              "strategy": "retry_then_continue",
+              "retry": {
+                "maxAttempts": 2,
+                "delaySeconds": 2,
+                "timeoutSeconds": 10,
+                "backoff": "fixed"
+              },
+              "continueOnPartialFailure": true
+            }
+          }
+        ],
+        "safety": {
+          "staleDataMode": "block",
+          "maxAgeSeconds": 300,
+          "requireFreshTrigger": true,
+          "dryRunFirst": false
+        },
+        "failure": {
+          "strategy": "follow_edges",
+          "fallbackBehaviorId": "",
+          "conditionTree": {
+            "op": "and",
+            "children": []
+          }
+        },
+        "stop": {
+          "never": true
+        },
+        "override": {
+          "mode": "continue"
+        }
+      },
+      "ui": {
+        "accent": "safety",
+        "icon": "droplet"
+      },
+      "metadata": {
+        "recommended": true,
+        "difficulty": "easy"
+      }
+    }
+  ],
+  "behaviorSchemaVersion": "integration.behaviors.v2",
+  "telemetry": {
+    "capabilityMappings": [
+      {
+        "nativeMetric": "battery_ok",
+        "capability": "sensor.battery_ok"
+      },
+      {
+        "nativeMetric": "contact_open",
+        "capability": "sensor.contact_open"
+      },
+      {
+        "nativeMetric": "humidity_percent",
+        "capability": "sensor.humidity_percent"
+      },
+      {
+        "nativeMetric": "leak_detected",
+        "capability": "sensor.leak_detected"
+      },
+      {
+        "nativeMetric": "rain_total_mm",
+        "capability": "sensor.rain_total_mm"
+      },
+      {
+        "nativeMetric": "signal_rssi",
+        "capability": "sensor.signal_rssi"
+      },
+      {
+        "nativeMetric": "temperature_c",
+        "capability": "sensor.temperature_c"
+      },
+      {
+        "nativeMetric": "wind_speed_kph",
+        "capability": "sensor.wind_speed_kph"
+      }
+    ]
+  }
+}

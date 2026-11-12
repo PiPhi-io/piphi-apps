@@ -1,0 +1,205 @@
+{
+  "$schema": "./schema/piphi-manifest.schema.json",
+  "manifest_version": "1.0",
+  "id": "piphi-network-modbus",
+  "name": "Modbus",
+  "version": "0.1.0",
+  "description": "Read one configured holding register from a local Modbus TCP device.",
+  "metadata": {
+    "generator": "piphi-network-create",
+    "scaffold_version": "0.3.0",
+    "preset": "protocol-bridge",
+    "domain": "bridge",
+    "preset_summary": "Protocol bridge starter for translating an external local protocol."
+  },
+  "maintainer": {
+    "name": "PiPhi Network",
+    "website": "https://piphi.io"
+  },
+  "license": "Apache-2.0",
+  "image": "docker.io/piphinetwork/piphi-network-modbus:0.1.0",
+  "platforms": [
+    "linux"
+  ],
+  "runtime": {
+    "linux": {
+      "type": "container",
+      "container": {
+        "image": "docker.io/piphinetwork/piphi-network-modbus:0.1.0",
+        "ports": [
+          {
+            "container": 4222,
+            "host": 4222
+          }
+        ],
+        "environment": {
+          "LOG_LEVEL": "info"
+        },
+        "restart_policy": {
+          "name": "unless-stopped",
+          "maximum_retry_count": 0
+        }
+      },
+      "discovery": {
+        "method": "passive"
+      }
+    }
+  },
+  "api": {
+    "required": [
+      "health",
+      "entities",
+      "command",
+      "config",
+      "ui_config"
+    ],
+    "endpoints": {
+      "health": "/health",
+      "diagnostics": "/diagnostics",
+      "discover": "/discover",
+      "entities": "/entities",
+      "state": "/state",
+      "config": "/config",
+      "config_sync": "/config/sync",
+      "deconfigure": "/deconfigure",
+      "ui_config": "/ui-config",
+      "events": "/events",
+      "command": "/command"
+    }
+  },
+  "config": {
+    "source": "endpoint",
+    "endpoint": "/ui-config",
+    "required": true,
+    "editable_fields": [
+      "host",
+      "alias",
+      "register_address",
+      "unit_id",
+      "poll_interval_seconds"
+    ],
+    "runtime_fields": [
+      "id",
+      "config_id",
+      "container_id",
+      "device_id"
+    ],
+    "identity_fields": [
+      "host"
+    ]
+  },
+  "identity": {
+    "fields": [
+      "host"
+    ]
+  },
+  "capabilities": {
+    "connected": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "holding_register_value": {"kind": "sensor", "value_kind": "numeric"},
+    "refresh": {
+      "kind": "action"
+    }
+  },
+  "commands": {
+    "refresh": {
+      "description": "Refresh the device state.",
+      "timeout_ms": 12000
+    }
+  },
+  "entities": [
+    {
+      "id": "demo-device",
+      "name": "Demo Device",
+      "device_id": "demo-device",
+      "entity_type": "modbus_device",
+      "capabilities": [
+        "connected",
+        "holding_register_value",
+        "refresh"
+      ],
+      "available_commands": [
+        {
+          "id": "refresh",
+          "label": "Refresh",
+          "kind": "action"
+        }
+      ],
+      "dashboard": {
+        "allowed_widgets": [
+          "tile",
+          "stat",
+          "button"
+        ],
+        "default_widget": "tile"
+      }
+    }
+  ],
+  "ui": {
+    "experience_packages": [
+      {"registry_id": "io.piphi.modbus-register", "version_range": ">=0.1,<1", "auto_install": true}
+    ]
+  },
+  "marketplace": {
+    "metadata_version": 2,
+    "display_name": "Modbus",
+    "summary": "Read one configured holding register from a local Modbus TCP device.",
+    "category": "other",
+    "regions": [
+      "WW"
+    ],
+    "languages": [
+      "en"
+    ],
+    "publisher": {
+      "name": "PiPhi Network",
+      "website_url": "https://piphi.io",
+      "support_url": "https://github.com/PiPhi-io/piphi-network-modbus/issues",
+      "security_contact": "support@piphi.io"
+    },
+    "access_declared": true,
+    "access": [
+      {
+        "id": "local_network",
+        "label": "Local network access",
+        "reason": "Discovers or communicates with supported services and devices on the homeowner's local network.",
+        "required": true
+      }
+    ],
+    "compatibility": [
+      {
+        "brand": "Multi-vendor",
+        "model": "Local Modbus TCP server with a configured holding register"
+      }
+    ],
+    "documentation_url": "https://github.com/PiPhi-io/piphi-network-modbus",
+    "support_url": "https://github.com/PiPhi-io/piphi-network-modbus/issues",
+    "changelog_url": "https://github.com/PiPhi-io/piphi-network-modbus/releases",
+    "quality_tier": "unrated",
+    "governance": {
+      "schema_version": 1,
+      "publication_status": "draft",
+      "rollout_percent": 0,
+      "lifecycle_status": "active",
+      "qualification": {
+        "status": "unverified"
+      }
+    },
+    "device_types": [
+      "Modbus TCP server"
+    ],
+    "protocols": [
+      "Modbus TCP"
+    ],
+    "discovery_methods": [
+      "manual"
+    ],
+    "connectivity": "local",
+    "offline_support": "none"
+  },
+  "onboarding": {
+    "mode": "manual"
+  }
+}

@@ -1,0 +1,73 @@
+{
+  "catalog_version": "1.0",
+  "widget_id": "io.piphi.thinqconnect.overview",
+  "reviewed_at": "2026-09-07",
+  "sources": {
+    "widget_sdk": "PiPhi Widget SDK 0.4.0 public host contract",
+    "integration_manifest": "src/manifest.json"
+  },
+  "rows": [
+    {
+      "id": "overview-state",
+      "status": "implemented",
+      "consumes": [
+        "appliance_state",
+        "mode",
+        "remaining_minutes",
+        "cycle_count",
+        "door",
+        "temperature",
+        "target_temperature",
+        "humidity",
+        "pm2",
+        "fan_speed",
+        "power",
+        "battery",
+        "filter_life"
+      ],
+      "interactions": [],
+      "states": [
+        "loading",
+        "empty",
+        "live",
+        "stale",
+        "offline",
+        "reconnecting",
+        "denied",
+        "error"
+      ],
+      "reason": "Show up to four device-specific facts in one compact glance card."
+    },
+    {
+      "id": "presentation-accessibility",
+      "status": "implemented",
+      "consumes": [],
+      "interactions": [
+        "keyboard_navigation",
+        "focus_visible"
+      ],
+      "states": [
+        "responsive",
+        "light_theme",
+        "dark_theme",
+        "rtl",
+        "reduced_motion"
+      ],
+      "reason": "Semantic exception status and adaptive layout support accessible dashboard use."
+    },
+    {
+      "id": "mutating-controls",
+      "status": "planned",
+      "consumes": [],
+      "interactions": [
+        "discover_device_commands",
+        "execute_allowlisted_command",
+        "pending_feedback",
+        "success_feedback",
+        "error_feedback"
+      ],
+      "states": [],
+      "reason": "Detailed appliance controls belong in Core's expanded device view, not on the glance card."
+    }
+  ]
+}

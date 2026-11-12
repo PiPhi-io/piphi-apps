@@ -1,0 +1,8 @@
+{
+  "id": "demo-device",
+  "host": "127.0.0.1",
+  "alias": "Demo Device",
+  "port": 6444,
+  "poll_interval_seconds": 5,
+  "controls_enabled": false
+}

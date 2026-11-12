@@ -1,0 +1,11 @@
+{
+  "entities": [],
+  "capabilities": {
+    "connected": {"kind": "sensor", "unit": "bool"},
+    "switch_on": {"kind": "sensor", "unit": "bool"},
+    "refresh": {"kind": "action"}
+  },
+  "commands": {
+    "refresh": {"description": "Refresh the device state.", "timeout_ms": 12000}
+  }
+}

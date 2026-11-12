@@ -1,0 +1,185 @@
+{
+  "manifest_version": "1.0",
+  "id": "piphi-network-tesla-ev",
+  "name": "PiPhi Network Tesla EV",
+  "version": "0.2.3",
+  "description": "Tesla Fleet API vehicle integration for Tesla EV discovery, status refresh, and wake-up flows.",
+  "maintainer": {
+    "name": "PiPhi Network",
+    "website": "https://piphi.io"
+  },
+  "platforms": ["linux", "windows", "macos"],
+  "runtime": {
+    "linux": {
+      "type": "container",
+      "container": {
+        "image": "piphinetwork/tesla-ev:0.2.3",
+        "ports": [
+          { "container": 3090, "host": 3090 }
+        ],
+        "environment": {
+          "LOG_LEVEL": "info"
+        },
+        "restart_policy": {
+          "name": "unless-stopped",
+          "maximum_retry_count": 0
+        }
+      },
+      "discovery": {
+        "method": "proxy"
+      }
+    },
+    "windows": {
+      "type": "proxy",
+      "proxy": {
+        "port": 3090
+      },
+      "discovery": {
+        "method": "proxy"
+      }
+    },
+    "macos": {
+      "type": "proxy",
+      "proxy": {
+        "port": 3090
+      },
+      "discovery": {
+        "method": "proxy"
+      }
+    }
+  },
+  "api": {
+    "endpoints": {
+      "health": "/health",
+      "entities": "/entities",
+      "command": "/command",
+      "config": "/config",
+      "ui_config": "/ui-config",
+      "discover": "/discover",
+      "state": "/state",
+      "config_sync": "/configs/sync",
+      "deconfigure": "/deconfigure",
+      "events": "/events",
+      "diagnostics": "/diagnostics"
+    }
+  },
+  "config": {
+    "source": "endpoint",
+    "endpoint": "/ui-config",
+    "required": true,
+    "defaults": {
+      "region": "na",
+      "include_location": true
+    },
+    "editable_fields": [
+      "vin",
+      "vehicle_name",
+      "region",
+      "access_token",
+      "include_location",
+      "base_url"
+    ],
+    "runtime_fields": ["id", "container_id"],
+    "identity_fields": ["vin", "region"],
+    "secrets": [{"field": "access_token"}],
+    "schema": {
+      "title": "Tesla EV Integration Configuration",
+      "description": "Configure one Tesla vehicle using a Tesla Fleet API access token and VIN.",
+      "type": "object",
+      "required": ["vin", "access_token"],
+      "properties": {
+        "vin": {
+          "type": "string",
+          "title": "Vehicle VIN",
+          "description": "Tesla VIN to configure inside PiPhi."
+        },
+        "vehicle_name": {
+          "type": "string",
+          "title": "Vehicle Name",
+          "description": "Optional PiPhi-friendly label override."
+        },
+        "region": {
+          "type": "string",
+          "title": "Fleet API Region",
+          "enum": ["na", "eu", "cn"],
+          "default": "na"
+        },
+        "access_token": {
+          "type": "string",
+          "title": "Fleet API Access Token",
+          "description": "OAuth access token for the Tesla account."
+        },
+        "include_location": {
+          "type": "boolean",
+          "title": "Include Location Metrics",
+          "default": true
+        },
+        "base_url": {
+          "type": "string",
+          "title": "Fleet API Base URL Override",
+          "description": "Optional override for testing or regional proxies."
+        }
+      }
+    }
+  },
+  "identity": {
+    "fields": ["vin", "region"]
+  },
+  "capabilities": {
+    "online": { "kind": "sensor" },
+    "battery_level": { "kind": "sensor", "unit": "%" },
+    "usable_battery_level": { "kind": "sensor", "unit": "%" },
+    "charging_state": { "kind": "sensor" },
+    "charge_limit_soc": { "kind": "sensor", "unit": "%" },
+    "time_to_full_charge_hours": { "kind": "sensor", "unit": "h" },
+    "charger_power_kw": { "kind": "sensor", "unit": "kW" },
+    "battery_range_miles": { "kind": "sensor", "unit": "mi" },
+    "charge_current_amps": { "kind": "sensor", "unit": "A" },
+    "charge_energy_added_kwh": { "kind": "sensor", "unit": "kWh" },
+    "plugged_in": { "kind": "sensor" },
+    "inside_temp_c": { "kind": "sensor", "unit": "C" },
+    "outside_temp_c": { "kind": "sensor", "unit": "C" },
+    "climate_on": { "kind": "sensor" },
+    "is_locked": { "kind": "sensor" },
+    "odometer_miles": { "kind": "sensor", "unit": "mi" },
+    "speed_mph": { "kind": "sensor", "unit": "mph" },
+    "vehicle_state": { "kind": "sensor" },
+    "heading_degrees": { "kind": "sensor", "unit": "degrees" },
+    "shift_state": { "kind": "sensor" },
+    "last_refresh_at": { "kind": "sensor" },
+    "latitude": { "kind": "sensor", "unit": "degrees" },
+    "longitude": { "kind": "sensor", "unit": "degrees" },
+    "refresh": { "kind": "action" },
+    "wake_up": { "kind": "action" }
+  },
+  "commands": {
+    "refresh": {
+      "description": "Fetch live Tesla vehicle_data and publish the latest telemetry snapshot.",
+      "timeout_ms": 15000
+    },
+    "wake_up": {
+      "description": "Wake a sleeping Tesla before requesting a live vehicle_data refresh.",
+      "timeout_ms": 30000
+    }
+  },
+  "entities": [
+    { "id": "battery_level", "name": "Battery Level", "capabilities": ["battery_level"] },
+    { "id": "charging_state", "name": "Charging State", "capabilities": ["charging_state"] },
+    { "id": "charging_session", "name": "Charging Session", "capabilities": ["charging_state", "charger_power_kw", "charge_current_amps", "charge_energy_added_kwh", "charge_limit_soc", "time_to_full_charge_hours", "plugged_in"] },
+    { "id": "battery_range", "name": "Battery Range", "capabilities": ["battery_range_miles"] },
+    { "id": "lock_state", "name": "Lock State", "capabilities": ["is_locked"] },
+    { "id": "odometer", "name": "Odometer", "capabilities": ["odometer_miles"] },
+    { "id": "vehicle_motion", "name": "Vehicle Motion", "capabilities": ["vehicle_state", "speed_mph", "shift_state", "last_refresh_at"] },
+    { "id": "location", "name": "Location", "capabilities": ["latitude", "longitude", "heading_degrees"] },
+    { "id": "refresh_action", "name": "Refresh", "capabilities": ["refresh"] },
+    { "id": "wake_action", "name": "Wake Up", "capabilities": ["wake_up"] }
+  ],
+  "ui": {
+    "experience_packages": [
+      {"registry_id": "io.piphi.tesla-vehicle", "version_range": ">=0.2,<1", "auto_install": true}
+    ]
+  },
+  "onboarding": {
+    "mode": "account"
+  }
+}

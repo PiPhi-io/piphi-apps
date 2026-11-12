@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="420" viewBox="0 0 720 420" role="img" aria-label="Steam activity widget dark preview">
+  <rect width="720" height="420" rx="34" fill="#121820"/>
+  <circle cx="76" cy="78" r="30" fill="#2a475e"/><text x="76" y="85" text-anchor="middle" fill="#fff" font-family="system-ui" font-size="18" font-weight="800">ST</text>
+  <text x="122" y="70" fill="#f1f5f8" font-family="system-ui" font-size="24" font-weight="700">Steam activity</text><text x="122" y="96" fill="#9aa9b7" font-family="system-ui" font-size="16">online</text>
+  <rect x="42" y="132" width="636" height="132" rx="22" fill="#1a2c3a" stroke="#2a5771"/><text x="66" y="170" fill="#9aa9b7" font-family="system-ui" font-size="14">NOW PLAYING</text><text x="66" y="218" fill="#f1f5f8" font-family="system-ui" font-size="34" font-weight="750">Portal 2</text>
+  <rect x="42" y="284" width="308" height="84" rx="18" fill="#1b232d"/><text x="64" y="316" fill="#9aa9b7" font-family="system-ui" font-size="14">LAST TWO WEEKS</text><text x="64" y="350" fill="#f1f5f8" font-family="system-ui" font-size="22" font-weight="700">12h 45m</text>
+  <rect x="370" y="284" width="308" height="84" rx="18" fill="#1b232d"/><text x="392" y="316" fill="#9aa9b7" font-family="system-ui" font-size="14">VISIBLE LIBRARY</text><text x="392" y="350" fill="#f1f5f8" font-family="system-ui" font-size="22" font-weight="700">184 games</text>
+</svg>

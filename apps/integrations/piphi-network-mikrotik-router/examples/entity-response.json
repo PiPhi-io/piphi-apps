@@ -1,0 +1,48 @@
+{
+  "entities": [
+    {
+      "id": "demo-device",
+      "name": "Demo Device",
+      "device_id": "demo-device",
+      "entity_type": "router",
+      "capabilities": [
+        "connected",
+        "cpu_load_percent",
+        "memory_used_percent",
+        "refresh"
+      ],
+      "available_commands": [
+        {
+          "id": "refresh",
+          "label": "Refresh",
+          "kind": "action"
+        }
+      ],
+      "dashboard": {
+        "allowed_widgets": [
+          "tile",
+          "stat",
+          "button"
+        ],
+        "default_widget": "tile"
+      }
+    }
+  ],
+  "capabilities": {
+    "connected": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "cpu_load_percent": {"kind": "sensor", "value_kind": "numeric", "unit": "%"},
+    "memory_used_percent": {"kind": "sensor", "value_kind": "numeric", "unit": "%"},
+    "refresh": {
+      "kind": "action"
+    }
+  },
+  "commands": {
+    "refresh": {
+      "description": "Refresh the device state.",
+      "timeout_ms": 5000
+    }
+  }
+}

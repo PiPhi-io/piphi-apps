@@ -1,0 +1,8 @@
+{
+  "id": "kaiterra-sensedge",
+  "device_udid": "00000000-0031-0101-0000-00007e57c0de",
+  "alias": "Office Kaiterra",
+  "base_url": "https://api.kaiterra.com/v1",
+  "api_key": "change-me",
+  "poll_interval_seconds": 15
+}

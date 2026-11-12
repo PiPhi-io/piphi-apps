@@ -1,0 +1,6 @@
+{
+  "inputs": {
+    "host": "AA:BB:CC:DD:EE:FF",
+    "alias": "Demo Device"
+  }
+}

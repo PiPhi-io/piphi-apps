@@ -1,0 +1,90 @@
+{
+  "catalog_version": "1.0",
+  "integration_id": "piphi-network-waste-collection",
+  "coverage_mode": "source_adapter_and_calendar_normalization",
+  "reviewed_at": "2026-09-07",
+  "sources": {
+    "waste_schedule": "https://github.com/mampfes/hacs_waste_collection_schedule",
+    "installation": "https://github.com/mampfes/hacs_waste_collection_schedule/blob/master/doc/installation.md",
+    "core_vocabulary": "PiPhi Network Core and maintained PiPhi integrations"
+  },
+  "groups": [
+    {
+      "id": "runtime-foundation",
+      "status": "implemented",
+      "scope": ["all-configurations"],
+      "source_refs": ["core_vocabulary"],
+      "reason": "The runtime reports a valid configured date, supports refresh, and emits a configuration event.",
+      "state": ["connected"],
+      "events": ["runtime.config.applied"],
+      "conditions": ["state_matches"],
+      "actions": ["refresh"]
+    },
+    {
+      "id": "manual-next-collection",
+      "status": "implemented",
+      "scope": ["user-specified-date"],
+      "source_refs": ["core_vocabulary"],
+      "reason": "A homeowner-provided collection date and time zone yield a deterministic countdown without provider access.",
+      "state": ["next_collection_date", "days_until_collection", "next_collection_type"],
+      "events": [],
+      "conditions": [],
+      "actions": []
+    },
+    {
+      "id": "normalized-collection-schedule",
+      "status": "planned",
+      "scope": ["all-source-adapters", "ics", "user-specified", "multiple-source-wrapper"],
+      "source_refs": ["waste_schedule", "installation"],
+      "reason": "All provider adapters normalize into deterministic calendar and collection entities.",
+      "state": ["next_collection_at", "next_collection_title", "next_collection_icon", "upcoming_collection_count", "collection_types", "schedule_timezone", "schedule_window_days"],
+      "events": ["collection.added", "collection.removed", "collection.rescheduled", "schedule.changed"],
+      "conditions": ["collection_type_is", "collection_due_within_days", "collection_date_is", "upcoming_count_threshold"],
+      "actions": []
+    },
+    {
+      "id": "behavior-reminders",
+      "status": "planned",
+      "scope": ["normalized-collections"],
+      "source_refs": ["waste_schedule", "core_vocabulary"],
+      "reason": "Emit deduplicated date-boundary transitions; notification delivery remains a Core action.",
+      "state": ["collection_due_today", "collection_due_tomorrow", "collection_overdue", "active_collection_types"],
+      "events": ["collection.due_soon", "collection.due_today", "collection.due_tomorrow", "collection.overdue", "collection.completed_window"],
+      "conditions": ["collection_is_due_today", "collection_is_due_tomorrow", "collection_is_overdue", "active_collection_type_contains"],
+      "actions": []
+    },
+    {
+      "id": "source-health-and-refresh",
+      "status": "planned",
+      "scope": ["configured-source-adapters"],
+      "source_refs": ["waste_schedule"],
+      "reason": "Surface adapter health without leaking credentials, cookies, addresses, or raw provider responses.",
+      "state": ["source_name", "source_count", "source_status", "last_sync_at", "next_sync_at", "last_success_at", "schedule_stale", "fetch_duration_ms", "fetch_error_count", "events_received", "events_filtered"],
+      "events": ["source.failed", "source.recovered", "schedule.stale", "schedule.refreshed"],
+      "conditions": ["source_is_healthy", "schedule_is_stale", "last_success_age_threshold", "fetch_error_count_threshold"],
+      "actions": ["refresh_all_sources", "refresh_source"]
+    },
+    {
+      "id": "presentation-and-filtering",
+      "status": "planned",
+      "scope": ["configured-calendars-and-sensors"],
+      "source_refs": ["waste_schedule", "installation"],
+      "reason": "Filters and presentation are configuration-time features, not unrestricted behavior-time code execution.",
+      "state": ["calendar_name", "calendar_event_summary", "calendar_event_start", "calendar_event_end", "calendar_event_all_day", "source_attribution"],
+      "events": ["calendar.window_changed"],
+      "conditions": ["calendar_has_event", "event_summary_matches"],
+      "actions": []
+    },
+    {
+      "id": "unsafe-or-upstream-mutating-operations",
+      "status": "excluded",
+      "scope": ["all-sources"],
+      "source_refs": ["waste_schedule"],
+      "reason": "Provider schedules are read-only and user-controlled templates or URLs must not become behavior escape hatches.",
+      "state": ["raw_provider_response", "provider_credentials"],
+      "events": [],
+      "conditions": [],
+      "actions": ["modify_provider_schedule", "execute_arbitrary_template", "fetch_arbitrary_url", "send_notification_directly"]
+    }
+  ]
+}

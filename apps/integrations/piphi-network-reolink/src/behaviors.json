@@ -1,0 +1,93 @@
+{
+  "behaviorSchemaVersion": "integration.behaviors.v2",
+  "templates": [],
+  "devices": [
+    {
+      "id": "piphi_network_reolink_device",
+      "name": "Reolink cameras",
+      "description": "A configured Reolink camera, NVR, or NVR channel.",
+      "deviceClass": "camera",
+      "entityType": "camera",
+      "capabilities": ["connected", "camera_count", "refresh"],
+      "targeting": {
+        "scopes": ["config", "selection"],
+        "fanout": {
+          "supported": false,
+          "defaultMode": "selection",
+          "allowedModes": ["config", "selection"]
+        }
+      },
+      "freshness": {"maxAgeSeconds": 120, "staleDataMode": "block"},
+      "ui": {"icon": "camera", "category": "local-device"},
+      "triggers": [
+        {
+          "id": "configuration_applied",
+          "label": "Reolink connection configured",
+          "description": "Start after PiPhi applies a Reolink configuration.",
+          "capability": "runtime.configuration",
+          "runtime": {"event": "runtime.config.applied", "source": "integration"},
+          "freshness": {"maxAgeSeconds": 300, "staleDataMode": "block"},
+          "ui": {"group": "when"}
+        }
+      ],
+      "intents": [
+        {
+          "id": "monitor_cameras",
+          "label": "Monitor my cameras",
+          "description": "Build automations around Reolink availability and discovery."
+        }
+      ],
+      "conditions": [
+        {
+          "id": "connected_is",
+          "label": "Connection state is",
+          "description": "Only run when the Reolink connection matches the selected state.",
+          "type": "boolean",
+          "capability": "connected",
+          "operators": ["eq"],
+          "runtime": {"source": "state", "field": "connected", "operator": "eq"},
+          "freshness": {"maxAgeSeconds": 120, "staleDataMode": "block"},
+          "ui": {"group": "only_if"},
+          "params": [
+            {"name": "value", "label": "Connected", "type": "boolean", "required": true}
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "id": "refresh",
+          "label": "Refresh cameras",
+          "description": "Refresh discovery and state for one configured Reolink host.",
+          "capability": "device.refresh",
+          "capabilityRequirements": ["device.refresh"],
+          "runtime": {
+            "command": "refresh",
+            "endpoint": "/command",
+            "method": "POST",
+            "timeoutSeconds": 45
+          },
+          "safety": {
+            "riskLevel": "low",
+            "requiresConfirmation": false,
+            "liveRunAllowed": true
+          },
+          "targeting": {
+            "fanoutSafe": false,
+            "supportsMultiTarget": false,
+            "scopes": ["config", "selection"]
+          },
+          "failure": {
+            "strategy": "stop",
+            "retry": {"maxAttempts": 1, "delaySeconds": 2, "backoff": "fixed"},
+            "timeoutSeconds": 45,
+            "continueOnPartialFailure": false,
+            "idempotent": true
+          },
+          "ui": {"group": "do_this"}
+        }
+      ],
+      "stop": [],
+      "manualOverride": [{"id": "continue", "label": "Keep running"}]
+    }
+  ]
+}

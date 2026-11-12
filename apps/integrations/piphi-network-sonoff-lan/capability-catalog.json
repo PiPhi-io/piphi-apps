@@ -1,0 +1,101 @@
+{
+  "catalog_version": "1.0",
+  "integration_id": "piphi-network-sonoff-lan",
+  "coverage_mode": "model_and_channel_negotiation",
+  "reviewed_at": "2026-09-07",
+  "sources": {
+    "sonoff_diy": "https://help.sonoff.tech/docs/DIY-MODE-API-PROTOCOL",
+    "sonoff_lan": "https://github.com/AlexxIT/SonoffLAN",
+    "core_vocabulary": "PiPhi Network Core and maintained PiPhi integrations"
+  },
+  "groups": [
+    {
+      "id": "runtime-foundation",
+      "status": "implemented",
+      "scope": ["configured-sonoff-diy-mode-single-switch"],
+      "source_refs": ["core_vocabulary"],
+      "reason": "Connectivity reflects a successful local DIY info request; refresh repeats that read.",
+      "state": ["connected"],
+      "events": ["runtime.config.applied"],
+      "conditions": ["state_matches"],
+      "actions": ["refresh"]
+    },
+    {
+      "id": "diy-single-switch",
+      "status": "implemented",
+      "scope": ["sonoff-diy-mode-single-channel-plaintext-switch"],
+      "source_refs": ["sonoff_diy"],
+      "reason": "The documented /zeroconf/info response reports one on/off switch; encrypted and multi-channel variants are not represented.",
+      "state": ["switch_on"],
+      "events": [],
+      "conditions": [],
+      "actions": []
+    },
+    {
+      "id": "relays-and-power",
+      "status": "planned",
+      "scope": ["single-channel", "multi-channel", "pow", "spm"],
+      "source_refs": ["sonoff_diy", "sonoff_lan"],
+      "reason": "Channels, metering fields, and protection features vary by model and firmware.",
+      "state": ["channel_count", "power_w", "current_a", "voltage_v", "energy_kwh", "energy_today_kwh", "energy_week_kwh", "energy_month_kwh", "energy_year_kwh", "overload_active", "relay_detached"],
+      "events": ["switch.changed", "power.threshold_crossed", "energy.updated", "overload.detected"],
+      "conditions": ["is_on", "power_threshold", "current_threshold", "voltage_threshold", "energy_threshold", "overload_is_active"],
+      "actions": ["turn_on", "turn_off", "toggle", "set_channels", "set_inching", "set_power_on_state", "set_relay_detached", "set_overload_protection"]
+    },
+    {
+      "id": "lighting-fans-and-covers",
+      "status": "planned",
+      "scope": ["dimmer", "rgb-light", "fan", "cover"],
+      "source_refs": ["sonoff_lan"],
+      "reason": "Expose only the entity class and controls reported for the discovered UIID/model.",
+      "state": ["brightness_percent", "color_rgb", "color_temperature_k", "light_effect", "fan_speed_percent", "cover_position", "cover_state"],
+      "events": ["light.changed", "fan.changed", "cover.changed"],
+      "conditions": ["brightness_threshold", "fan_speed_threshold", "cover_position_threshold", "cover_state_is"],
+      "actions": ["set_brightness", "set_color", "set_color_temperature", "set_light_effect", "set_fan_speed", "open", "close", "stop_cover", "set_cover_position"]
+    },
+    {
+      "id": "climate-and-environment",
+      "status": "planned",
+      "scope": ["th", "trv", "environment-monitor", "air-quality"],
+      "source_refs": ["sonoff_lan"],
+      "reason": "Temperature, humidity, thermostat, and air-quality features differ by model and LAN/cloud transport.",
+      "state": ["temperature_c", "humidity_percent", "target_temperature_c", "hvac_mode", "valve_open_percent", "co2_ppm", "pm25_ugm3", "pm10_ugm3", "pressure_hpa", "illuminance_lux", "noise_db"],
+      "events": ["climate.changed", "environment.threshold_crossed", "valve.changed"],
+      "conditions": ["temperature_threshold", "humidity_threshold", "hvac_mode_is", "air_quality_threshold", "valve_open_threshold"],
+      "actions": ["set_target_temperature", "set_hvac_mode", "set_thermostat_thresholds", "set_child_lock", "set_open_window_detection"]
+    },
+    {
+      "id": "rf-security-and-binary-sensors",
+      "status": "planned",
+      "scope": ["rf-bridge", "zigbee-bridge", "door", "motion", "water", "alarm"],
+      "source_refs": ["sonoff_lan"],
+      "reason": "Normalize learned remote/button codes and sensor transitions without exposing raw cloud payloads.",
+      "state": ["contact_open", "motion_detected", "presence_detected", "leak_detected", "alarm_active", "locked", "battery_percent", "battery_low", "rssi_dbm"],
+      "events": ["rf.button_pressed", "contact.changed", "motion.detected", "presence.changed", "leak.detected", "alarm.changed", "battery.low", "device.online", "device.offline"],
+      "conditions": ["contact_is_open", "motion_is_detected", "presence_is_detected", "leak_is_detected", "alarm_is_active", "battery_below", "signal_below"],
+      "actions": ["trigger_allowlisted_rf_code", "arm", "disarm", "silence_alarm"]
+    },
+    {
+      "id": "maintenance",
+      "status": "planned",
+      "scope": ["supported-diy-models"],
+      "source_refs": ["sonoff_diy", "sonoff_lan"],
+      "reason": "Maintenance commands require explicit support detection and stronger safety treatment.",
+      "state": ["firmware_version", "device_model", "lan_available", "cloud_available", "startup_state", "inching_enabled", "inching_duration_ms", "status_led_on"],
+      "events": ["transport.changed", "firmware.changed"],
+      "conditions": ["transport_is", "firmware_version_is"],
+      "actions": ["set_status_led", "reboot"]
+    },
+    {
+      "id": "unsafe-generic-access",
+      "status": "excluded",
+      "scope": ["all-devices"],
+      "source_refs": ["sonoff_diy", "sonoff_lan"],
+      "reason": "Raw commands, credential resets, and unbounded RF transmission bypass allow-lists and could disconnect or operate unrelated equipment.",
+      "state": [],
+      "events": [],
+      "conditions": [],
+      "actions": ["send_arbitrary_command", "change_wifi_credentials", "transmit_arbitrary_rf_code"]
+    }
+  ]
+}

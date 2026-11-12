@@ -1,0 +1,879 @@
+{
+  "$schema": "./schema/piphi-manifest.schema.json",
+  "manifest_version": "1.0",
+  "id": "piphi-network-plex",
+  "name": "Plex Media Server",
+  "version": "0.1.1",
+  "description": "Browse and control one or more Plex Media Servers through PiPhi Network.",
+  "metadata": {
+    "generator": "piphi-network-create",
+    "scaffold_version": "0.3.0",
+    "preset": "cloud-polling-api",
+    "domain": "local-device",
+    "upstream_api_status": "plex-media-server-http-api"
+  },
+  "maintainer": {
+    "name": "PiPhi Network",
+    "website": "https://piphi.io"
+  },
+  "marketplace": {
+    "changelog_url": "https://github.com/PiPhi-io/piphi-network-plex/releases",
+    "quality_tier": "unrated",
+    "governance": {
+      "schema_version": 1,
+      "publication_status": "stable",
+      "rollout_percent": 100,
+      "lifecycle_status": "active",
+      "qualification": {
+        "status": "unverified"
+      }
+    },
+    "metadata_version": 2,
+    "display_name": "Plex Media Server",
+    "summary": "Browse Plex libraries and use Plex media, servers, and players in PiPhi dashboards.",
+    "category": "media",
+    "device_types": [
+      "media_server",
+      "media_player"
+    ],
+    "protocols": [
+      "http",
+      "https",
+      "plex_media_server_api"
+    ],
+    "regions": [
+      "WW"
+    ],
+    "languages": [
+      "en"
+    ],
+    "discovery_methods": [
+      "account",
+      "manual"
+    ],
+    "connectivity": "hybrid",
+    "offline_support": "partial",
+    "privacy_url": "https://www.plex.tv/about/privacy-legal/",
+    "publisher": {
+      "name": "PiPhi Network",
+      "website_url": "https://piphi.io",
+      "support_url": "https://github.com/PiPhi-io/piphi-network-plex/issues",
+      "security_contact": "support@piphi.io"
+    },
+    "access": [
+      {
+        "id": "plex_account",
+        "label": "Plex account access",
+        "reason": "Discovers the Plex servers available to the configured account.",
+        "required": true
+      },
+      {
+        "id": "local_network",
+        "label": "Local network access",
+        "reason": "Connects directly to local Plex Media Servers when available.",
+        "required": true
+      }
+    ],
+    "compatibility": [
+      {
+        "brand": "Plex",
+        "model": "Plex Media Server",
+        "regions": [
+          "WW"
+        ]
+      }
+    ],
+    "documentation_url": "https://github.com/PiPhi-io/piphi-network-plex",
+    "support_url": "https://github.com/PiPhi-io/piphi-network-plex/issues"
+  },
+  "license": "Apache-2.0",
+  "image": "docker.io/piphinetwork/piphi-network-plex:0.1.1",
+  "platforms": [
+    "linux"
+  ],
+  "runtime": {
+    "linux": {
+      "type": "container",
+      "container": {
+        "image": "docker.io/piphinetwork/piphi-network-plex:0.1.1",
+        "ports": [
+          {
+            "container": 8091,
+            "host": 8091
+          }
+        ],
+        "environment": {
+          "LOG_LEVEL": "info",
+          "PIPHI_AUTOMATION_LEDGER_PATH": "/var/lib/piphi/automation-actions.sqlite3"
+        },
+        "restart_policy": {
+          "name": "unless-stopped",
+          "maximum_retry_count": 0
+        }
+      },
+      "discovery": {
+        "method": "account"
+      }
+    }
+  },
+  "api": {
+    "required": [
+      "health",
+      "entities",
+      "command",
+      "config",
+      "ui_config"
+    ],
+    "endpoints": {
+      "health": "/health",
+      "diagnostics": "/diagnostics",
+      "discover": "/discover",
+      "entities": "/entities",
+      "state": "/state",
+      "config": "/config",
+      "config_sync": "/config/sync",
+      "deconfigure": "/deconfigure",
+      "ui_config": "/ui-config",
+      "events": "/events",
+      "command": "/command",
+      "provider_instances": "/provider/instances",
+      "provider_collections": "/provider/{instance_id}/collections",
+      "provider_items": "/provider/{instance_id}/items",
+      "provider_resolve": "/provider/{instance_id}/resolve",
+      "provider_actions": "/provider/{instance_id}/actions"
+    }
+  },
+  "config": {
+    "source": "endpoint",
+    "endpoint": "/ui-config",
+    "required": true,
+    "editable_fields": [
+      "host",
+      "alias",
+      "base_url",
+      "token",
+      "poll_interval_seconds",
+      "include_remote_servers",
+      "simulation_mode"
+    ],
+    "runtime_fields": [
+      "id",
+      "config_id",
+      "container_id",
+      "device_id"
+    ],
+    "identity_fields": [
+      "token",
+      "base_url"
+    ]
+  },
+  "identity": {
+    "fields": [
+      "token",
+      "base_url"
+    ]
+  },
+  "capabilities": {
+    "connected": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "server_count": {
+      "kind": "sensor",
+      "unit": "servers"
+    },
+    "active_sessions": {
+      "kind": "sensor",
+      "unit": "sessions"
+    },
+    "transcode_sessions": {
+      "kind": "sensor",
+      "unit": "sessions"
+    },
+    "refresh": {
+      "kind": "action"
+    }
+  },
+  "commands": {
+    "refresh": {
+      "description": "Refresh Plex servers and state.",
+      "timeout_ms": 15000
+    }
+  },
+  "entities": [
+    {
+      "id": "plex-server",
+      "name": "Plex Media Server",
+      "device_id": "plex-server",
+      "device_class": "media_server",
+      "entity_type": "media_library",
+      "capabilities": [
+        "connected",
+        "server_count",
+        "active_sessions",
+        "transcode_sessions",
+        "refresh"
+      ],
+      "available_commands": [
+        {
+          "id": "refresh",
+          "label": "Refresh",
+          "kind": "action"
+        }
+      ],
+      "dashboard": {
+        "allowed_widgets": [
+          "tile",
+          "stat",
+          "button",
+          "external-widget"
+        ],
+        "default_widget": "tile",
+        "recommended_widgets": [
+          "external-widget"
+        ]
+      }
+    }
+  ],
+  "ui": {
+    "experience_packages": [
+      {
+        "registry_id": "io.piphi.plex-media",
+        "auto_install": true
+      }
+    ],
+    "widget_packages": [
+      {
+        "id": "io.piphi.plex.server-overview",
+        "name": "Plex server overview",
+        "version": "0.1.10",
+        "entry": "/widgets/plex-server-overview/dist/widget.js",
+        "binding_modes": [
+          "read"
+        ],
+        "value_kinds": [
+          "numeric",
+          "boolean"
+        ],
+        "capability_requirements": [
+          "connected",
+          "server_count",
+          "active_sessions",
+          "transcode_sessions"
+        ],
+        "sdk_compatibility": {
+          "minimum": "0.6.0"
+        },
+        "interaction_targets": [
+          {
+            "id": "server-card",
+            "label": "Plex server overview",
+            "kind": "card",
+            "allowed_actions": [
+              "more-info",
+              "popout",
+              "refresh"
+            ],
+            "default_action": "more-info"
+          },
+          {
+            "id": "connected",
+            "label": "Plex connection",
+            "kind": "binding",
+            "binding_slot_id": "connected",
+            "allowed_actions": [
+              "more-info",
+              "popout"
+            ],
+            "default_action": "more-info"
+          },
+          {
+            "id": "active-sessions",
+            "label": "Active Plex sessions",
+            "kind": "binding",
+            "binding_slot_id": "active-sessions",
+            "allowed_actions": [
+              "more-info",
+              "history",
+              "popout"
+            ],
+            "default_action": "more-info"
+          }
+        ],
+        "settings_schema_version": "1",
+        "conformance": {
+          "accessibility": "wcag2.2-aa",
+          "keyboard": true,
+          "themes": [
+            "light",
+            "dark"
+          ],
+          "directions": [
+            "ltr",
+            "rtl"
+          ],
+          "states": [
+            "loading",
+            "live",
+            "stale",
+            "offline",
+            "reconnecting",
+            "denied",
+            "error"
+          ]
+        },
+        "previews": {
+          "light": "/widgets/plex-server-overview/preview-light.svg",
+          "dark": "/widgets/plex-server-overview/preview-dark.svg"
+        },
+        "settings": [
+          {
+            "id": "title",
+            "type": "text",
+            "label": "Title",
+            "default": "Plex servers"
+          }
+        ],
+        "layout": {
+          "min_height": 96,
+          "default_height": 112,
+          "max_height": 140
+        },
+        "security": {
+          "permissions": [],
+          "sandbox": [
+            "allow-scripts"
+          ],
+          "csp": {
+            "connect_src": []
+          }
+        },
+        "integrity": "sha384-T45FXoOWKG9IMB3kmRwMRjhytkaDcwixigq/1g6YZXwpcScueVahDqAjwkAN5Jmz",
+        "translations": {
+          "en": {
+            "plex.title.servers": "Plex servers",
+            "plex.activity.label": "Plex server activity",
+            "plex.metric.servers": "Servers",
+            "plex.metric.streams": "Streams",
+            "plex.metric.transcodes": "Transcodes",
+            "plex.status.updating": "Updating Plex…",
+            "plex.status.stale": "Plex data may be out of date",
+            "plex.status.offline": "Plex is offline",
+            "plex.status.error": "Plex readings are unavailable",
+            "plex.status.waiting": "Waiting for Plex",
+            "common.retry": "Retry"
+          },
+          "ar": {
+            "plex.title.servers": "خوادم Plex",
+            "plex.activity.label": "نشاط خادم Plex",
+            "plex.metric.servers": "الخوادم",
+            "plex.metric.streams": "عمليات البث",
+            "plex.metric.transcodes": "التحويلات",
+            "plex.status.updating": "جارٍ تحديث Plex…",
+            "plex.status.stale": "قد تكون بيانات Plex قديمة",
+            "plex.status.offline": "Plex غير متصل",
+            "plex.status.error": "قراءات Plex غير متاحة",
+            "plex.status.waiting": "في انتظار Plex",
+            "common.retry": "إعادة المحاولة"
+          }
+        },
+        "runtime": "prebuilt_bundle",
+        "host_bridge": {
+          "protocol": "piphi.widget.host",
+          "version": "1",
+          "events": [
+            "ready",
+            "resize"
+          ]
+        }
+      },
+      {
+        "id": "io.piphi.plex.recently-added",
+        "name": "Recently Added",
+        "version": "0.1.6",
+        "entry": "/media/providers/plex/widgets/recently-added/widget.js",
+        "integrity": "sha384-hDDjErmC66CrbOKjb/EpfEXeKgvoGKUwkAD8uDG2kEXOtMJb0PhsotfHiixlKBTR",
+        "binding_modes": [
+          "read"
+        ],
+        "value_kinds": [
+          "json"
+        ],
+        "capability_requirements": [],
+        "sdk_compatibility": {
+          "minimum": "0.6.0"
+        },
+        "settings_schema_version": "1",
+        "interaction_targets": [
+          {
+            "id": "recently-added-card",
+            "label": "Recently added Plex media",
+            "kind": "card",
+            "allowed_actions": [
+              "more-info",
+              "popout",
+              "refresh"
+            ],
+            "default_action": "more-info"
+          }
+        ],
+        "conformance": {
+          "accessibility": "wcag2.2-aa",
+          "keyboard": true,
+          "themes": [
+            "light",
+            "dark"
+          ],
+          "directions": [
+            "ltr",
+            "rtl"
+          ],
+          "states": [
+            "loading",
+            "live",
+            "stale",
+            "offline",
+            "reconnecting",
+            "denied",
+            "error"
+          ]
+        },
+        "previews": {
+          "light": "/media/providers/plex/widgets/recently-added/preview-light.svg",
+          "dark": "/media/providers/plex/widgets/recently-added/preview-dark.svg"
+        },
+        "settings": [
+          {
+            "id": "title",
+            "type": "text",
+            "label": "Title",
+            "default": "Recently Added"
+          },
+          {
+            "id": "limit",
+            "type": "number",
+            "label": "Items (1–24)",
+            "default": 8
+          },
+          {
+            "id": "refresh-seconds",
+            "type": "number",
+            "label": "Refresh seconds (15–300)",
+            "default": 60
+          },
+          {
+            "id": "show-summary",
+            "type": "boolean",
+            "label": "Show one-line summaries",
+            "default": false
+          }
+        ],
+        "layout": {
+          "min_height": 112,
+          "default_height": 112,
+          "max_height": 220
+        },
+        "security": {
+          "permissions": [
+            "host.queryMedia"
+          ],
+          "sandbox": [
+            "allow-scripts"
+          ],
+          "csp": {
+            "connect_src": []
+          }
+        },
+        "translations": {
+          "en": {
+            "plex.title.recently_added": "Recently Added",
+            "plex.title.continue_watching": "Continue Watching",
+            "plex.title.library": "Plex Search / Library",
+            "plex.title.default": "Plex",
+            "plex.action.refresh": "Refresh Plex",
+            "plex.status.loading": "Loading Plex…",
+            "plex.status.reconnecting": "Reconnecting to Plex…",
+            "plex.status.live": "Live · updated %TIME%",
+            "plex.status.stale_results": "Connection lost · showing previous results",
+            "plex.status.denied": "Plex access needs permission",
+            "plex.status.offline_retry": "Plex is offline · retrying",
+            "plex.status.unavailable_retry": "Plex is unavailable · retrying",
+            "plex.media.label": "Plex media",
+            "plex.media.empty": "No matching media on this server.",
+            "plex.media.untitled": "Untitled",
+            "plex.media.fallback": "Media",
+            "plex.media.watched": "%TITLE%: %PERCENT%% watched",
+            "plex.media.kind.movie": "Movie",
+            "plex.media.kind.episode": "Episode",
+            "plex.media.kind.music": "Music"
+          },
+          "ar": {
+            "plex.title.recently_added": "المضاف حديثًا",
+            "plex.title.continue_watching": "متابعة المشاهدة",
+            "plex.title.library": "بحث ومكتبة Plex",
+            "plex.title.default": "Plex",
+            "plex.action.refresh": "تحديث Plex",
+            "plex.status.loading": "جارٍ تحميل Plex…",
+            "plex.status.reconnecting": "جارٍ إعادة الاتصال بـ Plex…",
+            "plex.status.live": "مباشر · تم التحديث %TIME%",
+            "plex.status.stale_results": "انقطع الاتصال · يتم عرض النتائج السابقة",
+            "plex.status.denied": "يحتاج Plex إلى إذن للوصول",
+            "plex.status.offline_retry": "Plex غير متصل · جارٍ إعادة المحاولة",
+            "plex.status.unavailable_retry": "Plex غير متاح · جارٍ إعادة المحاولة",
+            "plex.media.label": "وسائط Plex",
+            "plex.media.empty": "لا توجد وسائط مطابقة على هذا الخادم.",
+            "plex.media.untitled": "بلا عنوان",
+            "plex.media.fallback": "وسائط",
+            "plex.media.watched": "تمت مشاهدة %PERCENT%% من %TITLE%",
+            "plex.media.kind.movie": "فيلم",
+            "plex.media.kind.episode": "حلقة",
+            "plex.media.kind.music": "موسيقى"
+          }
+        },
+        "runtime": "prebuilt_bundle",
+        "host_bridge": {
+          "protocol": "piphi.widget.host",
+          "version": "1",
+          "events": [
+            "ready",
+            "resize"
+          ]
+        }
+      },
+      {
+        "id": "io.piphi.plex.continue-watching",
+        "name": "Continue Watching",
+        "version": "0.1.6",
+        "entry": "/media/providers/plex/widgets/continue-watching/widget.js",
+        "integrity": "sha384-hDDjErmC66CrbOKjb/EpfEXeKgvoGKUwkAD8uDG2kEXOtMJb0PhsotfHiixlKBTR",
+        "binding_modes": [
+          "read"
+        ],
+        "value_kinds": [
+          "json"
+        ],
+        "capability_requirements": [],
+        "sdk_compatibility": {
+          "minimum": "0.6.0"
+        },
+        "settings_schema_version": "1",
+        "interaction_targets": [
+          {
+            "id": "continue-watching-card",
+            "label": "Continue watching Plex media",
+            "kind": "card",
+            "allowed_actions": [
+              "more-info",
+              "popout",
+              "refresh"
+            ],
+            "default_action": "more-info"
+          }
+        ],
+        "conformance": {
+          "accessibility": "wcag2.2-aa",
+          "keyboard": true,
+          "themes": [
+            "light",
+            "dark"
+          ],
+          "directions": [
+            "ltr",
+            "rtl"
+          ],
+          "states": [
+            "loading",
+            "live",
+            "stale",
+            "offline",
+            "reconnecting",
+            "denied",
+            "error"
+          ]
+        },
+        "previews": {
+          "light": "/media/providers/plex/widgets/continue-watching/preview-light.svg",
+          "dark": "/media/providers/plex/widgets/continue-watching/preview-dark.svg"
+        },
+        "settings": [
+          {
+            "id": "title",
+            "type": "text",
+            "label": "Title",
+            "default": "Continue Watching"
+          },
+          {
+            "id": "limit",
+            "type": "number",
+            "label": "Items (1–24)",
+            "default": 8
+          },
+          {
+            "id": "refresh-seconds",
+            "type": "number",
+            "label": "Refresh seconds (15–300)",
+            "default": 60
+          },
+          {
+            "id": "show-summary",
+            "type": "boolean",
+            "label": "Show one-line summaries",
+            "default": false
+          }
+        ],
+        "layout": {
+          "min_height": 112,
+          "default_height": 112,
+          "max_height": 220
+        },
+        "security": {
+          "permissions": [
+            "host.queryMedia"
+          ],
+          "sandbox": [
+            "allow-scripts"
+          ],
+          "csp": {
+            "connect_src": []
+          }
+        },
+        "translations": {
+          "en": {
+            "plex.title.recently_added": "Recently Added",
+            "plex.title.continue_watching": "Continue Watching",
+            "plex.title.library": "Plex Search / Library",
+            "plex.title.default": "Plex",
+            "plex.action.refresh": "Refresh Plex",
+            "plex.status.loading": "Loading Plex…",
+            "plex.status.reconnecting": "Reconnecting to Plex…",
+            "plex.status.live": "Live · updated %TIME%",
+            "plex.status.stale_results": "Connection lost · showing previous results",
+            "plex.status.denied": "Plex access needs permission",
+            "plex.status.offline_retry": "Plex is offline · retrying",
+            "plex.status.unavailable_retry": "Plex is unavailable · retrying",
+            "plex.media.label": "Plex media",
+            "plex.media.empty": "No matching media on this server.",
+            "plex.media.untitled": "Untitled",
+            "plex.media.fallback": "Media",
+            "plex.media.watched": "%TITLE%: %PERCENT%% watched",
+            "plex.media.kind.movie": "Movie",
+            "plex.media.kind.episode": "Episode",
+            "plex.media.kind.music": "Music"
+          },
+          "ar": {
+            "plex.title.recently_added": "المضاف حديثًا",
+            "plex.title.continue_watching": "متابعة المشاهدة",
+            "plex.title.library": "بحث ومكتبة Plex",
+            "plex.title.default": "Plex",
+            "plex.action.refresh": "تحديث Plex",
+            "plex.status.loading": "جارٍ تحميل Plex…",
+            "plex.status.reconnecting": "جارٍ إعادة الاتصال بـ Plex…",
+            "plex.status.live": "مباشر · تم التحديث %TIME%",
+            "plex.status.stale_results": "انقطع الاتصال · يتم عرض النتائج السابقة",
+            "plex.status.denied": "يحتاج Plex إلى إذن للوصول",
+            "plex.status.offline_retry": "Plex غير متصل · جارٍ إعادة المحاولة",
+            "plex.status.unavailable_retry": "Plex غير متاح · جارٍ إعادة المحاولة",
+            "plex.media.label": "وسائط Plex",
+            "plex.media.empty": "لا توجد وسائط مطابقة على هذا الخادم.",
+            "plex.media.untitled": "بلا عنوان",
+            "plex.media.fallback": "وسائط",
+            "plex.media.watched": "تمت مشاهدة %PERCENT%% من %TITLE%",
+            "plex.media.kind.movie": "فيلم",
+            "plex.media.kind.episode": "حلقة",
+            "plex.media.kind.music": "موسيقى"
+          }
+        },
+        "runtime": "prebuilt_bundle",
+        "host_bridge": {
+          "protocol": "piphi.widget.host",
+          "version": "1",
+          "events": [
+            "ready",
+            "resize"
+          ]
+        }
+      },
+      {
+        "id": "io.piphi.plex.library-search",
+        "name": "Plex Search / Library",
+        "version": "0.1.6",
+        "entry": "/media/providers/plex/widgets/library-search/widget.js",
+        "integrity": "sha384-hDDjErmC66CrbOKjb/EpfEXeKgvoGKUwkAD8uDG2kEXOtMJb0PhsotfHiixlKBTR",
+        "binding_modes": [
+          "read"
+        ],
+        "value_kinds": [
+          "json"
+        ],
+        "capability_requirements": [],
+        "sdk_compatibility": {
+          "minimum": "0.6.0"
+        },
+        "settings_schema_version": "1",
+        "interaction_targets": [
+          {
+            "id": "library-search-card",
+            "label": "Plex library results",
+            "kind": "card",
+            "allowed_actions": [
+              "more-info",
+              "popout",
+              "refresh"
+            ],
+            "default_action": "more-info"
+          }
+        ],
+        "conformance": {
+          "accessibility": "wcag2.2-aa",
+          "keyboard": true,
+          "themes": [
+            "light",
+            "dark"
+          ],
+          "directions": [
+            "ltr",
+            "rtl"
+          ],
+          "states": [
+            "loading",
+            "live",
+            "stale",
+            "offline",
+            "reconnecting",
+            "denied",
+            "error"
+          ]
+        },
+        "previews": {
+          "light": "/media/providers/plex/widgets/library-search/preview-light.svg",
+          "dark": "/media/providers/plex/widgets/library-search/preview-dark.svg"
+        },
+        "settings": [
+          {
+            "id": "title",
+            "type": "text",
+            "label": "Title",
+            "default": "Plex Search / Library"
+          },
+          {
+            "id": "limit",
+            "type": "number",
+            "label": "Items (1–24)",
+            "default": 8
+          },
+          {
+            "id": "refresh-seconds",
+            "type": "number",
+            "label": "Refresh seconds (15–300)",
+            "default": 60
+          },
+          {
+            "id": "show-summary",
+            "type": "boolean",
+            "label": "Show one-line summaries",
+            "default": false
+          },
+          {
+            "id": "query",
+            "type": "text",
+            "label": "Search query (all server libraries)",
+            "default": ""
+          },
+          {
+            "id": "collection-id",
+            "type": "text",
+            "label": "Library ID (used when query is empty)",
+            "default": ""
+          }
+        ],
+        "layout": {
+          "min_height": 112,
+          "default_height": 112,
+          "max_height": 220
+        },
+        "security": {
+          "permissions": [
+            "host.queryMedia"
+          ],
+          "sandbox": [
+            "allow-scripts"
+          ],
+          "csp": {
+            "connect_src": []
+          }
+        },
+        "translations": {
+          "en": {
+            "plex.title.recently_added": "Recently Added",
+            "plex.title.continue_watching": "Continue Watching",
+            "plex.title.library": "Plex Search / Library",
+            "plex.title.default": "Plex",
+            "plex.action.refresh": "Refresh Plex",
+            "plex.status.loading": "Loading Plex…",
+            "plex.status.reconnecting": "Reconnecting to Plex…",
+            "plex.status.live": "Live · updated %TIME%",
+            "plex.status.stale_results": "Connection lost · showing previous results",
+            "plex.status.denied": "Plex access needs permission",
+            "plex.status.offline_retry": "Plex is offline · retrying",
+            "plex.status.unavailable_retry": "Plex is unavailable · retrying",
+            "plex.media.label": "Plex media",
+            "plex.media.empty": "No matching media on this server.",
+            "plex.media.untitled": "Untitled",
+            "plex.media.fallback": "Media",
+            "plex.media.watched": "%TITLE%: %PERCENT%% watched",
+            "plex.media.kind.movie": "Movie",
+            "plex.media.kind.episode": "Episode",
+            "plex.media.kind.music": "Music"
+          },
+          "ar": {
+            "plex.title.recently_added": "المضاف حديثًا",
+            "plex.title.continue_watching": "متابعة المشاهدة",
+            "plex.title.library": "بحث ومكتبة Plex",
+            "plex.title.default": "Plex",
+            "plex.action.refresh": "تحديث Plex",
+            "plex.status.loading": "جارٍ تحميل Plex…",
+            "plex.status.reconnecting": "جارٍ إعادة الاتصال بـ Plex…",
+            "plex.status.live": "مباشر · تم التحديث %TIME%",
+            "plex.status.stale_results": "انقطع الاتصال · يتم عرض النتائج السابقة",
+            "plex.status.denied": "يحتاج Plex إلى إذن للوصول",
+            "plex.status.offline_retry": "Plex غير متصل · جارٍ إعادة المحاولة",
+            "plex.status.unavailable_retry": "Plex غير متاح · جارٍ إعادة المحاولة",
+            "plex.media.label": "وسائط Plex",
+            "plex.media.empty": "لا توجد وسائط مطابقة على هذا الخادم.",
+            "plex.media.untitled": "بلا عنوان",
+            "plex.media.fallback": "وسائط",
+            "plex.media.watched": "تمت مشاهدة %PERCENT%% من %TITLE%",
+            "plex.media.kind.movie": "فيلم",
+            "plex.media.kind.episode": "حلقة",
+            "plex.media.kind.music": "موسيقى"
+          }
+        },
+        "runtime": "prebuilt_bundle",
+        "host_bridge": {
+          "protocol": "piphi.widget.host",
+          "version": "1",
+          "events": [
+            "ready",
+            "resize"
+          ]
+        }
+      }
+    ]
+  },
+  "media_provider": {
+    "id": "plex",
+    "label": "Plex",
+    "instances_endpoint": "/provider/instances",
+    "supports_search": true,
+    "supports_browse": true,
+    "supports_collections": true,
+    "supports_video": true,
+    "supports_images": true,
+    "supports_queue": true,
+    "supports_upload": false,
+    "supports_mutation": true
+  },
+  "onboarding": {
+    "mode": "account"
+  }
+}

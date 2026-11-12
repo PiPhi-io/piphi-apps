@@ -1,0 +1,327 @@
+{
+  "schema_version": "1",
+  "identity": {
+    "publisher_id": "io.piphi",
+    "package_id": "weatherxm-weather",
+    "version": "0.1.4"
+  },
+  "name": "WeatherXM Station",
+  "description": "Current outdoor conditions from a WeatherXM station.",
+  "origin": "integration",
+  "owning_integration_id": "piphi-network-weatherxm",
+  "sdk_version_range": ">=0.6.1,<0.7",
+  "requires_integrations": [
+    {
+      "integration_id": "piphi-network-weatherxm",
+      "version_range": ">=0.1,<1",
+      "optional": false
+    }
+  ],
+  "recommended_for_integrations": [
+    "piphi-network-weatherxm"
+  ],
+  "widgets": [
+    {
+      "id": "weather-overview",
+      "name": "WeatherXM Weather Overview",
+      "description": "Temperature, humidity, rain, wind, UV, and pressure from one station.",
+      "runtime": "declarative",
+      "presentation": {
+        "contract_version": "1",
+        "shell": "core",
+        "content_surface": "transparent",
+        "typography": "core",
+        "appearance_controls": [
+          "icon",
+          "title",
+          "surface",
+          "opacity",
+          "radius",
+          "shadow"
+        ]
+      },
+      "interaction_targets": [
+        {
+          "id": "card",
+          "label": "WeatherXM station",
+          "kind": "card",
+          "allowed_actions": [
+            "more-info",
+            "popout",
+            "refresh"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "temperature",
+          "label": "Temperature",
+          "kind": "binding",
+          "binding_slot_id": "temperature",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "humidity",
+          "label": "Humidity",
+          "kind": "binding",
+          "binding_slot_id": "humidity",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "rain",
+          "label": "Rain",
+          "kind": "binding",
+          "binding_slot_id": "rain",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "wind",
+          "label": "Wind speed",
+          "kind": "binding",
+          "binding_slot_id": "wind",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "uv",
+          "label": "UV index",
+          "kind": "binding",
+          "binding_slot_id": "uv",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "pressure",
+          "label": "Pressure",
+          "kind": "binding",
+          "binding_slot_id": "pressure",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        }
+      ],
+      "binding_slots": [
+        {
+          "id": "temperature",
+          "label": "Temperature",
+          "required": true,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "temperature_c"
+          ],
+          "compatible_integration_ids": [
+            "piphi-network-weatherxm"
+          ]
+        },
+        {
+          "id": "humidity",
+          "label": "Humidity",
+          "required": false,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "humidity_percent"
+          ],
+          "compatible_integration_ids": [
+            "piphi-network-weatherxm"
+          ]
+        },
+        {
+          "id": "rain",
+          "label": "Rain",
+          "required": false,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "precipitation_mm"
+          ],
+          "compatible_integration_ids": [
+            "piphi-network-weatherxm"
+          ]
+        },
+        {
+          "id": "wind",
+          "label": "Wind speed",
+          "required": false,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "wind_speed_ms"
+          ],
+          "compatible_integration_ids": [
+            "piphi-network-weatherxm"
+          ]
+        },
+        {
+          "id": "uv",
+          "label": "UV index",
+          "required": false,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "uv_index"
+          ],
+          "compatible_integration_ids": [
+            "piphi-network-weatherxm"
+          ]
+        },
+        {
+          "id": "pressure",
+          "label": "Pressure",
+          "required": false,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "pressure_hpa"
+          ],
+          "compatible_integration_ids": [
+            "piphi-network-weatherxm"
+          ]
+        }
+      ],
+      "recipe": {
+        "schema_version": "1",
+        "layout": "grid",
+        "columns": 2,
+        "items": [
+          {
+            "type": "metric",
+            "slot_id": "temperature",
+            "label": "Temperature",
+            "format": "temperature",
+            "domain": "temperature",
+            "emphasis": "hero",
+            "action": {
+              "type": "details",
+              "label": "View temperature details"
+            }
+          },
+          {
+            "type": "metric",
+            "slot_id": "humidity",
+            "label": "Humidity",
+            "format": "percent",
+            "domain": "humidity",
+            "action": {
+              "type": "details",
+              "label": "View humidity details"
+            }
+          },
+          {
+            "type": "metric",
+            "slot_id": "rain",
+            "label": "Rain",
+            "action": {
+              "type": "details",
+              "label": "View rain details"
+            }
+          },
+          {
+            "type": "metric",
+            "slot_id": "wind",
+            "label": "Wind",
+            "action": {
+              "type": "details",
+              "label": "View wind details"
+            }
+          },
+          {
+            "type": "metric",
+            "slot_id": "uv",
+            "label": "UV index",
+            "action": {
+              "type": "details",
+              "label": "View UV details"
+            }
+          },
+          {
+            "type": "metric",
+            "slot_id": "pressure",
+            "label": "Pressure",
+            "action": {
+              "type": "details",
+              "label": "View pressure details"
+            }
+          }
+        ]
+      },
+      "certification": {
+        "schema_version": "1",
+        "verified_gates": [
+          "runtime",
+          "persistence",
+          "binding",
+          "states",
+          "responsive",
+          "themes",
+          "accessibility",
+          "save-reload",
+          "performance"
+        ],
+        "evidence": {
+          "runtime": [
+            "core-profile:declarative-v2/runtime"
+          ],
+          "persistence": [
+            "core-profile:declarative-v2/persistence"
+          ],
+          "binding": [
+            "core-profile:declarative-v2/binding"
+          ],
+          "states": [
+            "core-profile:declarative-v2/states"
+          ],
+          "responsive": [
+            "core-profile:declarative-v2/responsive"
+          ],
+          "themes": [
+            "core-profile:declarative-v2/themes"
+          ],
+          "accessibility": [
+            "core-profile:declarative-v2/accessibility"
+          ],
+          "save-reload": [
+            "core-profile:declarative-v2/save-reload"
+          ],
+          "performance": [
+            "core-profile:declarative-v2/performance"
+          ]
+        }
+      },
+      "default_column_span": 4,
+      "default_row_span": 3
+    }
+  ]
+}

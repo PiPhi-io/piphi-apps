@@ -1,0 +1,31 @@
+[project]
+name = "piphi_network_thinqconnect"
+version = "0.1.15"
+description = "PiPhi LG ThinQ Connect integration"
+authors = [
+    {name = "KelvinSan", email = "kelvin.sanyaolu@gmail.com"},
+]
+dependencies = [
+    "thinqconnect>=1.0.14",
+    "aiohttp>=3.11.0",
+    "fastapi[standard]>=0.135.2",
+    "aiofiles>=25.1.0",
+    "httpx>=0.27.0",
+    "piphi-runtime-kit-python>=0.8.1,<1.0.0",
+]
+requires-python = "==3.12.*"
+readme = "README.md"
+license = {text = "MIT"}
+
+[tool.pdm]
+distribution = false
+
+[tool.pdm.scripts]
+release-version = "python scripts/release.py"
+release-github = "python scripts/create_github_release.py"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.0",
+    "piphi-runtime-testkit-python>=0.1.4,<0.2.0",
+]

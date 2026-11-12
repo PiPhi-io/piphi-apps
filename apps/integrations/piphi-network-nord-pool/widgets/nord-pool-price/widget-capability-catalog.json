@@ -1,0 +1,32 @@
+{
+  "catalog_version": "1.0",
+  "widget_id": "io.piphi.nord-pool.price",
+  "reviewed_at": "2026-09-20",
+  "sources": {"widget_sdk": "PiPhi Widget SDK 0.5.1 public host contract", "integration_manifest": "../../manifest.json"},
+  "rows": [
+    {
+      "id": "current-market-price",
+      "status": "implemented",
+      "consumes": ["connected", "market_area", "current_price_per_kwh", "next_price_per_kwh", "price_unit"],
+      "interactions": [],
+      "states": ["loading", "empty", "live", "stale", "offline", "reconnecting", "denied", "error"],
+      "reason": "Shows only values delivered by the configured market area."
+    },
+    {
+      "id": "presentation-accessibility",
+      "status": "implemented",
+      "consumes": [],
+      "interactions": ["keyboard_navigation", "focus_visible"],
+      "states": ["responsive", "light_theme", "dark_theme", "rtl", "reduced_motion"],
+      "reason": "Uses semantic text and adaptive layout without commands."
+    },
+    {
+      "id": "price-chart-and-automation",
+      "status": "planned",
+      "consumes": [],
+      "interactions": [],
+      "states": [],
+      "reason": "Full-day intervals and price conditions are not runtime capabilities yet."
+    }
+  ]
+}

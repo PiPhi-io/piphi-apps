@@ -1,0 +1,8 @@
+{
+  "id": "home-solar",
+  "site_id": 1234567,
+  "alias": "Home solar",
+  "api_key": "replace-with-your-api-key",
+  "poll_interval_seconds": 900,
+  "summary_interval_seconds": 3600
+}

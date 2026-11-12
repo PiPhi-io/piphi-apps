@@ -1,0 +1,72 @@
+{
+  "entities": [
+    {
+      "id": "demo-device",
+      "name": "Demo Device",
+      "device_id": "demo-device",
+      "entity_type": "sensor",
+      "capabilities": [
+        "connected",
+        "temperature_c",
+        "refresh",
+        "api_rate_limit_remaining",
+        "api_latency_ms",
+        "sync_cloud"
+      ],
+      "available_commands": [
+        {
+          "id": "refresh",
+          "label": "Refresh",
+          "kind": "action"
+        },
+        {
+          "id": "sync_cloud",
+          "label": "Sync Cloud",
+          "kind": "action"
+        }
+      ],
+      "dashboard": {
+        "allowed_widgets": [
+          "tile",
+          "stat",
+          "button"
+        ],
+        "default_widget": "tile"
+      }
+    }
+  ],
+  "capabilities": {
+    "connected": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "temperature_c": {
+      "kind": "sensor",
+      "unit": "C"
+    },
+    "refresh": {
+      "kind": "action"
+    },
+    "api_rate_limit_remaining": {
+      "kind": "sensor",
+      "unit": "requests"
+    },
+    "api_latency_ms": {
+      "kind": "sensor",
+      "unit": "ms"
+    },
+    "sync_cloud": {
+      "kind": "action"
+    }
+  },
+  "commands": {
+    "refresh": {
+      "description": "Refresh the device state.",
+      "timeout_ms": 5000
+    },
+    "sync_cloud": {
+      "description": "Synchronize state from the vendor cloud.",
+      "timeout_ms": 15000
+    }
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "schema_version": "1",
+  "identity": {"publisher_id": "io.piphi", "package_id": "sonoff-diy-switch", "version": "0.1.1"},
+  "name": "Sonoff DIY Switch",
+  "description": "Live on/off state of one supported Sonoff DIY Mode switch.",
+  "origin": "integration",
+  "owning_integration_id": "piphi-network-sonoff-lan",
+  "sdk_version_range": ">=0.6.1,<0.7",
+  "requires_integrations": [{"integration_id": "piphi-network-sonoff-lan", "version_range": ">=0.1,<1", "optional": false}],
+  "recommended_for_integrations": ["piphi-network-sonoff-lan"],
+  "widgets": [{
+    "id": "diy-switch-state",
+    "name": "DIY Switch State",
+    "description": "Read-only state for one plaintext DIY Mode relay.",
+    "runtime": "declarative",
+    "presentation": {
+      "contract_version": "1", "shell": "core", "content_surface": "transparent", "typography": "core",
+      "appearance_controls": ["icon", "title", "surface", "opacity", "radius", "shadow"]
+    },
+    "interaction_targets": [
+      {"id": "card", "label": "Sonoff DIY switch", "kind": "card", "allowed_actions": ["more-info", "popout", "refresh"], "default_action": "more-info"},
+      {"id": "state", "label": "Switch state", "kind": "binding", "binding_slot_id": "state", "allowed_actions": ["more-info", "history", "popout"], "default_action": "more-info"}
+    ],
+    "binding_slots": [{
+      "id": "state", "label": "Switch state", "required": true, "binding_modes": ["read"],
+      "capability_requirements": ["switch_on"], "compatible_integration_ids": ["piphi-network-sonoff-lan"],
+      "data_delivery": {"mode": "stream_preferred", "stale_after_seconds": 600}
+    }],
+    "recipe": {
+      "schema_version": "1", "layout": "grid", "columns": 1,
+      "items": [{"type": "status", "slot_id": "state", "label": "Switch", "true_label": "On", "false_label": "Off", "domain": "switch", "action": {"type": "details", "label": "View switch state"}}]
+    },
+    "certification": {
+      "schema_version": "1",
+      "verified_gates": ["runtime", "persistence", "binding", "states", "responsive", "themes", "accessibility", "save-reload", "performance"],
+      "evidence": {
+        "runtime": ["core-profile:declarative-v2/runtime"],
+        "persistence": ["core-profile:declarative-v2/persistence"],
+        "binding": ["core-profile:declarative-v2/binding"],
+        "states": ["core-profile:declarative-v2/states"],
+        "responsive": ["core-profile:declarative-v2/responsive"],
+        "themes": ["core-profile:declarative-v2/themes"],
+        "accessibility": ["core-profile:declarative-v2/accessibility"],
+        "save-reload": ["core-profile:declarative-v2/save-reload"],
+        "performance": ["core-profile:declarative-v2/performance"]
+      }
+    },
+    "default_column_span": 3,
+    "default_row_span": 2
+  }]
+}

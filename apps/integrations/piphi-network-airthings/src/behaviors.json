@@ -1,0 +1,434 @@
+{
+  "devices": [
+    {
+      "id": "airthings_cloud_monitor",
+      "name": "Airthings Cloud Monitor",
+      "description": "Consumer Airthings monitor synchronized through the Airthings cloud account.",
+      "capabilities": [
+        "radon_short_term_bqm3",
+        "radon_long_term_bqm3",
+        "temperature_c",
+        "humidity_percent",
+        "mold_risk_level",
+        "pressure_hpa",
+        "co2_ppm",
+        "voc_ppb",
+        "pm1_ugm3",
+        "pm25_ugm3",
+        "battery_percent",
+        "refresh"
+      ],
+      "intents": [
+        {
+          "id": "air_quality_monitoring",
+          "label": "Air quality monitoring",
+          "description": "Track radon, particles, carbon dioxide, VOCs, and comfort conditions from Airthings cloud data."
+        },
+        {
+          "id": "safety_alerting",
+          "label": "Safety alerting",
+          "description": "Trigger warnings when air quality or battery levels cross critical thresholds."
+        }
+      ],
+      "conditions": [
+        {
+          "id": "metric_above",
+          "label": "Metric above threshold",
+          "type": "number",
+          "params": [
+            {
+              "name": "metric",
+              "label": "Metric",
+              "type": "enum",
+              "required": true,
+              "default": "co2_ppm",
+              "options": [
+                "radon_short_term_bqm3",
+                "radon_long_term_bqm3",
+                "temperature_c",
+                "humidity_percent",
+                "mold_risk_level",
+                "pressure_hpa",
+                "co2_ppm",
+                "voc_ppb",
+                "pm1_ugm3",
+                "pm25_ugm3",
+                "battery_percent"
+              ]
+            },
+            {
+              "name": "value",
+              "label": "Threshold",
+              "type": "number",
+              "required": true,
+              "default": 1000
+            }
+          ],
+          "capability": "sensor.metric_above",
+          "operators": [
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "metric_above",
+            "operator": ">"
+          },
+          "freshness": {
+            "maxAgeSeconds": 300,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "metric_below",
+          "label": "Metric below threshold",
+          "type": "number",
+          "params": [
+            {
+              "name": "metric",
+              "label": "Metric",
+              "type": "enum",
+              "required": true,
+              "default": "battery_percent",
+              "options": [
+                "radon_short_term_bqm3",
+                "radon_long_term_bqm3",
+                "temperature_c",
+                "humidity_percent",
+                "mold_risk_level",
+                "pressure_hpa",
+                "co2_ppm",
+                "voc_ppb",
+                "pm1_ugm3",
+                "pm25_ugm3",
+                "battery_percent"
+              ]
+            },
+            {
+              "name": "value",
+              "label": "Threshold",
+              "type": "number",
+              "required": true,
+              "default": 20
+            }
+          ],
+          "capability": "sensor.metric_below",
+          "operators": [
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "metric_below",
+            "operator": ">"
+          },
+          "freshness": {
+            "maxAgeSeconds": 300,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        }
+      ],
+      "actions": [
+        {
+          "id": "refresh",
+          "label": "Refresh latest sample",
+          "capability": "device.refresh",
+          "runtime": {
+            "command": "refresh"
+          },
+          "targeting": {
+            "fanoutSafe": true,
+            "scopes": [
+              "config",
+              "configs",
+              "room",
+              "rooms",
+              "group",
+              "groups",
+              "selection",
+              "tag",
+              "tags",
+              "capability",
+              "all_matching"
+            ],
+            "supportsMultiTarget": true
+          },
+          "failure": {
+            "strategy": "retry_then_continue",
+            "retry": {
+              "maxAttempts": 1,
+              "delaySeconds": 2,
+              "backoff": "fixed"
+            },
+            "timeoutSeconds": 30,
+            "continueOnPartialFailure": true,
+            "idempotent": true
+          },
+          "ui": {
+            "group": "do_this"
+          },
+          "safety": {
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "deviceClass": "air_quality_sensor",
+      "entityType": "sensor",
+      "targeting": {
+        "scopes": [
+          "config",
+          "configs",
+          "room",
+          "rooms",
+          "group",
+          "groups",
+          "selection",
+          "tag",
+          "tags",
+          "capability",
+          "all_matching"
+        ],
+        "fanout": {
+          "supported": true,
+          "defaultMode": "selection",
+          "allowedModes": [
+            "config",
+            "configs",
+            "room",
+            "rooms",
+            "group",
+            "groups",
+            "tag",
+            "tags",
+            "capability",
+            "selection",
+            "all_matching"
+          ]
+        }
+      },
+      "freshness": {
+        "maxAgeSeconds": 300,
+        "staleDataMode": "block"
+      },
+      "ui": {
+        "icon": "wind",
+        "category": "air_quality_sensor"
+      },
+      "triggers": [
+        {
+          "id": "state_changed",
+          "label": "Device updates",
+          "description": "Start when this device reports a new state.",
+          "capability": "telemetry.state",
+          "runtime": {
+            "event": "device.state_changed",
+            "source": "integration"
+          },
+          "freshness": {
+            "maxAgeSeconds": 300,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "when"
+          }
+        },
+        {
+          "id": "cloud_poll_failed",
+          "label": "Cloud readings go offline",
+          "description": "Start once when this monitor stops returning cloud readings.",
+          "capability": "telemetry.availability",
+          "runtime": {
+            "event": "airthings.cloud.sample.failed",
+            "source": "integration"
+          },
+          "ui": {
+            "group": "when"
+          }
+        },
+        {
+          "id": "cloud_poll_recovered",
+          "label": "Cloud readings recover",
+          "description": "Start once when cloud readings resume after an outage.",
+          "capability": "telemetry.availability",
+          "runtime": {
+            "event": "airthings.cloud.sample.recovered",
+            "source": "integration"
+          },
+          "ui": {
+            "group": "when"
+          }
+        }
+      ]
+    }
+  ],
+  "templates": [
+    {
+      "id": "airthings_air_quality_check",
+      "label": "Watch for unhealthy Airthings readings",
+      "description": "Starts when Airthings cloud data changes and sends an in-app warning when CO2 rises above 1000 ppm.",
+      "category": "Air quality",
+      "deviceKey": "airthings_cloud_monitor",
+      "config": {
+        "automation_schema_version": "automation.behavior.v2",
+        "triggers": [
+          {
+            "id": "state_changed",
+            "label": "Airthings reading changes",
+            "type": "integration_event",
+            "event": "device.state_changed",
+            "capability": "telemetry.state",
+            "enabled": true,
+            "sourceRef": {
+              "integrationId": "{{integrationId}}",
+              "integrationKey": "{{integrationKey}}",
+              "configId": "{{configId}}",
+              "behaviorDeviceKey": "airthings_cloud_monitor",
+              "optionKey": "state_changed",
+              "capability": "telemetry.state"
+            }
+          }
+        ],
+        "trigger": {
+          "id": "state_changed",
+          "label": "Airthings reading changes",
+          "type": "integration_event",
+          "event": "device.state_changed",
+          "capability": "telemetry.state",
+          "enabled": true
+        },
+        "intent": "air_quality_monitoring",
+        "conditionTree": {
+          "id": "co2_ppm_above_template",
+          "label": "CO2 is above 1000 ppm",
+          "field": "co2_ppm",
+          "operator": ">",
+          "value": 1000,
+          "sourceRef": {
+            "integrationId": "{{integrationId}}",
+            "integrationKey": "{{integrationKey}}",
+            "configId": "{{configId}}",
+            "behaviorDeviceKey": "airthings_cloud_monitor",
+            "optionKey": "metric_above",
+            "capability": "sensor.metric_above"
+          }
+        },
+        "actions": [
+          {
+            "id": "send_air_quality_warning",
+            "label": "Send air quality warning",
+            "action": "builtin.notification.send",
+            "runtime": {
+              "command": "builtin.notification.send",
+              "semanticType": "notification",
+              "actionContractVersion": 1
+            },
+            "parameters": {
+              "title": "Airthings air quality warning",
+              "message": "CO2 is above 1000 ppm. Bring in fresh air and check the room.",
+              "dedupe_window_seconds": 900
+            },
+            "failure": {
+              "strategy": "retry_then_continue",
+              "retry": {
+                "maxAttempts": 2,
+                "delaySeconds": 2,
+                "timeoutSeconds": 10,
+                "backoff": "fixed"
+              },
+              "continueOnPartialFailure": true
+            }
+          }
+        ],
+        "safety": {
+          "staleDataMode": "block",
+          "maxAgeSeconds": 600,
+          "requireFreshTrigger": true,
+          "dryRunFirst": false
+        },
+        "failure": {
+          "strategy": "follow_edges",
+          "fallbackBehaviorId": "",
+          "conditionTree": {
+            "op": "and",
+            "children": []
+          }
+        },
+        "stop": {
+          "never": true
+        },
+        "override": {
+          "mode": "continue"
+        }
+      },
+      "ui": {
+        "accent": "air_quality",
+        "icon": "wind"
+      },
+      "metadata": {
+        "recommended": true,
+        "difficulty": "easy"
+      }
+    }
+  ],
+  "behaviorSchemaVersion": "integration.behaviors.v2",
+  "telemetry": {
+    "capabilityMappings": [
+      {
+        "nativeMetric": "battery_percent",
+        "capability": "sensor.battery_percent"
+      },
+      {
+        "nativeMetric": "co2_ppm",
+        "capability": "sensor.co2_ppm"
+      },
+      {
+        "nativeMetric": "humidity_percent",
+        "capability": "sensor.humidity_percent"
+      },
+      {
+        "nativeMetric": "mold_risk_level",
+        "capability": "sensor.mold_risk_level"
+      },
+      {
+        "nativeMetric": "pm1_ugm3",
+        "capability": "sensor.pm1_ugm3"
+      },
+      {
+        "nativeMetric": "pm25_ugm3",
+        "capability": "sensor.pm25_ugm3"
+      },
+      {
+        "nativeMetric": "pressure_hpa",
+        "capability": "sensor.pressure_hpa"
+      },
+      {
+        "nativeMetric": "radon_long_term_bqm3",
+        "capability": "sensor.radon_long_term_bqm3"
+      },
+      {
+        "nativeMetric": "radon_short_term_bqm3",
+        "capability": "sensor.radon_short_term_bqm3"
+      },
+      {
+        "nativeMetric": "temperature_c",
+        "capability": "sensor.temperature_c"
+      },
+      {
+        "nativeMetric": "voc_ppb",
+        "capability": "sensor.voc_ppb"
+      }
+    ]
+  }
+}

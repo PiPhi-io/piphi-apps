@@ -1,0 +1,6 @@
+{
+  "id": "living-room-bthome",
+  "host": "AA:BB:CC:DD:EE:FF",
+  "alias": "Living room sensor",
+  "poll_interval_seconds": 60
+}

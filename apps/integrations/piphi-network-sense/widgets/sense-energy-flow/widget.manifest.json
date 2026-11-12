@@ -1,0 +1,92 @@
+{
+  "id": "io.piphi.sense.energy-flow",
+  "name": "Sense energy flow",
+  "version": "0.1.1",
+  "entry": "./dist/widget.js",
+  "binding_modes": [
+    "read"
+  ],
+  "value_kinds": [
+    "numeric"
+  ],
+  "capability_requirements": [
+    "active_power_w",
+    "active_solar_power_w",
+    "daily_usage_kwh",
+    "daily_production_kwh"
+  ],
+  "sdk_compatibility": {
+    "minimum": "0.6.1"
+  },
+  "interaction_targets": [
+    {"id": "energy-flow-card", "label": "Sense energy flow", "kind": "card", "allowed_actions": ["more-info", "popout", "refresh"], "default_action": "more-info"}
+  ],
+  "conformance": {
+    "accessibility": "wcag2.2-aa",
+    "keyboard": true,
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "directions": [
+      "ltr",
+      "rtl"
+    ],
+    "states": [
+      "loading",
+      "live",
+      "stale",
+      "offline",
+      "reconnecting",
+      "denied",
+      "error"
+    ]
+  },
+  "settings_schema_version": "1",
+  "settings": [
+    {
+      "id": "title",
+      "type": "text",
+      "label": "Title",
+      "default": "Live energy"
+    },
+    {
+      "id": "monitor",
+      "type": "device",
+      "label": "Device",
+      "required": true
+    }
+  ],
+  "layout": {
+    "min_height": 112,
+    "default_height": 156,
+    "max_height": 240
+  },
+  "previews": {
+    "light": "./previews/light.svg",
+    "dark": "./previews/dark.svg"
+  },
+  "translations": {
+    "en": {
+      "widget.title": "Live energy",
+      "widget.waiting": "Waiting for Sense data"
+    },
+    "es": {
+      "widget.title": "Energía en vivo",
+      "widget.waiting": "Esperando datos de Sense"
+    },
+    "ar": {
+      "widget.title": "الطاقة المباشرة",
+      "widget.waiting": "في انتظار بيانات Sense"
+    }
+  },
+  "security": {
+    "permissions": [],
+    "sandbox": [
+      "allow-scripts"
+    ],
+    "csp": {
+      "connect_src": []
+    }
+  }
+}

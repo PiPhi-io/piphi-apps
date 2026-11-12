@@ -1,0 +1,43 @@
+[project]
+name = "piphi-network-steam"
+version = "0.1.0"
+description = "PiPhi Network integration for Steam player presence and gaming activity."
+readme = "README.md"
+requires-python = "==3.12.*"
+license = {text = "Apache-2.0"}
+dependencies = [
+  "fastapi>=0.135,<1.0",
+  "httpx>=0.28,<1.0",
+  "piphi-runtime-kit-python>=0.8.1,<1.0.0",
+  "uvicorn[standard]>=0.40,<1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "piphi-runtime-testkit-python>=0.1.4,<1.0",
+  "pytest>=8.4,<9.0",
+  "pytest-asyncio>=1.2,<2.0",
+  "ruff>=0.13,<1.0",
+]
+
+[project.scripts]
+piphi-network-steam = "piphi_network_steam.main:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/piphi_network_steam"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"src/manifest.json" = "piphi_network_steam/manifest.json"
+"src/behaviors.json" = "piphi_network_steam/behaviors.json"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"

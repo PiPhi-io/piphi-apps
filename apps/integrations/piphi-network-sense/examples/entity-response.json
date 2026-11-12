@@ -1,0 +1,39 @@
+{
+  "entities": [
+    {
+      "id": "sense-monitor",
+      "name": "Sense Energy Monitor",
+      "device_id": "sense-monitor",
+      "entity_type": "energy_monitor",
+      "capabilities": [
+        "connected",
+        "active_power_w",
+        "active_solar_power_w",
+        "daily_usage_kwh",
+        "daily_production_kwh",
+        "active_device_count",
+        "refresh"
+      ],
+      "available_commands": [{"id": "refresh", "label": "Refresh", "kind": "action"}],
+      "dashboard": {
+        "allowed_widgets": ["energy-flow", "gauge", "line-chart", "stat", "external-widget"],
+        "default_widget": "energy-flow"
+      }
+    }
+  ],
+  "capabilities": {
+    "connected": {"kind": "sensor", "unit": "bool"},
+    "active_power_w": {"kind": "sensor", "unit": "W"},
+    "active_solar_power_w": {"kind": "sensor", "unit": "W"},
+    "daily_usage_kwh": {"kind": "sensor", "unit": "kWh"},
+    "daily_production_kwh": {"kind": "sensor", "unit": "kWh"},
+    "active_device_count": {"kind": "sensor", "unit": "devices"},
+    "refresh": {"kind": "action"}
+  },
+  "commands": {
+    "refresh": {
+      "description": "Refresh current power and daily energy from Sense.",
+      "timeout_ms": 15000
+    }
+  }
+}

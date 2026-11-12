@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="140" viewBox="0 0 400 140" role="img" aria-label="Plex server overview preview">
+  <rect width="400" height="140" rx="16" fill="#ffffff"/>
+  <g font-family="system-ui,sans-serif" fill="#0f172a">
+    <text x="20" y="34" font-size="16" font-weight="700">Plex servers</text>
+    <path d="M20 52H380M140 62V118M260 62V118" stroke="#d7e0eb"/>
+    <text x="26" y="86" font-size="18" font-weight="700">1</text><text x="26" y="108" font-size="12" fill="#52647a">Servers</text>
+    <text x="154" y="86" font-size="18" font-weight="700">1</text><text x="154" y="108" font-size="12" fill="#52647a">Streams</text>
+    <text x="274" y="86" font-size="18" font-weight="700">0</text><text x="274" y="108" font-size="12" fill="#52647a">Transcodes</text>
+  </g>
+</svg>

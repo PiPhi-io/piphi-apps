@@ -1,0 +1,110 @@
+{
+  "id": "io.piphi.plex.library-search",
+  "name": "Plex Search / Library",
+  "version": "0.1.6",
+  "entry": "./dist/widget.js",
+  "integrity": "sha384-hDDjErmC66CrbOKjb/EpfEXeKgvoGKUwkAD8uDG2kEXOtMJb0PhsotfHiixlKBTR",
+  "binding_modes": [
+    "read"
+  ],
+  "value_kinds": [
+    "json"
+  ],
+  "capability_requirements": [],
+  "sdk_compatibility": {
+    "minimum": "0.6.0"
+  },
+  "settings_schema_version": "1",
+  "interaction_targets": [
+    {
+      "id": "library-search-card",
+      "label": "Plex library results",
+      "kind": "card",
+      "allowed_actions": [
+        "more-info",
+        "popout",
+        "refresh"
+      ],
+      "default_action": "more-info"
+    }
+  ],
+  "conformance": {
+    "accessibility": "wcag2.2-aa",
+    "keyboard": true,
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "directions": [
+      "ltr",
+      "rtl"
+    ],
+    "states": [
+      "loading",
+      "live",
+      "stale",
+      "offline",
+      "reconnecting",
+      "denied",
+      "error"
+    ]
+  },
+  "previews": {
+    "light": "./preview-light.svg",
+    "dark": "./preview-dark.svg"
+  },
+  "settings": [
+    {
+      "id": "title",
+      "type": "text",
+      "label": "Title",
+      "default": "Plex Search / Library"
+    },
+    {
+      "id": "limit",
+      "type": "number",
+      "label": "Items (1–24)",
+      "default": 8
+    },
+    {
+      "id": "refresh-seconds",
+      "type": "number",
+      "label": "Refresh seconds (15–300)",
+      "default": 60
+    },
+    {
+      "id": "show-summary",
+      "type": "boolean",
+      "label": "Show one-line summaries",
+      "default": false
+    },
+    {
+      "id": "query",
+      "type": "text",
+      "label": "Search query (all server libraries)",
+      "default": ""
+    },
+    {
+      "id": "collection-id",
+      "type": "text",
+      "label": "Library ID (used when query is empty)",
+      "default": ""
+    }
+  ],
+  "layout": {
+    "min_height": 112,
+    "default_height": 112,
+    "max_height": 220
+  },
+  "security": {
+    "permissions": [
+      "host.queryMedia"
+    ],
+    "sandbox": [
+      "allow-scripts"
+    ],
+    "csp": {
+      "connect_src": []
+    }
+  }
+}

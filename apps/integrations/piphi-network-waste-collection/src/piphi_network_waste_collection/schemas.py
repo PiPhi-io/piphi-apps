@@ -1,0 +1,15 @@
+from __future__ import annotations
+
+from piphi_runtime_kit_python import RuntimeConfig
+
+
+class DeviceConfig(RuntimeConfig):
+    host: str = "manual-schedule"
+    alias: str | None = None
+    api_key: str | None = None
+    base_url: str | None = None
+    poll_interval_seconds: int | None = None
+    service_name: str | None = None
+    next_collection_date: str | None = None
+    collection_type: str | None = None
+    schedule_timezone: str | None = None

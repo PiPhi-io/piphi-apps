@@ -1,0 +1,22 @@
+{
+  "entities": [],
+  "capabilities": {
+    "connected": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "holding_register_value": {
+      "kind": "sensor",
+      "value_kind": "numeric"
+    },
+    "refresh": {
+      "kind": "action"
+    }
+  },
+  "commands": {
+    "refresh": {
+      "description": "Refresh the device state.",
+      "timeout_ms": 12000
+    }
+  }
+}

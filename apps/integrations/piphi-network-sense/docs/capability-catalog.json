@@ -1,0 +1,71 @@
+{
+  "schema_version": "1",
+  "integration_id": "piphi-network-sense",
+  "catalog_version": "0.1.2",
+  "completion": {
+    "status": "release_candidate",
+    "automated_runtime_validation": "passed",
+    "simulator_validation": "passed",
+    "physical_account_validation": "pending",
+    "widget_package_migration": "passed"
+  },
+  "entity_profiles": [
+    {
+      "id": "sense-monitor",
+      "status": "implemented",
+      "simulated": true,
+      "capabilities": [
+        "connected",
+        "active_power_w",
+        "active_solar_power_w",
+        "voltage_l1_v",
+        "voltage_l2_v",
+        "frequency_hz",
+        "daily_usage_kwh",
+        "daily_production_kwh",
+        "daily_from_grid_kwh",
+        "daily_to_grid_kwh",
+        "active_device_count",
+        "always_on_power_w",
+        "other_power_w",
+        "refresh"
+      ]
+    },
+    {
+      "id": "detected-appliance",
+      "status": "implemented",
+      "simulated": true,
+      "capabilities": ["device_power_w", "device_on", "device_daily_energy_kwh"]
+    }
+  ],
+  "capabilities": [
+    {"id": "connected", "status": "implemented", "source": "authenticated poll outcome"},
+    {"id": "active_power_w", "status": "implemented", "source": "Sense realtime"},
+    {"id": "active_solar_power_w", "status": "implemented", "source": "Sense realtime"},
+    {"id": "voltage_l1_v", "status": "implemented", "source": "Sense realtime"},
+    {"id": "voltage_l2_v", "status": "implemented", "source": "Sense realtime"},
+    {"id": "frequency_hz", "status": "implemented", "source": "Sense realtime"},
+    {"id": "daily_usage_kwh", "status": "implemented", "source": "Sense trends"},
+    {"id": "daily_production_kwh", "status": "implemented", "source": "Sense trends"},
+    {"id": "daily_from_grid_kwh", "status": "implemented", "source": "Sense trends"},
+    {"id": "daily_to_grid_kwh", "status": "implemented", "source": "Sense trends"},
+    {"id": "active_device_count", "status": "implemented", "source": "detected appliances"},
+    {"id": "always_on_power_w", "status": "implemented", "source": "Sense extended read-only data"},
+    {"id": "other_power_w", "status": "implemented", "source": "Sense extended read-only data"},
+    {"id": "device_power_w", "status": "implemented", "source": "detected appliance state"},
+    {"id": "device_on", "status": "implemented", "source": "detected appliance state"},
+    {"id": "device_daily_energy_kwh", "status": "implemented", "source": "detected appliance trends"},
+    {"id": "refresh", "status": "implemented", "source": "Runtime SDK action"},
+    {"id": "per_appliance_history", "status": "planned", "reason": "The unofficial API behavior is not proven by sanitized live fixtures."},
+    {"id": "device_control", "status": "excluded", "reason": "Sense is a monitoring integration and does not provide appliance control."}
+  ],
+  "commands": [
+    {"id": "refresh", "status": "implemented", "simulation": "implemented"}
+  ],
+  "simulator": {
+    "repository": "piphi-integration-simulators",
+    "scenario": "sense",
+    "presets": ["balanced", "high_load", "solar_export", "overnight", "offline"],
+    "uses_integration_experience_package": true
+  }
+}

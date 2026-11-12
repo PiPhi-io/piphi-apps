@@ -1,0 +1,42 @@
+{
+  "device_id": "sim-midea-ac",
+  "alias": "Simulated Midea AC",
+  "initial_state": {
+    "connected": true,
+    "power": true,
+    "hvac_mode": "auto",
+    "hvac_action": "idle",
+    "target_temperature_c": 22,
+    "indoor_temperature_c": 22,
+    "outdoor_temperature_c": 28,
+    "fan_speed_percent": 40,
+    "fan_mode": "low",
+    "fan_modes_supported": "auto,silent,low,medium,high,max",
+    "swing_mode": "off",
+    "swing_modes_supported": "off,vertical,horizontal,both",
+    "preset_mode": "none",
+    "preset_modes_supported": "none,sleep,eco,boost,away"
+  },
+  "effects": {
+    "refresh": {"updates": {}},
+    "set_power": {"argument": "power", "state": "power"},
+    "set_hvac_mode": {"argument": "mode", "state": "hvac_mode"},
+    "set_target_temperature": {
+      "argument": "temperature",
+      "state": "target_temperature_c"
+    },
+    "set_fan_mode": {"argument": "fan_mode", "state": "fan_mode"},
+    "set_swing_mode": {"argument": "swing_mode", "state": "swing_mode"},
+    "set_preset_mode": {"argument": "preset_mode", "state": "preset_mode"}
+  },
+  "derived_state": {
+    "hvac_action": {
+      "kind": "climate_action",
+      "power": "power",
+      "mode": "hvac_mode",
+      "current_temperature": "indoor_temperature_c",
+      "target_temperature": "target_temperature_c",
+      "deadband": 0.5
+    }
+  }
+}

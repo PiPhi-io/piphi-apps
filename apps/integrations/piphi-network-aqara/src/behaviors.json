@@ -1,0 +1,777 @@
+{
+  "devices": [
+    {
+      "id": "aqara_cloud_device",
+      "name": "Aqara Cloud Device",
+      "description": "Aqara device synchronized through the Aqara Open API.",
+      "capabilities": [
+        "temperature_c",
+        "humidity_percent",
+        "pressure_hpa",
+        "battery_percent",
+        "battery_low",
+        "illuminance_lux",
+        "motion_detected",
+        "presence_detected",
+        "person_detected",
+        "audio_detected",
+        "doorbell_pressed",
+        "contact_open",
+        "leak_detected",
+        "smoke_alarm",
+        "gas_alarm",
+        "co2_ppm",
+        "voc_ppb",
+        "pm25_ugm3",
+        "power_w",
+        "energy_kwh",
+        "voltage_v",
+        "current_a",
+        "frequency_hz",
+        "power_factor",
+        "switch_on",
+        "brightness_percent",
+        "cover_position",
+        "locked",
+        "privacy_mode",
+        "recording_enabled",
+        "tamper_detected",
+        "lock_jammed",
+        "connected",
+        "refresh"
+      ],
+      "intents": [
+        {
+          "id": "environment_monitoring",
+          "label": "Environment monitoring",
+          "description": "Track Aqara climate, air quality, motion, contact, and safety data from cloud-connected devices."
+        },
+        {
+          "id": "device_control",
+          "label": "Device control",
+          "description": "Trigger safe first-pass commands for switches and cover-style devices when Aqara exposes writable resources."
+        }
+      ],
+      "conditions": [
+        {
+          "id": "metric_above",
+          "label": "Metric above threshold",
+          "type": "number",
+          "params": [
+            {
+              "name": "metric",
+              "label": "Metric",
+              "type": "enum",
+              "required": true,
+              "options": [
+                "temperature_c",
+                "humidity_percent",
+                "pressure_hpa",
+                "battery_percent",
+                "illuminance_lux",
+                "co2_ppm",
+                "voc_ppb",
+                "pm25_ugm3",
+                "power_w",
+                "energy_kwh",
+                "voltage_v",
+                "current_a",
+                "frequency_hz",
+                "power_factor"
+              ]
+            },
+            {
+              "name": "value",
+              "label": "Threshold",
+              "type": "number",
+              "required": true
+            }
+          ],
+          "capability": "sensor.metric_above",
+          "operators": [
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "metric_above",
+            "operator": ">"
+          },
+          "freshness": {
+            "maxAgeSeconds": 300,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "metric_below",
+          "label": "Metric below threshold",
+          "type": "number",
+          "params": [
+            {
+              "name": "metric",
+              "label": "Metric",
+              "type": "enum",
+              "required": true,
+              "options": [
+                "temperature_c",
+                "humidity_percent",
+                "pressure_hpa",
+                "battery_percent",
+                "illuminance_lux",
+                "co2_ppm",
+                "voc_ppb",
+                "pm25_ugm3",
+                "power_w",
+                "energy_kwh",
+                "voltage_v",
+                "current_a",
+                "frequency_hz",
+                "power_factor"
+              ]
+            },
+            {
+              "name": "value",
+              "label": "Threshold",
+              "type": "number",
+              "required": true
+            }
+          ],
+          "capability": "sensor.metric_below",
+          "operators": [
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "metric_below",
+            "operator": ">"
+          },
+          "freshness": {
+            "maxAgeSeconds": 300,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        }
+      ],
+      "actions": [
+        {
+          "id": "refresh",
+          "label": "Refresh latest state",
+          "capability": "device.refresh",
+          "runtime": {
+            "command": "refresh"
+          },
+          "targeting": {
+            "fanoutSafe": true,
+            "scopes": [
+              "config",
+              "configs",
+              "room",
+              "rooms",
+              "group",
+              "groups",
+              "selection",
+              "tag",
+              "tags",
+              "capability",
+              "all_matching"
+            ],
+            "supportsMultiTarget": true
+          },
+          "failure": {
+            "strategy": "retry_then_continue",
+            "retry": {
+              "maxAttempts": 1,
+              "delaySeconds": 2,
+              "backoff": "fixed"
+            },
+            "timeoutSeconds": 30,
+            "continueOnPartialFailure": true,
+            "idempotent": true
+          },
+          "ui": {
+            "group": "do_this"
+          },
+          "safety": {
+            "riskLevel": "low"
+          }
+        },
+        {
+          "id": "turn_on",
+          "label": "Turn on",
+          "capability": "switch.power",
+          "runtime": {
+            "command": "turn_on"
+          },
+          "targeting": {
+            "fanoutSafe": true,
+            "scopes": [
+              "config",
+              "configs",
+              "room",
+              "rooms",
+              "group",
+              "groups",
+              "selection",
+              "tag",
+              "tags",
+              "capability",
+              "all_matching"
+            ],
+            "supportsMultiTarget": true
+          },
+          "failure": {
+            "strategy": "retry_then_continue",
+            "retry": {
+              "maxAttempts": 1,
+              "delaySeconds": 2,
+              "backoff": "fixed"
+            },
+            "timeoutSeconds": 30,
+            "continueOnPartialFailure": true,
+            "idempotent": true
+          },
+          "ui": {
+            "group": "do_this"
+          },
+          "safety": {
+            "riskLevel": "medium"
+          }
+        },
+        {
+          "id": "turn_off",
+          "label": "Turn off",
+          "capability": "switch.power",
+          "runtime": {
+            "command": "turn_off"
+          },
+          "targeting": {
+            "fanoutSafe": true,
+            "scopes": [
+              "config",
+              "configs",
+              "room",
+              "rooms",
+              "group",
+              "groups",
+              "selection",
+              "tag",
+              "tags",
+              "capability",
+              "all_matching"
+            ],
+            "supportsMultiTarget": true
+          },
+          "failure": {
+            "strategy": "retry_then_continue",
+            "retry": {
+              "maxAttempts": 1,
+              "delaySeconds": 2,
+              "backoff": "fixed"
+            },
+            "timeoutSeconds": 30,
+            "continueOnPartialFailure": true,
+            "idempotent": true
+          },
+          "ui": {
+            "group": "do_this"
+          },
+          "safety": {
+            "riskLevel": "medium"
+          }
+        },
+        {
+          "id": "open",
+          "label": "Open",
+          "capability": "action.open",
+          "runtime": {
+            "command": "open"
+          },
+          "targeting": {
+            "fanoutSafe": true,
+            "scopes": [
+              "config",
+              "configs",
+              "room",
+              "rooms",
+              "group",
+              "groups",
+              "selection",
+              "tag",
+              "tags",
+              "capability",
+              "all_matching"
+            ],
+            "supportsMultiTarget": true
+          },
+          "failure": {
+            "strategy": "retry_then_continue",
+            "retry": {
+              "maxAttempts": 1,
+              "delaySeconds": 2,
+              "backoff": "fixed"
+            },
+            "timeoutSeconds": 30,
+            "continueOnPartialFailure": true,
+            "idempotent": true
+          },
+          "ui": {
+            "group": "do_this"
+          },
+          "safety": {
+            "riskLevel": "medium"
+          }
+        },
+        {
+          "id": "close",
+          "label": "Close",
+          "capability": "action.close",
+          "runtime": {
+            "command": "close"
+          },
+          "targeting": {
+            "fanoutSafe": true,
+            "scopes": [
+              "config",
+              "configs",
+              "room",
+              "rooms",
+              "group",
+              "groups",
+              "selection",
+              "tag",
+              "tags",
+              "capability",
+              "all_matching"
+            ],
+            "supportsMultiTarget": true
+          },
+          "failure": {
+            "strategy": "retry_then_continue",
+            "retry": {
+              "maxAttempts": 1,
+              "delaySeconds": 2,
+              "backoff": "fixed"
+            },
+            "timeoutSeconds": 30,
+            "continueOnPartialFailure": true,
+            "idempotent": true
+          },
+          "ui": {
+            "group": "do_this"
+          },
+          "safety": {
+            "riskLevel": "medium"
+          }
+        },
+        {
+          "id": "set_position",
+          "label": "Set position",
+          "capability": "action.set_position",
+          "runtime": {
+            "command": "set_position"
+          },
+          "targeting": {
+            "fanoutSafe": true,
+            "scopes": [
+              "config",
+              "configs",
+              "room",
+              "rooms",
+              "group",
+              "groups",
+              "selection",
+              "tag",
+              "tags",
+              "capability",
+              "all_matching"
+            ],
+            "supportsMultiTarget": true
+          },
+          "failure": {
+            "strategy": "retry_then_continue",
+            "retry": {
+              "maxAttempts": 1,
+              "delaySeconds": 2,
+              "backoff": "fixed"
+            },
+            "timeoutSeconds": 30,
+            "continueOnPartialFailure": true,
+            "idempotent": true
+          },
+          "ui": {
+            "group": "do_this"
+          },
+          "safety": {
+            "riskLevel": "medium"
+          }
+        },
+        {
+          "id": "set_brightness",
+          "label": "Set brightness",
+          "capability": "light.brightness",
+          "runtime": {
+            "command": "set_brightness"
+          },
+          "targeting": {
+            "fanoutSafe": true,
+            "scopes": [
+              "config",
+              "configs",
+              "room",
+              "rooms",
+              "group",
+              "groups",
+              "selection",
+              "tag",
+              "tags",
+              "capability",
+              "all_matching"
+            ],
+            "supportsMultiTarget": true
+          },
+          "failure": {
+            "strategy": "retry_then_continue",
+            "retry": {
+              "maxAttempts": 1,
+              "delaySeconds": 2,
+              "backoff": "fixed"
+            },
+            "timeoutSeconds": 30,
+            "continueOnPartialFailure": true,
+            "idempotent": true
+          },
+          "ui": {
+            "group": "do_this"
+          },
+          "safety": {
+            "riskLevel": "medium"
+          }
+        }
+      ],
+      "deviceClass": "air_quality_sensor",
+      "entityType": "sensor",
+      "targeting": {
+        "scopes": [
+          "config",
+          "configs",
+          "room",
+          "rooms",
+          "group",
+          "groups",
+          "selection",
+          "tag",
+          "tags",
+          "capability",
+          "all_matching"
+        ],
+        "fanout": {
+          "supported": true,
+          "defaultMode": "selection",
+          "allowedModes": [
+            "config",
+            "configs",
+            "room",
+            "rooms",
+            "group",
+            "groups",
+            "tag",
+            "tags",
+            "capability",
+            "selection",
+            "all_matching"
+          ]
+        }
+      },
+      "freshness": {
+        "maxAgeSeconds": 300,
+        "staleDataMode": "block"
+      },
+      "ui": {
+        "icon": "wind",
+        "category": "air_quality_sensor"
+      },
+      "triggers": [
+        {
+          "id": "state_changed",
+          "label": "Device updates",
+          "description": "Start when this device reports a new state.",
+          "capability": "telemetry.state",
+          "runtime": {
+            "event": "device.state_changed",
+            "source": "integration"
+          },
+          "freshness": {
+            "maxAgeSeconds": 300,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "when"
+          }
+        }
+      ]
+    }
+  ],
+  "templates": [
+    {
+      "id": "aqara_contact_open_alert",
+      "label": "Tell me when an Aqara contact sensor opens",
+      "description": "Starts from Aqara cloud updates and gives you a simple alert for doors, windows, or similar contact sensors.",
+      "category": "Security",
+      "deviceKey": "aqara_cloud_device",
+      "config": {
+        "automation_schema_version": "automation.behavior.v2",
+        "triggers": [
+          {
+            "id": "state_changed",
+            "label": "Aqara device updates",
+            "type": "integration_event",
+            "event": "device.state_changed",
+            "capability": "telemetry.state",
+            "enabled": true,
+            "sourceRef": {
+              "integrationId": "{{integrationId}}",
+              "integrationKey": "{{integrationKey}}",
+              "configId": "{{configId}}",
+              "behaviorDeviceKey": "aqara_cloud_device",
+              "optionKey": "state_changed",
+              "capability": "telemetry.state"
+            }
+          }
+        ],
+        "trigger": {
+          "id": "state_changed",
+          "label": "Aqara device updates",
+          "type": "integration_event",
+          "event": "device.state_changed",
+          "capability": "telemetry.state",
+          "enabled": true
+        },
+        "intent": "environment_monitoring",
+        "conditionTree": {
+          "id": "contact_open",
+          "label": "Contact is open",
+          "field": "contact_open",
+          "operator": "eq",
+          "value": true,
+          "sourceRef": {
+            "integrationId": "{{integrationId}}",
+            "integrationKey": "{{integrationKey}}",
+            "configId": "{{configId}}",
+            "behaviorDeviceKey": "aqara_cloud_device",
+            "optionKey": "metric_above",
+            "capability": "sensor.contact"
+          }
+        },
+        "actions": [
+          {
+            "id": "refresh_device",
+            "label": "Refresh Aqara device",
+            "action": "refresh",
+            "capability": "device.refresh",
+            "sourceRef": {
+              "integrationId": "{{integrationId}}",
+              "integrationKey": "{{integrationKey}}",
+              "configId": "{{configId}}",
+              "behaviorDeviceKey": "aqara_cloud_device",
+              "optionKey": "refresh",
+              "capability": "device.refresh"
+            },
+            "target": {
+              "mode": "selection",
+              "configIds": [
+                "{{configId}}"
+              ]
+            },
+            "failure": {
+              "strategy": "retry_then_continue",
+              "retry": {
+                "maxAttempts": 2,
+                "delaySeconds": 2,
+                "timeoutSeconds": 15,
+                "backoff": "fixed"
+              },
+              "continueOnPartialFailure": true
+            }
+          }
+        ],
+        "safety": {
+          "staleDataMode": "block",
+          "maxAgeSeconds": 300,
+          "requireFreshTrigger": true,
+          "dryRunFirst": false
+        },
+        "failure": {
+          "strategy": "follow_edges",
+          "fallbackBehaviorId": "",
+          "conditionTree": {
+            "op": "and",
+            "children": []
+          }
+        },
+        "stop": {
+          "never": true
+        },
+        "override": {
+          "mode": "continue"
+        }
+      },
+      "ui": {
+        "accent": "security",
+        "icon": "shield"
+      },
+      "metadata": {
+        "recommended": true,
+        "difficulty": "easy"
+      }
+    }
+  ],
+  "behaviorSchemaVersion": "integration.behaviors.v2",
+  "telemetry": {
+    "capabilityMappings": [
+      {
+        "nativeMetric": "audio_detected",
+        "capability": "sensor.audio_detected"
+      },
+      {
+        "nativeMetric": "battery_low",
+        "capability": "sensor.battery_low"
+      },
+      {
+        "nativeMetric": "battery_percent",
+        "capability": "sensor.battery_percent"
+      },
+      {
+        "nativeMetric": "brightness_percent",
+        "capability": "sensor.brightness_percent"
+      },
+      {
+        "nativeMetric": "co2_ppm",
+        "capability": "sensor.co2_ppm"
+      },
+      {
+        "nativeMetric": "connected",
+        "capability": "sensor.connected"
+      },
+      {
+        "nativeMetric": "contact_open",
+        "capability": "sensor.contact_open"
+      },
+      {
+        "nativeMetric": "cover_position",
+        "capability": "sensor.cover_position"
+      },
+      {
+        "nativeMetric": "current_a",
+        "capability": "sensor.current_a"
+      },
+      {
+        "nativeMetric": "doorbell_pressed",
+        "capability": "sensor.doorbell_pressed"
+      },
+      {
+        "nativeMetric": "energy_kwh",
+        "capability": "sensor.energy_kwh"
+      },
+      {
+        "nativeMetric": "frequency_hz",
+        "capability": "sensor.frequency_hz"
+      },
+      {
+        "nativeMetric": "gas_alarm",
+        "capability": "sensor.gas_alarm"
+      },
+      {
+        "nativeMetric": "humidity_percent",
+        "capability": "sensor.humidity_percent"
+      },
+      {
+        "nativeMetric": "illuminance_lux",
+        "capability": "sensor.illuminance_lux"
+      },
+      {
+        "nativeMetric": "leak_detected",
+        "capability": "sensor.leak_detected"
+      },
+      {
+        "nativeMetric": "lock_jammed",
+        "capability": "sensor.lock_jammed"
+      },
+      {
+        "nativeMetric": "locked",
+        "capability": "sensor.locked"
+      },
+      {
+        "nativeMetric": "motion_detected",
+        "capability": "sensor.motion_detected"
+      },
+      {
+        "nativeMetric": "person_detected",
+        "capability": "sensor.person_detected"
+      },
+      {
+        "nativeMetric": "pm25_ugm3",
+        "capability": "sensor.pm25_ugm3"
+      },
+      {
+        "nativeMetric": "power_factor",
+        "capability": "sensor.power_factor"
+      },
+      {
+        "nativeMetric": "power_w",
+        "capability": "sensor.power_w"
+      },
+      {
+        "nativeMetric": "presence_detected",
+        "capability": "sensor.presence_detected"
+      },
+      {
+        "nativeMetric": "pressure_hpa",
+        "capability": "sensor.pressure_hpa"
+      },
+      {
+        "nativeMetric": "privacy_mode",
+        "capability": "sensor.privacy_mode"
+      },
+      {
+        "nativeMetric": "recording_enabled",
+        "capability": "sensor.recording_enabled"
+      },
+      {
+        "nativeMetric": "smoke_alarm",
+        "capability": "sensor.smoke_alarm"
+      },
+      {
+        "nativeMetric": "switch_on",
+        "capability": "sensor.switch_on"
+      },
+      {
+        "nativeMetric": "tamper_detected",
+        "capability": "sensor.tamper_detected"
+      },
+      {
+        "nativeMetric": "temperature_c",
+        "capability": "sensor.temperature_c"
+      },
+      {
+        "nativeMetric": "voc_ppb",
+        "capability": "sensor.voc_ppb"
+      },
+      {
+        "nativeMetric": "voltage_v",
+        "capability": "sensor.voltage_v"
+      }
+    ]
+  }
+}

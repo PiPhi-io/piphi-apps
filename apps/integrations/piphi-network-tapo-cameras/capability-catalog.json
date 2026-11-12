@@ -1,0 +1,93 @@
+{
+  "catalog_version": "1.0",
+  "integration_id": "piphi-network-tapo-cameras",
+  "coverage_mode": "model_negotiated_camera_and_media_broker",
+  "reviewed_at": "2026-09-07",
+  "sources": {
+    "python_kasa": "https://github.com/python-kasa/python-kasa",
+    "python_kasa_smartcam": "https://github.com/python-kasa/python-kasa/tree/master/kasa/smartcam/modules",
+    "tapo_control": "https://github.com/maxplante/homeassistant-tapo-control",
+    "onvif": "https://www.onvif.org/profiles/",
+    "media_broker": "PiPhi managed WebRTC/media sidecar contract",
+    "core_vocabulary": "PiPhi Network Core and maintained PiPhi integrations"
+  },
+  "groups": [
+    {
+      "id": "runtime-foundation",
+      "status": "implemented",
+      "scope": ["all-configurations"],
+      "source_refs": ["core_vocabulary"],
+      "reason": "The scaffold implements configuration presence, connectivity state, refresh dispatch, and its configuration event.",
+      "state": ["connected"],
+      "events": ["runtime.config.applied"],
+      "conditions": ["state_matches"],
+      "actions": ["refresh"]
+    },
+    {
+      "id": "camera-and-stream-state",
+      "status": "planned",
+      "scope": ["authenticated-non-battery-cameras", "models-with-third-party-compatibility"],
+      "source_refs": ["python_kasa", "python_kasa_smartcam", "tapo_control", "onvif", "media_broker"],
+      "reason": "Camera identity and media availability require model discovery, local authentication, ONVIF/RTSP negotiation, and broker session tests.",
+      "state": ["camera_enabled", "privacy_mode", "stream_available", "main_stream_available", "sub_stream_available", "audio_available", "two_way_audio_available", "stream_profile", "video_codec", "resolution", "frame_rate_fps", "device_time", "last_frame_at"],
+      "events": ["camera.online", "camera.offline", "privacy.changed", "stream.available", "stream.unavailable"],
+      "conditions": ["camera_is_enabled", "privacy_mode_is", "stream_is_available", "last_frame_age_threshold"],
+      "actions": ["set_camera_enabled", "set_privacy_mode", "request_stream_session", "close_stream_session", "capture_snapshot"]
+    },
+    {
+      "id": "camera-detections",
+      "status": "planned",
+      "scope": ["models-advertising-each-detection-module"],
+      "source_refs": ["python_kasa_smartcam", "tapo_control", "onvif"],
+      "reason": "Detection types vary by model and firmware and must be negotiated rather than globally advertised.",
+      "state": ["motion_detection_enabled", "person_detection_enabled", "pet_detection_enabled", "vehicle_detection_enabled", "line_crossing_detection_enabled", "tamper_detection_enabled", "baby_cry_detection_enabled", "glass_break_detection_enabled", "bark_detection_enabled", "meow_detection_enabled", "motion_detected", "person_detected", "pet_detected", "vehicle_detected", "tamper_detected", "baby_cry_detected", "glass_break_detected", "sound_detected"],
+      "events": ["motion.detected", "person.detected", "pet.detected", "vehicle.detected", "line_crossed", "tamper.detected", "baby_cry.detected", "glass_break.detected", "bark.detected", "meow.detected", "doorbell.pressed"],
+      "conditions": ["motion_is_detected", "person_is_detected", "pet_is_detected", "vehicle_is_detected", "tamper_is_detected", "detection_type_is"],
+      "actions": ["set_motion_detection", "set_person_detection", "set_pet_detection", "set_vehicle_detection", "set_line_crossing_detection", "set_tamper_detection", "set_baby_cry_detection", "set_glass_break_detection", "set_bark_detection", "set_meow_detection"]
+    },
+    {
+      "id": "pan-tilt-and-presets",
+      "status": "planned",
+      "scope": ["pan-tilt-models"],
+      "source_refs": ["python_kasa_smartcam", "tapo_control", "onvif"],
+      "reason": "Movement limits and presets are device-specific and mutating controls need range checks, confirmation, and conservative fanout.",
+      "state": ["pan_position_degrees", "tilt_position_degrees", "pan_min_degrees", "pan_max_degrees", "tilt_min_degrees", "tilt_max_degrees", "preset_names", "patrol_enabled"],
+      "events": ["pan_tilt.movement_started", "pan_tilt.movement_stopped", "preset.changed"],
+      "conditions": ["camera_at_preset", "pan_position_threshold", "tilt_position_threshold"],
+      "actions": ["pan_left", "pan_right", "tilt_up", "tilt_down", "move_pan_tilt", "move_to_preset", "set_patrol"]
+    },
+    {
+      "id": "alarm-led-and-radio",
+      "status": "planned",
+      "scope": ["models-advertising-alarm-led-or-battery-modules"],
+      "source_refs": ["python_kasa_smartcam"],
+      "reason": "Alarm, LED, battery, and radio features are optional modules and require per-entity discovery.",
+      "state": ["alarm_active", "alarm_sound", "alarm_volume_percent", "alarm_duration_s", "status_led_enabled", "battery_percent", "battery_low", "charging", "rssi_dbm", "signal_level", "last_seen_at"],
+      "events": ["alarm.started", "alarm.stopped", "battery.low", "charging.changed", "signal.degraded", "signal.recovered"],
+      "conditions": ["alarm_is_active", "battery_below", "signal_below", "device_is_stale"],
+      "actions": ["start_alarm", "stop_alarm", "test_alarm", "set_alarm_sound", "set_alarm_volume", "set_alarm_duration", "set_status_led"]
+    },
+    {
+      "id": "broker-and-widget-contract",
+      "status": "planned",
+      "scope": ["core-camera-card", "managed-media-sidecar"],
+      "source_refs": ["media_broker", "core_vocabulary"],
+      "reason": "The integration supplies sanitized stream descriptors while the shared broker owns transcoding and WebRTC lifecycle; the card consumes broker sessions.",
+      "state": ["broker_connected", "active_viewer_count", "stream_latency_ms", "snapshot_available", "talkback_session_active"],
+      "events": ["viewer.connected", "viewer.disconnected", "talkback.started", "talkback.stopped", "broker.degraded", "broker.recovered"],
+      "conditions": ["broker_is_healthy", "viewer_count_threshold", "talkback_is_active"],
+      "actions": ["start_talkback", "stop_talkback"]
+    },
+    {
+      "id": "sensitive-or-unsafe-surface",
+      "status": "excluded",
+      "scope": ["all-cameras-and-child-devices"],
+      "source_refs": ["python_kasa_smartcam", "tapo_control", "media_broker"],
+      "reason": "Credentials, setup payloads, raw authenticated URLs, unrestricted protocol calls, destructive administration, and child pairing must not be exposed as state or behavior actions.",
+      "state": ["camera_password", "raw_rtsp_url", "raw_onvif_credentials", "matter_setup_code", "matter_setup_payload"],
+      "events": [],
+      "conditions": [],
+      "actions": ["execute_arbitrary_camera_method", "factory_reset", "install_firmware", "change_camera_account", "pair_child_device", "expose_unbrokered_stream"]
+    }
+  ]
+}

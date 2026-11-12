@@ -1,0 +1,91 @@
+{
+  "id": "io.piphi.nord-pool.price",
+  "name": "Nord Pool price",
+  "description": "Current and next day-ahead market prices for one bidding zone.",
+  "version": "0.1.1",
+  "entry": "./dist/widget.js",
+  "binding_modes": [
+    "read"
+  ],
+  "value_kinds": [
+    "numeric",
+    "boolean",
+    "text"
+  ],
+  "capability_requirements": [
+    "connected",
+    "market_area",
+    "current_price_per_kwh",
+    "next_price_per_kwh",
+    "price_unit"
+  ],
+  "sdk_compatibility": {
+    "minimum": "0.6.1"
+  },
+  "interaction_targets": [
+    {"id": "market-price-card", "label": "Nord Pool electricity price", "kind": "card", "allowed_actions": ["more-info", "popout", "refresh"], "default_action": "more-info"}
+  ],
+  "conformance": {
+    "accessibility": "wcag2.2-aa",
+    "keyboard": true,
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "directions": [
+      "ltr",
+      "rtl"
+    ],
+    "states": [
+      "loading",
+      "empty",
+      "live",
+      "stale",
+      "offline",
+      "reconnecting",
+      "denied",
+      "error"
+    ]
+  },
+  "settings_schema_version": "1",
+  "settings": [
+    {
+      "id": "title",
+      "type": "text",
+      "label": "Title",
+      "default": "Electricity price"
+    },
+    {
+      "id": "device",
+      "type": "device",
+      "label": "Nord Pool market",
+      "required": true
+    }
+  ],
+  "layout": {
+    "min_height": 120,
+    "default_height": 140,
+    "max_height": 220
+  },
+  "previews": {
+    "light": "./previews/light.svg",
+    "dark": "./previews/dark.svg"
+  },
+  "translations": {
+    "en": {
+      "widget.title": "Electricity price",
+      "widget.next": "Next",
+      "widget.waiting": "Waiting for market prices"
+    }
+  },
+  "security": {
+    "permissions": [],
+    "sandbox": [
+      "allow-scripts"
+    ],
+    "csp": {
+      "connect_src": []
+    }
+  },
+  "integrity": "sha256-5DwzYu5/sTzcbJyak6hDsZf2BU9VDMvpyDhoMDNftGM="
+}

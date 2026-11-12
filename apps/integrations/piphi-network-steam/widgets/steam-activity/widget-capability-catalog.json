@@ -1,0 +1,11 @@
+{
+  "catalog_version": "1.0",
+  "widget_id": "io.piphi.steam.activity",
+  "reviewed_at": "2026-09-08",
+  "sources": {"widget_sdk": "PiPhi Widget SDK 0.4.0 public host contract", "integration_manifest": "src/manifest.json"},
+  "rows": [
+    {"id": "activity-overview", "status": "implemented", "consumes": ["is_online", "is_in_game", "persona_state", "current_game_name", "recent_playtime_minutes", "owned_game_count"], "interactions": [], "states": ["loading", "empty", "live", "stale", "offline", "reconnecting", "denied", "error"], "reason": "Presents the account's current visible Steam activity without mutation."},
+    {"id": "presentation-accessibility", "status": "implemented", "consumes": [], "interactions": ["keyboard_navigation", "focus_visible"], "states": ["responsive", "light_theme", "dark_theme", "rtl", "reduced_motion"], "reason": "Semantic status and adaptive layout support accessible dashboard use."},
+    {"id": "mutating-controls", "status": "excluded", "consumes": [], "interactions": ["execute_command"], "states": [], "reason": "The widget is deliberately read-only and requests no command permission."}
+  ]
+}

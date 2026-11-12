@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="414" height="160" viewBox="0 0 414 160" role="img" aria-label="Compact Internet and router preview in light mode">
+  <rect width="414" height="160" rx="16" fill="#f8fafc"/>
+  <text x="12" y="25" fill="#0f172a" font-family="system-ui" font-size="14" font-weight="700">Internet &amp; router</text>
+  <g stroke="#d7e0eb"><path d="M12 36H402"/><path d="M207 36V146"/><path d="M12 91H402"/></g>
+  <g fill="#52647a" font-family="system-ui" font-size="12"><text x="21" y="56">Connection issues</text><text x="219" y="56">Services needing attention</text><text x="21" y="114">Processor use</text><text x="219" y="114">Memory use</text></g>
+  <g fill="#0f172a" font-family="system-ui" font-size="16" font-weight="750"><text x="21" y="77">0</text><text x="219" y="77">0</text><text x="21" y="135">18%</text><text x="219" y="135">46%</text></g>
+</svg>

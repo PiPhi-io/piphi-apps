@@ -1,0 +1,210 @@
+{
+  "$schema": "./schema/piphi-manifest.schema.json",
+  "manifest_version": "1.0",
+  "id": "piphi-network-daikin-onecta",
+  "name": "Daikin Onecta",
+  "version": "0.1.0",
+  "description": "Monitor and control supported Daikin HVAC equipment through Onecta.",
+  "metadata": {
+    "generator": "piphi-network-create",
+    "scaffold_version": "0.3.0",
+    "preset": "cloud-polling-api",
+    "domain": "cloud-api",
+    "preset_summary": "Cloud API starter with vendor endpoint and token-oriented configuration."
+  },
+  "maintainer": {
+    "name": "PiPhi Network",
+    "website": "https://piphi.io"
+  },
+  "license": "Apache-2.0",
+  "image": "docker.io/piphinetwork/piphi-network-daikin-onecta:0.1.0",
+  "platforms": [
+    "linux"
+  ],
+  "runtime": {
+    "linux": {
+      "type": "container",
+      "container": {
+        "image": "docker.io/piphinetwork/piphi-network-daikin-onecta:0.1.0",
+        "ports": [
+          {
+            "container": 4215,
+            "host": 4215
+          }
+        ],
+        "environment": {
+          "LOG_LEVEL": "info"
+        },
+        "restart_policy": {
+          "name": "unless-stopped",
+          "maximum_retry_count": 0
+        }
+      },
+      "discovery": {
+        "method": "passive"
+      }
+    }
+  },
+  "api": {
+    "required": [
+      "health",
+      "entities",
+      "command",
+      "config",
+      "ui_config"
+    ],
+    "endpoints": {
+      "health": "/health",
+      "diagnostics": "/diagnostics",
+      "discover": "/discover",
+      "entities": "/entities",
+      "state": "/state",
+      "config": "/config",
+      "config_sync": "/config/sync",
+      "deconfigure": "/deconfigure",
+      "ui_config": "/ui-config",
+      "events": "/events",
+      "command": "/command"
+    }
+  },
+  "config": {
+    "source": "endpoint",
+    "endpoint": "/ui-config",
+    "required": true,
+    "editable_fields": [
+      "host",
+      "alias",
+      "base_url",
+      "api_key",
+      "poll_interval_seconds"
+    ],
+    "runtime_fields": [
+      "id",
+      "config_id",
+      "container_id",
+      "device_id"
+    ],
+    "identity_fields": [
+      "host"
+    ]
+  },
+  "identity": {
+    "fields": [
+      "host"
+    ]
+  },
+  "capabilities": {
+    "connected": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "refresh": {
+      "kind": "action"
+    }
+  },
+  "commands": {
+    "refresh": {
+      "description": "Refresh the device state.",
+      "timeout_ms": 5000
+    }
+  },
+  "entities": [
+    {
+      "id": "demo-device",
+      "name": "Demo Device",
+      "device_id": "demo-device",
+      "entity_type": "climate_system",
+      "capabilities": [
+        "connected",
+        "refresh"
+      ],
+      "available_commands": [
+        {
+          "id": "refresh",
+          "label": "Refresh",
+          "kind": "action"
+        }
+      ],
+      "dashboard": {
+        "allowed_widgets": [
+          "tile",
+          "stat",
+          "button"
+        ],
+        "default_widget": "tile"
+      }
+    }
+  ],
+  "ui": {
+    "experience_packages": [
+      {
+        "registry_id": "io.piphi.daikin-onecta-status",
+        "version_range": ">=0.1,<1",
+        "auto_install": true
+      }
+    ]
+  },
+  "marketplace": {
+    "metadata_version": 2,
+    "display_name": "Daikin Onecta",
+    "summary": "Monitor and control supported Daikin HVAC equipment through Onecta.",
+    "category": "climate",
+    "regions": [
+      "EU"
+    ],
+    "languages": [
+      "en"
+    ],
+    "publisher": {
+      "name": "PiPhi Network",
+      "website_url": "https://piphi.io",
+      "support_url": "https://github.com/PiPhi-io/piphi-network-daikin-onecta/issues",
+      "security_contact": "support@piphi.io"
+    },
+    "access": [
+      {
+        "id": "credentials",
+        "label": "Account or device credentials",
+        "reason": "Authenticates only to the configured vendor account, service, or local device and keeps credentials out of state and diagnostics.",
+        "required": true
+      }
+    ],
+    "compatibility": [
+      {
+        "brand": "Daikin",
+        "model": "Onecta-compatible residential HVAC equipment"
+      }
+    ],
+    "documentation_url": "https://github.com/PiPhi-io/piphi-network-daikin-onecta",
+    "support_url": "https://github.com/PiPhi-io/piphi-network-daikin-onecta/issues",
+    "changelog_url": "https://github.com/PiPhi-io/piphi-network-daikin-onecta/releases",
+    "quality_tier": "unrated",
+    "governance": {
+      "schema_version": 1,
+      "publication_status": "draft",
+      "rollout_percent": 0,
+      "lifecycle_status": "active",
+      "qualification": {
+        "status": "unverified"
+      }
+    },
+    "device_types": [
+      "air conditioner",
+      "heat pump",
+      "climate system"
+    ],
+    "protocols": [
+      "Daikin Onecta API",
+      "HTTPS"
+    ],
+    "discovery_methods": [
+      "account discovery"
+    ],
+    "connectivity": "cloud",
+    "offline_support": "none",
+    "privacy_url": "https://github.com/PiPhi-io/piphi-network-daikin-onecta/blob/main/docs/privacy.md"
+  },
+  "onboarding": {
+    "mode": "account"
+  }
+}

@@ -1,0 +1,712 @@
+{
+  "manifest_version": "1.0",
+  "id": "aqara-open-api",
+  "name": "Aqara (Open API)",
+  "version": "0.1.3",
+  "description": "Cloud integration for Aqara accounts using the Aqara Open API.",
+  "maintainer": {
+    "name": "PiPhi Network",
+    "website": "https://piphi.io",
+    "support_email": "support@piphi.io"
+  },
+  "platforms": [
+    "linux",
+    "windows",
+    "macos"
+  ],
+  "runtime": {
+    "linux": {
+      "type": "container",
+      "container": {
+        "image": "piphinetwork/aqara-open-api:0.1.3",
+        "ports": [
+          {
+            "container": 3671,
+            "host": 3671
+          }
+        ],
+        "environment": {
+          "LOG_LEVEL": "info"
+        },
+        "restart_policy": {
+          "name": "unless-stopped",
+          "maximum_retry_count": 0
+        }
+      },
+      "discovery": {
+        "method": "direct",
+        "inputs": [
+          {
+            "name": "region",
+            "label": "Region",
+            "type": "text",
+            "required": true,
+            "description": "Aqara region such as us, eu, cn, kr, ru, or sg."
+          },
+          {
+            "name": "app_id",
+            "label": "App ID",
+            "type": "text",
+            "required": true
+          },
+          {
+            "name": "key_id",
+            "label": "Key ID",
+            "type": "text",
+            "required": true
+          },
+          {
+            "name": "app_key",
+            "label": "App Key",
+            "type": "password",
+            "secret": true,
+            "required": true
+          },
+          {
+            "name": "access_token",
+            "label": "Access Token",
+            "type": "password",
+            "secret": true,
+            "required": false
+          },
+          {
+            "name": "open_id",
+            "label": "Open ID",
+            "type": "text",
+            "required": false
+          },
+          {
+            "name": "refresh_token",
+            "label": "Refresh Token",
+            "type": "password",
+            "secret": true,
+            "required": false
+          },
+          {
+            "name": "account",
+            "label": "Aqara Account",
+            "type": "text",
+            "required": false
+          },
+          {
+            "name": "auth_code",
+            "label": "Auth Code",
+            "type": "password",
+            "secret": true,
+            "required": false
+          },
+          {
+            "name": "did",
+            "label": "Device ID Filter",
+            "type": "text",
+            "required": false
+          }
+        ]
+      }
+    },
+    "windows": {
+      "type": "proxy",
+      "proxy": {
+        "port": 3671
+      },
+      "discovery": {
+        "method": "proxy",
+        "inputs": []
+      }
+    },
+    "macos": {
+      "type": "proxy",
+      "proxy": {
+        "port": 3671
+      },
+      "discovery": {
+        "method": "proxy",
+        "inputs": []
+      }
+    }
+  },
+  "api": {
+    "base_url": "http://127.0.0.1:3671",
+    "endpoints": {
+      "health": "/health",
+      "discover": "/discover",
+      "entities": "/entities",
+      "state": "/state",
+      "command": "/command",
+      "config": "/config",
+      "config_sync": "/configs/sync",
+      "deconfigure": "/deconfigure",
+      "ui_config": "/ui-config",
+      "events": "/events",
+      "diagnostics": "/diagnostics"
+    }
+  },
+  "config": {
+    "source": "endpoint",
+    "endpoint": "/ui-config",
+    "required": true
+  },
+  "identity": {
+    "fields": [
+      "did"
+    ]
+  },
+  "capabilities": {
+    "temperature_c": {
+      "kind": "sensor",
+      "unit": "\u00b0C",
+      "dashboard": {
+        "allowed_widgets": [
+          "sensor-card",
+          "stat",
+          "line-chart"
+        ],
+        "default_widget": "sensor-card"
+      }
+    },
+    "humidity_percent": {
+      "kind": "sensor",
+      "unit": "%",
+      "dashboard": {
+        "allowed_widgets": [
+          "sensor-card",
+          "stat",
+          "line-chart"
+        ],
+        "default_widget": "sensor-card"
+      }
+    },
+    "pressure_hpa": {
+      "kind": "sensor",
+      "unit": "hPa",
+      "dashboard": {
+        "allowed_widgets": [
+          "stat",
+          "line-chart"
+        ],
+        "default_widget": "stat"
+      }
+    },
+    "battery_percent": {
+      "kind": "sensor",
+      "unit": "%",
+      "dashboard": {
+        "allowed_widgets": [
+          "stat",
+          "line-chart"
+        ],
+        "default_widget": "stat"
+      }
+    },
+    "battery_low": {
+      "kind": "sensor",
+      "dashboard": {
+        "allowed_widgets": [
+          "device-health-card",
+          "maintenance-card",
+          "tile",
+          "stat"
+        ],
+        "default_widget": "device-health-card"
+      }
+    },
+    "illuminance_lux": {
+      "kind": "sensor",
+      "unit": "lux",
+      "dashboard": {
+        "allowed_widgets": [
+          "stat",
+          "line-chart"
+        ],
+        "default_widget": "stat"
+      }
+    },
+    "motion_detected": {
+      "kind": "sensor",
+      "dashboard": {
+        "allowed_widgets": [
+          "presence-card",
+          "tile",
+          "stat"
+        ],
+        "default_widget": "presence-card"
+      }
+    },
+    "presence_detected": {
+      "kind": "sensor",
+      "dashboard": {
+        "allowed_widgets": [
+          "presence-card",
+          "tile",
+          "stat"
+        ],
+        "default_widget": "presence-card"
+      }
+    },
+    "person_detected": {
+      "kind": "sensor",
+      "dashboard": {
+        "allowed_widgets": [
+          "camera",
+          "camera-events-card",
+          "presence-card",
+          "tile"
+        ],
+        "default_widget": "camera"
+      }
+    },
+    "audio_detected": {
+      "kind": "sensor",
+      "dashboard": {
+        "allowed_widgets": [
+          "camera",
+          "camera-events-card",
+          "tile"
+        ],
+        "default_widget": "camera"
+      }
+    },
+    "doorbell_pressed": {
+      "kind": "sensor",
+      "dashboard": {
+        "allowed_widgets": [
+          "camera-events-card",
+          "camera",
+          "tile"
+        ],
+        "default_widget": "camera-events-card"
+      }
+    },
+    "contact_open": {
+      "kind": "sensor",
+      "dashboard": {
+        "allowed_widgets": [
+          "tile",
+          "stat",
+          "sensor-card"
+        ],
+        "default_widget": "tile"
+      }
+    },
+    "leak_detected": {
+      "kind": "sensor",
+      "dashboard": {
+        "allowed_widgets": [
+          "tile",
+          "stat",
+          "sensor-card"
+        ],
+        "default_widget": "tile"
+      }
+    },
+    "smoke_alarm": {
+      "kind": "sensor",
+      "dashboard": {
+        "allowed_widgets": [
+          "tile",
+          "stat",
+          "sensor-card"
+        ],
+        "default_widget": "tile"
+      }
+    },
+    "gas_alarm": {
+      "kind": "sensor",
+      "dashboard": {
+        "allowed_widgets": [
+          "tile",
+          "stat",
+          "sensor-card"
+        ],
+        "default_widget": "tile"
+      }
+    },
+    "co2_ppm": {
+      "kind": "sensor",
+      "unit": "ppm",
+      "dashboard": {
+        "allowed_widgets": [
+          "stat",
+          "line-chart",
+          "sensor-card"
+        ],
+        "default_widget": "stat"
+      }
+    },
+    "voc_ppb": {
+      "kind": "sensor",
+      "unit": "ppb",
+      "dashboard": {
+        "allowed_widgets": [
+          "stat",
+          "line-chart"
+        ],
+        "default_widget": "stat"
+      }
+    },
+    "pm25_ugm3": {
+      "kind": "sensor",
+      "unit": "\u00b5g/m3",
+      "dashboard": {
+        "allowed_widgets": [
+          "stat",
+          "line-chart"
+        ],
+        "default_widget": "stat"
+      }
+    },
+    "power_w": {
+      "kind": "sensor",
+      "unit": "W",
+      "dashboard": {
+        "allowed_widgets": [
+          "stat",
+          "line-chart",
+          "tile"
+        ],
+        "default_widget": "stat"
+      }
+    },
+    "energy_kwh": {
+      "kind": "sensor",
+      "unit": "kWh",
+      "dashboard": {
+        "allowed_widgets": [
+          "stat",
+          "line-chart",
+          "tile"
+        ],
+        "default_widget": "stat"
+      }
+    },
+    "voltage_v": {
+      "kind": "sensor",
+      "unit": "V",
+      "dashboard": {
+        "allowed_widgets": [
+          "stat",
+          "line-chart",
+          "tile"
+        ],
+        "default_widget": "stat"
+      }
+    },
+    "current_a": {
+      "kind": "sensor",
+      "unit": "A",
+      "dashboard": {
+        "allowed_widgets": [
+          "stat",
+          "line-chart",
+          "tile"
+        ],
+        "default_widget": "stat"
+      }
+    },
+    "frequency_hz": {
+      "kind": "sensor",
+      "unit": "Hz",
+      "dashboard": {
+        "allowed_widgets": [
+          "stat",
+          "line-chart",
+          "tile"
+        ],
+        "default_widget": "stat"
+      }
+    },
+    "power_factor": {
+      "kind": "sensor",
+      "dashboard": {
+        "allowed_widgets": [
+          "stat",
+          "line-chart",
+          "tile"
+        ],
+        "default_widget": "stat"
+      }
+    },
+    "switch_on": {
+      "kind": "switch",
+      "dashboard": {
+        "allowed_widgets": [
+          "tile",
+          "light-card"
+        ],
+        "default_widget": "tile"
+      }
+    },
+    "brightness_percent": {
+      "kind": "sensor",
+      "unit": "%",
+      "dashboard": {
+        "allowed_widgets": [
+          "light-card",
+          "stat",
+          "line-chart"
+        ],
+        "default_widget": "light-card"
+      }
+    },
+    "cover_position": {
+      "kind": "sensor",
+      "unit": "%",
+      "dashboard": {
+        "allowed_widgets": [
+          "cover-card",
+          "stat"
+        ],
+        "default_widget": "cover-card"
+      }
+    },
+    "locked": {
+      "kind": "sensor",
+      "dashboard": {
+        "allowed_widgets": [
+          "tile",
+          "stat"
+        ],
+        "default_widget": "tile"
+      }
+    },
+    "privacy_mode": {
+      "kind": "sensor",
+      "dashboard": {
+        "allowed_widgets": [
+          "camera",
+          "tile",
+          "camera-events-card"
+        ],
+        "default_widget": "camera"
+      }
+    },
+    "recording_enabled": {
+      "kind": "sensor",
+      "dashboard": {
+        "allowed_widgets": [
+          "camera",
+          "camera-events-card",
+          "tile"
+        ],
+        "default_widget": "camera"
+      }
+    },
+    "tamper_detected": {
+      "kind": "sensor",
+      "dashboard": {
+        "allowed_widgets": [
+          "access-control-card",
+          "tile",
+          "stat"
+        ],
+        "default_widget": "access-control-card"
+      }
+    },
+    "lock_jammed": {
+      "kind": "sensor",
+      "dashboard": {
+        "allowed_widgets": [
+          "access-control-card",
+          "tile",
+          "stat"
+        ],
+        "default_widget": "access-control-card"
+      }
+    },
+    "connected": {
+      "kind": "sensor",
+      "dashboard": {
+        "allowed_widgets": [
+          "tile",
+          "status-list"
+        ],
+        "default_widget": "tile"
+      }
+    },
+    "refresh": {
+      "kind": "action",
+      "dashboard": {
+        "allowed_widgets": [
+          "button",
+          "tile"
+        ],
+        "default_widget": "button"
+      }
+    }
+  },
+  "commands": {
+    "refresh": {
+      "label": "Refresh",
+      "description": "Fetch the latest Aqara device resource values right now."
+    }
+  },
+  "security": {
+    "contract_version": "1",
+    "event_mappings": [
+      {
+        "source_event_type": "aqara.safety.smoke.detected",
+        "canonical_event_type": "safety_smoke_detected",
+        "status": "implemented",
+        "device_models": [
+          "aqara.smoke.acn03"
+        ],
+        "required_permissions": [
+          "Aqara resource read"
+        ]
+      },
+      {
+        "source_event_type": "aqara.safety.smoke.cleared",
+        "canonical_event_type": "safety_smoke_cleared",
+        "status": "implemented",
+        "device_models": [
+          "aqara.smoke.acn03"
+        ],
+        "required_permissions": [
+          "Aqara resource read"
+        ]
+      },
+      {
+        "source_event_type": "aqara.safety.leak.detected",
+        "canonical_event_type": "safety_leak_detected",
+        "status": "implemented",
+        "device_models": [
+          "aqara.water.wleak01"
+        ],
+        "required_permissions": [
+          "Aqara resource read"
+        ]
+      },
+      {
+        "source_event_type": "aqara.safety.leak.cleared",
+        "canonical_event_type": "safety_leak_cleared",
+        "status": "implemented",
+        "device_models": [
+          "aqara.water.wleak01"
+        ],
+        "required_permissions": [
+          "Aqara resource read"
+        ]
+      },
+      {
+        "source_event_type": "aqara.access.forced_open",
+        "canonical_event_type": "access_forced_open",
+        "status": "implemented",
+        "device_models": [
+          "aqara.lock.d200"
+        ],
+        "required_permissions": [
+          "Aqara resource read"
+        ]
+      },
+      {
+        "source_event_type": "aqara.access.forced_open.cleared",
+        "canonical_event_type": "access_forced_open_cleared",
+        "status": "implemented",
+        "device_models": [
+          "aqara.lock.d200"
+        ],
+        "required_permissions": [
+          "Aqara resource read"
+        ]
+      },
+      {
+        "source_event_type": "aqara.access.lock_jammed",
+        "canonical_event_type": "access_lock_jammed",
+        "status": "implemented",
+        "device_models": [
+          "aqara.lock.d200"
+        ],
+        "required_permissions": [
+          "Aqara resource read"
+        ]
+      },
+      {
+        "source_event_type": "aqara.access.lock_jam.cleared",
+        "canonical_event_type": "access_lock_jam_cleared",
+        "status": "implemented",
+        "device_models": [
+          "aqara.lock.d200"
+        ],
+        "required_permissions": [
+          "Aqara resource read"
+        ]
+      },
+      {
+        "source_event_type": "aqara.safety.gas.detected",
+        "status": "excluded",
+        "device_models": [
+          "aqara.gas.acn02"
+        ],
+        "required_permissions": [
+          "Aqara resource read"
+        ],
+        "notes": "Core contract version 1 has no natural-gas incident type; the runtime still emits a routine event."
+      },
+      {
+        "source_event_type": "aqara.safety.gas.cleared",
+        "status": "excluded",
+        "device_models": [
+          "aqara.gas.acn02"
+        ],
+        "required_permissions": [
+          "Aqara resource read"
+        ],
+        "notes": "Core contract version 1 has no natural-gas incident type; the runtime still emits a routine event."
+      }
+    ]
+  },
+  "entities": [
+    {
+      "id": "aqara_cloud_device",
+      "name": "Aqara Cloud Device",
+      "capabilities": [
+        "temperature_c",
+        "humidity_percent",
+        "pressure_hpa",
+        "battery_percent",
+        "battery_low",
+        "illuminance_lux",
+        "motion_detected",
+        "presence_detected",
+        "person_detected",
+        "audio_detected",
+        "doorbell_pressed",
+        "contact_open",
+        "leak_detected",
+        "smoke_alarm",
+        "gas_alarm",
+        "co2_ppm",
+        "voc_ppb",
+        "pm25_ugm3",
+        "power_w",
+        "energy_kwh",
+        "voltage_v",
+        "current_a",
+        "frequency_hz",
+        "power_factor",
+        "switch_on",
+        "brightness_percent",
+        "cover_position",
+        "locked",
+        "privacy_mode",
+        "recording_enabled",
+        "tamper_detected",
+        "lock_jammed",
+        "connected",
+        "refresh"
+      ]
+    }
+  ],
+  "ui": {
+    "experience_packages": [
+      {
+        "registry_id": "io.piphi.aqara-devices",
+        "version_range": ">=0.1,<1",
+        "auto_install": true
+      }
+    ]
+  },
+  "onboarding": {
+    "mode": "account"
+  }
+}

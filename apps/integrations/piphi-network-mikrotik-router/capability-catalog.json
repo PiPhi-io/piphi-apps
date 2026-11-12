@@ -1,0 +1,79 @@
+{
+  "catalog_version": "1.0",
+  "integration_id": "piphi-network-mikrotik-router",
+  "coverage_mode": "routeros_version_package_permission_and-interface_negotiated",
+  "reviewed_at": "2026-09-07",
+  "sources": {
+    "routeros_rest": "https://manual.mikrotik.com/docs/developer-guides/rest-api/",
+    "routeros_api": "https://manual.mikrotik.com/docs/developer-guides/api/",
+    "routeros_dhcp": "https://manual.mikrotik.com/docs/network-management/dhcp/",
+    "core_vocabulary": "PiPhi Network Core and maintained PiPhi integrations"
+  },
+  "groups": [
+    {
+      "id": "runtime-foundation", "status": "implemented", "scope": ["all-configurations"],
+      "source_refs": ["core_vocabulary"],
+      "reason": "The runtime reports connectivity from an authenticated RouterOS response, supports refresh, and emits a configuration event.",
+      "state": ["connected"], "events": ["runtime.config.applied"], "conditions": ["state_matches"], "actions": ["refresh"]
+    },
+    {
+      "id": "routeros-resource-overview", "status": "implemented", "scope": ["routers-with-https-rest-and-read-only-credentials"],
+      "source_refs": ["routeros_rest"],
+      "reason": "Authenticated read-only /system/resource provides CPU load and free/total memory for a bounded health overview.",
+      "state": ["cpu_load_percent", "memory_used_percent"], "events": [], "conditions": [], "actions": []
+    },
+    {
+      "id": "transport-identity-and-resource-health", "status": "planned", "scope": ["routeros-api-or-rest-enabled-routers"],
+      "source_refs": ["routeros_rest", "routeros_api"],
+      "reason": "TLS, least-privilege login, version parsing, package discovery, timeouts, and reconnect behavior need implementation and fixtures.",
+      "state": ["board_name", "platform", "architecture", "routeros_version", "firmware_version", "serial_suffix", "uptime_seconds", "cpu_count", "memory_used_bytes", "memory_free_bytes", "storage_used_bytes", "storage_free_bytes", "temperature_c", "voltage_v", "api_latency_ms", "last_seen_at"],
+      "events": ["router.online", "router.offline", "resource.threshold_crossed", "resource.recovered", "router.rebooted"],
+      "conditions": ["router_is_online", "router_is_stale", "cpu_above", "memory_below", "storage_below", "temperature_above"],
+      "actions": ["reconnect_api"]
+    },
+    {
+      "id": "interfaces-and-traffic", "status": "planned", "scope": ["discovered-physical-virtual-wireless-lte-and-ppp-interfaces"],
+      "source_refs": ["routeros_rest", "routeros_api"],
+      "reason": "Interface types, counters, wraps, negotiated properties, and monitor-once data require per-interface capability negotiation.",
+      "state": ["interface_name", "interface_type", "interface_running", "interface_enabled", "link_rate_bps", "rx_bytes_total", "tx_bytes_total", "rx_rate_bps", "tx_rate_bps", "rx_packets_total", "tx_packets_total", "rx_errors_total", "tx_errors_total", "rx_drops_total", "tx_drops_total", "mtu", "mac_address", "ip_addresses"],
+      "events": ["interface.up", "interface.down", "interface.traffic_threshold_crossed", "interface.errors_increased"],
+      "conditions": ["interface_is_running", "interface_is_enabled", "traffic_above", "error_rate_above"],
+      "actions": ["enable_interface", "disable_interface"]
+    },
+    {
+      "id": "clients-dhcp-arp-and-wireless", "status": "planned", "scope": ["routers-with-dhcp-arp-wireless-or-capsman-packages"],
+      "source_refs": ["routeros_dhcp", "routeros_rest", "routeros_api"],
+      "reason": "Client identity needs privacy-preserving normalization and data availability varies with packages, permissions, and interface type.",
+      "state": ["dhcp_lease_count", "active_dhcp_lease_count", "arp_entry_count", "active_client_count", "wireless_client_count", "wireless_ssid", "wireless_channel", "wireless_frequency_mhz", "wireless_noise_floor_dbm", "wireless_signal_dbm", "lte_signal_dbm", "lte_operator", "lte_registration_status"],
+      "events": ["client.connected", "client.disconnected", "dhcp.lease_added", "dhcp.lease_expired", "wireless.signal_degraded", "lte.registration_changed"],
+      "conditions": ["client_is_connected", "client_count_above", "wireless_signal_below", "lte_is_registered"],
+      "actions": ["renew_dhcp_client"]
+    },
+    {
+      "id": "routing-firewall-vpn-and-services", "status": "planned", "scope": ["routers-with-corresponding-routeros-packages-and-read-permissions"],
+      "source_refs": ["routeros_rest", "routeros_api"],
+      "reason": "Read-only operational summaries need stable aggregation across RouterOS versions without exposing confidential configuration.",
+      "state": ["route_count", "active_route_count", "default_route_available", "bgp_peer_count", "bgp_established_count", "ospf_neighbor_count", "firewall_rule_count", "firewall_drop_packets_total", "nat_rule_count", "wireguard_peer_count", "wireguard_active_peer_count", "ipsec_active_peer_count", "ppp_active_session_count", "dns_cache_entries", "service_count"],
+      "events": ["default_route.lost", "default_route.restored", "routing_peer.down", "routing_peer.up", "vpn_peer.down", "vpn_peer.up", "firewall.drop_spike"],
+      "conditions": ["default_route_is_available", "routing_peer_is_established", "vpn_peer_is_active", "firewall_drops_above"],
+      "actions": []
+    },
+    {
+      "id": "logs-maintenance-and-backups", "status": "planned", "scope": ["routers-granting-bounded-read-or-approved-maintenance-permissions"],
+      "source_refs": ["routeros_rest", "routeros_api"],
+      "reason": "Logs require bounded deduplication and redaction; maintenance commands require explicit opt-in, confirmation, narrow allow-lists, and no fanout.",
+      "state": ["critical_log_count", "last_critical_log_at", "backup_available", "update_available", "configuration_changed_at", "clock_synchronized"],
+      "events": ["log.critical", "configuration.changed", "update.available", "clock.unsynchronized"],
+      "conditions": ["critical_log_exists", "update_is_available", "clock_is_synchronized"],
+      "actions": ["create_backup", "reboot_router", "check_for_updates"]
+    },
+    {
+      "id": "unsafe-or-sensitive-surface", "status": "excluded", "scope": ["all-routeros-devices"],
+      "source_refs": ["routeros_rest", "routeros_api"],
+      "reason": "RouterOS can execute arbitrary console commands and mutate every subsystem; secrets, raw configuration, destructive operations, and unrestricted administration are intentionally excluded.",
+      "state": ["api_password", "private_key", "certificate_private_material", "raw_configuration_export", "wifi_pre_shared_key", "vpn_preshared_key", "unredacted_logs"],
+      "events": [], "conditions": [],
+      "actions": ["execute_arbitrary_console_command", "call_arbitrary_rest_path", "factory_reset", "install_routeros_update", "change_users", "change_firewall", "change_routes", "change_dns", "change_vpn_secrets", "run_packet_capture", "export_raw_configuration"]
+    }
+  ]
+}

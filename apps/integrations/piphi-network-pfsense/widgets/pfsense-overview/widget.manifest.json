@@ -1,0 +1,41 @@
+{
+  "id": "io.piphi.pfsense.overview",
+  "name": "pfSense Internet & Router",
+  "version": "0.1.8",
+  "entry": "./dist/widget.js",
+  "binding_modes": ["read"],
+  "value_kinds": ["numeric", "boolean", "text"],
+  "capability_requirements": [
+    "connected",
+    "cpu_usage_percent",
+    "memory_usage_percent",
+    "gateways_online",
+    "gateways_offline",
+    "services_down",
+    "vpn_tunnels_up"
+  ],
+  "sdk_compatibility": {"minimum": "0.6.1"},
+  "interaction_targets": [
+    {"id": "router-overview-card", "label": "pfSense internet and router", "kind": "card", "allowed_actions": ["more-info", "popout", "refresh"], "default_action": "more-info"}
+  ],
+  "conformance": {
+    "accessibility": "wcag2.2-aa",
+    "keyboard": true,
+    "themes": ["light", "dark"],
+    "directions": ["ltr", "rtl"],
+    "states": ["loading", "live", "stale", "offline", "reconnecting", "denied", "error"]
+  },
+  "settings_schema_version": "1",
+  "settings": [
+    {"id": "title", "type": "text", "label": "Title", "default": "Internet & router"},
+    {"id": "firewall", "type": "device", "label": "Router", "required": true}
+  ],
+  "layout": {"transparent": true, "min_height": 120, "default_height": 160, "max_height": 260},
+  "previews": {"light": "./previews/light.svg", "dark": "./previews/dark.svg"},
+  "translations": {
+    "en": {"widget.title": "Internet & router", "widget.waiting": "Waiting for router data", "widget.region": "Internet and router health", "metric.connection_issues": "Connection issues", "metric.services_attention": "Services needing attention", "metric.cpu": "Processor use", "metric.memory": "Memory use", "status.updating": "Updating router status…", "status.stale": "Last known values · update delayed", "status.offline": "Router is offline", "status.error": "Unable to update router status", "action.retry": "Retry", "action.retrying": "Retrying…"},
+    "es": {"widget.title": "Internet y router", "widget.waiting": "Esperando datos del router", "widget.region": "Estado de Internet y del router", "metric.connection_issues": "Problemas de conexión", "metric.services_attention": "Servicios que requieren atención", "metric.cpu": "Uso del procesador", "metric.memory": "Uso de memoria", "status.updating": "Actualizando el estado del router…", "status.stale": "Últimos valores conocidos · actualización demorada", "status.offline": "El router está sin conexión", "status.error": "No se pudo actualizar el estado del router", "action.retry": "Reintentar", "action.retrying": "Reintentando…"},
+    "ar": {"widget.title": "الإنترنت والموجّه", "widget.waiting": "في انتظار بيانات الموجّه", "widget.region": "حالة الإنترنت والموجّه", "metric.connection_issues": "مشكلات الاتصال", "metric.services_attention": "خدمات تحتاج إلى الانتباه", "metric.cpu": "استخدام المعالج", "metric.memory": "استخدام الذاكرة", "status.updating": "جارٍ تحديث حالة الموجّه…", "status.stale": "آخر قيم معروفة · التحديث متأخر", "status.offline": "الموجّه غير متصل", "status.error": "تعذّر تحديث حالة الموجّه", "action.retry": "إعادة المحاولة", "action.retrying": "جارٍ إعادة المحاولة…"}
+  },
+  "security": {"permissions": [], "sandbox": ["allow-scripts"], "csp": {"connect_src": []}}
+}

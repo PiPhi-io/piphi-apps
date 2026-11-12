@@ -1,0 +1,438 @@
+{
+  "manifest_version": "1.0",
+  "id": "awair-element-local-api",
+  "name": "Awair Element (Local API)",
+  "version": "0.1.14",
+  "description": "Integration for Awair Element devices over the local network",
+  "maintainer": {
+    "name": "PiPhi Network",
+    "website": "https://piphi.io",
+    "support_email": "support@piphi.io"
+  },
+  "platforms": [
+    "linux",
+    "windows",
+    "macos"
+  ],
+  "runtime": {
+    "linux": {
+      "type": "container",
+      "container": {
+        "image": "piphinetwork/awair-element:0.1.14",
+        "ports": [
+          {
+            "container": 3665,
+            "host": 3665
+          }
+        ],
+        "environment": {
+          "LOG_LEVEL": "info"
+        },
+        "volumes": [
+          {
+            "host": "/data/awair",
+            "container": "/app/data",
+            "mode": "rw"
+          }
+        ],
+        "restart_policy": {
+          "name": "unless-stopped",
+          "maximum_retry_count": 0
+        }
+      },
+      "discovery": {
+        "method": "direct"
+      }
+    },
+    "windows": {
+      "type": "proxy",
+      "proxy": {
+        "port": 3665
+      },
+      "discovery": {
+        "method": "proxy"
+      }
+    },
+    "macos": {
+      "type": "proxy",
+      "proxy": {
+        "port": 3665
+      },
+      "discovery": {
+        "method": "proxy"
+      }
+    }
+  },
+  "api": {
+    "base_url": "http://127.0.0.1:3665",
+    "endpoints": {
+      "health": "/health",
+      "discover": "/discover",
+      "entities": "/entities",
+      "state": "/state",
+      "command": "/command",
+      "config": "/config",
+      "config_sync": "/configs/sync",
+      "deconfigure": "/deconfigure",
+      "ui_config": "/ui-config",
+      "events": "/events"
+    }
+  },
+  "config": {
+    "source": "endpoint",
+    "endpoint": "/ui-config",
+    "required": true
+  },
+  "identity": {
+    "fields": [
+      "device_ip"
+    ]
+  },
+  "capabilities": {
+    "temperature": {
+      "kind": "sensor",
+      "value_kind": "numeric",
+      "semantic_type": "temperature",
+      "access": "read",
+      "unit": "\u00b0C",
+      "dashboard": {
+        "default_widget": "stat",
+        "recommended_widgets": [
+          "stat",
+          "line_chart",
+          "gauge"
+        ]
+      }
+    },
+    "dew_point": {
+      "kind": "sensor",
+      "value_kind": "numeric",
+      "semantic_type": "dew-point",
+      "access": "read",
+      "unit": "\u00b0C",
+      "dashboard": {
+        "default_widget": "stat",
+        "recommended_widgets": [
+          "stat",
+          "line_chart",
+          "gauge"
+        ]
+      }
+    },
+    "humidity": {
+      "kind": "sensor",
+      "value_kind": "numeric",
+      "semantic_type": "humidity",
+      "access": "read",
+      "unit": "%",
+      "dashboard": {
+        "default_widget": "gauge",
+        "recommended_widgets": [
+          "gauge",
+          "stat",
+          "line_chart"
+        ]
+      }
+    },
+    "absolute_humidity": {
+      "kind": "sensor",
+      "value_kind": "numeric",
+      "semantic_type": "absolute-humidity",
+      "access": "read",
+      "unit": "g/m3",
+      "dashboard": {
+        "default_widget": "stat",
+        "recommended_widgets": [
+          "stat",
+          "line_chart",
+          "gauge"
+        ]
+      }
+    },
+    "co2": {
+      "kind": "sensor",
+      "value_kind": "numeric",
+      "semantic_type": "carbon-dioxide",
+      "access": "read",
+      "unit": "ppm",
+      "dashboard": {
+        "default_widget": "stat",
+        "recommended_widgets": [
+          "stat",
+          "line_chart",
+          "gauge"
+        ]
+      }
+    },
+    "co2_est": {
+      "kind": "sensor",
+      "value_kind": "numeric",
+      "semantic_type": "carbon-dioxide-estimate",
+      "access": "read",
+      "unit": "ppm",
+      "dashboard": {
+        "default_widget": "stat",
+        "recommended_widgets": [
+          "stat",
+          "line_chart",
+          "gauge"
+        ]
+      }
+    },
+    "co2_est_baseline": {
+      "kind": "sensor",
+      "value_kind": "numeric",
+      "semantic_type": "carbon-dioxide-baseline",
+      "access": "read",
+      "unit": "ppm",
+      "dashboard": {
+        "default_widget": "stat",
+        "recommended_widgets": [
+          "stat",
+          "line_chart",
+          "gauge"
+        ]
+      }
+    },
+    "voc": {
+      "kind": "sensor",
+      "value_kind": "numeric",
+      "semantic_type": "volatile-organic-compounds",
+      "access": "read",
+      "unit": "ppb",
+      "dashboard": {
+        "default_widget": "stat",
+        "recommended_widgets": [
+          "stat",
+          "line_chart",
+          "gauge"
+        ]
+      }
+    },
+    "voc_baseline": {
+      "kind": "sensor",
+      "value_kind": "numeric",
+      "semantic_type": "volatile-organic-compounds-baseline",
+      "access": "read",
+      "unit": "ppb",
+      "dashboard": {
+        "default_widget": "stat",
+        "recommended_widgets": [
+          "stat",
+          "line_chart",
+          "gauge"
+        ]
+      }
+    },
+    "voc_h2_raw": {
+      "kind": "sensor",
+      "value_kind": "numeric",
+      "semantic_type": "voc-hydrogen-raw",
+      "access": "read",
+      "unit": "raw",
+      "dashboard": {
+        "default_widget": "stat",
+        "recommended_widgets": [
+          "stat",
+          "line_chart"
+        ]
+      }
+    },
+    "voc_ethanol_raw": {
+      "kind": "sensor",
+      "value_kind": "numeric",
+      "semantic_type": "voc-ethanol-raw",
+      "access": "read",
+      "unit": "raw",
+      "dashboard": {
+        "default_widget": "stat",
+        "recommended_widgets": [
+          "stat",
+          "line_chart"
+        ]
+      }
+    },
+    "pm25": {
+      "kind": "sensor",
+      "value_kind": "numeric",
+      "semantic_type": "particulate-matter-2.5",
+      "access": "read",
+      "unit": "ug/m3",
+      "dashboard": {
+        "default_widget": "stat",
+        "recommended_widgets": [
+          "stat",
+          "line_chart",
+          "gauge"
+        ]
+      }
+    },
+    "pm10_est": {
+      "kind": "sensor",
+      "value_kind": "numeric",
+      "semantic_type": "particulate-matter-10-estimate",
+      "access": "read",
+      "unit": "ug/m3",
+      "dashboard": {
+        "default_widget": "stat",
+        "recommended_widgets": [
+          "stat",
+          "line_chart",
+          "gauge"
+        ]
+      }
+    },
+    "score": {
+      "kind": "sensor",
+      "value_kind": "numeric",
+      "semantic_type": "air-quality-score",
+      "access": "read",
+      "unit": "%",
+      "dashboard": {
+        "default_widget": "gauge",
+        "recommended_widgets": [
+          "gauge",
+          "stat",
+          "line_chart"
+        ]
+      }
+    },
+    "refresh": {
+      "kind": "action",
+      "value_kind": "command",
+      "semantic_type": "refresh",
+      "access": "action",
+      "dashboard": {
+        "default_widget": "button",
+        "recommended_widgets": [
+          "button"
+        ]
+      }
+    }
+  },
+  "commands": {
+    "refresh": {
+      "description": "Force refresh device state",
+      "timeout_ms": 5000
+    }
+  },
+  "entities": [
+    {
+      "id": "temperature",
+      "name": "Temperature",
+      "capabilities": [
+        "temperature"
+      ]
+    },
+    {
+      "id": "dew_point",
+      "name": "Dew Point",
+      "capabilities": [
+        "dew_point"
+      ]
+    },
+    {
+      "id": "humidity",
+      "name": "Humidity",
+      "capabilities": [
+        "humidity"
+      ]
+    },
+    {
+      "id": "absolute_humidity",
+      "name": "Absolute Humidity",
+      "capabilities": [
+        "absolute_humidity"
+      ]
+    },
+    {
+      "id": "co2",
+      "name": "CO\u2082",
+      "capabilities": [
+        "co2"
+      ]
+    },
+    {
+      "id": "co2_est",
+      "name": "Estimated CO\u2082",
+      "capabilities": [
+        "co2_est"
+      ]
+    },
+    {
+      "id": "co2_est_baseline",
+      "name": "CO\u2082 Baseline",
+      "capabilities": [
+        "co2_est_baseline"
+      ]
+    },
+    {
+      "id": "voc",
+      "name": "VOC",
+      "capabilities": [
+        "voc"
+      ]
+    },
+    {
+      "id": "voc_baseline",
+      "name": "VOC Baseline",
+      "capabilities": [
+        "voc_baseline"
+      ]
+    },
+    {
+      "id": "voc_h2_raw",
+      "name": "VOC H\u2082 Raw",
+      "capabilities": [
+        "voc_h2_raw"
+      ]
+    },
+    {
+      "id": "voc_ethanol_raw",
+      "name": "VOC Ethanol Raw",
+      "capabilities": [
+        "voc_ethanol_raw"
+      ]
+    },
+    {
+      "id": "pm25",
+      "name": "PM2.5",
+      "capabilities": [
+        "pm25"
+      ]
+    },
+    {
+      "id": "pm10_est",
+      "name": "Estimated PM10",
+      "capabilities": [
+        "pm10_est"
+      ]
+    },
+    {
+      "id": "score",
+      "name": "Air Quality Score",
+      "capabilities": [
+        "score"
+      ]
+    },
+    {
+      "id": "refresh_action",
+      "name": "Refresh",
+      "capabilities": [
+        "refresh"
+      ]
+    }
+  ],
+  "ui": {
+    "experience_packages": [
+      {
+        "registry_id": "io.piphi.awair-air-quality",
+        "version_range": ">=0.1,<1",
+        "auto_install": true
+      }
+    ]
+  },
+  "onboarding": {
+    "mode": "discovery"
+  }
+}

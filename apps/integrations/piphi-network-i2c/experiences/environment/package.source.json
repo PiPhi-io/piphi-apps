@@ -1,0 +1,229 @@
+{
+  "schema_version": "1",
+  "identity": {
+    "publisher_id": "io.piphi",
+    "package_id": "i2c-environment",
+    "version": "0.1.3"
+  },
+  "name": "I2C Environmental Sensor",
+  "description": "Current readings from a locally connected environmental sensor.",
+  "origin": "integration",
+  "owning_integration_id": "piphi-network-i2c",
+  "sdk_version_range": ">=0.6.1,<0.7",
+  "requires_integrations": [
+    {
+      "integration_id": "piphi-network-i2c",
+      "version_range": ">=0.1,<1",
+      "optional": false
+    }
+  ],
+  "recommended_for_integrations": [
+    "piphi-network-i2c"
+  ],
+  "widgets": [
+    {
+      "id": "environment-overview",
+      "name": "I2C Environmental Sensor Overview",
+      "description": "Temperature, humidity, pressure, and gas resistance from a local sensor.",
+      "runtime": "declarative",
+      "presentation": {
+        "contract_version": "1",
+        "shell": "core",
+        "content_surface": "transparent",
+        "typography": "core",
+        "appearance_controls": [
+          "icon",
+          "title",
+          "surface",
+          "opacity",
+          "radius",
+          "shadow"
+        ]
+      },
+      "interaction_targets": [
+        {
+          "id": "card",
+          "label": "I2C Environmental Sensor",
+          "kind": "card",
+          "allowed_actions": [
+            "more-info",
+            "popout",
+            "refresh"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "temperature",
+          "label": "Temperature",
+          "kind": "binding",
+          "binding_slot_id": "temperature",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "humidity",
+          "label": "Humidity",
+          "kind": "binding",
+          "binding_slot_id": "humidity",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "pressure",
+          "label": "Pressure",
+          "kind": "binding",
+          "binding_slot_id": "pressure",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "gas",
+          "label": "Gas resistance",
+          "kind": "binding",
+          "binding_slot_id": "gas",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        }
+      ],
+      "binding_slots": [
+        {
+          "id": "temperature",
+          "label": "Temperature",
+          "required": true,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "temperature_c"
+          ],
+          "compatible_integration_ids": [
+            "piphi-network-i2c"
+          ]
+        },
+        {
+          "id": "humidity",
+          "label": "Humidity",
+          "required": false,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "humidity_percent"
+          ],
+          "compatible_integration_ids": [
+            "piphi-network-i2c"
+          ]
+        },
+        {
+          "id": "pressure",
+          "label": "Pressure",
+          "required": false,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "pressure_hpa"
+          ],
+          "compatible_integration_ids": [
+            "piphi-network-i2c"
+          ]
+        },
+        {
+          "id": "gas",
+          "label": "Gas resistance",
+          "required": false,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "gas_ohms"
+          ],
+          "compatible_integration_ids": [
+            "piphi-network-i2c"
+          ]
+        }
+      ],
+      "recipe": {
+        "schema_version": "1",
+        "layout": "grid",
+        "columns": 2,
+        "items": [
+          {
+            "type": "metric",
+            "slot_id": "temperature",
+            "label": "Temperature",
+            "format": "temperature",
+            "domain": "temperature",
+            "emphasis": "hero",
+            "action": {
+              "type": "details",
+              "label": "View temperature details"
+            }
+          },
+          {
+            "type": "metric",
+            "slot_id": "humidity",
+            "label": "Humidity",
+            "format": "percent",
+            "domain": "humidity",
+            "action": {
+              "type": "details",
+              "label": "View humidity details"
+            }
+          },
+          {
+            "type": "metric",
+            "slot_id": "pressure",
+            "label": "Pressure",
+            "action": {
+              "type": "details",
+              "label": "View pressure details"
+            }
+          },
+          {
+            "type": "metric",
+            "slot_id": "gas",
+            "label": "Gas resistance",
+            "action": {
+              "type": "details",
+              "label": "View gas resistance details"
+            }
+          }
+        ]
+      },
+      "certification": {
+        "schema_version": "1",
+        "verified_gates": ["runtime", "persistence", "binding", "states", "responsive", "themes", "accessibility", "save-reload", "performance"],
+        "evidence": {
+          "runtime": ["core-profile:declarative-v2/runtime"],
+          "persistence": ["core-profile:declarative-v2/persistence"],
+          "binding": ["core-profile:declarative-v2/binding"],
+          "states": ["core-profile:declarative-v2/states"],
+          "responsive": ["core-profile:declarative-v2/responsive"],
+          "themes": ["core-profile:declarative-v2/themes"],
+          "accessibility": ["core-profile:declarative-v2/accessibility"],
+          "save-reload": ["core-profile:declarative-v2/save-reload"],
+          "performance": ["core-profile:declarative-v2/performance"]
+        }
+      },
+      "default_column_span": 4,
+      "default_row_span": 2
+    }
+  ]
+}

@@ -1,0 +1,322 @@
+{
+  "$schema": "./schema/piphi-manifest.schema.json",
+  "manifest_version": "1.0",
+  "id": "piphi-network-solaredge",
+  "name": "SolarEdge",
+  "version": "0.2.2",
+  "description": "Read-only SolarEdge site power-flow and production monitoring through the legacy Monitoring API.",
+  "marketplace": {
+    "brand_domain": "solaredge.com",
+    "metadata_version": 2,
+    "display_name": "SolarEdge Monitoring",
+    "summary": "Track solar production, home consumption, grid flow, battery state, and energy totals.",
+    "category": "energy",
+    "device_types": [
+      "solar_energy_system",
+      "solar_inverter",
+      "home_battery"
+    ],
+    "protocols": [
+      "solaredge_monitoring_api_v1"
+    ],
+    "regions": [
+      "US",
+      "CA",
+      "GB",
+      "AU",
+      "DE"
+    ],
+    "languages": [
+      "en"
+    ],
+    "discovery_methods": [
+      "account"
+    ],
+    "connectivity": "cloud",
+    "offline_support": "none",
+    "publisher": {
+      "name": "PiPhi Network",
+      "website_url": "https://piphi.io",
+      "support_url": "https://github.com/PiPhi-io/piphi-network-SolarEdge/issues",
+      "security_contact": "support@piphi.io"
+    },
+    "access": [
+      {
+        "id": "external_cloud",
+        "label": "External cloud access",
+        "reason": "Reads site production, consumption, grid, and battery data from SolarEdge Monitoring.",
+        "required": true
+      },
+      {
+        "id": "credentials",
+        "label": "SolarEdge API credentials",
+        "reason": "Stores the Site ID and Monitoring API key required for read-only access.",
+        "required": true
+      }
+    ],
+    "compatibility": [
+      {
+        "brand": "SolarEdge",
+        "model": "Monitoring-enabled solar site",
+        "regions": [
+          "US",
+          "CA",
+          "GB",
+          "AU",
+          "DE"
+        ]
+      },
+      {
+        "brand": "SolarEdge",
+        "model": "Monitoring site with consumption meter",
+        "regions": [
+          "US",
+          "CA",
+          "GB",
+          "AU",
+          "DE"
+        ]
+      },
+      {
+        "brand": "SolarEdge",
+        "model": "Monitoring site with storage",
+        "regions": [
+          "US",
+          "CA",
+          "GB",
+          "AU",
+          "DE"
+        ]
+      }
+    ],
+    "documentation_url": "https://github.com/PiPhi-io/piphi-network-SolarEdge",
+    "support_url": "https://github.com/PiPhi-io/piphi-network-SolarEdge/issues",
+    "changelog_url": "https://github.com/PiPhi-io/piphi-network-SolarEdge/releases",
+    "privacy_url": "https://www.solaredge.com/privacy-policy",
+    "quality_tier": "unrated",
+    "governance": {
+      "schema_version": 1,
+      "publication_status": "draft",
+      "rollout_percent": 0,
+      "lifecycle_status": "active",
+      "qualification": {
+        "status": "unverified"
+      }
+    }
+  },
+  "metadata": {
+    "generator": "piphi-network-create",
+    "scaffold_version": "0.3.0",
+    "preset": "cloud-polling-api",
+    "domain": "cloud-api",
+    "upstream_library": "solaredge",
+    "upstream_library_version": ">=1.1.1,<2.0.0",
+    "upstream_api": "SolarEdge Monitoring API V1",
+    "upstream_api_deprecation_date": "2026-11-01"
+  },
+  "maintainer": {
+    "name": "PiPhi Network",
+    "website": "https://piphi.io"
+  },
+  "license": "Apache-2.0",
+  "image": "piphinetwork/piphi-network-solaredge:0.2.2",
+  "platforms": [
+    "linux"
+  ],
+  "runtime": {
+    "linux": {
+      "type": "container",
+      "container": {
+        "image": "piphinetwork/piphi-network-solaredge:0.2.2",
+        "ports": [
+          {
+            "container": 8090,
+            "host": 8090
+          }
+        ],
+        "environment": {
+          "LOG_LEVEL": "info",
+          "PIPHI_AUTOMATION_LEDGER_PATH": "/var/lib/piphi/automation-actions.sqlite3"
+        },
+        "restart_policy": {
+          "name": "unless-stopped",
+          "maximum_retry_count": 0
+        }
+      },
+      "discovery": {
+        "method": "passive"
+      }
+    }
+  },
+  "api": {
+    "required": [
+      "health",
+      "entities",
+      "command",
+      "config",
+      "ui_config"
+    ],
+    "endpoints": {
+      "health": "/health",
+      "diagnostics": "/diagnostics",
+      "discover": "/discover",
+      "entities": "/entities",
+      "state": "/state",
+      "config": "/config",
+      "config_sync": "/config/sync",
+      "deconfigure": "/deconfigure",
+      "ui_config": "/ui-config",
+      "events": "/events",
+      "command": "/command"
+    }
+  },
+  "config": {
+    "source": "endpoint",
+    "endpoint": "/ui-config",
+    "required": true,
+    "maximum_instances": 1,
+    "editable_fields": [
+      "site_id",
+      "api_key",
+      "alias",
+      "poll_interval_seconds",
+      "summary_interval_seconds"
+    ],
+    "secret_fields": [
+      "api_key"
+    ],
+    "runtime_fields": [
+      "id",
+      "config_id",
+      "container_id",
+      "device_id"
+    ],
+    "identity_fields": [
+      "site_id"
+    ]
+  },
+  "identity": {
+    "fields": [
+      "site_id"
+    ]
+  },
+  "capabilities": {
+    "connected": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "production_power_w": {
+      "kind": "sensor",
+      "unit": "W",
+      "dashboard": {
+        "allowed_widgets": [
+          "stat",
+          "gauge",
+          "line-chart",
+          "external-widget"
+        ],
+        "default_widget": "gauge",
+        "recommended_widgets": [
+          "line-chart",
+          "external-widget"
+        ]
+      }
+    },
+    "consumption_power_w": {
+      "kind": "sensor",
+      "unit": "W"
+    },
+    "grid_power_w": {
+      "kind": "sensor",
+      "unit": "W"
+    },
+    "battery_power_w": {
+      "kind": "sensor",
+      "unit": "W"
+    },
+    "battery_soc_percent": {
+      "kind": "sensor",
+      "unit": "%"
+    },
+    "today_energy_kwh": {
+      "kind": "sensor",
+      "unit": "kWh"
+    },
+    "month_energy_kwh": {
+      "kind": "sensor",
+      "unit": "kWh"
+    },
+    "year_energy_kwh": {
+      "kind": "sensor",
+      "unit": "kWh"
+    },
+    "lifetime_energy_kwh": {
+      "kind": "sensor",
+      "unit": "kWh"
+    },
+    "lifetime_revenue": {
+      "kind": "sensor",
+      "unit": "currency"
+    },
+    "refresh": {
+      "kind": "action"
+    }
+  },
+  "commands": {
+    "refresh": {
+      "description": "Refresh SolarEdge power flow and energy totals.",
+      "timeout_ms": 15000
+    }
+  },
+  "entities": [
+    {
+      "id": "solaredge-site",
+      "name": "SolarEdge site",
+      "device_id": "solaredge-site",
+      "entity_type": "solar_energy_system",
+      "capabilities": [
+        "connected",
+        "production_power_w",
+        "consumption_power_w",
+        "grid_power_w",
+        "battery_power_w",
+        "battery_soc_percent",
+        "today_energy_kwh",
+        "month_energy_kwh",
+        "year_energy_kwh",
+        "lifetime_energy_kwh",
+        "lifetime_revenue",
+        "refresh"
+      ],
+      "available_commands": [
+        {
+          "id": "refresh",
+          "label": "Refresh",
+          "kind": "action"
+        }
+      ],
+      "dashboard": {
+        "allowed_widgets": [
+          "energy-flow",
+          "gauge",
+          "line-chart",
+          "stat",
+          "external-widget"
+        ],
+        "default_widget": "energy-flow"
+      }
+    }
+  ],
+  "ui": {
+    "experience_packages": [
+      {
+        "registry_id": "io.piphi.solaredge-solar-energy",
+        "version_range": ">=0.1,<1",
+        "auto_install": true
+      }
+    ]
+  },
+  "onboarding": {
+    "mode": "account"
+  }
+}

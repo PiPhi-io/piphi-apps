@@ -1,0 +1,251 @@
+{
+  "$schema": "./schema/piphi-manifest.schema.json",
+  "manifest_version": "1.0",
+  "id": "piphi-network-nord-pool",
+  "name": "Nord Pool",
+  "version": "0.1.0",
+  "description": "Track day-ahead electricity prices for configured Nord Pool bidding zones.",
+  "metadata": {
+    "generator": "piphi-network-create",
+    "scaffold_version": "0.3.0",
+    "preset": "cloud-polling-api",
+    "domain": "cloud-api",
+    "preset_summary": "Cloud API starter with vendor endpoint and token-oriented configuration."
+  },
+  "maintainer": {
+    "name": "PiPhi Network",
+    "website": "https://piphi.io"
+  },
+  "license": "Apache-2.0",
+  "image": "docker.io/piphinetwork/piphi-network-nord-pool:0.1.0",
+  "platforms": [
+    "linux"
+  ],
+  "runtime": {
+    "linux": {
+      "type": "container",
+      "container": {
+        "image": "docker.io/piphinetwork/piphi-network-nord-pool:0.1.0",
+        "ports": [
+          {
+            "container": 4214,
+            "host": 4214
+          }
+        ],
+        "environment": {
+          "LOG_LEVEL": "info"
+        },
+        "restart_policy": {
+          "name": "unless-stopped",
+          "maximum_retry_count": 0
+        }
+      },
+      "discovery": {
+        "method": "passive"
+      }
+    }
+  },
+  "api": {
+    "required": [
+      "health",
+      "entities",
+      "command",
+      "config",
+      "ui_config"
+    ],
+    "endpoints": {
+      "health": "/health",
+      "diagnostics": "/diagnostics",
+      "discover": "/discover",
+      "entities": "/entities",
+      "state": "/state",
+      "config": "/config",
+      "config_sync": "/config/sync",
+      "deconfigure": "/deconfigure",
+      "ui_config": "/ui-config",
+      "events": "/events",
+      "command": "/command"
+    }
+  },
+  "config": {
+    "source": "endpoint",
+    "endpoint": "/ui-config",
+    "required": true,
+    "editable_fields": [
+      "market_area",
+      "alias",
+      "currency",
+      "poll_interval_seconds"
+    ],
+    "runtime_fields": [
+      "id",
+      "config_id",
+      "container_id",
+      "device_id"
+    ],
+    "identity_fields": [
+      "market_area"
+    ]
+  },
+  "identity": {
+    "fields": [
+      "market_area"
+    ]
+  },
+  "capabilities": {
+    "connected": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "market_area": {
+      "kind": "sensor",
+      "unit": "text",
+      "value_kind": "text"
+    },
+    "current_price_per_kwh": {
+      "kind": "sensor",
+      "unit": "currency/kWh"
+    },
+    "next_price_per_kwh": {
+      "kind": "sensor",
+      "unit": "currency/kWh"
+    },
+    "price_unit": {
+      "kind": "sensor",
+      "unit": "text",
+      "value_kind": "text"
+    },
+    "refresh": {
+      "kind": "action"
+    }
+  },
+  "commands": {
+    "refresh": {
+      "description": "Read the latest published market prices.",
+      "timeout_ms": 20000
+    }
+  },
+  "entities": [
+    {
+      "id": "demo-device",
+      "name": "Nord Pool market",
+      "device_id": "demo-device",
+      "entity_type": "energy_market",
+      "capabilities": [
+        "connected",
+        "market_area",
+        "current_price_per_kwh",
+        "next_price_per_kwh",
+        "price_unit",
+        "refresh"
+      ],
+      "available_commands": [
+        {
+          "id": "refresh",
+          "label": "Refresh",
+          "kind": "action"
+        }
+      ],
+      "dashboard": {
+        "allowed_widgets": [
+          "tile",
+          "stat",
+          "line-chart",
+          "external-widget"
+        ],
+        "default_widget": "stat"
+      }
+    }
+  ],
+  "ui": {
+    "widget_packages": [
+      {
+        "id": "io.piphi.nord-pool.price",
+        "name": "Nord Pool price",
+        "version": "0.1.1",
+        "entry": "/widgets/nord-pool-price/dist/widget.js",
+        "runtime": "prebuilt_bundle",
+        "certification": {
+          "verified_gates": ["runtime", "persistence", "binding", "states", "responsive", "themes", "accessibility", "save-reload", "performance"],
+          "evidence": {
+            "runtime": ["core-profile:sandbox-host-v1/runtime"],
+            "persistence": ["core-profile:sandbox-host-v1/persistence"],
+            "binding": ["widgets/nord-pool-price/test/widget.test.mjs"],
+            "states": ["widgets/nord-pool-price/test/widget.test.mjs"],
+            "responsive": ["widgets/nord-pool-price/test/widget.test.mjs"],
+            "themes": ["widgets/nord-pool-price/test/widget.test.mjs"],
+            "accessibility": ["widgets/nord-pool-price/test/widget.test.mjs"],
+            "save-reload": ["core-profile:sandbox-host-v1/save-reload"],
+            "performance": ["core-profile:sandbox-host-v1/performance"]
+          }
+        },
+        "host_bridge": {"protocol": "piphi.widget.host", "version": "1", "events": ["ready", "resize"]},
+        "binding_modes": ["read"],
+        "value_kinds": ["numeric", "boolean", "text"],
+        "capability_requirements": ["connected", "market_area", "current_price_per_kwh", "next_price_per_kwh", "price_unit"],
+        "sdk_compatibility": {"minimum": "0.5.1"},
+        "settings_schema_version": "1",
+        "settings": [
+          {"id": "title", "type": "text", "label": "Title", "default": "Electricity price"},
+          {"id": "device", "type": "device", "label": "Nord Pool market", "required": true}
+        ],
+        "layout": {"min_height": 120, "default_height": 140, "max_height": 220},
+        "security": {"permissions": [], "sandbox": ["allow-scripts"], "csp": {"connect_src": []}}
+      }
+    ]
+  },
+  "marketplace": {
+    "metadata_version": 2,
+    "display_name": "Nord Pool",
+    "summary": "Track day-ahead electricity prices for configured Nord Pool bidding zones.",
+    "category": "energy",
+    "regions": [
+      "EU"
+    ],
+    "languages": [
+      "en"
+    ],
+    "publisher": {
+      "name": "PiPhi Network",
+      "website_url": "https://piphi.io",
+      "support_url": "https://github.com/PiPhi-io/piphi-network-nord-pool/issues",
+      "security_contact": "support@piphi.io"
+    },
+    "access": [],
+    "compatibility": [
+      {
+        "brand": "Nord Pool",
+        "model": "Supported day-ahead bidding zones and currencies"
+      }
+    ],
+    "documentation_url": "https://github.com/PiPhi-io/piphi-network-nord-pool",
+    "support_url": "https://github.com/PiPhi-io/piphi-network-nord-pool/issues",
+    "changelog_url": "https://github.com/PiPhi-io/piphi-network-nord-pool/releases",
+    "quality_tier": "unrated",
+    "governance": {
+      "schema_version": 1,
+      "publication_status": "draft",
+      "rollout_percent": 0,
+      "lifecycle_status": "active",
+      "qualification": {
+        "status": "unverified"
+      }
+    },
+    "device_types": [
+      "electricity market feed"
+    ],
+    "protocols": [
+      "Nord Pool market data",
+      "HTTPS"
+    ],
+    "discovery_methods": [
+      "configured bidding zone"
+    ],
+    "connectivity": "cloud",
+    "offline_support": "none",
+    "privacy_url": "https://github.com/PiPhi-io/piphi-network-nord-pool/blob/main/docs/privacy.md"
+  },
+  "onboarding": {
+    "mode": "manual"
+  }
+}

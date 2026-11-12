@@ -1,0 +1,1359 @@
+{
+  "devices": [
+    {
+      "id": "tesla_vehicle",
+      "name": "Tesla vehicle",
+      "description": "Tesla Fleet API vehicle status, charging, location, and safe refresh controls.",
+      "deviceClass": "electric_vehicle",
+      "entityType": "vehicle",
+      "capabilities": [
+        "online",
+        "battery_level",
+        "usable_battery_level",
+        "charging_state",
+        "charge_limit_soc",
+        "time_to_full_charge_hours",
+        "charger_power_kw",
+        "battery_range_miles",
+        "charge_current_amps",
+        "charge_energy_added_kwh",
+        "plugged_in",
+        "inside_temp_c",
+        "outside_temp_c",
+        "climate_on",
+        "is_locked",
+        "odometer_miles",
+        "speed_mph",
+        "vehicle_state",
+        "heading_degrees",
+        "shift_state",
+        "last_refresh_at",
+        "latitude",
+        "longitude",
+        "refresh",
+        "wake_up"
+      ],
+      "intents": [
+        {
+          "id": "monitor_vehicle",
+          "label": "Watch my vehicle",
+          "description": "Start automations from vehicle status, battery, charging, and location readings."
+        },
+        {
+          "id": "keep_data_fresh",
+          "label": "Keep Tesla readings current",
+          "description": "Refresh vehicle readings or wake the vehicle before checking its latest state."
+        }
+      ],
+      "conditions": [
+        {
+          "id": "battery_below",
+          "label": "Battery level",
+          "type": "number",
+          "params": [
+            {
+              "name": "percent",
+              "label": "Battery threshold",
+              "type": "number",
+              "min": 0,
+              "max": 100,
+              "default": 30,
+              "step": 1,
+              "unit": "%",
+              "required": true
+            }
+          ],
+          "capability": "sensor.battery_level",
+          "operators": [
+            "<",
+            "<=",
+            ">",
+            ">=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "battery_level",
+            "operator": "<"
+          },
+          "freshness": {
+            "maxAgeSeconds": 600,
+            "staleDataMode": "warn"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "usable_battery_below",
+          "label": "Usable battery level",
+          "type": "number",
+          "params": [
+            {
+              "name": "percent",
+              "label": "Usable battery threshold",
+              "type": "number",
+              "min": 0,
+              "max": 100,
+              "default": 25,
+              "step": 1,
+              "unit": "%",
+              "required": true
+            }
+          ],
+          "capability": "sensor.usable_battery_level",
+          "operators": [
+            "<",
+            "<=",
+            ">",
+            ">=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "usable_battery_level",
+            "operator": "<"
+          },
+          "freshness": {
+            "maxAgeSeconds": 600,
+            "staleDataMode": "warn"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "charging_state_is",
+          "label": "Charging status",
+          "type": "enum",
+          "params": [
+            {
+              "name": "state",
+              "label": "Charging status",
+              "type": "enum",
+              "default": "Charging",
+              "options": [
+                "Charging",
+                "Stopped",
+                "Complete",
+                "Disconnected",
+                "NoPower"
+              ],
+              "required": true
+            }
+          ],
+          "capability": "sensor.charging_state",
+          "operators": [
+            "eq",
+            "neq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "charging_state",
+            "operator": "eq"
+          },
+          "freshness": {
+            "maxAgeSeconds": 600,
+            "staleDataMode": "warn"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "charge_limit_below",
+          "label": "Charge limit",
+          "type": "number",
+          "params": [
+            {
+              "name": "percent",
+              "label": "Charge limit threshold",
+              "type": "number",
+              "min": 50,
+              "max": 100,
+              "default": 80,
+              "step": 1,
+              "unit": "%",
+              "required": true
+            }
+          ],
+          "capability": "sensor.charge_limit_soc",
+          "operators": [
+            "<",
+            "<=",
+            ">",
+            ">=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "charge_limit_soc",
+            "operator": "<"
+          },
+          "freshness": {
+            "maxAgeSeconds": 600,
+            "staleDataMode": "warn"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "time_to_full_above",
+          "label": "Time until fully charged",
+          "type": "number",
+          "params": [
+            {
+              "name": "hours",
+              "label": "Time threshold",
+              "type": "number",
+              "min": 0,
+              "max": 24,
+              "default": 2,
+              "step": 0.25,
+              "unit": "h",
+              "required": true
+            }
+          ],
+          "capability": "sensor.time_to_full_charge_hours",
+          "operators": [
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "time_to_full_charge_hours",
+            "operator": ">"
+          },
+          "freshness": {
+            "maxAgeSeconds": 600,
+            "staleDataMode": "warn"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "charger_power_above",
+          "label": "Charging power",
+          "type": "number",
+          "params": [
+            {
+              "name": "kilowatts",
+              "label": "Power threshold",
+              "type": "number",
+              "min": 0,
+              "max": 250,
+              "default": 1,
+              "step": 0.1,
+              "unit": "kW",
+              "required": true
+            }
+          ],
+          "capability": "sensor.charger_power_kw",
+          "operators": [
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "charger_power_kw",
+            "operator": ">"
+          },
+          "freshness": {
+            "maxAgeSeconds": 600,
+            "staleDataMode": "warn"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "range_below",
+          "label": "Estimated range",
+          "type": "number",
+          "params": [
+            {
+              "name": "miles",
+              "label": "Range threshold",
+              "type": "number",
+              "min": 0,
+              "max": 500,
+              "default": 80,
+              "step": 5,
+              "unit": "mi",
+              "required": true
+            }
+          ],
+          "capability": "sensor.battery_range_miles",
+          "operators": [
+            "<",
+            "<=",
+            ">",
+            ">=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "battery_range_miles",
+            "operator": "<"
+          },
+          "freshness": {
+            "maxAgeSeconds": 600,
+            "staleDataMode": "warn"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "charge_current_above",
+          "label": "Charge current",
+          "type": "number",
+          "params": [
+            {
+              "name": "amps",
+              "label": "Current threshold",
+              "type": "number",
+              "min": 0,
+              "max": 80,
+              "default": 24,
+              "step": 1,
+              "unit": "A",
+              "required": true
+            }
+          ],
+          "capability": "sensor.charge_current_amps",
+          "operators": [
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "charge_current_amps",
+            "operator": ">"
+          },
+          "freshness": {
+            "maxAgeSeconds": 600,
+            "staleDataMode": "warn"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "energy_added_above",
+          "label": "Energy added this charge",
+          "type": "number",
+          "params": [
+            {
+              "name": "kilowatt_hours",
+              "label": "Energy threshold",
+              "type": "number",
+              "min": 0,
+              "max": 200,
+              "default": 10,
+              "step": 0.5,
+              "unit": "kWh",
+              "required": true
+            }
+          ],
+          "capability": "sensor.charge_energy_added_kwh",
+          "operators": [
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "charge_energy_added_kwh",
+            "operator": ">"
+          },
+          "freshness": {
+            "maxAgeSeconds": 600,
+            "staleDataMode": "warn"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "plugged_in",
+          "label": "Vehicle is plugged in",
+          "type": "boolean",
+          "capability": "sensor.plugged_in",
+          "operators": [
+            "eq",
+            "neq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "plugged_in",
+            "operator": "eq"
+          },
+          "freshness": {
+            "maxAgeSeconds": 600,
+            "staleDataMode": "warn"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "online",
+          "label": "Vehicle is online",
+          "type": "boolean",
+          "capability": "sensor.online",
+          "operators": [
+            "eq",
+            "neq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "online",
+            "operator": "eq"
+          },
+          "freshness": {
+            "maxAgeSeconds": 600,
+            "staleDataMode": "warn"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "inside_temperature_above",
+          "label": "Cabin temperature",
+          "type": "number",
+          "params": [
+            {
+              "name": "celsius",
+              "label": "Cabin temperature threshold",
+              "type": "number",
+              "min": -30,
+              "max": 60,
+              "default": 30,
+              "step": 0.5,
+              "unit": "C",
+              "required": true
+            }
+          ],
+          "capability": "sensor.inside_temp_c",
+          "operators": [
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "inside_temp_c",
+            "operator": ">"
+          },
+          "freshness": {
+            "maxAgeSeconds": 600,
+            "staleDataMode": "warn"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "outside_temperature_above",
+          "label": "Outside temperature",
+          "type": "number",
+          "params": [
+            {
+              "name": "celsius",
+              "label": "Outside temperature threshold",
+              "type": "number",
+              "min": -40,
+              "max": 60,
+              "default": 32,
+              "step": 0.5,
+              "unit": "C",
+              "required": true
+            }
+          ],
+          "capability": "sensor.outside_temp_c",
+          "operators": [
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "outside_temp_c",
+            "operator": ">"
+          },
+          "freshness": {
+            "maxAgeSeconds": 600,
+            "staleDataMode": "warn"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "climate_on",
+          "label": "Climate is running",
+          "type": "boolean",
+          "capability": "sensor.climate_on",
+          "operators": [
+            "eq",
+            "neq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "climate_on",
+            "operator": "eq"
+          },
+          "freshness": {
+            "maxAgeSeconds": 600,
+            "staleDataMode": "warn"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "is_locked",
+          "label": "Vehicle is locked",
+          "type": "boolean",
+          "capability": "sensor.is_locked",
+          "operators": [
+            "eq",
+            "neq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "is_locked",
+            "operator": "eq"
+          },
+          "freshness": {
+            "maxAgeSeconds": 600,
+            "staleDataMode": "warn"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "odometer_above",
+          "label": "Odometer",
+          "type": "number",
+          "params": [
+            {
+              "name": "miles",
+              "label": "Odometer threshold",
+              "type": "number",
+              "min": 0,
+              "max": 1000000,
+              "default": 10000,
+              "step": 100,
+              "unit": "mi",
+              "required": true
+            }
+          ],
+          "capability": "sensor.odometer_miles",
+          "operators": [
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "odometer_miles",
+            "operator": ">"
+          },
+          "freshness": {
+            "maxAgeSeconds": 600,
+            "staleDataMode": "warn"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "speed_above",
+          "label": "Speed",
+          "type": "number",
+          "params": [
+            {
+              "name": "mph",
+              "label": "Speed threshold",
+              "type": "number",
+              "min": 0,
+              "max": 200,
+              "default": 5,
+              "step": 1,
+              "unit": "mph",
+              "required": true
+            }
+          ],
+          "capability": "sensor.speed_mph",
+          "operators": [
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "speed_mph",
+            "operator": ">"
+          },
+          "freshness": {
+            "maxAgeSeconds": 600,
+            "staleDataMode": "warn"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "vehicle_state_is",
+          "label": "Vehicle connection state",
+          "type": "enum",
+          "params": [
+            {
+              "name": "state",
+              "label": "Connection state",
+              "type": "enum",
+              "default": "online",
+              "options": [
+                "online",
+                "asleep",
+                "offline",
+                "unknown"
+              ],
+              "required": true
+            }
+          ],
+          "capability": "sensor.vehicle_state",
+          "operators": [
+            "eq",
+            "neq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "vehicle_state",
+            "operator": "eq"
+          },
+          "freshness": {
+            "maxAgeSeconds": 600,
+            "staleDataMode": "warn"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "shift_state_is",
+          "label": "Gear selection",
+          "type": "enum",
+          "params": [
+            {
+              "name": "state",
+              "label": "Gear selection",
+              "type": "enum",
+              "default": "P",
+              "options": [
+                "P",
+                "R",
+                "N",
+                "D"
+              ],
+              "required": true
+            }
+          ],
+          "capability": "sensor.shift_state",
+          "operators": [
+            "eq",
+            "neq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "shift_state",
+            "operator": "eq"
+          },
+          "freshness": {
+            "maxAgeSeconds": 600,
+            "staleDataMode": "warn"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "heading_above",
+          "label": "Heading",
+          "type": "number",
+          "params": [
+            {
+              "name": "degrees",
+              "label": "Heading threshold",
+              "type": "number",
+              "min": 0,
+              "max": 359,
+              "default": 180,
+              "step": 1,
+              "unit": "degrees",
+              "required": true
+            }
+          ],
+          "capability": "sensor.heading_degrees",
+          "operators": [
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "heading_degrees",
+            "operator": ">"
+          },
+          "freshness": {
+            "maxAgeSeconds": 600,
+            "staleDataMode": "warn"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "latitude_above",
+          "label": "Latitude",
+          "type": "number",
+          "params": [
+            {
+              "name": "degrees",
+              "label": "Latitude threshold",
+              "type": "number",
+              "min": -90,
+              "max": 90,
+              "default": 0,
+              "step": 0.0001,
+              "unit": "degrees",
+              "required": true
+            }
+          ],
+          "capability": "sensor.latitude",
+          "operators": [
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "latitude",
+            "operator": ">"
+          },
+          "freshness": {
+            "maxAgeSeconds": 600,
+            "staleDataMode": "warn"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "longitude_above",
+          "label": "Longitude",
+          "type": "number",
+          "params": [
+            {
+              "name": "degrees",
+              "label": "Longitude threshold",
+              "type": "number",
+              "min": -180,
+              "max": 180,
+              "default": 0,
+              "step": 0.0001,
+              "unit": "degrees",
+              "required": true
+            }
+          ],
+          "capability": "sensor.longitude",
+          "operators": [
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "longitude",
+            "operator": ">"
+          },
+          "freshness": {
+            "maxAgeSeconds": 600,
+            "staleDataMode": "warn"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        }
+      ],
+      "actions": [
+        {
+          "id": "refresh",
+          "label": "Refresh Tesla readings",
+          "description": "Ask Tesla for the latest vehicle status and publish an updated reading.",
+          "capability": "action.refresh",
+          "runtime": {
+            "command": "refresh"
+          },
+          "targeting": {
+            "modes": [
+              "picked_devices",
+              "by_integration"
+            ],
+            "minTargets": 1,
+            "maxTargets": 1
+          },
+          "failure": {
+            "strategy": "retry_then_continue",
+            "retry": {
+              "maxAttempts": 2,
+              "delaySeconds": 5,
+              "timeoutSeconds": 15,
+              "backoff": "fixed"
+            }
+          },
+          "ui": {
+            "group": "do_this"
+          },
+          "safety": {
+            "riskLevel": "low"
+          }
+        },
+        {
+          "id": "wake_up",
+          "label": "Wake the vehicle",
+          "description": "Wake a sleeping Tesla so a later step can get fresh readings.",
+          "capability": "action.wake_up",
+          "runtime": {
+            "command": "wake_up"
+          },
+          "targeting": {
+            "modes": [
+              "picked_devices",
+              "by_integration"
+            ],
+            "minTargets": 1,
+            "maxTargets": 1
+          },
+          "failure": {
+            "strategy": "retry_then_stop",
+            "retry": {
+              "maxAttempts": 2,
+              "delaySeconds": 10,
+              "timeoutSeconds": 30,
+              "backoff": "fixed"
+            }
+          },
+          "ui": {
+            "group": "do_this"
+          },
+          "safety": {
+            "riskLevel": "medium"
+          }
+        }
+      ],
+      "stop": [
+        {
+          "id": "vehicle_not_parked",
+          "label": "Stop if the vehicle is not parked",
+          "description": "Use this when the automation should only continue while the car is parked.",
+          "type": "enum",
+          "params": [
+            {
+              "name": "allowed_state",
+              "label": "Allowed gear",
+              "type": "enum",
+              "default": "P",
+              "options": [
+                "P"
+              ],
+              "required": true
+            }
+          ],
+          "capability": "sensor.shift_state",
+          "runtime": {
+            "source": "state",
+            "field": "shift_state",
+            "operator": "neq"
+          },
+          "ui": {
+            "group": "stop_when"
+          }
+        }
+      ],
+      "manualOverride": [
+        {
+          "id": "manual_vehicle_change",
+          "label": "Someone changed the vehicle outside PiPhi",
+          "description": "Pause or continue if Tesla readings show a manual change after this automation starts.",
+          "runtime": {
+            "source": "state",
+            "fields": [
+              "charging_state",
+              "climate_on",
+              "is_locked",
+              "shift_state"
+            ]
+          },
+          "ui": {
+            "group": "override"
+          }
+        }
+      ],
+      "targeting": {
+        "modes": [
+          "picked_devices",
+          "by_integration"
+        ],
+        "supportsGroups": false,
+        "supportsRooms": false
+      },
+      "freshness": {
+        "maxAgeSeconds": 600,
+        "staleDataMode": "warn"
+      },
+      "ui": {
+        "icon": "car",
+        "accent": "vehicle",
+        "defaultListLabel": "Tesla vehicles"
+      },
+      "triggers": [
+        {
+          "id": "state_changed",
+          "label": "Vehicle reading changes",
+          "description": "Start when this Tesla reports a new reading.",
+          "capability": "telemetry.state",
+          "runtime": {
+            "event": "device.state_changed",
+            "source": "integration"
+          },
+          "freshness": {
+            "maxAgeSeconds": 600,
+            "staleDataMode": "warn"
+          },
+          "ui": {
+            "group": "when"
+          }
+        },
+        {
+          "id": "run_manually",
+          "label": "I run it myself",
+          "description": "Start from the Run button or from another automation.",
+          "capability": "automation.manual",
+          "runtime": {
+            "event": "automation.manual",
+            "source": "piphi"
+          },
+          "ui": {
+            "group": "when"
+          }
+        }
+      ]
+    }
+  ],
+  "templates": [
+    {
+      "id": "tesla_low_battery_refresh",
+      "label": "Check my Tesla when the battery is low",
+      "description": "When the latest Tesla reading shows a low battery, refresh the vehicle so PiPhi has a current status.",
+      "category": "Vehicle care",
+      "deviceKey": "tesla_vehicle",
+      "config": {
+        "automation_schema_version": "automation.behavior.v2",
+        "triggers": [
+          {
+            "id": "state_changed",
+            "label": "Tesla reading changes",
+            "type": "integration_event",
+            "event": "device.state_changed",
+            "capability": "telemetry.state",
+            "enabled": true,
+            "sourceRef": {
+              "integrationId": "{{integrationId}}",
+              "integrationKey": "{{integrationKey}}",
+              "configId": "{{configId}}",
+              "behaviorDeviceKey": "tesla_vehicle",
+              "optionKey": "state_changed",
+              "capability": "telemetry.state"
+            }
+          }
+        ],
+        "trigger": {
+          "id": "state_changed",
+          "label": "Tesla reading changes",
+          "type": "integration_event",
+          "event": "device.state_changed",
+          "capability": "telemetry.state",
+          "enabled": true,
+          "sourceRef": {
+            "integrationId": "{{integrationId}}",
+            "integrationKey": "{{integrationKey}}",
+            "configId": "{{configId}}",
+            "behaviorDeviceKey": "tesla_vehicle",
+            "optionKey": "state_changed",
+            "capability": "telemetry.state"
+          }
+        },
+        "intent": "monitor_vehicle",
+        "conditionTree": {
+          "op": "and",
+          "children": [
+            {
+              "id": "battery_below_template",
+              "label": "Battery is below 30%",
+              "field": "battery_level",
+              "operator": "<",
+              "value": 30,
+              "sourceRef": {
+                "integrationId": "{{integrationId}}",
+                "integrationKey": "{{integrationKey}}",
+                "configId": "{{configId}}",
+                "behaviorDeviceKey": "tesla_vehicle",
+                "optionKey": "battery_below",
+                "capability": "sensor.battery_level"
+              }
+            }
+          ]
+        },
+        "conditions": {
+          "integrationCondition": {
+            "id": "battery_below",
+            "params": {
+              "percent": 30
+            }
+          }
+        },
+        "actions": [
+          {
+            "id": "refresh",
+            "label": "Refresh Tesla readings",
+            "action": "command",
+            "capability": "action.refresh",
+            "sourceRef": {
+              "integrationId": "{{integrationId}}",
+              "integrationKey": "{{integrationKey}}",
+              "configId": "{{configId}}",
+              "behaviorDeviceKey": "tesla_vehicle",
+              "optionKey": "refresh",
+              "capability": "action.refresh"
+            },
+            "target": {
+              "mode": "selection",
+              "configIds": [
+                "{{configId}}"
+              ]
+            },
+            "parameters": {},
+            "failure": {
+              "strategy": "retry_then_continue",
+              "retry": {
+                "maxAttempts": 2,
+                "delaySeconds": 5,
+                "timeoutSeconds": 15,
+                "backoff": "fixed"
+              },
+              "continueOnPartialFailure": true
+            }
+          }
+        ],
+        "safety": {
+          "staleDataMode": "warn",
+          "maxAgeSeconds": 600,
+          "requireFreshTrigger": false,
+          "dryRunFirst": false
+        },
+        "failure": {
+          "strategy": "follow_edges",
+          "fallbackBehaviorId": "",
+          "conditionTree": {
+            "op": "and",
+            "children": []
+          }
+        },
+        "stop": {
+          "never": true
+        },
+        "override": {
+          "mode": "continue"
+        }
+      },
+      "ui": {
+        "accent": "vehicle",
+        "icon": "car"
+      },
+      "metadata": {
+        "recommended": true,
+        "difficulty": "easy"
+      }
+    },
+    {
+      "id": "tesla_wake_then_refresh",
+      "label": "Wake my Tesla before checking it",
+      "description": "Wake the vehicle and then refresh its readings so automations can use the latest status.",
+      "category": "Vehicle care",
+      "deviceKey": "tesla_vehicle",
+      "config": {
+        "automation_schema_version": "automation.behavior.v2",
+        "triggers": [
+          {
+            "id": "run_manually",
+            "label": "I run it myself",
+            "type": "manual",
+            "event": "automation.manual",
+            "capability": "automation.manual",
+            "enabled": true,
+            "sourceRef": {
+              "integrationId": "{{integrationId}}",
+              "integrationKey": "{{integrationKey}}",
+              "configId": "{{configId}}",
+              "behaviorDeviceKey": "tesla_vehicle",
+              "optionKey": "run_manually",
+              "capability": "automation.manual"
+            }
+          }
+        ],
+        "trigger": {
+          "id": "run_manually",
+          "label": "I run it myself",
+          "type": "manual",
+          "event": "automation.manual",
+          "capability": "automation.manual",
+          "enabled": true,
+          "sourceRef": {
+            "integrationId": "{{integrationId}}",
+            "integrationKey": "{{integrationKey}}",
+            "configId": "{{configId}}",
+            "behaviorDeviceKey": "tesla_vehicle",
+            "optionKey": "run_manually",
+            "capability": "automation.manual"
+          }
+        },
+        "intent": "keep_data_fresh",
+        "conditionTree": {
+          "op": "and",
+          "children": []
+        },
+        "actions": [
+          {
+            "id": "wake_up",
+            "label": "Wake the vehicle",
+            "action": "command",
+            "capability": "action.wake_up",
+            "sourceRef": {
+              "integrationId": "{{integrationId}}",
+              "integrationKey": "{{integrationKey}}",
+              "configId": "{{configId}}",
+              "behaviorDeviceKey": "tesla_vehicle",
+              "optionKey": "wake_up",
+              "capability": "action.wake_up"
+            },
+            "target": {
+              "mode": "selection",
+              "configIds": [
+                "{{configId}}"
+              ]
+            },
+            "parameters": {},
+            "failure": {
+              "strategy": "retry_then_stop",
+              "retry": {
+                "maxAttempts": 2,
+                "delaySeconds": 10,
+                "timeoutSeconds": 30,
+                "backoff": "fixed"
+              },
+              "continueOnPartialFailure": false
+            }
+          },
+          {
+            "id": "refresh",
+            "label": "Refresh Tesla readings",
+            "action": "command",
+            "capability": "action.refresh",
+            "sourceRef": {
+              "integrationId": "{{integrationId}}",
+              "integrationKey": "{{integrationKey}}",
+              "configId": "{{configId}}",
+              "behaviorDeviceKey": "tesla_vehicle",
+              "optionKey": "refresh",
+              "capability": "action.refresh"
+            },
+            "target": {
+              "mode": "selection",
+              "configIds": [
+                "{{configId}}"
+              ]
+            },
+            "parameters": {},
+            "failure": {
+              "strategy": "retry_then_continue",
+              "retry": {
+                "maxAttempts": 2,
+                "delaySeconds": 5,
+                "timeoutSeconds": 15,
+                "backoff": "fixed"
+              },
+              "continueOnPartialFailure": true
+            }
+          }
+        ],
+        "safety": {
+          "staleDataMode": "warn",
+          "maxAgeSeconds": 600,
+          "requireFreshTrigger": false,
+          "dryRunFirst": false
+        },
+        "failure": {
+          "strategy": "follow_edges",
+          "fallbackBehaviorId": "",
+          "conditionTree": {
+            "op": "and",
+            "children": []
+          }
+        },
+        "stop": {
+          "never": true
+        },
+        "override": {
+          "mode": "continue"
+        }
+      },
+      "ui": {
+        "accent": "vehicle",
+        "icon": "car"
+      },
+      "metadata": {
+        "recommended": true,
+        "difficulty": "easy"
+      }
+    }
+  ],
+  "behaviorSchemaVersion": "integration.behaviors.v2",
+  "telemetry": {
+    "capabilityMappings": [
+      {
+        "nativeMetric": "battery_level",
+        "capability": "sensor.battery_level"
+      },
+      {
+        "nativeMetric": "battery_range_miles",
+        "capability": "sensor.battery_range_miles"
+      },
+      {
+        "nativeMetric": "charge_current_amps",
+        "capability": "sensor.charge_current_amps"
+      },
+      {
+        "nativeMetric": "charge_energy_added_kwh",
+        "capability": "sensor.charge_energy_added_kwh"
+      },
+      {
+        "nativeMetric": "charge_limit_soc",
+        "capability": "sensor.charge_limit_soc"
+      },
+      {
+        "nativeMetric": "charger_power_kw",
+        "capability": "sensor.charger_power_kw"
+      },
+      {
+        "nativeMetric": "charging_state",
+        "capability": "sensor.charging_state"
+      },
+      {
+        "nativeMetric": "climate_on",
+        "capability": "sensor.climate_on"
+      },
+      {
+        "nativeMetric": "heading_degrees",
+        "capability": "sensor.heading_degrees"
+      },
+      {
+        "nativeMetric": "inside_temp_c",
+        "capability": "sensor.inside_temp_c"
+      },
+      {
+        "nativeMetric": "is_locked",
+        "capability": "sensor.is_locked"
+      },
+      {
+        "nativeMetric": "last_refresh_at",
+        "capability": "sensor.last_refresh_at"
+      },
+      {
+        "nativeMetric": "latitude",
+        "capability": "sensor.latitude"
+      },
+      {
+        "nativeMetric": "longitude",
+        "capability": "sensor.longitude"
+      },
+      {
+        "nativeMetric": "odometer_miles",
+        "capability": "sensor.odometer_miles"
+      },
+      {
+        "nativeMetric": "online",
+        "capability": "sensor.online"
+      },
+      {
+        "nativeMetric": "outside_temp_c",
+        "capability": "sensor.outside_temp_c"
+      },
+      {
+        "nativeMetric": "plugged_in",
+        "capability": "sensor.plugged_in"
+      },
+      {
+        "nativeMetric": "shift_state",
+        "capability": "sensor.shift_state"
+      },
+      {
+        "nativeMetric": "speed_mph",
+        "capability": "sensor.speed_mph"
+      },
+      {
+        "nativeMetric": "time_to_full_charge_hours",
+        "capability": "sensor.time_to_full_charge_hours"
+      },
+      {
+        "nativeMetric": "usable_battery_level",
+        "capability": "sensor.usable_battery_level"
+      },
+      {
+        "nativeMetric": "vehicle_state",
+        "capability": "sensor.vehicle_state"
+      }
+    ]
+  }
+}

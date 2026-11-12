@@ -1,0 +1,14 @@
+{
+  "contract_version": "automation.runtime.command.v1",
+  "command": "refresh",
+  "target": {
+    "config_id": "home-solar",
+    "device_id": "solaredge-1234567",
+    "entity_id": null
+  },
+  "params": {},
+  "capability": "device.refresh",
+  "capability_requirements": [
+    "device.refresh"
+  ]
+}

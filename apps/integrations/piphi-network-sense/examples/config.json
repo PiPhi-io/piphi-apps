@@ -1,0 +1,8 @@
+{
+  "id": "sense-account",
+  "email": "owner@example.com",
+  "password": "change-me",
+  "alias": "Sense Home",
+  "poll_interval_seconds": 60,
+  "trend_interval_seconds": 900
+}

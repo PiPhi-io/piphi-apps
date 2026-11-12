@@ -1,0 +1,47 @@
+name: Release SolarEdge experience
+
+on:
+  push:
+    tags:
+      - "experience-solar-energy-v*.*.*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: solaredge-experience-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install project and test dependencies
+        run: |
+          python -m pip install --upgrade pip pdm
+          pdm install -G dev
+      - name: Validate release candidate
+        run: |
+          pdm run pytest
+          pdm run python scripts/validate.py
+          pdm run python scripts/build_experience.py --check
+      - name: Build signed experience
+        env:
+          PIPHI_WIDGET_SIGNING_KEY_PEM_BASE64: ${{ secrets.PIPHI_WIDGET_SIGNING_KEY_PEM_BASE64 }}
+        run: pdm run python scripts/build_experience.py --output-dir experience-dist
+      - name: Write checksums
+        working-directory: experience-dist
+        run: sha256sum * > SHA256SUMS
+      - name: Publish experience release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            experience-dist/*
+          generate_release_notes: true
+          name: SolarEdge Solar Energy ${{ github.ref_name }}

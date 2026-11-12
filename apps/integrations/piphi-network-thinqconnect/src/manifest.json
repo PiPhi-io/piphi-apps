@@ -1,0 +1,904 @@
+{
+  "manifest_version": "1.0",
+  "id": "lg-thinq-connect-api",
+  "name": "LG ThinQ Connect",
+  "version": "0.1.15",
+  "description": "Integration for LG ThinQ appliances using the official ThinQ Connect Python SDK.",
+  "maintainer": {
+    "name": "PiPhi Network",
+    "website": "https://piphi.io",
+    "support_email": "support@piphi.io"
+  },
+  "platforms": [
+    "linux",
+    "windows",
+    "macos"
+  ],
+  "runtime": {
+    "linux": {
+      "type": "container",
+      "container": {
+        "image": "piphinetwork/lg-thinq-connect:0.1.15",
+        "ports": [
+          {
+            "container": 3667,
+            "host": 3667
+          }
+        ],
+        "environment": {
+          "LOG_LEVEL": "info"
+        },
+        "restart_policy": {
+          "name": "unless-stopped",
+          "maximum_retry_count": 0
+        }
+      },
+      "discovery": {
+        "method": "direct",
+        "inputs": [
+          {
+            "name": "simulation_mode",
+            "label": "Use Simulator",
+            "type": "boolean",
+            "required": false,
+            "default": false,
+            "description": "Use deterministic washer, refrigerator, and air-conditioner fixtures without an LG account."
+          },
+          {
+            "name": "push_events_enabled",
+            "label": "Enable Near-Real-Time Events",
+            "type": "boolean",
+            "required": false,
+            "default": false,
+            "description": "Use LG ThinQ MQTT events for faster updates while retaining polling as fallback. Requires event and push token scopes."
+          },
+          {
+            "name": "access_token",
+            "label": "Personal Access Token",
+            "type": "password",
+            "secret": true,
+            "required": false,
+            "description": "Personal access token generated from the LG ThinQ Developer portal."
+          },
+          {
+            "name": "country_code",
+            "label": "Country Code",
+            "type": "text",
+            "required": true,
+            "default": "US",
+            "placeholder": "US",
+            "description": "Two-letter ThinQ country code such as US, CA, KR, or GB."
+          },
+          {
+            "name": "client_id",
+            "label": "Client ID (Optional)",
+            "type": "text",
+            "required": false,
+            "description": "Optional UUID-style client id. When omitted, PiPhi generates a stable one automatically."
+          }
+        ]
+      }
+    },
+    "windows": {
+      "type": "proxy",
+      "proxy": {
+        "port": 3667
+      },
+      "discovery": {
+        "method": "proxy",
+        "inputs": [
+          {
+            "name": "simulation_mode",
+            "label": "Use Simulator",
+            "type": "boolean",
+            "required": false,
+            "default": false
+          },
+          {
+            "name": "push_events_enabled",
+            "label": "Enable Near-Real-Time Events",
+            "type": "boolean",
+            "required": false,
+            "default": false
+          },
+          {
+            "name": "access_token",
+            "label": "Personal Access Token",
+            "type": "password",
+            "secret": true,
+            "required": false
+          },
+          {
+            "name": "country_code",
+            "label": "Country Code",
+            "type": "text",
+            "required": true,
+            "default": "US",
+            "placeholder": "US"
+          },
+          {
+            "name": "client_id",
+            "label": "Client ID (Optional)",
+            "type": "text",
+            "required": false
+          }
+        ]
+      }
+    },
+    "macos": {
+      "type": "proxy",
+      "proxy": {
+        "port": 3667
+      },
+      "discovery": {
+        "method": "proxy",
+        "inputs": [
+          {
+            "name": "simulation_mode",
+            "label": "Use Simulator",
+            "type": "boolean",
+            "required": false,
+            "default": false
+          },
+          {
+            "name": "push_events_enabled",
+            "label": "Enable Near-Real-Time Events",
+            "type": "boolean",
+            "required": false,
+            "default": false
+          },
+          {
+            "name": "access_token",
+            "label": "Personal Access Token",
+            "type": "password",
+            "secret": true,
+            "required": false
+          },
+          {
+            "name": "country_code",
+            "label": "Country Code",
+            "type": "text",
+            "required": true,
+            "default": "US",
+            "placeholder": "US"
+          },
+          {
+            "name": "client_id",
+            "label": "Client ID (Optional)",
+            "type": "text",
+            "required": false
+          }
+        ]
+      }
+    }
+  },
+  "api": {
+    "base_url": "http://127.0.0.1:3667",
+    "endpoints": {
+      "health": "/health",
+      "discover": "/discover",
+      "entities": "/entities",
+      "state": "/state",
+      "command": "/command",
+      "config": "/config",
+      "config_sync": "/configs/sync",
+      "deconfigure": "/deconfigure",
+      "ui_config": "/ui-config",
+      "events": "/events"
+    }
+  },
+  "config": {
+    "source": "endpoint",
+    "endpoint": "/ui-config",
+    "required": true
+  },
+  "identity": {
+    "fields": [
+      "device_id"
+    ]
+  },
+  "capabilities": {
+    "switch": {
+      "kind": "switch",
+      "dashboard": {
+        "allowed_widgets": [
+          "tile",
+          "stat",
+          "external-widget"
+        ],
+        "default_widget": "tile"
+      }
+    },
+    "temperature": {
+      "kind": "sensor",
+      "dashboard": {
+        "allowed_widgets": [
+          "thermostat",
+          "sensor-card",
+          "stat",
+          "line-chart",
+          "gauge",
+          "external-widget"
+        ],
+        "default_widget": "sensor-card"
+      }
+    },
+    "target_temperature": {
+      "kind": "sensor",
+      "dashboard": {
+        "allowed_widgets": [
+          "thermostat",
+          "stat",
+          "line-chart",
+          "external-widget"
+        ],
+        "default_widget": "thermostat"
+      }
+    },
+    "humidity": {
+      "kind": "sensor",
+      "unit": "%",
+      "dashboard": {
+        "allowed_widgets": [
+          "sensor-card",
+          "stat",
+          "line-chart",
+          "gauge",
+          "external-widget"
+        ],
+        "default_widget": "sensor-card"
+      }
+    },
+    "pm1": {
+      "kind": "sensor",
+      "dashboard": {
+        "allowed_widgets": [
+          "stat",
+          "line-chart",
+          "gauge",
+          "external-widget"
+        ],
+        "default_widget": "stat"
+      }
+    },
+    "pm2": {
+      "kind": "sensor",
+      "dashboard": {
+        "allowed_widgets": [
+          "stat",
+          "line-chart",
+          "gauge",
+          "external-widget"
+        ],
+        "default_widget": "stat"
+      }
+    },
+    "pm10": {
+      "kind": "sensor",
+      "dashboard": {
+        "allowed_widgets": [
+          "stat",
+          "line-chart",
+          "gauge",
+          "external-widget"
+        ],
+        "default_widget": "stat"
+      }
+    },
+    "co2": {
+      "kind": "sensor",
+      "unit": "ppm",
+      "dashboard": {
+        "allowed_widgets": [
+          "stat",
+          "line-chart",
+          "gauge",
+          "external-widget"
+        ],
+        "default_widget": "stat"
+      }
+    },
+    "power": {
+      "kind": "sensor",
+      "unit": "W",
+      "dashboard": {
+        "allowed_widgets": [
+          "stat",
+          "line-chart",
+          "gauge",
+          "external-widget"
+        ],
+        "default_widget": "stat"
+      }
+    },
+    "fan_speed": {
+      "kind": "sensor",
+      "dashboard": {
+        "allowed_widgets": [
+          "tile",
+          "status-list",
+          "stat",
+          "external-widget"
+        ],
+        "default_widget": "status-list"
+      }
+    },
+    "mode": {
+      "kind": "sensor",
+      "value_kind": "text",
+      "dashboard": {
+        "allowed_widgets": [
+          "status-list",
+          "stat",
+          "tile",
+          "external-widget"
+        ],
+        "default_widget": "status-list"
+      }
+    },
+    "brightness": {
+      "kind": "sensor",
+      "dashboard": {
+        "allowed_widgets": [
+          "light-card",
+          "tile",
+          "stat",
+          "external-widget"
+        ],
+        "default_widget": "light-card"
+      }
+    },
+    "door": {
+      "kind": "sensor",
+      "value_kind": "text",
+      "dashboard": {
+        "allowed_widgets": [
+          "status-list",
+          "stat",
+          "external-widget"
+        ],
+        "default_widget": "status-list"
+      }
+    },
+    "door_open": {
+      "kind": "sensor",
+      "value_kind": "boolean",
+      "label": "Door open",
+      "dashboard": {
+        "allowed_widgets": [
+          "tile",
+          "status-list",
+          "external-widget"
+        ],
+        "default_widget": "tile"
+      }
+    },
+    "fridge_target_temperature": {
+      "kind": "sensor",
+      "value_kind": "numeric",
+      "label": "Fridge target temperature",
+      "dashboard": {
+        "allowed_widgets": [
+          "thermostat",
+          "stat",
+          "line-chart",
+          "external-widget"
+        ],
+        "default_widget": "thermostat"
+      }
+    },
+    "freezer_target_temperature": {
+      "kind": "sensor",
+      "value_kind": "numeric",
+      "label": "Freezer target temperature",
+      "dashboard": {
+        "allowed_widgets": [
+          "thermostat",
+          "stat",
+          "line-chart",
+          "external-widget"
+        ],
+        "default_widget": "thermostat"
+      }
+    },
+    "convertible_target_temperature": {
+      "kind": "sensor",
+      "value_kind": "numeric",
+      "label": "Convertible zone target temperature",
+      "dashboard": {
+        "allowed_widgets": [
+          "thermostat",
+          "stat",
+          "line-chart",
+          "external-widget"
+        ],
+        "default_widget": "thermostat"
+      }
+    },
+    "power_save_enabled": {
+      "kind": "sensor",
+      "value_kind": "boolean",
+      "label": "Power save",
+      "dashboard": {
+        "allowed_widgets": [
+          "tile",
+          "status-list",
+          "external-widget"
+        ],
+        "default_widget": "tile"
+      }
+    },
+    "eco_friendly_enabled": {
+      "kind": "sensor",
+      "value_kind": "boolean",
+      "label": "Eco friendly mode",
+      "dashboard": {
+        "allowed_widgets": [
+          "tile",
+          "status-list",
+          "external-widget"
+        ],
+        "default_widget": "tile"
+      }
+    },
+    "sabbath_mode_enabled": {
+      "kind": "sensor",
+      "value_kind": "boolean",
+      "label": "Sabbath mode",
+      "dashboard": {
+        "allowed_widgets": [
+          "tile",
+          "status-list",
+          "external-widget"
+        ],
+        "default_widget": "tile"
+      }
+    },
+    "rapid_freeze_enabled": {
+      "kind": "sensor",
+      "value_kind": "boolean",
+      "label": "Rapid freeze",
+      "dashboard": {
+        "allowed_widgets": [
+          "tile",
+          "status-list",
+          "external-widget"
+        ],
+        "default_widget": "tile"
+      }
+    },
+    "express_mode_enabled": {
+      "kind": "sensor",
+      "value_kind": "boolean",
+      "label": "Express mode",
+      "dashboard": {
+        "allowed_widgets": [
+          "tile",
+          "status-list",
+          "external-widget"
+        ],
+        "default_widget": "tile"
+      }
+    },
+    "express_fridge_enabled": {
+      "kind": "sensor",
+      "value_kind": "boolean",
+      "label": "Express fridge",
+      "dashboard": {
+        "allowed_widgets": [
+          "tile",
+          "status-list",
+          "external-widget"
+        ],
+        "default_widget": "tile"
+      }
+    },
+    "fresh_air_filter_mode": {
+      "kind": "sensor",
+      "value_kind": "text",
+      "label": "Fresh-air filter mode",
+      "dashboard": {
+        "allowed_widgets": [
+          "status-list",
+          "external-widget"
+        ],
+        "default_widget": "status-list"
+      }
+    },
+    "fresh_air_filter_life": {
+      "kind": "sensor",
+      "value_kind": "numeric",
+      "unit": "%",
+      "label": "Fresh-air filter life",
+      "dashboard": {
+        "allowed_widgets": [
+          "stat",
+          "gauge",
+          "external-widget"
+        ],
+        "default_widget": "gauge"
+      }
+    },
+    "water_filter_state": {
+      "kind": "sensor",
+      "value_kind": "text",
+      "label": "Water filter state",
+      "dashboard": {
+        "allowed_widgets": [
+          "status-list",
+          "external-widget"
+        ],
+        "default_widget": "status-list"
+      }
+    },
+    "water_filter_1_life": {
+      "kind": "sensor",
+      "value_kind": "numeric",
+      "unit": "%",
+      "label": "Water filter 1 life",
+      "dashboard": {
+        "allowed_widgets": [
+          "stat",
+          "gauge",
+          "external-widget"
+        ],
+        "default_widget": "gauge"
+      }
+    },
+    "water_filter_2_life": {
+      "kind": "sensor",
+      "value_kind": "numeric",
+      "unit": "%",
+      "label": "Water filter 2 life",
+      "dashboard": {
+        "allowed_widgets": [
+          "stat",
+          "gauge",
+          "external-widget"
+        ],
+        "default_widget": "gauge"
+      }
+    },
+    "water_filter_3_life": {
+      "kind": "sensor",
+      "value_kind": "numeric",
+      "unit": "%",
+      "label": "Water filter 3 life",
+      "dashboard": {
+        "allowed_widgets": [
+          "stat",
+          "gauge",
+          "external-widget"
+        ],
+        "default_widget": "gauge"
+      }
+    },
+    "notification": {
+      "kind": "sensor",
+      "value_kind": "text",
+      "label": "Latest refrigerator notification",
+      "dashboard": {
+        "allowed_widgets": [
+          "status-list",
+          "external-widget"
+        ],
+        "default_widget": "status-list"
+      }
+    },
+    "battery": {
+      "kind": "sensor",
+      "unit": "%",
+      "dashboard": {
+        "allowed_widgets": [
+          "stat",
+          "gauge",
+          "external-widget"
+        ],
+        "default_widget": "gauge"
+      }
+    },
+    "filter_life": {
+      "kind": "sensor",
+      "unit": "%",
+      "dashboard": {
+        "allowed_widgets": [
+          "stat",
+          "gauge",
+          "external-widget"
+        ],
+        "default_widget": "gauge"
+      }
+    },
+    "appliance_state": {
+      "kind": "sensor",
+      "value_kind": "text",
+      "label": "Appliance status",
+      "dashboard": {
+        "allowed_widgets": [
+          "status-list",
+          "stat",
+          "tile",
+          "external-widget"
+        ],
+        "default_widget": "status-list"
+      }
+    },
+    "remaining_minutes": {
+      "kind": "sensor",
+      "value_kind": "numeric",
+      "label": "Time left",
+      "unit": "min",
+      "dashboard": {
+        "allowed_widgets": [
+          "status-list",
+          "stat",
+          "external-widget"
+        ],
+        "default_widget": "stat"
+      }
+    },
+    "cycle_count": {
+      "kind": "sensor",
+      "value_kind": "numeric",
+      "label": "Cycles",
+      "dashboard": {
+        "allowed_widgets": [
+          "status-list",
+          "stat",
+          "external-widget"
+        ],
+        "default_widget": "stat"
+      }
+    },
+    "refresh": {
+      "kind": "action",
+      "dashboard": {
+        "allowed_widgets": [
+          "tile",
+          "external-widget"
+        ],
+        "default_widget": "tile"
+      }
+    }
+  },
+  "commands": {
+    "refresh": {
+      "description": "Refresh the latest device state from LG ThinQ."
+    },
+    "turn_on": {
+      "description": "Turn a device on when the profile exposes a safe power command."
+    },
+    "turn_off": {
+      "description": "Turn a device off when the profile exposes a safe power command."
+    },
+    "toggle": {
+      "description": "Toggle a device power state when safe support exists."
+    },
+    "set_mode": {
+      "description": "Set a device mode when the ThinQ profile exposes one."
+    },
+    "set_target_temperature": {
+      "description": "Set a target temperature when the ThinQ profile exposes one."
+    },
+    "set_fan_speed": {
+      "description": "Set a fan or wind speed when the ThinQ profile exposes one."
+    },
+    "set_brightness": {
+      "description": "Set a display or light brightness when the ThinQ profile exposes one."
+    },
+    "set_target_humidity": {
+      "description": "Set a target humidity when the ThinQ profile exposes one."
+    },
+    "set_course": {
+      "description": "Set an appliance course or cycle when the ThinQ profile exposes one."
+    },
+    "set_cook_mode": {
+      "description": "Set an oven cook mode when the ThinQ profile exposes one."
+    },
+    "start": {
+      "description": "Start an appliance action when the ThinQ profile exposes one."
+    },
+    "pause": {
+      "description": "Pause an appliance action when the ThinQ profile exposes one."
+    },
+    "stop": {
+      "description": "Stop or cancel an appliance action when the ThinQ profile exposes one."
+    },
+    "enable_power_save": {
+      "description": "Enable refrigerator power save when the ThinQ profile exposes one."
+    },
+    "disable_power_save": {
+      "description": "Disable refrigerator power save when the ThinQ profile exposes one."
+    },
+    "enable_eco_friendly": {
+      "description": "Enable eco-friendly mode when the ThinQ profile exposes one."
+    },
+    "disable_eco_friendly": {
+      "description": "Disable eco-friendly mode when the ThinQ profile exposes one."
+    },
+    "enable_express_mode": {
+      "description": "Enable express mode when the ThinQ profile exposes one."
+    },
+    "disable_express_mode": {
+      "description": "Disable express mode when the ThinQ profile exposes one."
+    },
+    "enable_express_fridge": {
+      "description": "Enable express fridge cooling when the ThinQ profile exposes it."
+    },
+    "disable_express_fridge": {
+      "description": "Disable express fridge cooling when the ThinQ profile exposes it."
+    },
+    "enable_rapid_freeze": {
+      "description": "Enable rapid freeze when the ThinQ profile exposes one."
+    },
+    "disable_rapid_freeze": {
+      "description": "Disable rapid freeze when the ThinQ profile exposes one."
+    },
+    "enable_sabbath_mode": {
+      "description": "Enable sabbath mode when the ThinQ profile exposes one."
+    },
+    "disable_sabbath_mode": {
+      "description": "Disable sabbath mode when the ThinQ profile exposes one."
+    },
+    "enable_remote_control": {
+      "description": "Enable remote control when the ThinQ profile exposes one."
+    },
+    "disable_remote_control": {
+      "description": "Disable remote control when the ThinQ profile exposes one."
+    }
+  },
+  "entities": [
+    {
+      "id": "generic_switch",
+      "name": "Power",
+      "capabilities": [
+        "switch"
+      ]
+    },
+    {
+      "id": "generic_temperature",
+      "name": "Temperature",
+      "capabilities": [
+        "temperature",
+        "target_temperature"
+      ]
+    },
+    {
+      "id": "generic_humidity",
+      "name": "Humidity",
+      "capabilities": [
+        "humidity"
+      ]
+    },
+    {
+      "id": "generic_mode",
+      "name": "Mode",
+      "capabilities": [
+        "mode",
+        "fan_speed",
+        "brightness"
+      ]
+    },
+    {
+      "id": "generic_refresh",
+      "name": "Refresh",
+      "capabilities": [
+        "refresh"
+      ]
+    }
+  ],
+  "ui": {
+    "widget_packages": [
+      {
+        "id": "io.piphi.thinqconnect.overview",
+        "name": "LG ThinQ Overview",
+        "version": "0.1.15",
+        "entry": "/widgets/thinqconnect-overview/dist/widget.js",
+        "runtime": "prebuilt_bundle",
+        "certification": {
+          "verified_gates": [
+            "runtime",
+            "persistence",
+            "binding",
+            "states",
+            "responsive",
+            "themes",
+            "accessibility",
+            "save-reload",
+            "performance"
+          ],
+          "evidence": {
+            "runtime": [
+              "core-profile:sandbox-host-v1/runtime"
+            ],
+            "persistence": [
+              "core-profile:sandbox-host-v1/persistence"
+            ],
+            "binding": [
+              "widgets/thinqconnect-overview/test/widget.test.mjs"
+            ],
+            "states": [
+              "widgets/thinqconnect-overview/test/widget.test.mjs"
+            ],
+            "responsive": [
+              "widgets/thinqconnect-overview/test/widget.test.mjs"
+            ],
+            "themes": [
+              "widgets/thinqconnect-overview/test/widget.test.mjs"
+            ],
+            "accessibility": [
+              "widgets/thinqconnect-overview/test/widget.test.mjs"
+            ],
+            "save-reload": [
+              "core-profile:sandbox-host-v1/save-reload"
+            ],
+            "performance": [
+              "core-profile:sandbox-host-v1/performance"
+            ]
+          }
+        },
+        "host_bridge": {
+          "protocol": "piphi.widget.host",
+          "version": "1",
+          "events": [
+            "ready",
+            "resize"
+          ]
+        },
+        "binding_modes": [
+          "read"
+        ],
+        "value_kinds": [
+          "boolean",
+          "numeric",
+          "text"
+        ],
+        "capability_requirements": [
+          "appliance_state",
+          "mode",
+          "remaining_minutes",
+          "cycle_count",
+          "door",
+          "temperature",
+          "target_temperature",
+          "humidity",
+          "pm2",
+          "fan_speed",
+          "power",
+          "battery",
+          "filter_life"
+        ],
+        "layout": {
+          "transparent": true,
+          "min_height": 144,
+          "default_height": 160,
+          "max_height": 196
+        },
+        "interaction_targets": [
+          {
+            "id": "appliance-details",
+            "label": "LG appliance details",
+            "kind": "card",
+            "allowed_actions": [
+              "more-info"
+            ],
+            "default_action": "more-info"
+          }
+        ],
+        "security": {
+          "permissions": [],
+          "allowed_commands": [],
+          "sandbox": [
+            "allow-scripts"
+          ],
+          "csp": {
+            "connect_src": []
+          }
+        }
+      }
+    ]
+  },
+  "onboarding": {
+    "mode": "account"
+  }
+}

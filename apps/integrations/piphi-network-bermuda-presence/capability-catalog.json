@@ -1,0 +1,81 @@
+{
+  "catalog_version": "1.0",
+  "integration_id": "piphi-network-bermuda-presence",
+  "coverage_mode": "tracked_device_and_scanner_topology",
+  "reviewed_at": "2026-09-07",
+  "sources": {
+    "bermuda": "https://github.com/agittins/bermuda",
+    "bermuda_wiki": "https://github.com/agittins/bermuda/wiki",
+    "bermuda_settings": "https://github.com/agittins/bermuda/wiki/Settings",
+    "ble_gateway": "PiPhi managed BLE gateway sidecar contract",
+    "core_vocabulary": "PiPhi Network Core and maintained PiPhi integrations"
+  },
+  "groups": [
+    {
+      "id": "runtime-foundation",
+      "status": "implemented",
+      "scope": ["all-configurations"],
+      "source_refs": ["core_vocabulary"],
+      "reason": "The scaffold implements configuration presence, connectivity state, refresh dispatch, and its configuration event.",
+      "state": ["connected"],
+      "events": ["runtime.config.applied"],
+      "conditions": ["state_matches"],
+      "actions": ["refresh"]
+    },
+    {
+      "id": "device-presence-and-area",
+      "status": "planned",
+      "scope": ["selected-tracked-devices", "ibeacon", "private-ble-device"],
+      "source_refs": ["bermuda", "bermuda_wiki", "bermuda_settings"],
+      "reason": "Presence and room assignment require freshness, hysteresis, and selected-device filtering.",
+      "state": ["presence_home", "current_area_id", "current_area_name", "current_floor_id", "current_floor_name", "floor_level", "area_last_seen", "last_seen_at", "presence_confidence", "area_switch_reason"],
+      "events": ["presence.arrived", "presence.left", "area.entered", "area.left", "area.changed", "floor.changed", "device.stale", "device.reappeared"],
+      "conditions": ["is_home", "is_away", "area_is", "floor_is", "last_seen_age_threshold", "presence_confidence_threshold"],
+      "actions": []
+    },
+    {
+      "id": "distance-and-radio-observations",
+      "status": "planned",
+      "scope": ["tracked-device-scanner-pairs"],
+      "source_refs": ["bermuda", "bermuda_wiki", "ble_gateway"],
+      "reason": "RSSI-derived distance is approximate; expose filtered and raw observations distinctly with freshness metadata.",
+      "state": ["nearest_scanner_id", "nearest_scanner_name", "nearest_rssi_dbm", "nearest_distance_m", "distance_raw_m", "distance_filtered_m", "distance_to_scanner_m", "tx_power_dbm", "advertisement_age_s", "scanner_observation_count", "current_mac"],
+      "events": ["nearest_scanner.changed", "distance.threshold_crossed", "signal.threshold_crossed"],
+      "conditions": ["nearest_scanner_is", "distance_below", "distance_above", "signal_below", "advertisement_is_fresh"],
+      "actions": []
+    },
+    {
+      "id": "scanner-and-topology-health",
+      "status": "planned",
+      "scope": ["ble-gateway-scanners", "remote-proxies", "local-adapters"],
+      "source_refs": ["bermuda", "ble_gateway"],
+      "reason": "The integration consumes scanner topology from the sidecar and must report degraded coverage without owning adapters.",
+      "state": ["total_proxy_count", "active_proxy_count", "total_device_count", "visible_device_count", "scanner_online", "scanner_area_id", "scanner_area_name", "scanner_last_seen_at", "coverage_degraded", "topology_revision"],
+      "events": ["scanner.added", "scanner.removed", "scanner.online", "scanner.offline", "coverage.degraded", "coverage.recovered", "topology.changed"],
+      "conditions": ["active_proxy_count_threshold", "scanner_is_online", "coverage_is_degraded", "visible_device_count_threshold"],
+      "actions": []
+    },
+    {
+      "id": "configuration-and-diagnostics",
+      "status": "planned",
+      "scope": ["integration-configuration"],
+      "source_refs": ["bermuda_settings", "ble_gateway"],
+      "reason": "Calibration and tracking selection are configuration operations and are not exposed as fanout behavior actions.",
+      "state": ["max_radius_m", "smoothing_samples", "attenuation_factor", "rssi_offset_db", "tracked_device_count", "diagnostic_status"],
+      "events": ["configuration.changed", "calibration.changed"],
+      "conditions": ["diagnostics_are_healthy"],
+      "actions": []
+    },
+    {
+      "id": "unavailable-or-unsafe-operations",
+      "status": "excluded",
+      "scope": ["all-devices-and-scanners"],
+      "source_refs": ["bermuda_wiki", "ble_gateway"],
+      "reason": "Map coordinates are not a stable upstream capability, and observation injection or adapter control would violate trust and ownership boundaries.",
+      "state": ["precise_xy_position", "raw_private_identity_key"],
+      "events": [],
+      "conditions": [],
+      "actions": ["spoof_device_location", "inject_ble_observation", "control_bluetooth_adapter", "dump_private_identifiers"]
+    }
+  ]
+}

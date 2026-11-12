@@ -1,0 +1,54 @@
+{
+  "schema_version": "1",
+  "identity": {"publisher_id": "io.piphi", "package_id": "waste-next-collection", "version": "0.1.1"},
+  "name": "Next Collection",
+  "description": "Days until a manually configured waste or recycling pickup.",
+  "origin": "integration",
+  "owning_integration_id": "piphi-network-waste-collection",
+  "sdk_version_range": ">=0.6.1,<0.7",
+  "requires_integrations": [{"integration_id": "piphi-network-waste-collection", "version_range": ">=0.1,<1", "optional": false}],
+  "recommended_for_integrations": ["piphi-network-waste-collection"],
+  "widgets": [{
+    "id": "next-collection",
+    "name": "Next Collection",
+    "description": "A countdown from a user-maintained pickup date, not a provider sync.",
+    "runtime": "declarative",
+    "presentation": {
+      "contract_version": "1", "shell": "core", "content_surface": "transparent", "typography": "core",
+      "appearance_controls": ["icon", "title", "surface", "opacity", "radius", "shadow"]
+    },
+    "interaction_targets": [
+      {"id": "card", "label": "Next collection", "kind": "card", "allowed_actions": ["more-info", "popout", "refresh"], "default_action": "more-info"},
+      {"id": "days", "label": "Days until pickup", "kind": "binding", "binding_slot_id": "days", "allowed_actions": ["more-info", "history", "popout"], "default_action": "more-info"},
+      {"id": "type", "label": "Collection type", "kind": "binding", "binding_slot_id": "type", "allowed_actions": ["more-info", "popout"], "default_action": "more-info"}
+    ],
+    "binding_slots": [
+      {"id": "days", "label": "Days until pickup", "required": true, "binding_modes": ["read"], "capability_requirements": ["days_until_collection"], "compatible_integration_ids": ["piphi-network-waste-collection"], "data_delivery": {"mode": "stream_preferred", "stale_after_seconds": 3600}},
+      {"id": "type", "label": "Collection type", "required": true, "binding_modes": ["read"], "capability_requirements": ["next_collection_type"], "compatible_integration_ids": ["piphi-network-waste-collection"], "data_delivery": {"mode": "stream_preferred", "stale_after_seconds": 3600}}
+    ],
+    "recipe": {
+      "schema_version": "1", "layout": "grid", "columns": 2,
+      "items": [
+        {"type": "metric", "slot_id": "days", "label": "Days away", "format": "number", "emphasis": "hero", "action": {"type": "details", "label": "View pickup date"}},
+        {"type": "metric", "slot_id": "type", "label": "Collection", "format": "auto", "action": {"type": "details", "label": "View collection type"}}
+      ]
+    },
+    "certification": {
+      "schema_version": "1",
+      "verified_gates": ["runtime", "persistence", "binding", "states", "responsive", "themes", "accessibility", "save-reload", "performance"],
+      "evidence": {
+        "runtime": ["core-profile:declarative-v2/runtime"],
+        "persistence": ["core-profile:declarative-v2/persistence"],
+        "binding": ["core-profile:declarative-v2/binding"],
+        "states": ["core-profile:declarative-v2/states"],
+        "responsive": ["core-profile:declarative-v2/responsive"],
+        "themes": ["core-profile:declarative-v2/themes"],
+        "accessibility": ["core-profile:declarative-v2/accessibility"],
+        "save-reload": ["core-profile:declarative-v2/save-reload"],
+        "performance": ["core-profile:declarative-v2/performance"]
+      }
+    },
+    "default_column_span": 3,
+    "default_row_span": 2
+  }]
+}

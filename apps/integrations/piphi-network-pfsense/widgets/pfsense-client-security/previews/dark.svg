@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="414" height="160" viewBox="0 0 414 160" role="img" aria-label="Compact devices and security preview in dark mode">
+  <rect width="414" height="160" rx="16" fill="#0f172a"/><text x="12" y="25" fill="#f8fafc" font-family="system-ui" font-size="14" font-weight="700">Devices &amp; security</text>
+  <g stroke="#334155"><path d="M12 36H402"/><path d="M207 36V146"/><path d="M12 91H402"/></g>
+  <g fill="#bdc9d9" font-family="system-ui" font-size="12"><text x="21" y="56">Devices online</text><text x="219" y="56">Known devices</text><text x="21" y="114">Certificates expiring</text><text x="219" y="114">Recent security events</text></g>
+  <g fill="#f8fafc" font-family="system-ui" font-size="16" font-weight="750"><text x="21" y="77">2</text><text x="219" y="77">3</text><text x="21" y="135" fill="#f87171">1</text><text x="219" y="135">2</text></g>
+</svg>

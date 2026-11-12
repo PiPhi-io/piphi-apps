@@ -1,0 +1,456 @@
+{
+  "$schema": "./schema/piphi-manifest.schema.json",
+  "manifest_version": "1.0",
+  "id": "piphi-network-pfsense",
+  "name": "PiPhi Network pfSense",
+  "version": "0.1.8",
+  "description": "pfSense monitoring, transition events, and opt-in allow-listed operations for PiPhi Network.",
+  "metadata": {
+    "generator": "piphi-network-create",
+    "scaffold_version": "0.3.0",
+    "preset": "cloud-polling-api",
+    "domain": "local-device",
+    "preset_summary": "Local firewall polling through the community pfSense REST API v2.",
+    "upstream_api": "pfrest-v2",
+    "upstream_api_status": "unofficial-community",
+    "access_mode": "read-only-monitoring-with-opt-in-operations"
+  },
+  "marketplace": {
+    "brand_domain": "pfsense.org",
+    "metadata_version": 2,
+    "display_name": "pfSense Firewall",
+    "summary": "Monitor pfSense health, gateways, interfaces, VPNs, clients, certificates, and HA, with optional allow-listed operations.",
+    "category": "networking",
+    "device_types": [
+      "firewall",
+      "network_gateway",
+      "vpn_gateway"
+    ],
+    "protocols": [
+      "pfsense_rest_api_v2"
+    ],
+    "regions": [
+      "WW"
+    ],
+    "languages": [
+      "en"
+    ],
+    "discovery_methods": [
+      "manual"
+    ],
+    "connectivity": "local",
+    "offline_support": "none",
+    "publisher": {
+      "name": "PiPhi Network",
+      "website_url": "https://piphi.io",
+      "support_url": "https://github.com/PiPhi-io/piphi-network-pfsense/issues",
+      "security_contact": "support@piphi.io"
+    },
+    "access": [
+      {
+        "id": "local_network",
+        "label": "Local network access",
+        "reason": "Connects directly to the configured pfSense firewall over its local REST API endpoint.",
+        "required": true
+      },
+      {
+        "id": "credentials",
+        "label": "pfSense API key",
+        "reason": "Stores the API key required to authenticate to the community pfSense REST API v2 package.",
+        "required": true
+      },
+      {
+        "id": "operational_control",
+        "label": "Optional firewall operations",
+        "reason": "Runs only explicitly enabled, allow-listed diagnostic, service, and Wake-on-LAN operations.",
+        "required": false
+      }
+    ],
+    "compatibility": [
+      {
+        "brand": "pfSense",
+        "model": "pfSense Community Edition with pfREST v2",
+        "regions": [
+          "WW"
+        ]
+      },
+      {
+        "brand": "Netgate",
+        "model": "pfSense Plus with pfREST v2",
+        "regions": [
+          "WW"
+        ]
+      }
+    ],
+    "documentation_url": "https://github.com/PiPhi-io/piphi-network-pfsense",
+    "support_url": "https://github.com/PiPhi-io/piphi-network-pfsense/issues",
+    "changelog_url": "https://github.com/PiPhi-io/piphi-network-pfsense/releases",
+    "quality_tier": "unrated",
+    "governance": {
+      "schema_version": 1,
+      "publication_status": "draft",
+      "rollout_percent": 0,
+      "lifecycle_status": "active",
+      "qualification": {
+        "status": "unverified"
+      }
+    }
+  },
+  "maintainer": {
+    "name": "PiPhi Network",
+    "website": "https://piphi.io"
+  },
+  "license": "Apache-2.0",
+  "image": "piphinetwork/piphi-network-pfsense:0.1.8",
+  "platforms": [
+    "linux"
+  ],
+  "runtime": {
+    "linux": {
+      "type": "container",
+      "container": {
+        "image": "piphinetwork/piphi-network-pfsense:0.1.8",
+        "ports": [
+          {
+            "container": 8090,
+            "host": 8090
+          }
+        ],
+        "environment": {
+          "LOG_LEVEL": "info",
+          "PIPHI_AUTOMATION_LEDGER_PATH": "/data/piphi/automation-actions.sqlite3",
+          "PIPHI_WIDGET_DIR": "/app/widgets"
+        },
+        "volumes": [
+          {
+            "host": "/var/lib/piphi/pfsense",
+            "container": "/data/piphi",
+            "mode": "rw"
+          }
+        ],
+        "restart_policy": {
+          "name": "unless-stopped",
+          "maximum_retry_count": 0
+        }
+      },
+      "discovery": {
+        "method": "passive"
+      }
+    }
+  },
+  "api": {
+    "required": [
+      "health",
+      "entities",
+      "command",
+      "config",
+      "ui_config"
+    ],
+    "endpoints": {
+      "health": "/health",
+      "diagnostics": "/diagnostics",
+      "discover": "/discover",
+      "entities": "/entities",
+      "state": "/state",
+      "config": "/config",
+      "config_sync": "/config/sync",
+      "deconfigure": "/deconfigure",
+      "ui_config": "/ui-config",
+      "events": "/events",
+      "command": "/command"
+    }
+  },
+  "config": {
+    "source": "endpoint",
+    "endpoint": "/ui-config",
+    "required": true,
+    "editable_fields": [
+      "host",
+      "alias",
+      "api_key",
+      "port",
+      "scheme",
+      "verify_tls",
+      "ca_bundle_path",
+      "poll_interval_seconds",
+      "collect_dhcp_leases",
+      "collect_vpn_status",
+      "collect_client_inventory",
+      "collect_security_logs",
+      "collect_certificates",
+      "collect_ha_status",
+      "enable_diagnostic_ping",
+      "allowed_ping_hosts",
+      "enable_service_restart",
+      "enable_service_start",
+      "allowed_services",
+      "enable_wake_on_lan",
+      "wake_on_lan_targets",
+      "simulation_mode"
+    ],
+    "secret_fields": [
+      "api_key"
+    ],
+    "runtime_fields": [
+      "id",
+      "config_id",
+      "container_id",
+      "device_id"
+    ],
+    "identity_fields": [
+      "host"
+    ]
+  },
+  "identity": {
+    "fields": [
+      "host"
+    ]
+  },
+  "capabilities": {
+    "connected": {"kind": "sensor", "unit": "bool"},
+    "api_latency_ms": {"kind": "sensor", "unit": "ms"},
+    "cpu_usage_percent": {"kind": "sensor", "unit": "%"},
+    "memory_usage_percent": {"kind": "sensor", "unit": "%"},
+    "disk_usage_percent": {"kind": "sensor", "unit": "%"},
+    "swap_usage_percent": {"kind": "sensor", "unit": "%"},
+    "mbuf_usage_percent": {"kind": "sensor", "unit": "%"},
+    "temperature_c": {"kind": "sensor", "unit": "C"},
+    "interface_count": {"kind": "sensor", "unit": "interfaces"},
+    "interfaces_up": {"kind": "sensor", "unit": "interfaces"},
+    "interface_up": {"kind": "sensor", "unit": "bool"},
+    "bytes_received": {"kind": "sensor", "unit": "bytes"},
+    "bytes_sent": {"kind": "sensor", "unit": "bytes"},
+    "errors_in": {"kind": "sensor", "unit": "errors"},
+    "errors_out": {"kind": "sensor", "unit": "errors"},
+    "receive_rate_bps": {"kind": "sensor", "unit": "bit/s"},
+    "transmit_rate_bps": {"kind": "sensor", "unit": "bit/s"},
+    "gateway_count": {"kind": "sensor", "unit": "gateways"},
+    "gateways_online": {"kind": "sensor", "unit": "gateways"},
+    "gateways_offline": {"kind": "sensor", "unit": "gateways"},
+    "gateway_online": {"kind": "sensor", "unit": "bool"},
+    "gateway_latency_ms": {"kind": "sensor", "unit": "ms"},
+    "gateway_loss_percent": {"kind": "sensor", "unit": "%"},
+    "gateway_max_latency_ms": {"kind": "sensor", "unit": "ms"},
+    "gateway_max_loss_percent": {"kind": "sensor", "unit": "%"},
+    "service_count": {"kind": "sensor", "unit": "services"},
+    "services_running": {"kind": "sensor", "unit": "services"},
+    "services_down": {"kind": "sensor", "unit": "services"},
+    "dhcp_lease_count": {"kind": "sensor", "unit": "leases"},
+    "dhcp_online_lease_count": {"kind": "sensor", "unit": "leases"},
+    "vpn_tunnel_count": {"kind": "sensor", "unit": "tunnels"},
+    "vpn_tunnels_up": {"kind": "sensor", "unit": "tunnels"},
+    "openvpn_server_connections": {"kind": "sensor", "unit": "connections"},
+    "vpn_connected": {"kind": "sensor", "unit": "bool"},
+    "vpn_bytes_received": {"kind": "sensor", "unit": "bytes"},
+    "vpn_bytes_sent": {"kind": "sensor", "unit": "bytes"},
+    "vpn_peer_count": {"kind": "sensor", "unit": "peers"},
+    "client_count": {"kind": "sensor", "unit": "clients"},
+    "clients_online": {"kind": "sensor", "unit": "clients"},
+    "clients": {"kind": "sensor", "unit": "json"},
+    "client_online": {"kind": "sensor", "unit": "bool"},
+    "certificate_count": {"kind": "sensor", "unit": "certificates"},
+    "certificates_expiring": {"kind": "sensor", "unit": "certificates"},
+    "certificates_expired": {"kind": "sensor", "unit": "certificates"},
+    "certificate_days_remaining": {"kind": "sensor", "unit": "days"},
+    "ha_enabled": {"kind": "sensor", "unit": "bool"},
+    "ha_maintenance_mode": {"kind": "sensor", "unit": "bool"},
+    "ha_sync_enabled": {"kind": "sensor", "unit": "bool"},
+    "carp_vip_count": {"kind": "sensor", "unit": "virtual IPs"},
+    "carp_primary_count": {"kind": "sensor", "unit": "virtual IPs"},
+    "carp_primary": {"kind": "sensor", "unit": "bool"},
+    "security_log_count": {"kind": "sensor", "unit": "entries"},
+    "refresh": {"kind": "action"},
+    "diagnostic_ping": {"kind": "action"},
+    "restart_service": {"kind": "action"},
+    "start_service": {"kind": "action"},
+    "wake_on_lan": {"kind": "action"}
+  },
+  "commands": {
+    "refresh": {
+      "description": "Refresh read-only status from pfSense.",
+      "timeout_ms": 30000
+    },
+    "diagnostic_ping": {
+      "description": "Ping an allow-listed target from pfSense.",
+      "timeout_ms": 30000
+    },
+    "restart_service": {
+      "description": "Restart an explicitly allow-listed pfSense service.",
+      "timeout_ms": 60000
+    },
+    "start_service": {
+      "description": "Start an explicitly allow-listed pfSense service.",
+      "timeout_ms": 60000
+    },
+    "wake_on_lan": {
+      "description": "Wake a preconfigured LAN target through pfSense.",
+      "timeout_ms": 30000
+    }
+  },
+  "entities": [
+    {
+      "id": "pfsense-firewall",
+      "name": "pfSense Firewall",
+      "device_id": "pfsense-firewall",
+      "device_type": "firewall",
+      "device_class": "network_gateway",
+      "entity_type": "network_gateway",
+      "capabilities": [
+        "connected",
+        "api_latency_ms",
+        "cpu_usage_percent",
+        "memory_usage_percent",
+        "disk_usage_percent",
+        "temperature_c",
+        "gateways_online",
+        "gateways_offline",
+        "gateway_max_latency_ms",
+        "gateway_max_loss_percent",
+        "interfaces_up",
+        "services_down",
+        "dhcp_online_lease_count",
+        "vpn_tunnels_up",
+        "client_count",
+        "clients_online",
+        "clients",
+        "certificates_expiring",
+        "certificates_expired",
+        "ha_enabled",
+        "ha_sync_enabled",
+        "carp_primary_count",
+        "security_log_count",
+        "refresh",
+        "diagnostic_ping",
+        "restart_service",
+        "start_service",
+        "wake_on_lan"
+      ],
+      "available_commands": [
+        {
+          "id": "refresh",
+          "label": "Refresh",
+          "kind": "action"
+        },
+        {
+          "id": "diagnostic_ping",
+          "label": "Diagnostic ping",
+          "kind": "action"
+        },
+        {
+          "id": "restart_service",
+          "label": "Restart service",
+          "kind": "action"
+        },
+        {
+          "id": "start_service",
+          "label": "Start service",
+          "kind": "action"
+        },
+        {
+          "id": "wake_on_lan",
+          "label": "Wake device",
+          "kind": "action"
+        }
+      ],
+      "dashboard": {
+        "allowed_widgets": [
+          "status-list",
+          "gauge",
+          "line-chart",
+          "stat",
+          "tile"
+          ,"external-widget"
+        ],
+        "default_widget": "status-list"
+      }
+    }
+  ],
+  "ui": {
+    "widget_packages": [
+      {
+        "id": "io.piphi.pfsense.overview",
+        "name": "pfSense Internet & Router",
+        "version": "0.1.8",
+        "entry": "/widgets/pfsense-overview/dist/widget.js",
+        "runtime": "prebuilt_bundle",
+        "certification": {
+          "verified_gates": ["runtime", "persistence", "binding", "states", "responsive", "themes", "accessibility", "save-reload", "performance"],
+          "evidence": {
+            "runtime": ["core-profile:sandbox-host-v1/runtime"],
+            "persistence": ["core-profile:sandbox-host-v1/persistence"],
+            "binding": ["widgets/pfsense-overview/test/widget.test.mjs"],
+            "states": ["widgets/pfsense-overview/test/widget.test.mjs"],
+            "responsive": ["widgets/pfsense-overview/test/widget.test.mjs"],
+            "themes": ["widgets/pfsense-overview/test/widget.test.mjs"],
+            "accessibility": ["widgets/pfsense-overview/test/widget.test.mjs"],
+            "save-reload": ["core-profile:sandbox-host-v1/save-reload"],
+            "performance": ["core-profile:sandbox-host-v1/performance"]
+          }
+        },
+        "host_bridge": {
+          "protocol": "piphi.widget.host",
+          "version": "1",
+          "events": ["ready", "resize"]
+        },
+        "binding_modes": ["read"],
+        "value_kinds": ["numeric", "boolean", "text"],
+        "capability_requirements": [
+          "connected",
+          "cpu_usage_percent",
+          "memory_usage_percent",
+          "gateways_online",
+          "gateways_offline",
+          "services_down",
+          "vpn_tunnels_up"
+        ],
+        "layout": {"transparent": true, "min_height": 120, "default_height": 160, "max_height": 260},
+        "security": {
+          "permissions": [],
+          "sandbox": ["allow-scripts"],
+          "csp": {"connect_src": []}
+        }
+      },
+      {
+        "id": "io.piphi.pfsense.client-security",
+        "name": "pfSense Devices & Security",
+        "version": "0.1.8",
+        "entry": "/widgets/pfsense-client-security/dist/widget.js",
+        "runtime": "prebuilt_bundle",
+        "certification": {
+          "verified_gates": ["runtime", "persistence", "binding", "states", "responsive", "themes", "accessibility", "save-reload", "performance"],
+          "evidence": {
+            "runtime": ["core-profile:sandbox-host-v1/runtime"],
+            "persistence": ["core-profile:sandbox-host-v1/persistence"],
+            "binding": ["widgets/pfsense-client-security/test/widget.test.mjs"],
+            "states": ["widgets/pfsense-client-security/test/widget.test.mjs"],
+            "responsive": ["widgets/pfsense-client-security/test/widget.test.mjs"],
+            "themes": ["widgets/pfsense-client-security/test/widget.test.mjs"],
+            "accessibility": ["widgets/pfsense-client-security/test/widget.test.mjs"],
+            "save-reload": ["core-profile:sandbox-host-v1/save-reload"],
+            "performance": ["core-profile:sandbox-host-v1/performance"]
+          }
+        },
+        "host_bridge": {
+          "protocol": "piphi.widget.host",
+          "version": "1",
+          "events": ["ready", "resize"]
+        },
+        "binding_modes": ["read"],
+        "value_kinds": ["numeric", "boolean", "text", "json"],
+        "capability_requirements": [
+          "client_count", "clients_online", "certificates_expiring",
+          "certificates_expired", "security_log_count", "ha_enabled", "clients"
+        ],
+        "layout": {"transparent": true, "min_height": 120, "default_height": 160, "max_height": 260},
+        "security": {
+          "permissions": [],
+          "sandbox": ["allow-scripts"],
+          "csp": {"connect_src": []}
+        }
+      }
+    ]
+  },
+  "onboarding": {
+    "mode": "manual"
+  }
+}

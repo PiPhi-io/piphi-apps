@@ -1,0 +1,278 @@
+{
+  "behaviorSchemaVersion": "integration.behaviors.v2",
+  "devices": [
+    {
+      "id": "sense_energy_monitor",
+      "name": "Sense Energy Monitor",
+      "description": "Live household, solar, daily, Always On, and Other energy from Sense.",
+      "deviceClass": "energy_monitor",
+      "entityType": "energy_monitor",
+      "capabilities": [
+        "connected",
+        "active_power_w",
+        "active_solar_power_w",
+        "voltage_l1_v",
+        "voltage_l2_v",
+        "frequency_hz",
+        "daily_usage_kwh",
+        "daily_production_kwh",
+        "daily_from_grid_kwh",
+        "daily_to_grid_kwh",
+        "active_device_count",
+        "always_on_power_w",
+        "other_power_w",
+        "refresh"
+      ],
+      "freshness": {"maxAgeSeconds": 180, "staleDataMode": "block"},
+      "ui": {"icon": "activity", "category": "energy"},
+      "intents": [
+        {
+          "id": "monitor_energy",
+          "label": "Monitor household energy",
+          "description": "React to household consumption, solar production, and grid flow."
+        },
+        {
+          "id": "audit_baseload",
+          "label": "Watch baseline loads",
+          "description": "Track Always On and unidentified Other power for unexpected baseline usage."
+        }
+      ],
+      "triggers": [
+        {
+          "id": "power_changed",
+          "label": "Household power changes",
+          "description": "Start when Sense reports a changed active household power value.",
+          "capability": "sensor.active_power_w",
+          "runtime": {"event": "device.state_changed", "source": "integration"},
+          "freshness": {"maxAgeSeconds": 180, "staleDataMode": "block"},
+          "ui": {"group": "when"}
+        },
+        {
+          "id": "solar_power_changed",
+          "label": "Solar power changes",
+          "description": "Start when Sense reports a changed active solar power value.",
+          "capability": "sensor.active_solar_power_w",
+          "runtime": {"event": "device.state_changed", "source": "integration"},
+          "freshness": {"maxAgeSeconds": 180, "staleDataMode": "block"},
+          "ui": {"group": "when"}
+        },
+        {
+          "id": "always_on_changed",
+          "label": "Always On load changes",
+          "description": "Start when Sense reports a changed Always On load.",
+          "capability": "sensor.always_on_power_w",
+          "runtime": {"event": "device.state_changed", "source": "integration"},
+          "freshness": {"maxAgeSeconds": 1200, "staleDataMode": "block"},
+          "ui": {"group": "when"}
+        },
+        {
+          "id": "other_power_changed",
+          "label": "Other load changes",
+          "description": "Start when Sense reports a changed unidentified Other load.",
+          "capability": "sensor.other_power_w",
+          "runtime": {"event": "device.state_changed", "source": "integration"},
+          "freshness": {"maxAgeSeconds": 1200, "staleDataMode": "block"},
+          "ui": {"group": "when"}
+        }
+      ],
+      "conditions": [
+        {
+          "id": "connected",
+          "label": "Sense connection state",
+          "description": "Continue when the Sense integration matches the selected connection state.",
+          "type": "boolean",
+          "capability": "sensor.connected",
+          "operators": ["eq", "neq"],
+          "runtime": {"source": "state", "field": "connected", "operator": "eq"},
+          "freshness": {"maxAgeSeconds": 180, "staleDataMode": "block"},
+          "ui": {"group": "only_if"}
+        },
+        {
+          "id": "power_threshold",
+          "label": "Household power threshold",
+          "description": "Compare active household power with a watt threshold.",
+          "type": "number",
+          "capability": "sensor.active_power_w",
+          "operators": ["gt", "gte", "lt", "lte", "eq"],
+          "runtime": {"source": "state", "field": "active_power_w", "operator": "gt"},
+          "freshness": {"maxAgeSeconds": 180, "staleDataMode": "block"},
+          "ui": {"group": "only_if"},
+          "params": [{"name": "value", "label": "Watts", "type": "number", "required": true}]
+        },
+        {
+          "id": "solar_threshold",
+          "label": "Solar power threshold",
+          "description": "Compare active solar production with a watt threshold.",
+          "type": "number",
+          "capability": "sensor.active_solar_power_w",
+          "operators": ["gt", "gte", "lt", "lte", "eq"],
+          "runtime": {"source": "state", "field": "active_solar_power_w", "operator": "gt"},
+          "freshness": {"maxAgeSeconds": 180, "staleDataMode": "block"},
+          "ui": {"group": "only_if"},
+          "params": [{"name": "value", "label": "Watts", "type": "number", "required": true}]
+        },
+        {
+          "id": "daily_usage_threshold",
+          "label": "Daily usage threshold",
+          "description": "Compare today's household consumption with a kWh threshold.",
+          "type": "number",
+          "capability": "sensor.daily_usage_kwh",
+          "operators": ["gt", "gte", "lt", "lte", "eq"],
+          "runtime": {"source": "state", "field": "daily_usage_kwh", "operator": "gt"},
+          "freshness": {"maxAgeSeconds": 1200, "staleDataMode": "block"},
+          "ui": {"group": "only_if"},
+          "params": [{"name": "value", "label": "Kilowatt-hours", "type": "number", "required": true}]
+        },
+        {
+          "id": "always_on_threshold",
+          "label": "Always On threshold",
+          "description": "Compare the estimated Always On load with a watt threshold.",
+          "type": "number",
+          "capability": "sensor.always_on_power_w",
+          "operators": ["gt", "gte", "lt", "lte", "eq"],
+          "runtime": {"source": "state", "field": "always_on_power_w", "operator": "gt"},
+          "freshness": {"maxAgeSeconds": 1200, "staleDataMode": "block"},
+          "ui": {"group": "only_if"},
+          "params": [{"name": "value", "label": "Watts", "type": "number", "required": true}]
+        },
+        {
+          "id": "other_power_threshold",
+          "label": "Other power threshold",
+          "description": "Compare the unidentified Other load with a watt threshold.",
+          "type": "number",
+          "capability": "sensor.other_power_w",
+          "operators": ["gt", "gte", "lt", "lte", "eq"],
+          "runtime": {"source": "state", "field": "other_power_w", "operator": "gt"},
+          "freshness": {"maxAgeSeconds": 1200, "staleDataMode": "block"},
+          "ui": {"group": "only_if"},
+          "params": [{"name": "value", "label": "Watts", "type": "number", "required": true}]
+        }
+      ],
+      "actions": [
+        {
+          "id": "refresh",
+          "label": "Refresh Sense",
+          "description": "Request current power, daily energy, and extended read-only values now.",
+          "capability": "device.refresh",
+          "capabilityRequirements": ["device.refresh"],
+          "runtime": {"command": "refresh", "endpoint": "/command", "method": "POST", "timeoutSeconds": 20},
+          "safety": {"riskLevel": "low", "requiresConfirmation": false, "liveRunAllowed": true},
+          "targeting": {"fanoutSafe": false, "supportsMultiTarget": false, "scopes": ["config", "selection"]},
+          "failure": {
+            "strategy": "retry_then_continue",
+            "retry": {"maxAttempts": 1, "delaySeconds": 2, "backoff": "fixed"},
+            "timeoutSeconds": 20,
+            "continueOnPartialFailure": false,
+            "idempotent": true
+          },
+          "ui": {"group": "do_this"}
+        }
+      ]
+    },
+    {
+      "id": "sense_detected_appliance",
+      "name": "Sense Detected Appliance",
+      "description": "A read-only appliance identified by Sense energy disaggregation.",
+      "deviceClass": "energy_appliance",
+      "entityType": "energy_device",
+      "capabilities": ["device_power_w", "device_on", "device_daily_energy_kwh"],
+      "freshness": {"maxAgeSeconds": 180, "staleDataMode": "block"},
+      "ui": {"icon": "zap", "category": "energy"},
+      "intents": [
+        {
+          "id": "monitor_appliance",
+          "label": "Monitor an appliance",
+          "description": "React when a detected appliance turns on, turns off, or crosses a power threshold."
+        }
+      ],
+      "triggers": [
+        {
+          "id": "appliance_power_changed",
+          "label": "Appliance power changes",
+          "description": "Start when the selected appliance reports a changed power value.",
+          "capability": "sensor.device_power_w",
+          "runtime": {"event": "device.state_changed", "source": "integration"},
+          "freshness": {"maxAgeSeconds": 180, "staleDataMode": "block"},
+          "ui": {"group": "when"}
+        },
+        {
+          "id": "appliance_turned_on",
+          "label": "Appliance turns on",
+          "description": "Start when the selected appliance transitions from off to on.",
+          "capability": "sensor.device_on",
+          "runtime": {"event": "device.power.turned_on", "source": "integration"},
+          "freshness": {"maxAgeSeconds": 180, "staleDataMode": "block"},
+          "ui": {"group": "when"}
+        },
+        {
+          "id": "appliance_turned_off",
+          "label": "Appliance turns off",
+          "description": "Start when the selected appliance transitions from on to off.",
+          "capability": "sensor.device_on",
+          "runtime": {"event": "device.power.turned_off", "source": "integration"},
+          "freshness": {"maxAgeSeconds": 180, "staleDataMode": "block"},
+          "ui": {"group": "when"}
+        }
+      ],
+      "conditions": [
+        {
+          "id": "appliance_is_on",
+          "label": "Appliance state",
+          "description": "Continue when the appliance matches the selected on/off state.",
+          "type": "boolean",
+          "capability": "sensor.device_on",
+          "operators": ["eq", "neq"],
+          "runtime": {"source": "state", "field": "is_on", "operator": "eq"},
+          "freshness": {"maxAgeSeconds": 180, "staleDataMode": "block"},
+          "ui": {"group": "only_if"}
+        },
+        {
+          "id": "appliance_power_threshold",
+          "label": "Appliance power threshold",
+          "description": "Compare appliance power with a watt threshold.",
+          "type": "number",
+          "capability": "sensor.device_power_w",
+          "operators": ["gt", "gte", "lt", "lte", "eq"],
+          "runtime": {"source": "state", "field": "device_power_w", "operator": "gt"},
+          "freshness": {"maxAgeSeconds": 180, "staleDataMode": "block"},
+          "ui": {"group": "only_if"},
+          "params": [{"name": "value", "label": "Watts", "type": "number", "required": true}]
+        },
+        {
+          "id": "appliance_daily_energy_threshold",
+          "label": "Appliance daily energy threshold",
+          "description": "Compare today's appliance energy with a kWh threshold.",
+          "type": "number",
+          "capability": "sensor.device_daily_energy_kwh",
+          "operators": ["gt", "gte", "lt", "lte", "eq"],
+          "runtime": {"source": "state", "field": "device_daily_energy_kwh", "operator": "gt"},
+          "freshness": {"maxAgeSeconds": 1200, "staleDataMode": "block"},
+          "ui": {"group": "only_if"},
+          "params": [{"name": "value", "label": "Kilowatt-hours", "type": "number", "required": true}]
+        }
+      ],
+      "actions": []
+    }
+  ],
+  "templates": [],
+  "telemetry": {
+    "capabilityMappings": [
+      {"nativeMetric": "connected", "capability": "sensor.connected"},
+      {"nativeMetric": "active_power_w", "capability": "sensor.active_power_w"},
+      {"nativeMetric": "active_solar_power_w", "capability": "sensor.active_solar_power_w"},
+      {"nativeMetric": "voltage_l1_v", "capability": "sensor.voltage_l1_v"},
+      {"nativeMetric": "voltage_l2_v", "capability": "sensor.voltage_l2_v"},
+      {"nativeMetric": "frequency_hz", "capability": "sensor.frequency_hz"},
+      {"nativeMetric": "daily_usage_kwh", "capability": "sensor.daily_usage_kwh"},
+      {"nativeMetric": "daily_production_kwh", "capability": "sensor.daily_production_kwh"},
+      {"nativeMetric": "daily_from_grid_kwh", "capability": "sensor.daily_from_grid_kwh"},
+      {"nativeMetric": "daily_to_grid_kwh", "capability": "sensor.daily_to_grid_kwh"},
+      {"nativeMetric": "active_device_count", "capability": "sensor.active_device_count"},
+      {"nativeMetric": "always_on_power_w", "capability": "sensor.always_on_power_w"},
+      {"nativeMetric": "other_power_w", "capability": "sensor.other_power_w"},
+      {"nativeMetric": "device_power_w", "capability": "sensor.device_power_w"},
+      {"nativeMetric": "is_on", "capability": "sensor.device_on"},
+      {"nativeMetric": "device_daily_energy_kwh", "capability": "sensor.device_daily_energy_kwh"}
+    ]
+  }
+}

@@ -1,0 +1,57 @@
+{
+    "title": "Official I2C Library Configuration",
+    "description": "Configuration for Piphi Network Official I2C Library.",
+    "type": "object",
+    "oneOf": [
+        {
+            "title": "Device Path MCP2221A",
+            "required": [
+                "path",
+                "sensor"
+            ],
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "title": "GPS Device Path",
+                    "description": "USB GPS device path/address",
+                    "enum": [
+                        "COM17"
+                    ],
+                    "errorMessage": "Please select a device before continuing"
+                },
+                "sensor": {
+                    "type": "string",
+                    "title": "Sensor Type",
+                    "description": "Select a sensor type",
+                    "enum": [
+                        "BME680",
+                        "BME688",
+                        "AHT20",
+                        "BME280"
+                    ],
+                    "errorMessage": "Please select a device before continuing"
+                }
+            }
+        },
+        {
+            "title": "Select Sensor",
+            "required": [
+                "sensor"
+            ],
+            "properties": {
+                "sensor": {
+                    "type": "string",
+                    "title": "Sensor Type",
+                    "description": "Select a sensor type",
+                    "enum": [
+                        "BME680",
+                        "BME688",
+                        "AHT20",
+                        "BME280"
+                    ],
+                    "errorMessage": "Please select a device before continuing"
+                }
+            }
+        }
+    ]
+}

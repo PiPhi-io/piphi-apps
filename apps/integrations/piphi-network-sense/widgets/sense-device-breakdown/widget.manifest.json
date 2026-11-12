@@ -1,0 +1,88 @@
+{
+  "id": "io.piphi.sense.device-breakdown",
+  "name": "Sense appliance energy",
+  "version": "0.1.2",
+  "entry": "./dist/widget.js",
+  "binding_modes": [
+    "read"
+  ],
+  "value_kinds": [
+    "numeric",
+    "boolean",
+    "enum",
+    "text"
+  ],
+  "capability_requirements": [
+    "device_power_w",
+    "device_on",
+    "device_daily_energy_kwh"
+  ],
+  "sdk_compatibility": {
+    "minimum": "0.6.1"
+  },
+  "interaction_targets": [
+    {"id": "appliance-energy-card", "label": "Sense appliance energy", "kind": "card", "allowed_actions": ["more-info", "popout", "refresh"], "default_action": "more-info"}
+  ],
+  "conformance": {
+    "accessibility": "wcag2.2-aa",
+    "keyboard": true,
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "directions": [
+      "ltr",
+      "rtl"
+    ],
+    "states": [
+      "loading",
+      "live",
+      "stale",
+      "offline",
+      "reconnecting",
+      "denied",
+      "error"
+    ]
+  },
+  "settings_schema_version": "1",
+  "settings": [
+    {
+      "id": "title",
+      "type": "text",
+      "label": "Title",
+      "default": "Sense appliance"
+    }
+  ],
+  "layout": {
+    "min_height": 112,
+    "default_height": 112,
+    "max_height": 160
+  },
+  "previews": {
+    "light": "./previews/light.svg",
+    "dark": "./previews/dark.svg"
+  },
+  "translations": {
+    "en": {
+      "widget.title": "Sense appliance",
+      "widget.waiting": "Waiting for Sense appliance"
+    },
+    "es": {
+      "widget.title": "Dispositivo Sense",
+      "widget.waiting": "Esperando el dispositivo Sense"
+    },
+    "ar": {
+      "widget.title": "جهاز Sense",
+      "widget.waiting": "في انتظار جهاز Sense"
+    }
+  },
+  "security": {
+    "permissions": [],
+    "sandbox": [
+      "allow-scripts"
+    ],
+    "csp": {
+      "connect_src": []
+    }
+  }
+}

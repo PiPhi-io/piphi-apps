@@ -1,0 +1,48 @@
+{
+  "entities": [
+    {
+      "id": "demo-device",
+      "name": "Demo Device",
+      "device_id": "demo-device",
+      "entity_type": "access_point",
+      "capabilities": [
+        "connected",
+        "ap_tag_count",
+        "ap_pending_transfer_count",
+        "refresh"
+      ],
+      "available_commands": [
+        {
+          "id": "refresh",
+          "label": "Refresh",
+          "kind": "action"
+        }
+      ],
+      "dashboard": {
+        "allowed_widgets": [
+          "tile",
+          "stat",
+          "button"
+        ],
+        "default_widget": "tile"
+      }
+    }
+  ],
+  "capabilities": {
+    "connected": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "ap_tag_count": {"kind": "sensor", "value_kind": "numeric", "unit": "count"},
+    "ap_pending_transfer_count": {"kind": "sensor", "value_kind": "numeric", "unit": "count"},
+    "refresh": {
+      "kind": "action"
+    }
+  },
+  "commands": {
+    "refresh": {
+      "description": "Refresh the device state.",
+      "timeout_ms": 12000
+    }
+  }
+}

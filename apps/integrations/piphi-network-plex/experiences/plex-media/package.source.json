@@ -1,0 +1,188 @@
+{
+  "schema_version": "1",
+  "identity": {"publisher_id": "io.piphi", "package_id": "plex-media", "version": "0.1.22"},
+  "name": "Plex Media",
+  "description": "Server status, recently added media, continue watching, and library search for Plex.",
+  "origin": "integration",
+  "owning_integration_id": "piphi-network-plex",
+  "sdk_version_range": ">=0.6,<0.7",
+  "requires_integrations": [{"integration_id": "piphi-network-plex", "version_range": ">=0.1,<1", "optional": false}],
+  "recommended_for_integrations": ["piphi-network-plex"],
+  "widgets": [
+    {
+      "id": "server-overview",
+      "name": "Plex Server Overview",
+      "description": "Connection state, server count, active streams, and transcodes at a glance.",
+      "translations": {
+        "en": {
+          "plex.title.servers": "Plex servers",
+          "plex.activity.label": "Plex server activity",
+          "plex.metric.servers": "Servers",
+          "plex.metric.streams": "Streams",
+          "plex.metric.transcodes": "Transcodes",
+          "plex.status.updating": "Updating Plex…",
+          "plex.status.stale": "Plex data may be out of date",
+          "plex.status.offline": "Plex is offline",
+          "plex.status.error": "Plex readings are unavailable",
+          "plex.status.waiting": "Waiting for Plex",
+          "common.retry": "Retry"
+        },
+        "ar": {
+          "plex.title.servers": "خوادم Plex",
+          "plex.activity.label": "نشاط خادم Plex",
+          "plex.metric.servers": "الخوادم",
+          "plex.metric.streams": "عمليات البث",
+          "plex.metric.transcodes": "التحويلات",
+          "plex.status.updating": "جارٍ تحديث Plex…",
+          "plex.status.stale": "قد تكون بيانات Plex قديمة",
+          "plex.status.offline": "Plex غير متصل",
+          "plex.status.error": "قراءات Plex غير متاحة",
+          "plex.status.waiting": "في انتظار Plex",
+          "common.retry": "إعادة المحاولة"
+        }
+      },
+      "runtime": "sandboxed_bundle",
+      "certification": {
+        "schema_version": "1",
+        "verified_gates": ["runtime", "persistence", "binding", "states", "responsive", "themes", "accessibility", "save-reload", "performance"],
+        "evidence": {
+          "runtime": ["core-profile:sandbox-host-v1/runtime"],
+          "persistence": ["core-profile:sandbox-host-v1/persistence"],
+          "binding": ["repo:tests/plex_widget.test.mjs::overview stays glance-first and renders live telemetry"],
+          "states": ["repo:tests/plex_widget.test.mjs::overview reports unavailable readings without hiding known values"],
+          "responsive": ["repo:tests/plex_widget.test.mjs::overview declares responsive accessible theme behavior"],
+          "themes": ["repo:tests/plex_widget.test.mjs::overview declares responsive accessible theme behavior"],
+          "accessibility": ["repo:tests/plex_widget.test.mjs::overview declares responsive accessible theme behavior"],
+          "save-reload": ["core-profile:sandbox-host-v1/save-reload"],
+          "performance": ["core-profile:sandbox-host-v1/performance"]
+        }
+      },
+      "entry": "assets/server-overview.js",
+      "presentation": {"contract_version": "1", "shell": "core", "content_surface": "transparent", "typography": "core", "appearance_controls": ["icon", "title", "surface", "opacity", "radius", "shadow"]},
+      "interaction_targets": [
+        {"id": "server-card", "label": "Plex server overview", "kind": "card", "allowed_actions": ["more-info", "popout", "refresh"], "default_action": "more-info"},
+        {"id": "connected", "label": "Plex connection", "kind": "binding", "binding_slot_id": "connected", "allowed_actions": ["more-info", "popout"], "default_action": "more-info"},
+        {"id": "active-sessions", "label": "Active Plex sessions", "kind": "binding", "binding_slot_id": "active-sessions", "allowed_actions": ["more-info", "history", "popout"], "default_action": "more-info"}
+      ],
+      "binding_slots": [
+        {"id": "connected", "label": "Connection", "required": true, "binding_modes": ["read"], "value_kinds": ["boolean"], "capability_requirements": ["connected"], "compatible_integration_ids": ["piphi-network-plex"], "data_delivery": {"mode": "stream_preferred", "stale_after_seconds": 180}},
+        {"id": "server-count", "label": "Servers", "required": true, "binding_modes": ["read"], "value_kinds": ["numeric"], "capability_requirements": ["server_count"], "compatible_integration_ids": ["piphi-network-plex"], "data_delivery": {"mode": "snapshot", "stale_after_seconds": 300}},
+        {"id": "active-sessions", "label": "Active sessions", "required": true, "binding_modes": ["read"], "value_kinds": ["numeric"], "capability_requirements": ["active_sessions"], "compatible_integration_ids": ["piphi-network-plex"], "data_delivery": {"mode": "stream_preferred", "stale_after_seconds": 180}},
+        {"id": "transcode-sessions", "label": "Transcodes", "required": false, "binding_modes": ["read"], "value_kinds": ["numeric"], "capability_requirements": ["transcode_sessions"], "compatible_integration_ids": ["piphi-network-plex"], "data_delivery": {"mode": "stream_preferred", "stale_after_seconds": 180}}
+      ],
+      "settings": [{"id": "title", "type": "text", "label": "Title", "default": "Plex servers"}],
+      "default_column_span": 4,
+      "default_row_span": 2
+    },
+    {
+      "id": "recently-added",
+      "name": "Plex Recently Added",
+      "description": "The newest movies, episodes, and music from a selected Plex server.",
+      "translations": {
+        "en": {"plex.title.recently_added":"Recently Added","plex.title.continue_watching":"Continue Watching","plex.title.library":"Plex Search / Library","plex.title.default":"Plex","plex.action.refresh":"Refresh Plex","plex.status.loading":"Loading Plex…","plex.status.reconnecting":"Reconnecting to Plex…","plex.status.live":"Live · updated %TIME%","plex.status.stale_results":"Connection lost · showing previous results","plex.status.denied":"Plex access needs permission","plex.status.offline_retry":"Plex is offline · retrying","plex.status.unavailable_retry":"Plex is unavailable · retrying","plex.media.label":"Plex media","plex.media.empty":"No matching media on this server.","plex.media.untitled":"Untitled","plex.media.fallback":"Media","plex.media.watched":"%TITLE%: %PERCENT%% watched","plex.media.kind.movie":"Movie","plex.media.kind.episode":"Episode","plex.media.kind.music":"Music"},
+        "ar": {"plex.title.recently_added":"المضاف حديثًا","plex.title.continue_watching":"متابعة المشاهدة","plex.title.library":"بحث ومكتبة Plex","plex.title.default":"Plex","plex.action.refresh":"تحديث Plex","plex.status.loading":"جارٍ تحميل Plex…","plex.status.reconnecting":"جارٍ إعادة الاتصال بـ Plex…","plex.status.live":"مباشر · تم التحديث %TIME%","plex.status.stale_results":"انقطع الاتصال · يتم عرض النتائج السابقة","plex.status.denied":"يحتاج Plex إلى إذن للوصول","plex.status.offline_retry":"Plex غير متصل · جارٍ إعادة المحاولة","plex.status.unavailable_retry":"Plex غير متاح · جارٍ إعادة المحاولة","plex.media.label":"وسائط Plex","plex.media.empty":"لا توجد وسائط مطابقة على هذا الخادم.","plex.media.untitled":"بلا عنوان","plex.media.fallback":"وسائط","plex.media.watched":"تمت مشاهدة %PERCENT%% من %TITLE%","plex.media.kind.movie":"فيلم","plex.media.kind.episode":"حلقة","plex.media.kind.music":"موسيقى"}
+      },
+      "runtime": "sandboxed_bundle",
+      "certification": {
+        "schema_version": "1",
+        "verified_gates": ["runtime", "persistence", "states", "responsive", "themes", "accessibility", "save-reload", "performance"],
+        "evidence": {
+          "runtime": ["core-profile:sandbox-host-v1/runtime"],
+          "persistence": ["core-profile:sandbox-host-v1/persistence"],
+          "states": ["repo:tests/live_media_widget.test.mjs::keeps previous results visibly stale on failure and backs off"],
+          "responsive": ["repo:tests/live_media_widget.test.mjs::declares responsive accessible light and dark behavior"],
+          "themes": ["repo:tests/live_media_widget.test.mjs::declares responsive accessible light and dark behavior"],
+          "accessibility": ["repo:tests/live_media_widget.test.mjs::declares responsive accessible light and dark behavior"],
+          "save-reload": ["core-profile:sandbox-host-v1/save-reload"],
+          "performance": ["core-profile:sandbox-host-v1/performance"]
+        }
+      },
+      "entry": "assets/live-media.js",
+      "presentation": {"contract_version": "1", "shell": "core", "content_surface": "transparent", "typography": "core", "appearance_controls": ["icon", "title", "surface", "opacity", "radius", "shadow"]},
+      "interaction_targets": [{"id": "recently-added-card", "label": "Recently added Plex media", "kind": "card", "allowed_actions": ["more-info", "popout", "refresh"], "default_action": "more-info"}],
+      "permissions": ["host.queryMedia"],
+      "settings": [
+        {"id": "title", "type": "text", "label": "Title", "default": "Recently Added"},
+        {"id": "limit", "type": "number", "label": "Items (1–24)", "default": 8},
+        {"id": "refresh-seconds", "type": "number", "label": "Refresh seconds (15–300)", "default": 60},
+        {"id": "show-summary", "type": "boolean", "label": "Show one-line summaries", "default": false}
+      ],
+      "default_column_span": 6,
+      "default_row_span": 3
+    },
+    {
+      "id": "continue-watching",
+      "name": "Plex Continue Watching",
+      "description": "Resume movies and episodes already in progress on a selected Plex server.",
+      "translations": {
+        "en": {"plex.title.recently_added":"Recently Added","plex.title.continue_watching":"Continue Watching","plex.title.library":"Plex Search / Library","plex.title.default":"Plex","plex.action.refresh":"Refresh Plex","plex.status.loading":"Loading Plex…","plex.status.reconnecting":"Reconnecting to Plex…","plex.status.live":"Live · updated %TIME%","plex.status.stale_results":"Connection lost · showing previous results","plex.status.denied":"Plex access needs permission","plex.status.offline_retry":"Plex is offline · retrying","plex.status.unavailable_retry":"Plex is unavailable · retrying","plex.media.label":"Plex media","plex.media.empty":"No matching media on this server.","plex.media.untitled":"Untitled","plex.media.fallback":"Media","plex.media.watched":"%TITLE%: %PERCENT%% watched","plex.media.kind.movie":"Movie","plex.media.kind.episode":"Episode","plex.media.kind.music":"Music"},
+        "ar": {"plex.title.recently_added":"المضاف حديثًا","plex.title.continue_watching":"متابعة المشاهدة","plex.title.library":"بحث ومكتبة Plex","plex.title.default":"Plex","plex.action.refresh":"تحديث Plex","plex.status.loading":"جارٍ تحميل Plex…","plex.status.reconnecting":"جارٍ إعادة الاتصال بـ Plex…","plex.status.live":"مباشر · تم التحديث %TIME%","plex.status.stale_results":"انقطع الاتصال · يتم عرض النتائج السابقة","plex.status.denied":"يحتاج Plex إلى إذن للوصول","plex.status.offline_retry":"Plex غير متصل · جارٍ إعادة المحاولة","plex.status.unavailable_retry":"Plex غير متاح · جارٍ إعادة المحاولة","plex.media.label":"وسائط Plex","plex.media.empty":"لا توجد وسائط مطابقة على هذا الخادم.","plex.media.untitled":"بلا عنوان","plex.media.fallback":"وسائط","plex.media.watched":"تمت مشاهدة %PERCENT%% من %TITLE%","plex.media.kind.movie":"فيلم","plex.media.kind.episode":"حلقة","plex.media.kind.music":"موسيقى"}
+      },
+      "runtime": "sandboxed_bundle",
+      "certification": {
+        "schema_version": "1",
+        "verified_gates": ["runtime", "persistence", "states", "responsive", "themes", "accessibility", "save-reload", "performance"],
+        "evidence": {
+          "runtime": ["core-profile:sandbox-host-v1/runtime"],
+          "persistence": ["core-profile:sandbox-host-v1/persistence"],
+          "states": ["repo:tests/live_media_widget.test.mjs::keeps previous results visibly stale on failure and backs off"],
+          "responsive": ["repo:tests/live_media_widget.test.mjs::declares responsive accessible light and dark behavior"],
+          "themes": ["repo:tests/live_media_widget.test.mjs::declares responsive accessible light and dark behavior"],
+          "accessibility": ["repo:tests/live_media_widget.test.mjs::declares responsive accessible light and dark behavior"],
+          "save-reload": ["core-profile:sandbox-host-v1/save-reload"],
+          "performance": ["core-profile:sandbox-host-v1/performance"]
+        }
+      },
+      "entry": "assets/live-media.js",
+      "presentation": {"contract_version": "1", "shell": "core", "content_surface": "transparent", "typography": "core", "appearance_controls": ["icon", "title", "surface", "opacity", "radius", "shadow"]},
+      "interaction_targets": [{"id": "continue-watching-card", "label": "Continue watching Plex media", "kind": "card", "allowed_actions": ["more-info", "popout", "refresh"], "default_action": "more-info"}],
+      "permissions": ["host.queryMedia"],
+      "settings": [
+        {"id": "title", "type": "text", "label": "Title", "default": "Continue Watching"},
+        {"id": "limit", "type": "number", "label": "Items (1–24)", "default": 8},
+        {"id": "refresh-seconds", "type": "number", "label": "Refresh seconds (15–300)", "default": 60},
+        {"id": "show-summary", "type": "boolean", "label": "Show one-line summaries", "default": false}
+      ],
+      "default_column_span": 6,
+      "default_row_span": 3
+    },
+    {
+      "id": "library-search",
+      "name": "Plex Search & Library",
+      "description": "Search all libraries or show one selected Plex library.",
+      "translations": {
+        "en": {"plex.title.recently_added":"Recently Added","plex.title.continue_watching":"Continue Watching","plex.title.library":"Plex Search / Library","plex.title.default":"Plex","plex.action.refresh":"Refresh Plex","plex.status.loading":"Loading Plex…","plex.status.reconnecting":"Reconnecting to Plex…","plex.status.live":"Live · updated %TIME%","plex.status.stale_results":"Connection lost · showing previous results","plex.status.denied":"Plex access needs permission","plex.status.offline_retry":"Plex is offline · retrying","plex.status.unavailable_retry":"Plex is unavailable · retrying","plex.media.label":"Plex media","plex.media.empty":"No matching media on this server.","plex.media.untitled":"Untitled","plex.media.fallback":"Media","plex.media.watched":"%TITLE%: %PERCENT%% watched","plex.media.kind.movie":"Movie","plex.media.kind.episode":"Episode","plex.media.kind.music":"Music"},
+        "ar": {"plex.title.recently_added":"المضاف حديثًا","plex.title.continue_watching":"متابعة المشاهدة","plex.title.library":"بحث ومكتبة Plex","plex.title.default":"Plex","plex.action.refresh":"تحديث Plex","plex.status.loading":"جارٍ تحميل Plex…","plex.status.reconnecting":"جارٍ إعادة الاتصال بـ Plex…","plex.status.live":"مباشر · تم التحديث %TIME%","plex.status.stale_results":"انقطع الاتصال · يتم عرض النتائج السابقة","plex.status.denied":"يحتاج Plex إلى إذن للوصول","plex.status.offline_retry":"Plex غير متصل · جارٍ إعادة المحاولة","plex.status.unavailable_retry":"Plex غير متاح · جارٍ إعادة المحاولة","plex.media.label":"وسائط Plex","plex.media.empty":"لا توجد وسائط مطابقة على هذا الخادم.","plex.media.untitled":"بلا عنوان","plex.media.fallback":"وسائط","plex.media.watched":"تمت مشاهدة %PERCENT%% من %TITLE%","plex.media.kind.movie":"فيلم","plex.media.kind.episode":"حلقة","plex.media.kind.music":"موسيقى"}
+      },
+      "runtime": "sandboxed_bundle",
+      "certification": {
+        "schema_version": "1",
+        "verified_gates": ["runtime", "persistence", "states", "responsive", "themes", "accessibility", "save-reload", "performance"],
+        "evidence": {
+          "runtime": ["core-profile:sandbox-host-v1/runtime"],
+          "persistence": ["core-profile:sandbox-host-v1/persistence"],
+          "states": ["repo:tests/live_media_widget.test.mjs::keeps previous results visibly stale on failure and backs off"],
+          "responsive": ["repo:tests/live_media_widget.test.mjs::declares responsive accessible light and dark behavior"],
+          "themes": ["repo:tests/live_media_widget.test.mjs::declares responsive accessible light and dark behavior"],
+          "accessibility": ["repo:tests/live_media_widget.test.mjs::declares responsive accessible light and dark behavior"],
+          "save-reload": ["core-profile:sandbox-host-v1/save-reload"],
+          "performance": ["core-profile:sandbox-host-v1/performance"]
+        }
+      },
+      "entry": "assets/live-media.js",
+      "presentation": {"contract_version": "1", "shell": "core", "content_surface": "transparent", "typography": "core", "appearance_controls": ["icon", "title", "surface", "opacity", "radius", "shadow"]},
+      "interaction_targets": [{"id": "library-search-card", "label": "Plex library results", "kind": "card", "allowed_actions": ["more-info", "popout", "refresh"], "default_action": "more-info"}],
+      "permissions": ["host.queryMedia"],
+      "settings": [
+        {"id": "title", "type": "text", "label": "Title", "default": "Plex Search / Library"},
+        {"id": "limit", "type": "number", "label": "Items (1–24)", "default": 8},
+        {"id": "refresh-seconds", "type": "number", "label": "Refresh seconds (15–300)", "default": 60},
+        {"id": "show-summary", "type": "boolean", "label": "Show one-line summaries", "default": false},
+        {"id": "query", "type": "text", "label": "Search query", "default": ""},
+        {"id": "collection-id", "type": "text", "label": "Library ID (used when query is empty)", "default": ""}
+      ],
+      "default_column_span": 6,
+      "default_row_span": 3
+    }
+  ]
+}

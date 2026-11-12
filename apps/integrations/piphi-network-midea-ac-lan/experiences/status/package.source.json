@@ -1,0 +1,72 @@
+{
+  "schema_version": "1",
+  "identity": {"publisher_id": "io.piphi", "package_id": "midea-ac-lan-status", "version": "0.3.5"},
+  "name": "Midea Climate",
+  "description": "Fast local temperature, fan, swing, and comfort control for supported Midea air conditioners.",
+  "origin": "integration",
+  "owning_integration_id": "piphi-network-midea-ac-lan",
+  "sdk_version_range": ">=0.6.1,<0.7",
+  "requires_integrations": [{"integration_id": "piphi-network-midea-ac-lan", "version_range": ">=0.3,<1", "optional": false}],
+  "recommended_for_integrations": ["piphi-network-midea-ac-lan"],
+  "widgets": [
+    {
+      "id": "connection-status",
+      "name": "Midea Climate Control",
+      "description": "Current room temperature, target, action, HVAC mode, power, fan, swing, presets, and outdoor temperature.",
+      "runtime": "sandboxed_bundle",
+      "certification": {
+        "schema_version": "1",
+        "verified_gates": ["runtime", "persistence", "binding", "states", "commands", "responsive", "themes", "accessibility", "save-reload", "performance"],
+        "evidence": {
+          "runtime": ["core-profile:sandbox-host-v1/runtime"],
+          "persistence": ["core-profile:sandbox-host-v1/persistence"],
+          "binding": ["repo:tests/test_widget_package.py::test_climate_widget_package_exposes_complete_control_surface"],
+          "states": ["repo:tests/test_widget_package.py::test_climate_widget_meets_certification_contract"],
+          "commands": ["repo:tests/test_widget_package.py::test_climate_widget_meets_certification_contract"],
+          "responsive": ["repo:tests/test_widget_package.py::test_climate_widget_meets_certification_contract"],
+          "themes": ["repo:tests/test_widget_package.py::test_climate_widget_meets_certification_contract"],
+          "accessibility": ["repo:tests/test_widget_package.py::test_climate_widget_meets_certification_contract"],
+          "save-reload": ["core-profile:sandbox-host-v1/save-reload"],
+          "performance": ["core-profile:sandbox-host-v1/performance"]
+        }
+      },
+      "entry": "assets/midea-climate.mjs",
+      "presentation": {"contract_version": "1", "shell": "core", "content_surface": "transparent", "typography": "core", "appearance_controls": ["icon", "title", "surface", "opacity", "radius", "shadow"]},
+      "interaction_targets": [
+        {"id": "climate-card", "label": "Midea climate", "kind": "card", "allowed_actions": ["more-info", "popout", "refresh"], "default_action": "more-info"},
+        {"id": "power-control", "label": "Power", "kind": "binding", "binding_slot_id": "power", "allowed_actions": ["command", "more-info"], "default_action": "command"},
+        {"id": "target-control", "label": "Target temperature", "kind": "binding", "binding_slot_id": "target", "allowed_actions": ["command", "more-info", "history"], "default_action": "command"},
+        {"id": "mode-control", "label": "HVAC mode", "kind": "binding", "binding_slot_id": "mode", "allowed_actions": ["command", "more-info"], "default_action": "command"},
+        {"id": "fan-control", "label": "Fan mode", "kind": "binding", "binding_slot_id": "fan-mode", "allowed_actions": ["command", "more-info"], "default_action": "command"},
+        {"id": "swing-control", "label": "Swing mode", "kind": "binding", "binding_slot_id": "swing", "allowed_actions": ["command", "more-info"], "default_action": "command"},
+        {"id": "preset-control", "label": "Comfort preset", "kind": "binding", "binding_slot_id": "preset", "allowed_actions": ["command", "more-info"], "default_action": "command"},
+        {"id": "action-reading", "label": "HVAC action estimate", "kind": "binding", "binding_slot_id": "action", "allowed_actions": ["more-info", "history"], "default_action": "history"},
+        {"id": "indoor-reading", "label": "Indoor temperature", "kind": "binding", "binding_slot_id": "indoor", "allowed_actions": ["more-info", "history"], "default_action": "history"},
+        {"id": "outdoor-reading", "label": "Outdoor temperature", "kind": "binding", "binding_slot_id": "outdoor", "allowed_actions": ["more-info", "history"], "default_action": "history"},
+        {"id": "fan-reading", "label": "Fan speed", "kind": "binding", "binding_slot_id": "fan", "allowed_actions": ["more-info", "history"], "default_action": "more-info"}
+      ],
+      "core_card_replacements": [{"schema_version": "1", "id": "midea-climate-v1", "source_card_types": ["thermostat", "tile"], "source_capability_ids": ["power", "hvac_mode", "target_temperature_c", "indoor_temperature_c"], "strategy": "same-device"}],
+      "binding_slots": [
+        {"id": "connected", "label": "Connection", "required": true, "binding_modes": ["read"], "value_kinds": ["boolean"], "capability_requirements": ["connected"], "compatible_integration_ids": ["piphi-network-midea-ac-lan"], "data_delivery": {"mode": "stream_preferred", "stale_after_seconds": 120}},
+        {"id": "power", "label": "Power", "required": true, "binding_modes": ["read-write"], "value_kinds": ["boolean"], "capability_requirements": ["power"], "compatible_integration_ids": ["piphi-network-midea-ac-lan"], "data_delivery": {"mode": "stream_preferred", "stale_after_seconds": 120}},
+        {"id": "target", "label": "Target temperature", "required": true, "binding_modes": ["read-write"], "value_kinds": ["numeric"], "capability_requirements": ["target_temperature_c"], "compatible_integration_ids": ["piphi-network-midea-ac-lan"], "data_delivery": {"mode": "stream_preferred", "stale_after_seconds": 120}},
+        {"id": "indoor", "label": "Indoor temperature", "required": true, "binding_modes": ["read"], "value_kinds": ["numeric"], "capability_requirements": ["indoor_temperature_c"], "compatible_integration_ids": ["piphi-network-midea-ac-lan"], "data_delivery": {"mode": "stream_preferred", "stale_after_seconds": 120}},
+        {"id": "mode", "label": "HVAC mode", "required": true, "binding_modes": ["read-write"], "value_kinds": ["enum"], "capability_requirements": ["hvac_mode"], "compatible_integration_ids": ["piphi-network-midea-ac-lan"], "data_delivery": {"mode": "stream_preferred", "stale_after_seconds": 120}},
+        {"id": "action", "label": "HVAC action estimate", "required": false, "binding_modes": ["read"], "value_kinds": ["enum"], "capability_requirements": ["hvac_action"], "compatible_integration_ids": ["piphi-network-midea-ac-lan"], "data_delivery": {"mode": "stream_preferred", "stale_after_seconds": 120}},
+        {"id": "fan-mode", "label": "Fan mode", "required": false, "binding_modes": ["read-write"], "value_kinds": ["enum"], "capability_requirements": ["fan_mode"], "compatible_integration_ids": ["piphi-network-midea-ac-lan"], "data_delivery": {"mode": "stream_preferred", "stale_after_seconds": 120}},
+        {"id": "fan-options", "label": "Supported fan modes", "required": false, "binding_modes": ["read"], "value_kinds": ["text"], "capability_requirements": ["fan_modes_supported"], "compatible_integration_ids": ["piphi-network-midea-ac-lan"], "data_delivery": {"mode": "stream_preferred", "stale_after_seconds": 120}},
+        {"id": "swing", "label": "Swing mode", "required": false, "binding_modes": ["read-write"], "value_kinds": ["enum"], "capability_requirements": ["swing_mode"], "compatible_integration_ids": ["piphi-network-midea-ac-lan"], "data_delivery": {"mode": "stream_preferred", "stale_after_seconds": 120}},
+        {"id": "swing-options", "label": "Supported swing modes", "required": false, "binding_modes": ["read"], "value_kinds": ["text"], "capability_requirements": ["swing_modes_supported"], "compatible_integration_ids": ["piphi-network-midea-ac-lan"], "data_delivery": {"mode": "stream_preferred", "stale_after_seconds": 120}},
+        {"id": "preset", "label": "Comfort preset", "required": false, "binding_modes": ["read-write"], "value_kinds": ["enum"], "capability_requirements": ["preset_mode"], "compatible_integration_ids": ["piphi-network-midea-ac-lan"], "data_delivery": {"mode": "stream_preferred", "stale_after_seconds": 120}},
+        {"id": "preset-options", "label": "Supported presets", "required": false, "binding_modes": ["read"], "value_kinds": ["text"], "capability_requirements": ["preset_modes_supported"], "compatible_integration_ids": ["piphi-network-midea-ac-lan"], "data_delivery": {"mode": "stream_preferred", "stale_after_seconds": 120}},
+        {"id": "outdoor", "label": "Outdoor temperature", "required": false, "binding_modes": ["read"], "value_kinds": ["numeric"], "capability_requirements": ["outdoor_temperature_c"], "compatible_integration_ids": ["piphi-network-midea-ac-lan"], "data_delivery": {"mode": "stream_preferred", "stale_after_seconds": 120}},
+        {"id": "fan", "label": "Fan speed", "required": false, "binding_modes": ["read"], "value_kinds": ["numeric"], "capability_requirements": ["fan_speed_percent"], "compatible_integration_ids": ["piphi-network-midea-ac-lan"], "data_delivery": {"mode": "stream_preferred", "stale_after_seconds": 120}}
+      ],
+      "permissions": ["host.executeCommand"],
+      "allowed_commands": ["refresh", "set_power", "set_hvac_mode", "set_target_temperature", "set_fan_mode", "set_swing_mode", "set_preset_mode"],
+      "settings": [],
+      "default_column_span": 5,
+      "default_row_span": 5
+    }
+  ]
+}

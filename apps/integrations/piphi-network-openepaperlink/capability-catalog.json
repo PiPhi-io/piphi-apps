@@ -1,0 +1,79 @@
+{
+  "catalog_version": "1.0",
+  "integration_id": "piphi-network-openepaperlink",
+  "coverage_mode": "ap_version_tag_type_and_hardware_feature_negotiated",
+  "reviewed_at": "2026-09-07",
+  "sources": {
+    "oepl_core": "https://github.com/OpenEPaperLink/OpenEPaperLink",
+    "oepl_ha": "https://github.com/OpenEPaperLink/Home_Assistant_Integration",
+    "oepl_wiki": "https://github.com/OpenEPaperLink/OpenEPaperLink/wiki",
+    "core_vocabulary": "PiPhi Network Core and maintained PiPhi integrations"
+  },
+  "groups": [
+    {
+      "id": "runtime-foundation", "status": "implemented", "scope": ["all-configurations"],
+      "source_refs": ["core_vocabulary"],
+      "reason": "The runtime reports connectivity from a successful read-only AP query, supports refresh, and emits a configuration event.",
+      "state": ["connected"], "events": ["runtime.config.applied"], "conditions": ["state_matches"], "actions": ["refresh"]
+    },
+    {
+      "id": "ap-tag-summary", "status": "implemented", "scope": ["configured-local-access-points"],
+      "source_refs": ["oepl_core"],
+      "reason": "The AP's paginated /get_db endpoint exposes tag records and pending transfer counts without a mutation or WebSocket session.",
+      "state": ["ap_tag_count", "ap_pending_transfer_count"], "events": [], "conditions": [], "actions": []
+    },
+    {
+      "id": "access-point-health-and-transport", "status": "planned", "scope": ["supported-openepaperlink-access-points"],
+      "source_refs": ["oepl_core", "oepl_ha", "oepl_wiki"],
+      "reason": "HTTP/WebSocket transport, firmware-version variation, authentication, reconnect, and sanitized AP status need implementation and fixtures.",
+      "state": ["ap_model", "ap_firmware_version", "ap_hardware_version", "ap_uptime_seconds", "ap_ip_address", "ap_channel", "ap_tx_power_dbm", "ap_heap_free_bytes", "ap_storage_free_bytes", "ap_temperature_c", "ap_wifi_rssi_dbm", "ap_last_seen_at", "transport_latency_ms"],
+      "events": ["access_point.online", "access_point.offline", "access_point.degraded", "access_point.recovered", "access_point.restarted"],
+      "conditions": ["access_point_is_online", "access_point_is_stale", "pending_transfers_above", "access_point_resource_below"],
+      "actions": ["reconnect_access_point", "rediscover_tags"]
+    },
+    {
+      "id": "tag-identity-radio-and-power", "status": "planned", "scope": ["discovered-tags"],
+      "source_refs": ["oepl_core", "oepl_ha", "oepl_wiki"],
+      "reason": "Tag models expose different radios, displays, batteries, sensors, and wake behavior and must be negotiated individually.",
+      "state": ["tag_alias", "tag_mac_suffix", "tag_type", "tag_hardware_type", "tag_firmware_version", "tag_width_px", "tag_height_px", "tag_color_count", "tag_rotation_degrees", "tag_rssi_dbm", "tag_lqi", "tag_battery_voltage", "tag_battery_percent", "tag_temperature_c", "tag_last_checkin_at", "tag_next_checkin_at", "tag_wakeup_reason", "tag_is_pending", "tag_transfer_progress_percent", "tag_content_hash"],
+      "events": ["tag.discovered", "tag.online", "tag.stale", "tag.checkin", "tag.battery_low", "tag.signal_degraded", "tag.signal_recovered"],
+      "conditions": ["tag_is_online", "tag_is_stale", "tag_battery_below", "tag_signal_below", "tag_type_is", "tag_transfer_is_pending"],
+      "actions": ["request_tag_checkin", "set_tag_alias"]
+    },
+    {
+      "id": "display-content-and-transfer", "status": "planned", "scope": ["tags-advertising-display-capabilities"],
+      "source_refs": ["oepl_core", "oepl_ha", "oepl_wiki"],
+      "reason": "Rendering, palette conversion, rotation, transfer queues, timeouts, and model limits require deterministic fixtures and bounded payload handling.",
+      "state": ["display_content_mode", "display_content_updated_at", "display_transfer_state", "display_transfer_attempts", "display_dither_mode", "display_lut_mode", "display_inverted", "display_preload_available"],
+      "events": ["display.transfer_queued", "display.transfer_started", "display.transfer_completed", "display.transfer_failed", "display.content_changed"],
+      "conditions": ["display_transfer_state_is", "display_content_is_stale", "display_mode_is"],
+      "actions": ["draw_image", "draw_text", "draw_template", "draw_custom_elements", "clear_display", "set_display_rotation", "set_display_inversion", "set_dither_mode", "preload_image", "activate_preloaded_image", "cancel_pending_transfer"]
+    },
+    {
+      "id": "tag-led-buzzer-nfc-and-io", "status": "planned", "scope": ["tags-advertising-each-optional-hardware-feature"],
+      "source_refs": ["oepl_core", "oepl_ha", "oepl_wiki"],
+      "reason": "LED, buzzer, NFC, buttons, GPIO, and sensors are optional hardware features requiring per-tag negotiation and bounded commands.",
+      "state": ["led_active", "led_color", "buzzer_active", "nfc_content_present", "button_state", "gpio_state", "external_temperature_c", "external_humidity_percent"],
+      "events": ["button.pressed", "button.released", "gpio.changed", "nfc.updated", "led.changed", "buzzer.changed"],
+      "conditions": ["button_is_pressed", "gpio_matches", "led_is_active", "buzzer_is_active"],
+      "actions": ["set_led", "blink_led", "stop_led", "sound_buzzer", "stop_buzzer", "set_nfc_content", "set_gpio"]
+    },
+    {
+      "id": "tag-scheduling-and-maintenance", "status": "planned", "scope": ["tags-and-access-points-supporting-each-operation"],
+      "source_refs": ["oepl_core", "oepl_ha", "oepl_wiki"],
+      "reason": "Sleep scheduling and maintenance operations affect battery life or network availability and require confirmation, bounds, and no broad fanout.",
+      "state": ["tag_checkin_interval_seconds", "tag_sleep_until", "tag_channel", "tag_reboot_pending", "ap_update_available"],
+      "events": ["tag.sleep_started", "tag.sleep_ended", "tag.rebooted", "access_point.update_available"],
+      "conditions": ["tag_is_sleeping", "tag_checkin_interval_above", "access_point_update_is_available"],
+      "actions": ["set_tag_checkin_interval", "sleep_tag", "wake_tag", "reboot_tag", "scan_radio_channels", "reboot_access_point", "check_access_point_updates"]
+    },
+    {
+      "id": "unsafe-or-sensitive-surface", "status": "excluded", "scope": ["all-access-points-and-tags"],
+      "source_refs": ["oepl_core", "oepl_wiki"],
+      "reason": "Secrets, unrestricted URLs or templates, raw radio/protocol access, flashing, destructive administration, and unbounded payloads must not be exposed.",
+      "state": ["ap_password", "wifi_password", "raw_tag_mac", "raw_protocol_frame", "raw_template_source"],
+      "events": [], "conditions": [],
+      "actions": ["fetch_arbitrary_url", "execute_arbitrary_template", "send_arbitrary_tag_command", "send_raw_radio_frame", "flash_tag_firmware", "install_access_point_firmware", "factory_reset_access_point", "delete_all_tags", "upload_unbounded_payload"]
+    }
+  ]
+}

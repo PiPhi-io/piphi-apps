@@ -1,0 +1,430 @@
+{
+  "$schema": "./schema/piphi-manifest.schema.json",
+  "manifest_version": "1.0",
+  "id": "piphi-network-zigbee",
+  "name": "PiPhi Network Zigbee",
+  "version": "0.1.10",
+  "description": "Generic Zigbee integration runtime backed by the shared Zigbee2MQTT sidecar.",
+  "metadata": {
+    "generator": "piphi-network-create",
+    "scaffold_version": "0.2.0",
+    "preset": "protocol-bridge",
+    "domain": "bridge",
+    "preset_summary": "Protocol bridge starter for translating an external local protocol."
+  },
+  "maintainer": {
+    "name": "PiPhi Network",
+    "website": "https://piphi.io"
+  },
+  "license": "Apache-2.0",
+  "image": "piphinetwork/zigbee-integration:0.1.10",
+  "platforms": [
+    "linux",
+    "windows",
+    "macos"
+  ],
+  "runtime": {
+    "linux": {
+      "type": "container",
+      "container": {
+        "image": "piphinetwork/zigbee-integration:0.1.10",
+        "ports": [
+          {
+            "container": 8730,
+            "host": 8730
+          }
+        ],
+        "environment": {
+          "LOG_LEVEL": "info",
+          "ZIGBEE2MQTT_SIDECAR_URL": "http://127.0.0.1:8720",
+          "MQTT_SERVER": "mqtt://127.0.0.1:1883",
+          "MQTT_BASE_TOPIC": "zigbee2mqtt"
+        },
+        "restart_policy": {
+          "name": "unless-stopped",
+          "maximum_retry_count": 0
+        }
+      },
+      "discovery": {
+        "method": "passive"
+      }
+    },
+    "windows": {
+      "type": "proxy",
+      "proxy": {
+        "port": 8730
+      },
+      "discovery": {
+        "method": "passive"
+      }
+    },
+    "macos": {
+      "type": "proxy",
+      "proxy": {
+        "port": 8730
+      },
+      "discovery": {
+        "method": "passive"
+      }
+    }
+  },
+  "requires": {
+    "services": [
+      {
+        "id": "piphi.service.zigbee2mqtt-sidecar",
+        "kind": "platform_service",
+        "version_range": ">=0.1.0,<1.0.0",
+        "required": true,
+        "shared": true,
+        "auto_install": true,
+        "reason": "Detects Zigbee coordinators, renders Zigbee2MQTT configuration, and supervises the bridge used by this integration."
+      },
+      {
+        "id": "piphi.service.mqtt-broker",
+        "kind": "platform_service",
+        "version_range": ">=0.1.0,<1.0.0",
+        "required": true,
+        "shared": true,
+        "auto_install": true,
+        "reason": "Provides the shared MQTT broker used by Zigbee2MQTT topics and Zigbee device state/control traffic."
+      }
+    ]
+  },
+  "api": {
+    "required": [
+      "health",
+      "entities",
+      "command",
+      "config",
+      "ui_config"
+    ],
+    "endpoints": {
+      "health": "/health",
+      "diagnostics": "/diagnostics",
+      "discover": "/discover",
+      "entities": "/entities",
+      "state": "/state",
+      "config": "/config",
+      "config_sync": "/config/sync",
+      "deconfigure": "/deconfigure",
+      "ui_config": "/ui-config",
+      "events": "/events",
+      "command": "/command"
+    }
+  },
+  "config": {
+    "source": "endpoint",
+    "endpoint": "/ui-config",
+    "required": true,
+    "editable_fields": [
+      "friendly_name",
+      "alias",
+      "ieee_address",
+      "model_id",
+      "vendor",
+      "mqtt_server",
+      "mqtt_base_topic",
+      "sidecar_base_url"
+    ],
+    "runtime_fields": [
+      "id",
+      "config_id",
+      "container_id",
+      "device_id"
+    ],
+    "identity_fields": [
+      "ieee_address"
+    ]
+  },
+  "identity": {
+    "fields": [
+      "ieee_address"
+    ],
+    "legacy_fields": [
+      "friendly_name"
+    ]
+  },
+  "ui": {
+    "kind": "application",
+    "ingress": "core_authenticated",
+    "path": "/zigbee",
+    "supports_websocket": false,
+    "show_in_sidebar": true,
+    "label": "Zigbee",
+    "experience_packages": [
+      {
+        "registry_id": "io.piphi.zigbee-devices",
+        "version_range": ">=0.1,<1",
+        "auto_install": true
+      }
+    ]
+  },
+  "capabilities": {
+    "connected": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "refresh": {
+      "kind": "action"
+    },
+    "availability": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "linkquality": {
+      "kind": "sensor",
+      "unit": "lqi"
+    },
+    "action": {
+      "kind": "sensor",
+      "unit": "string"
+    },
+    "temperature_c": {
+      "kind": "sensor",
+      "unit": "C"
+    },
+    "humidity_percent": {
+      "kind": "sensor",
+      "unit": "%"
+    },
+    "battery_percent": {
+      "kind": "sensor",
+      "unit": "%"
+    },
+    "battery_low": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "occupancy": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "contact_open": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "illuminance_lux": {
+      "kind": "sensor",
+      "unit": "lx"
+    },
+    "pressure_hpa": {
+      "kind": "sensor",
+      "unit": "hPa"
+    },
+    "voltage_v": {
+      "kind": "sensor",
+      "unit": "V"
+    },
+    "current_a": {
+      "kind": "sensor",
+      "unit": "A"
+    },
+    "power_w": {
+      "kind": "sensor",
+      "unit": "W"
+    },
+    "energy_kwh": {
+      "kind": "sensor",
+      "unit": "kWh"
+    },
+    "tamper": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "water_leak": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "smoke": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "gas": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "carbon_monoxide": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "state": {
+      "kind": "actuator",
+      "unit": "bool"
+    },
+    "brightness_percent": {
+      "kind": "actuator",
+      "unit": "%"
+    },
+    "color_temperature_mired": {
+      "kind": "actuator",
+      "unit": "mired"
+    },
+    "position_percent": {
+      "kind": "actuator",
+      "unit": "%"
+    },
+    "set_state": {
+      "kind": "action"
+    },
+    "set_brightness": {
+      "kind": "action"
+    },
+    "set_color_temperature": {
+      "kind": "action"
+    }
+  },
+  "commands": {
+    "refresh": {
+      "description": "Refresh the device state.",
+      "timeout_ms": 5000
+    },
+    "set_state": {
+      "description": "Set an on/off style Zigbee device state.",
+      "timeout_ms": 5000
+    },
+    "set_brightness": {
+      "description": "Set a dimmable Zigbee device brightness percentage.",
+      "timeout_ms": 5000
+    },
+    "set_color_temperature": {
+      "description": "Set a tunable white Zigbee device color temperature.",
+      "timeout_ms": 10000
+    }
+  },
+  "security": {
+    "contract_version": "1",
+    "event_mappings": [
+      {
+        "source_event_type": "zigbee.safety.smoke.detected",
+        "canonical_event_type": "safety_smoke_detected",
+        "status": "implemented",
+        "device_models": [
+          "Zigbee2MQTT devices exposing smoke"
+        ],
+        "required_permissions": [
+          "MQTT state subscription"
+        ]
+      },
+      {
+        "source_event_type": "zigbee.safety.smoke.cleared",
+        "canonical_event_type": "safety_smoke_cleared",
+        "status": "implemented",
+        "device_models": [
+          "Zigbee2MQTT devices exposing smoke"
+        ],
+        "required_permissions": [
+          "MQTT state subscription"
+        ]
+      },
+      {
+        "source_event_type": "zigbee.safety.carbon_monoxide.detected",
+        "canonical_event_type": "safety_carbon_monoxide_detected",
+        "status": "implemented",
+        "device_models": [
+          "Zigbee2MQTT devices exposing carbon_monoxide"
+        ],
+        "required_permissions": [
+          "MQTT state subscription"
+        ]
+      },
+      {
+        "source_event_type": "zigbee.safety.carbon_monoxide.cleared",
+        "canonical_event_type": "safety_carbon_monoxide_cleared",
+        "status": "implemented",
+        "device_models": [
+          "Zigbee2MQTT devices exposing carbon_monoxide"
+        ],
+        "required_permissions": [
+          "MQTT state subscription"
+        ]
+      },
+      {
+        "source_event_type": "zigbee.safety.leak.detected",
+        "canonical_event_type": "safety_leak_detected",
+        "status": "implemented",
+        "device_models": [
+          "Zigbee2MQTT devices exposing water_leak"
+        ],
+        "required_permissions": [
+          "MQTT state subscription"
+        ]
+      },
+      {
+        "source_event_type": "zigbee.safety.leak.cleared",
+        "canonical_event_type": "safety_leak_cleared",
+        "status": "implemented",
+        "device_models": [
+          "Zigbee2MQTT devices exposing water_leak"
+        ],
+        "required_permissions": [
+          "MQTT state subscription"
+        ]
+      },
+      {
+        "source_event_type": "zigbee.security.tamper.detected",
+        "status": "excluded",
+        "device_models": [
+          "Zigbee2MQTT devices exposing tamper"
+        ],
+        "required_permissions": [
+          "MQTT state subscription"
+        ],
+        "notes": "Generic enclosure tamper does not identify camera tamper or forced entry."
+      },
+      {
+        "source_event_type": "zigbee.safety.gas.detected",
+        "status": "excluded",
+        "device_models": [
+          "Zigbee2MQTT devices exposing gas"
+        ],
+        "required_permissions": [
+          "MQTT state subscription"
+        ],
+        "notes": "Core contract version 1 has no natural-gas incident type."
+      },
+      {
+        "source_event_type": "zigbee.contact.opened",
+        "status": "excluded",
+        "device_models": [
+          "Zigbee2MQTT devices exposing contact"
+        ],
+        "required_permissions": [
+          "MQTT state subscription"
+        ],
+        "notes": "An open contact is routine state and is not proof of forced entry."
+      }
+    ]
+  },
+  "entities": [
+    {
+      "id": "zigbee-device",
+      "name": "Zigbee Device",
+      "device_id": "zigbee-device",
+      "entity_type": "zigbee_device",
+      "capabilities": [
+        "connected",
+        "availability",
+        "linkquality",
+        "refresh"
+      ],
+      "available_commands": [
+        {
+          "id": "refresh",
+          "label": "Refresh",
+          "kind": "action"
+        }
+      ],
+      "dashboard": {
+        "allowed_widgets": [
+          "tile",
+          "stat",
+          "button"
+        ],
+        "default_widget": "tile"
+      }
+    }
+  ],
+  "onboarding": {
+    "mode": "discovery"
+  }
+}

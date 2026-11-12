@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="160" viewBox="0 0 400 160" role="img" aria-label="Sense appliance energy preview">
+  <rect width="400" height="160" rx="16" fill="#0f172a"/>
+  <g font-family="system-ui,sans-serif" fill="#f8fafc">
+    <text x="20" y="34" font-size="16" font-weight="700">Oven</text>
+    <text x="353" y="34" font-size="12" fill="#bdc9d9">On</text>
+    <path d="M20 52H380" stroke="#334155"/>
+    <text x="20" y="78" font-size="12" fill="#bdc9d9">Now</text>
+    <text x="20" y="108" font-size="22" font-weight="700">800 W</text>
+    <path d="M232 62V116" stroke="#334155"/>
+    <text x="248" y="78" font-size="12" fill="#bdc9d9">Today</text>
+    <text x="248" y="108" font-size="22" font-weight="700">1.2 kWh</text>
+  </g>
+</svg>

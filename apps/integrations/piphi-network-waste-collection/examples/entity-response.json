@@ -1,0 +1,19 @@
+{
+  "entities": [{
+    "id": "demo-device",
+    "name": "Manual collection schedule",
+    "device_id": "demo-device",
+    "entity_type": "sensor",
+    "capabilities": ["connected", "next_collection_date", "next_collection_type", "days_until_collection", "refresh"],
+    "available_commands": [{"id": "refresh", "label": "Refresh", "kind": "action"}],
+    "dashboard": {"allowed_widgets": ["tile", "stat", "button"], "default_widget": "tile"}
+  }],
+  "capabilities": {
+    "connected": {"kind": "sensor", "unit": "bool"},
+    "next_collection_date": {"kind": "sensor", "value_kind": "text"},
+    "next_collection_type": {"kind": "sensor", "value_kind": "text"},
+    "days_until_collection": {"kind": "sensor", "value_kind": "numeric", "unit": "days"},
+    "refresh": {"kind": "action"}
+  },
+  "commands": {"refresh": {"description": "Refresh the device state.", "timeout_ms": 5000}}
+}

@@ -1,0 +1,104 @@
+{
+  "version": "1.0",
+  "cases": [
+    {
+      "id": "health",
+      "method": "GET",
+      "path": "/health",
+      "status": 200,
+      "required_any_keys": [
+        [
+          "ok",
+          "status"
+        ]
+      ]
+    },
+    {
+      "id": "ui_config",
+      "method": "GET",
+      "path": "/ui-config",
+      "status": 200,
+      "required_keys": [
+        "schema",
+        "uiSchema"
+      ]
+    },
+    {
+      "id": "contract",
+      "method": "GET",
+      "path": "/contract",
+      "status": 200,
+      "required_keys": [
+        "integration_id",
+        "name",
+        "version",
+        "kind",
+        "preset",
+        "domain",
+        "endpoints",
+        "required"
+      ]
+    },
+    {
+      "id": "config",
+      "method": "POST",
+      "path": "/config",
+      "status": 200,
+      "body": {
+        "id": "demo-device",
+        "host": "127.0.0.1",
+        "alias": "Demo Device"
+      },
+      "required_any_keys": [
+        [
+          "config_id",
+          "configId"
+        ],
+        [
+          "status",
+          "ok"
+        ]
+      ]
+    },
+    {
+      "id": "entities",
+      "method": "GET",
+      "path": "/entities",
+      "status": 200,
+      "required_keys": [
+        "entities",
+        "capabilities",
+        "commands"
+      ]
+    },
+    {
+      "id": "command",
+      "method": "POST",
+      "path": "/command",
+      "status": 200,
+      "body": {
+        "contract_version": "automation.runtime.command.v1",
+        "command": "refresh",
+        "target": {
+          "device_id": "demo-device",
+          "config_id": "demo-device"
+        },
+        "params": {},
+        "capability": "device.refresh",
+        "capability_requirements": [
+          "device.refresh"
+        ]
+      },
+      "required_any_keys": [
+        [
+          "ok",
+          "status"
+        ],
+        [
+          "command",
+          "event"
+        ]
+      ]
+    }
+  ]
+}

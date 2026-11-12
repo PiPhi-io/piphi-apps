@@ -1,0 +1,31 @@
+{
+  "id": "io.piphi.bambu.print-status",
+  "name": "Bambu print status",
+  "description": "Read-only current print progress and printer temperatures.",
+  "version": "0.1.0",
+  "entry": "./dist/widget.js",
+  "binding_modes": ["read"],
+  "value_kinds": ["numeric", "boolean", "text"],
+  "capability_requirements": ["connected", "simulation_mode", "print_status", "print_progress_percent", "remaining_time_minutes", "current_layer", "total_layers", "nozzle_temperature_c", "bed_temperature_c"],
+  "sdk_compatibility": {"minimum": "0.6.1"},
+  "interaction_targets": [
+    {"id": "print-status-card", "label": "Bambu print status", "kind": "card", "allowed_actions": ["more-info", "popout", "refresh"], "default_action": "more-info"}
+  ],
+  "conformance": {
+    "accessibility": "wcag2.2-aa",
+    "keyboard": true,
+    "themes": ["light", "dark"],
+    "directions": ["ltr", "rtl"],
+    "states": ["loading", "empty", "live", "stale", "offline", "reconnecting", "denied", "error"]
+  },
+  "settings_schema_version": "1",
+  "settings": [
+    {"id": "title", "type": "text", "label": "Title", "default": "Bambu printer"},
+    {"id": "device", "type": "device", "label": "Bambu printer", "required": true}
+  ],
+  "layout": {"min_height": 154, "default_height": 200, "max_height": 320},
+  "previews": {"light": "./previews/light.svg", "dark": "./previews/dark.svg"},
+  "translations": {"en": {"widget.title": "Bambu printer"}},
+  "security": {"permissions": [], "sandbox": ["allow-scripts"], "csp": {"connect_src": []}},
+  "integrity": "sha256-sPHxjDq58X3ItzExxFUX1Z3UmNv+LrrHwyZBv+pAeIo="
+}

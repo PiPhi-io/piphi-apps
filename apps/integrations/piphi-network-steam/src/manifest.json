@@ -1,0 +1,148 @@
+{
+  "manifest_version": "1.0",
+  "id": "piphi-network-steam",
+  "name": "Steam",
+  "version": "0.1.0",
+  "description": "Read-only Steam account presence, game activity, and playtime integration using the official Steam Web API.",
+  "maintainer": {
+    "name": "PiPhi Network",
+    "website": "https://piphi.io",
+    "support_email": "support@piphi.io"
+  },
+  "platforms": ["linux", "windows", "macos"],
+  "runtime": {
+    "linux": {
+      "type": "container",
+      "container": {
+        "image": "piphinetwork/piphi-network-steam:0.1.0",
+        "ports": [{"container": 8090, "host": 8090}],
+        "environment": {"LOG_LEVEL": "info"},
+        "restart_policy": {"name": "unless-stopped", "maximum_retry_count": 0}
+      },
+      "discovery": {
+        "method": "direct",
+        "inputs": [
+          {"name": "steam_id", "label": "SteamID64", "type": "text", "required": true},
+          {"name": "web_api_key", "label": "Steam Web API key", "type": "password", "secret": true, "required": true}
+        ]
+      }
+    },
+    "windows": {"type": "proxy", "proxy": {"port": 8090}},
+    "macos": {"type": "proxy", "proxy": {"port": 8090}}
+  },
+  "api": {
+    "base_url": "http://127.0.0.1:8090",
+    "endpoints": {
+      "health": "/health",
+      "discover": "/discover",
+      "entities": "/entities",
+      "state": "/state",
+      "command": "/command",
+      "config": "/config",
+      "config_sync": "/configs/sync",
+      "deconfigure": "/deconfigure",
+      "ui_config": "/ui-config",
+      "events": "/events",
+      "diagnostics": "/diagnostics"
+    }
+  },
+  "config": {"source": "endpoint", "endpoint": "/ui-config", "required": true},
+  "identity": {"fields": ["steam_id"]},
+  "capabilities": {
+    "connected": {"kind": "sensor", "unit": "boolean"},
+    "is_online": {"kind": "sensor", "unit": "boolean"},
+    "is_in_game": {"kind": "sensor", "unit": "boolean"},
+    "persona_state": {"kind": "sensor", "unit": "text"},
+    "current_game_name": {"kind": "sensor", "unit": "text"},
+    "owned_game_count": {"kind": "sensor", "unit": "games"},
+    "recent_game_count": {"kind": "sensor", "unit": "games"},
+    "total_playtime_minutes": {"kind": "sensor", "unit": "minutes"},
+    "recent_playtime_minutes": {"kind": "sensor", "unit": "minutes"},
+    "library_visible": {"kind": "sensor", "unit": "boolean"},
+    "recent_games_visible": {"kind": "sensor", "unit": "boolean"},
+    "refresh": {"kind": "action"}
+  },
+  "events": [
+    "steam.game.started",
+    "steam.game.stopped",
+    "steam.game.changed",
+    "steam.persona.changed",
+    "steam.poll.failed"
+  ],
+  "widgets": [{"id": "io.piphi.steam.activity", "path": "widgets/steam-activity/widget.manifest.json"}],
+  "ui": {
+    "widget_packages": [{
+      "id": "io.piphi.steam.activity",
+      "name": "Steam activity",
+      "version": "0.1.0",
+      "entry": "/widgets/steam-activity/dist/widget.js",
+      "runtime": "prebuilt_bundle",
+      "certification": {
+        "verified_gates": ["runtime", "persistence", "binding", "states", "responsive", "themes", "accessibility", "save-reload", "performance"],
+        "evidence": {
+          "runtime": ["core-profile:sandbox-host-v1/runtime"],
+          "persistence": ["core-profile:sandbox-host-v1/persistence"],
+          "binding": ["widgets/steam-activity/test/widget.test.mjs"],
+          "states": ["widgets/steam-activity/test/widget.test.mjs"],
+          "responsive": ["widgets/steam-activity/test/widget.test.mjs"],
+          "themes": ["widgets/steam-activity/test/widget.test.mjs"],
+          "accessibility": ["widgets/steam-activity/test/widget.test.mjs"],
+          "save-reload": ["core-profile:sandbox-host-v1/save-reload"],
+          "performance": ["core-profile:sandbox-host-v1/performance"]
+        }
+      },
+      "binding_modes": ["read"],
+      "value_kinds": ["boolean", "numeric", "text"],
+      "capability_requirements": [
+        "is_online", "is_in_game", "persona_state", "current_game_name",
+        "recent_playtime_minutes", "owned_game_count"
+      ],
+      "sdk_compatibility": {"minimum": "0.5.1"},
+      "settings_schema_version": "1",
+      "settings": [
+        {"id": "title", "type": "text", "label": "Title", "default": "Steam activity"},
+        {"id": "device", "type": "device", "label": "Steam account", "required": true}
+      ],
+      "layout": {"min_height": 230, "default_height": 320, "max_height": 520},
+      "security": {"permissions": [], "sandbox": ["allow-scripts"], "csp": {"connect_src": []}}
+    }]
+  },
+  "marketplace": {
+    "metadata_version": 2,
+    "display_name": "Steam",
+    "summary": "Track Steam presence, current game activity, and visible playtime summaries.",
+    "category": "media",
+    "device_types": ["gaming_account"],
+    "protocols": ["https", "steam_web_api"],
+    "regions": ["WW"],
+    "languages": ["en", "es", "ar"],
+    "discovery_methods": ["account", "manual"],
+    "connectivity": "cloud",
+    "offline_support": "none",
+    "publisher": {
+      "name": "PiPhi Network",
+      "website_url": "https://piphi.io",
+      "support_url": "https://github.com/PiPhi-io/piphi-network-steam/issues",
+      "security_contact": "support@piphi.io"
+    },
+    "access": [
+      {"id": "steam_web_api", "label": "Steam Web API access", "reason": "Reads the configured account's profile, presence, and visible game summaries.", "required": true}
+    ],
+    "compatibility": [{"brand": "Valve", "model": "Steam account"}],
+    "documentation_url": "https://github.com/PiPhi-io/piphi-network-steam",
+    "support_url": "https://github.com/PiPhi-io/piphi-network-steam/issues",
+    "changelog_url": "https://github.com/PiPhi-io/piphi-network-steam/releases",
+    "privacy_url": "https://store.steampowered.com/privacy_agreement/",
+    "quality_tier": "unrated",
+    "governance": {
+      "schema_version": 1,
+      "publication_status": "draft",
+      "rollout_percent": 0,
+      "lifecycle_status": "active",
+      "qualification": {"status": "unverified"}
+    }
+  },
+  "onboarding": {
+    "mode": "account"
+  }
+}

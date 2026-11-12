@@ -1,0 +1,107 @@
+{
+  "id": "io.piphi.plex.server-overview",
+  "name": "Plex server overview",
+  "version": "0.1.10",
+  "entry": "./dist/widget.js",
+  "binding_modes": [
+    "read"
+  ],
+  "value_kinds": [
+    "numeric",
+    "boolean"
+  ],
+  "capability_requirements": [
+    "connected",
+    "server_count",
+    "active_sessions",
+    "transcode_sessions"
+  ],
+  "sdk_compatibility": {
+    "minimum": "0.6.0"
+  },
+  "interaction_targets": [
+    {
+      "id": "server-card",
+      "label": "Plex server overview",
+      "kind": "card",
+      "allowed_actions": [
+        "more-info",
+        "popout",
+        "refresh"
+      ],
+      "default_action": "more-info"
+    },
+    {
+      "id": "connected",
+      "label": "Plex connection",
+      "kind": "binding",
+      "binding_slot_id": "connected",
+      "allowed_actions": [
+        "more-info",
+        "popout"
+      ],
+      "default_action": "more-info"
+    },
+    {
+      "id": "active-sessions",
+      "label": "Active Plex sessions",
+      "kind": "binding",
+      "binding_slot_id": "active-sessions",
+      "allowed_actions": [
+        "more-info",
+        "history",
+        "popout"
+      ],
+      "default_action": "more-info"
+    }
+  ],
+  "settings_schema_version": "1",
+  "conformance": {
+    "accessibility": "wcag2.2-aa",
+    "keyboard": true,
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "directions": [
+      "ltr",
+      "rtl"
+    ],
+    "states": [
+      "loading",
+      "live",
+      "stale",
+      "offline",
+      "reconnecting",
+      "denied",
+      "error"
+    ]
+  },
+  "previews": {
+    "light": "./preview-light.svg",
+    "dark": "./preview-dark.svg"
+  },
+  "settings": [
+    {
+      "id": "title",
+      "type": "text",
+      "label": "Title",
+      "default": "Plex servers"
+    }
+  ],
+  "layout": {
+    "min_height": 96,
+    "default_height": 112,
+    "max_height": 140
+  },
+  "security": {
+    "permissions": [],
+    "sandbox": [
+      "allow-scripts"
+    ],
+    "csp": {
+      "connect_src": []
+    }
+  },
+  "integrity": "sha384-T45FXoOWKG9IMB3kmRwMRjhytkaDcwixigq/1g6YZXwpcScueVahDqAjwkAN5Jmz"
+}

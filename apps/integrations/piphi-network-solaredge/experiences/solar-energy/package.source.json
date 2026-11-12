@@ -1,0 +1,163 @@
+{
+  "schema_version": "1",
+  "identity": {
+    "publisher_id": "io.piphi",
+    "package_id": "solaredge-solar-energy",
+    "version": "0.1.5"
+  },
+  "name": "SolarEdge Solar Energy",
+  "description": "Live site power flow and production totals for SolarEdge Monitoring sites.",
+  "origin": "integration",
+  "owning_integration_id": "piphi-network-solaredge",
+  "sdk_version_range": ">=0.6.1,<0.7",
+  "requires_integrations": [
+    {
+      "integration_id": "piphi-network-solaredge",
+      "version_range": ">=0.2,<1",
+      "optional": false
+    }
+  ],
+  "recommended_for_integrations": ["piphi-network-solaredge"],
+  "widgets": [
+    {
+      "id": "energy-flow",
+      "name": "SolarEdge Energy Flow",
+      "description": "Live solar production, household demand, grid flow, and battery charge at a glance.",
+      "runtime": "declarative",
+      "themes": [
+        {
+          "id": "solaredge",
+          "name": "SolarEdge",
+          "description": "A bright solar-green energy presentation.",
+          "stylesheet": "themes/solaredge.css",
+          "color_scheme": "auto"
+        },
+        {
+          "id": "quiet",
+          "name": "Quiet",
+          "description": "A restrained presentation that blends with Core dashboards.",
+          "stylesheet": "themes/quiet.css",
+          "color_scheme": "auto"
+        }
+      ],
+      "default_theme_id": "solaredge",
+      "presentation": {
+        "contract_version": "1",
+        "shell": "core",
+        "content_surface": "transparent",
+        "typography": "core",
+        "appearance_controls": ["icon", "title", "surface", "opacity", "radius", "shadow"]
+      },
+      "interaction_targets": [
+        {"id": "energy-flow-card", "label": "SolarEdge energy flow", "kind": "card", "allowed_actions": ["more-info", "popout", "refresh"], "default_action": "more-info"},
+        {"id": "production", "label": "Solar production", "kind": "binding", "binding_slot_id": "production", "allowed_actions": ["more-info", "history", "popout"], "default_action": "history"},
+        {"id": "consumption", "label": "Home consumption", "kind": "binding", "binding_slot_id": "consumption", "allowed_actions": ["more-info", "history", "popout"], "default_action": "history"},
+        {"id": "grid", "label": "Grid power", "kind": "binding", "binding_slot_id": "grid", "allowed_actions": ["more-info", "history", "popout"], "default_action": "history"},
+        {"id": "battery-power", "label": "Battery power", "kind": "binding", "binding_slot_id": "battery-power", "allowed_actions": ["more-info", "history", "popout"], "default_action": "history"},
+        {"id": "battery-level", "label": "Battery charge", "kind": "binding", "binding_slot_id": "battery-level", "allowed_actions": ["more-info", "history", "popout"], "default_action": "more-info"},
+        {"id": "connectivity", "label": "SolarEdge connectivity", "kind": "binding", "binding_slot_id": "connectivity", "allowed_actions": ["more-info"], "default_action": "more-info"}
+      ],
+      "core_card_replacements": [
+        {
+          "schema_version": "1",
+          "id": "solaredge-energy-flow-v1",
+          "source_card_types": ["sensor-card", "stat"],
+          "source_capability_ids": ["production_power_w", "consumption_power_w", "grid_power_w"],
+          "strategy": "same-device"
+        }
+      ],
+      "binding_slots": [
+        {"id": "production", "label": "Solar production", "required": true, "binding_modes": ["read"], "value_kinds": ["numeric"], "capability_requirements": ["production_power_w"], "compatible_integration_ids": ["piphi-network-solaredge"], "data_delivery": {"mode": "stream_preferred", "stale_after_seconds": 1200}},
+        {"id": "consumption", "label": "Home consumption", "required": false, "binding_modes": ["read"], "value_kinds": ["numeric"], "capability_requirements": ["consumption_power_w"], "compatible_integration_ids": ["piphi-network-solaredge"], "data_delivery": {"mode": "stream_preferred", "stale_after_seconds": 1200}},
+        {"id": "grid", "label": "Grid power", "required": false, "binding_modes": ["read"], "value_kinds": ["numeric"], "capability_requirements": ["grid_power_w"], "compatible_integration_ids": ["piphi-network-solaredge"], "data_delivery": {"mode": "stream_preferred", "stale_after_seconds": 1200}},
+        {"id": "battery-power", "label": "Battery power", "required": false, "binding_modes": ["read"], "value_kinds": ["numeric"], "capability_requirements": ["battery_power_w"], "compatible_integration_ids": ["piphi-network-solaredge"], "data_delivery": {"mode": "stream_preferred", "stale_after_seconds": 1200}},
+        {"id": "battery-level", "label": "Battery charge", "required": false, "binding_modes": ["read"], "value_kinds": ["numeric"], "capability_requirements": ["battery_soc_percent"], "compatible_integration_ids": ["piphi-network-solaredge"], "data_delivery": {"mode": "stream_preferred", "stale_after_seconds": 1200}},
+        {"id": "connectivity", "label": "Connection", "required": true, "binding_modes": ["read"], "value_kinds": ["boolean"], "capability_requirements": ["connected"], "compatible_integration_ids": ["piphi-network-solaredge"], "data_delivery": {"mode": "stream_preferred", "stale_after_seconds": 1200}}
+      ],
+      "recipe": {
+        "schema_version": "1",
+        "layout": "grid",
+        "columns": 2,
+        "items": [
+          {"type": "metric", "slot_id": "production", "label": "Producing", "format": "number", "domain": "power", "emphasis": "hero", "show_freshness": true, "action": {"type": "details", "label": "View solar production history"}},
+          {"type": "metric", "slot_id": "consumption", "label": "Using", "format": "number", "domain": "power", "show_freshness": false, "action": {"type": "details", "label": "View home consumption history"}},
+          {"type": "metric", "slot_id": "grid", "label": "Grid", "format": "number", "domain": "power", "show_freshness": false, "action": {"type": "details", "label": "View grid power history"}},
+          {"type": "progress", "slot_id": "battery-level", "label": "Battery", "minimum": 0, "maximum": 100, "domain": "battery", "show_value": true, "action": {"type": "details", "label": "View battery charge history"}}
+        ]
+      },
+      "certification": {
+        "schema_version": "1",
+        "verified_gates": ["runtime", "persistence", "binding", "states", "responsive", "themes", "accessibility", "save-reload", "performance"],
+        "evidence": {
+          "runtime": ["core-profile:declarative-v2/runtime"],
+          "persistence": ["core-profile:declarative-v2/persistence"],
+          "binding": ["core-profile:declarative-v2/binding"],
+          "states": ["core-profile:declarative-v2/states"],
+          "responsive": ["core-profile:declarative-v2/responsive"],
+          "themes": ["core-profile:declarative-v2/themes"],
+          "accessibility": ["core-profile:declarative-v2/accessibility"],
+          "save-reload": ["core-profile:declarative-v2/save-reload"],
+          "performance": ["core-profile:declarative-v2/performance"]
+        }
+      },
+      "default_column_span": 6,
+      "default_row_span": 2
+    },
+    {
+      "id": "production-summary",
+      "name": "SolarEdge Production Summary",
+      "description": "Today, month, year, and lifetime solar generation totals.",
+      "runtime": "declarative",
+      "themes": [
+        {"id": "solaredge", "name": "SolarEdge", "description": "A bright solar-green energy presentation.", "stylesheet": "themes/solaredge.css", "color_scheme": "auto"},
+        {"id": "quiet", "name": "Quiet", "description": "A restrained presentation that blends with Core dashboards.", "stylesheet": "themes/quiet.css", "color_scheme": "auto"}
+      ],
+      "default_theme_id": "solaredge",
+      "presentation": {"contract_version": "1", "shell": "core", "content_surface": "transparent", "typography": "core", "appearance_controls": ["icon", "title", "surface", "opacity", "radius", "shadow"]},
+      "interaction_targets": [
+        {"id": "production-summary-card", "label": "SolarEdge production summary", "kind": "card", "allowed_actions": ["more-info", "popout", "refresh"], "default_action": "more-info"},
+        {"id": "today", "label": "Energy produced today", "kind": "binding", "binding_slot_id": "today", "allowed_actions": ["more-info", "history", "popout"], "default_action": "history"},
+        {"id": "month", "label": "Energy produced this month", "kind": "binding", "binding_slot_id": "month", "allowed_actions": ["more-info", "history", "popout"], "default_action": "history"},
+        {"id": "year", "label": "Energy produced this year", "kind": "binding", "binding_slot_id": "year", "allowed_actions": ["more-info", "history", "popout"], "default_action": "history"},
+        {"id": "lifetime", "label": "Lifetime energy production", "kind": "binding", "binding_slot_id": "lifetime", "allowed_actions": ["more-info", "history", "popout"], "default_action": "history"}
+      ],
+      "core_card_replacements": [
+        {"schema_version": "1", "id": "solaredge-production-summary-v1", "source_card_types": ["sensor-card", "stat"], "source_capability_ids": ["today_energy_kwh", "month_energy_kwh", "year_energy_kwh", "lifetime_energy_kwh"], "strategy": "same-device"}
+      ],
+      "binding_slots": [
+        {"id": "today", "label": "Today", "required": true, "binding_modes": ["read"], "value_kinds": ["numeric"], "capability_requirements": ["today_energy_kwh"], "compatible_integration_ids": ["piphi-network-solaredge"], "data_delivery": {"mode": "snapshot", "stale_after_seconds": 7200}},
+        {"id": "month", "label": "This month", "required": true, "binding_modes": ["read"], "value_kinds": ["numeric"], "capability_requirements": ["month_energy_kwh"], "compatible_integration_ids": ["piphi-network-solaredge"], "data_delivery": {"mode": "snapshot", "stale_after_seconds": 7200}},
+        {"id": "year", "label": "This year", "required": true, "binding_modes": ["read"], "value_kinds": ["numeric"], "capability_requirements": ["year_energy_kwh"], "compatible_integration_ids": ["piphi-network-solaredge"], "data_delivery": {"mode": "snapshot", "stale_after_seconds": 7200}},
+        {"id": "lifetime", "label": "Lifetime", "required": true, "binding_modes": ["read"], "value_kinds": ["numeric"], "capability_requirements": ["lifetime_energy_kwh"], "compatible_integration_ids": ["piphi-network-solaredge"], "data_delivery": {"mode": "snapshot", "stale_after_seconds": 7200}}
+      ],
+      "recipe": {
+        "schema_version": "1",
+        "layout": "grid",
+        "columns": 2,
+        "items": [
+          {"type": "metric", "slot_id": "today", "label": "Today", "format": "number", "domain": "energy", "emphasis": "hero", "show_freshness": true, "action": {"type": "details", "label": "View today's production history"}},
+          {"type": "metric", "slot_id": "month", "label": "Month", "format": "number", "domain": "energy", "show_freshness": true, "action": {"type": "details", "label": "View monthly production history"}},
+          {"type": "metric", "slot_id": "year", "label": "Year", "format": "number", "domain": "energy", "show_freshness": true, "action": {"type": "details", "label": "View yearly production history"}},
+          {"type": "metric", "slot_id": "lifetime", "label": "Lifetime", "format": "number", "domain": "energy", "show_freshness": true, "action": {"type": "details", "label": "View lifetime production history"}}
+        ]
+      },
+      "certification": {
+        "schema_version": "1",
+        "verified_gates": ["runtime", "persistence", "binding", "states", "responsive", "themes", "accessibility", "save-reload", "performance"],
+        "evidence": {
+          "runtime": ["core-profile:declarative-v2/runtime"],
+          "persistence": ["core-profile:declarative-v2/persistence"],
+          "binding": ["core-profile:declarative-v2/binding"],
+          "states": ["core-profile:declarative-v2/states"],
+          "responsive": ["core-profile:declarative-v2/responsive"],
+          "themes": ["core-profile:declarative-v2/themes"],
+          "accessibility": ["core-profile:declarative-v2/accessibility"],
+          "save-reload": ["core-profile:declarative-v2/save-reload"],
+          "performance": ["core-profile:declarative-v2/performance"]
+        }
+      },
+      "default_column_span": 6,
+      "default_row_span": 2
+    }
+  ]
+}

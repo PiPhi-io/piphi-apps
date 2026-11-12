@@ -1,0 +1,13 @@
+{
+  "contract_version": "automation.runtime.command.v1",
+  "command": "refresh",
+  "target": {
+    "device_id": "00000000-0031-0101-0000-00007e57c0de",
+    "config_id": "kaiterra-sensedge"
+  },
+  "params": {},
+  "capability": "device.refresh",
+  "capability_requirements": [
+    "device.refresh"
+  ]
+}
