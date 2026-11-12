@@ -1,0 +1,542 @@
+{
+  "devices": [
+    {
+      "id": "gps_receiver",
+      "name": "GPS Receiver",
+      "description": "USB or NMEA compatible GPS receiver",
+      "capabilities": [
+        "latitude",
+        "longitude",
+        "satellites",
+        "speed_knots",
+        "fix_status",
+        "fix_quality",
+        "hdop",
+        "refresh",
+        "rescan_devices"
+      ],
+      "intents": [
+        {
+          "id": "track_motion",
+          "label": "Track movement",
+          "description": "Keep monitoring motion and speed for geofencing"
+        },
+        {
+          "id": "watch_signal_health",
+          "label": "Watch signal health",
+          "description": "Monitor fix quality and GPS reliability"
+        }
+      ],
+      "conditions": [
+        {
+          "id": "speed_above",
+          "label": "Speed above",
+          "type": "number",
+          "params": [
+            {
+              "name": "knots",
+              "label": "Speed threshold",
+              "type": "number",
+              "min": 1,
+              "max": 120,
+              "step": 1,
+              "default": 25,
+              "unit": "kn",
+              "required": true
+            }
+          ],
+          "capability": "sensor.speed_knots",
+          "operators": [
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "speed_knots",
+            "operator": ">"
+          },
+          "freshness": {
+            "maxAgeSeconds": 300,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "low_satellite_count",
+          "label": "Satellite count below",
+          "type": "number",
+          "params": [
+            {
+              "name": "count",
+              "label": "Minimum satellites",
+              "type": "number",
+              "min": 1,
+              "max": 30,
+              "default": 5,
+              "step": 1,
+              "required": true
+            }
+          ],
+          "capability": "sensor.satellites",
+          "operators": [
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "satellites",
+            "operator": "<"
+          },
+          "freshness": {
+            "maxAgeSeconds": 300,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "fix_status_equals",
+          "label": "Fix status is",
+          "type": "enum",
+          "params": [
+            {
+              "name": "status",
+              "label": "Fix status",
+              "type": "enum",
+              "options": [
+                "none",
+                "2d",
+                "3d"
+              ],
+              "default": "none",
+              "required": true
+            }
+          ],
+          "capability": "sensor.fix_status",
+          "operators": [
+            "eq",
+            "neq",
+            "contains"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "fix_status",
+            "operator": "eq"
+          },
+          "freshness": {
+            "maxAgeSeconds": 300,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        }
+      ],
+      "actions": [
+        {
+          "id": "refresh",
+          "label": "Refresh GPS state",
+          "capability": "device.refresh",
+          "runtime": {
+            "command": "refresh"
+          },
+          "targeting": {
+            "fanoutSafe": true,
+            "scopes": [
+              "config",
+              "configs",
+              "room",
+              "rooms",
+              "group",
+              "groups",
+              "selection",
+              "tag",
+              "tags",
+              "capability",
+              "all_matching"
+            ],
+            "supportsMultiTarget": true
+          },
+          "failure": {
+            "strategy": "retry_then_continue",
+            "retry": {
+              "maxAttempts": 1,
+              "delaySeconds": 2,
+              "backoff": "fixed"
+            },
+            "timeoutSeconds": 30,
+            "continueOnPartialFailure": true,
+            "idempotent": true
+          },
+          "ui": {
+            "group": "do_this"
+          },
+          "safety": {
+            "riskLevel": "low"
+          }
+        },
+        {
+          "id": "rescan_devices",
+          "label": "Rescan serial devices",
+          "capability": "action.rescan_devices",
+          "runtime": {
+            "command": "rescan_devices"
+          },
+          "targeting": {
+            "fanoutSafe": true,
+            "scopes": [
+              "config",
+              "configs",
+              "room",
+              "rooms",
+              "group",
+              "groups",
+              "selection",
+              "tag",
+              "tags",
+              "capability",
+              "all_matching"
+            ],
+            "supportsMultiTarget": true
+          },
+          "failure": {
+            "strategy": "retry_then_continue",
+            "retry": {
+              "maxAttempts": 1,
+              "delaySeconds": 2,
+              "backoff": "fixed"
+            },
+            "timeoutSeconds": 30,
+            "continueOnPartialFailure": true,
+            "idempotent": true
+          },
+          "ui": {
+            "group": "do_this"
+          },
+          "safety": {
+            "riskLevel": "low"
+          }
+        },
+        {
+          "id": "notify",
+          "label": "Send location alert",
+          "params": [
+            {
+              "name": "message",
+              "label": "Alert message",
+              "type": "text",
+              "default": "GPS event detected",
+              "required": true
+            },
+            {
+              "name": "channel",
+              "label": "Delivery channel",
+              "type": "enum",
+              "options": [
+                "in_app",
+                "email",
+                "sms"
+              ],
+              "default": "in_app",
+              "required": true
+            }
+          ],
+          "capability": "notification.send",
+          "runtime": {
+            "command": "notify"
+          },
+          "targeting": {
+            "fanoutSafe": true,
+            "scopes": [
+              "config",
+              "configs",
+              "room",
+              "rooms",
+              "group",
+              "groups",
+              "selection",
+              "tag",
+              "tags",
+              "capability",
+              "all_matching"
+            ],
+            "supportsMultiTarget": true
+          },
+          "failure": {
+            "strategy": "retry_then_continue",
+            "retry": {
+              "maxAttempts": 1,
+              "delaySeconds": 2,
+              "backoff": "fixed"
+            },
+            "timeoutSeconds": 30,
+            "continueOnPartialFailure": true,
+            "idempotent": true
+          },
+          "ui": {
+            "group": "do_this"
+          },
+          "safety": {
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "stop": [
+        {
+          "id": "after_duration",
+          "label": "After duration",
+          "type": "duration",
+          "params": [
+            {
+              "name": "duration",
+              "label": "Tracking duration",
+              "type": "duration",
+              "default": "2h",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "manualOverride": [
+        {
+          "id": "continue",
+          "label": "Continue automation"
+        },
+        {
+          "id": "pause",
+          "label": "Pause automation",
+          "params": [
+            {
+              "name": "duration",
+              "label": "Pause duration",
+              "type": "duration",
+              "default": "15m",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "deviceClass": "location_sensor",
+      "entityType": "sensor",
+      "targeting": {
+        "scopes": [
+          "config",
+          "configs",
+          "room",
+          "rooms",
+          "group",
+          "groups",
+          "selection",
+          "tag",
+          "tags",
+          "capability",
+          "all_matching"
+        ],
+        "fanout": {
+          "supported": true,
+          "defaultMode": "selection",
+          "allowedModes": [
+            "config",
+            "configs",
+            "room",
+            "rooms",
+            "group",
+            "groups",
+            "tag",
+            "tags",
+            "capability",
+            "selection",
+            "all_matching"
+          ]
+        }
+      },
+      "freshness": {
+        "maxAgeSeconds": 300,
+        "staleDataMode": "block"
+      },
+      "ui": {
+        "icon": "map-pin",
+        "category": "location_sensor"
+      },
+      "triggers": [
+        {
+          "id": "state_changed",
+          "label": "Device updates",
+          "description": "Start when this device reports a new state.",
+          "capability": "telemetry.state",
+          "runtime": {
+            "event": "device.state_changed",
+            "source": "integration"
+          },
+          "freshness": {
+            "maxAgeSeconds": 300,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "when"
+          }
+        }
+      ]
+    }
+  ],
+  "templates": [
+    {
+      "id": "gps_signal_health_alert",
+      "label": "Tell me when GPS signal looks weak",
+      "description": "Watches GPS updates and sends a notification when satellite count drops below a safe threshold.",
+      "category": "Location",
+      "deviceKey": "gps_receiver",
+      "config": {
+        "automation_schema_version": "automation.behavior.v2",
+        "triggers": [
+          {
+            "id": "state_changed",
+            "label": "GPS receiver updates",
+            "type": "integration_event",
+            "event": "device.state_changed",
+            "capability": "telemetry.state",
+            "enabled": true,
+            "sourceRef": {
+              "integrationId": "{{integrationId}}",
+              "integrationKey": "{{integrationKey}}",
+              "configId": "{{configId}}",
+              "behaviorDeviceKey": "gps_receiver",
+              "optionKey": "state_changed",
+              "capability": "telemetry.state"
+            }
+          }
+        ],
+        "trigger": {
+          "id": "state_changed",
+          "label": "GPS receiver updates",
+          "type": "integration_event",
+          "event": "device.state_changed",
+          "capability": "telemetry.state",
+          "enabled": true
+        },
+        "intent": "watch_signal_health",
+        "conditionTree": {
+          "id": "low_satellite_count",
+          "label": "Satellite count is below 5",
+          "field": "satellites",
+          "operator": "<",
+          "value": 5,
+          "sourceRef": {
+            "integrationId": "{{integrationId}}",
+            "integrationKey": "{{integrationKey}}",
+            "configId": "{{configId}}",
+            "behaviorDeviceKey": "gps_receiver",
+            "optionKey": "low_satellite_count",
+            "capability": "sensor.satellites"
+          }
+        },
+        "actions": [
+          {
+            "id": "send_notification",
+            "label": "Send notification",
+            "action": "notify",
+            "capability": "notification.send",
+            "sourceRef": {
+              "integrationId": "{{integrationId}}",
+              "integrationKey": "{{integrationKey}}",
+              "configId": "{{configId}}",
+              "behaviorDeviceKey": "gps_receiver",
+              "optionKey": "notify",
+              "capability": "notification.send"
+            },
+            "target": {
+              "mode": "selection",
+              "configIds": [
+                "{{configId}}"
+              ]
+            },
+            "parameters": {
+              "message": "GPS satellite count is low. Location accuracy may be reduced.",
+              "channel": "in_app"
+            },
+            "failure": {
+              "strategy": "retry_then_continue",
+              "retry": {
+                "maxAttempts": 2,
+                "delaySeconds": 2,
+                "timeoutSeconds": 10,
+                "backoff": "fixed"
+              },
+              "continueOnPartialFailure": true
+            }
+          }
+        ],
+        "safety": {
+          "staleDataMode": "block",
+          "maxAgeSeconds": 300,
+          "requireFreshTrigger": true,
+          "dryRunFirst": false
+        },
+        "failure": {
+          "strategy": "follow_edges",
+          "fallbackBehaviorId": "",
+          "conditionTree": {
+            "op": "and",
+            "children": []
+          }
+        },
+        "stop": {
+          "never": true
+        },
+        "override": {
+          "mode": "continue"
+        }
+      },
+      "ui": {
+        "accent": "location",
+        "icon": "map-pin"
+      },
+      "metadata": {
+        "recommended": true,
+        "difficulty": "easy"
+      }
+    }
+  ],
+  "behaviorSchemaVersion": "integration.behaviors.v2",
+  "telemetry": {
+    "capabilityMappings": [
+      {
+        "nativeMetric": "fix_quality",
+        "capability": "sensor.fix_quality"
+      },
+      {
+        "nativeMetric": "fix_status",
+        "capability": "sensor.fix_status"
+      },
+      {
+        "nativeMetric": "hdop",
+        "capability": "sensor.hdop"
+      },
+      {
+        "nativeMetric": "latitude",
+        "capability": "sensor.latitude"
+      },
+      {
+        "nativeMetric": "longitude",
+        "capability": "sensor.longitude"
+      },
+      {
+        "nativeMetric": "satellites",
+        "capability": "sensor.satellites"
+      },
+      {
+        "nativeMetric": "speed_knots",
+        "capability": "sensor.speed_knots"
+      }
+    ]
+  }
+}

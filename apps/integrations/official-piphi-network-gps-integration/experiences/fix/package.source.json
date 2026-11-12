@@ -1,0 +1,388 @@
+{
+  "schema_version": "1",
+  "identity": {
+    "publisher_id": "io.piphi",
+    "package_id": "gps-fix",
+    "version": "1.1.1"
+  },
+  "name": "GPS Fix",
+  "description": "Native read-only dashboard views for GPS Fix.",
+  "origin": "integration",
+  "owning_integration_id": "official-usb-gps-integration",
+  "sdk_version_range": ">=0.6.1,<0.7",
+  "requires_integrations": [
+    {
+      "integration_id": "official-usb-gps-integration",
+      "version_range": ">=1,<2",
+      "optional": false
+    }
+  ],
+  "recommended_for_integrations": [
+    "official-usb-gps-integration"
+  ],
+  "widgets": [
+    {
+      "id": "fix-overview",
+      "name": "GPS Fix",
+      "description": "Fix quality, satellites, accuracy, and movement from the connected receiver",
+      "runtime": "declarative",
+      "presentation": {
+        "contract_version": "1",
+        "shell": "core",
+        "content_surface": "transparent",
+        "typography": "core",
+        "appearance_controls": [
+          "icon",
+          "title",
+          "surface",
+          "opacity",
+          "radius",
+          "shadow"
+        ]
+      },
+      "interaction_targets": [
+        {
+          "id": "card",
+          "label": "GPS Fix",
+          "kind": "card",
+          "allowed_actions": [
+            "more-info",
+            "popout",
+            "refresh"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "fix_status",
+          "label": "Fix status",
+          "kind": "binding",
+          "binding_slot_id": "fix_status",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "satellites",
+          "label": "Satellites",
+          "kind": "binding",
+          "binding_slot_id": "satellites",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "fix_quality",
+          "label": "Fix quality",
+          "kind": "binding",
+          "binding_slot_id": "fix_quality",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "hdop",
+          "label": "Accuracy (HDOP)",
+          "kind": "binding",
+          "binding_slot_id": "hdop",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "speed_knots",
+          "label": "Speed",
+          "kind": "binding",
+          "binding_slot_id": "speed_knots",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        }
+      ],
+      "binding_slots": [
+        {
+          "id": "fix_status",
+          "label": "Fix status",
+          "required": true,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "fix_status"
+          ],
+          "compatible_integration_ids": [
+            "official-usb-gps-integration"
+          ]
+        },
+        {
+          "id": "satellites",
+          "label": "Satellites",
+          "required": false,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "satellites"
+          ],
+          "compatible_integration_ids": [
+            "official-usb-gps-integration"
+          ]
+        },
+        {
+          "id": "fix_quality",
+          "label": "Fix quality",
+          "required": false,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "fix_quality"
+          ],
+          "compatible_integration_ids": [
+            "official-usb-gps-integration"
+          ]
+        },
+        {
+          "id": "hdop",
+          "label": "Accuracy (HDOP)",
+          "required": false,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "hdop"
+          ],
+          "compatible_integration_ids": [
+            "official-usb-gps-integration"
+          ]
+        },
+        {
+          "id": "speed_knots",
+          "label": "Speed",
+          "required": false,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "speed_knots"
+          ],
+          "compatible_integration_ids": [
+            "official-usb-gps-integration"
+          ]
+        }
+      ],
+      "recipe": {
+        "schema_version": "1",
+        "layout": "grid",
+        "columns": 2,
+        "items": [
+          {
+            "type": "metric",
+            "slot_id": "fix_status",
+            "label": "Fix status",
+            "action": {
+              "type": "details",
+              "label": "View fix status details"
+            }
+          },
+          {
+            "type": "metric",
+            "slot_id": "satellites",
+            "label": "Satellites",
+            "action": {
+              "type": "details",
+              "label": "View satellites details"
+            }
+          },
+          {
+            "type": "metric",
+            "slot_id": "fix_quality",
+            "label": "Fix quality",
+            "action": {
+              "type": "details",
+              "label": "View fix quality details"
+            }
+          },
+          {
+            "type": "metric",
+            "slot_id": "hdop",
+            "label": "Accuracy (HDOP)",
+            "action": {
+              "type": "details",
+              "label": "View accuracy (hdop) details"
+            }
+          },
+          {
+            "type": "metric",
+            "slot_id": "speed_knots",
+            "label": "Speed",
+            "action": {
+              "type": "details",
+              "label": "View speed details"
+            }
+          }
+        ]
+      },
+      "certification": {
+        "schema_version": "1",
+        "verified_gates": ["runtime", "persistence", "binding", "states", "responsive", "themes", "accessibility", "save-reload", "performance"],
+        "evidence": {
+          "runtime": ["core-profile:declarative-v2/runtime"],
+          "persistence": ["core-profile:declarative-v2/persistence"],
+          "binding": ["core-profile:declarative-v2/binding"],
+          "states": ["core-profile:declarative-v2/states"],
+          "responsive": ["core-profile:declarative-v2/responsive"],
+          "themes": ["core-profile:declarative-v2/themes"],
+          "accessibility": ["core-profile:declarative-v2/accessibility"],
+          "save-reload": ["core-profile:declarative-v2/save-reload"],
+          "performance": ["core-profile:declarative-v2/performance"]
+        }
+      },
+      "default_column_span": 4,
+      "default_row_span": 3
+    },
+    {
+      "id": "coordinates",
+      "name": "GPS Coordinates",
+      "description": "Latitude and longitude from the receiver",
+      "runtime": "declarative",
+      "presentation": {
+        "contract_version": "1",
+        "shell": "core",
+        "content_surface": "transparent",
+        "typography": "core",
+        "appearance_controls": [
+          "icon",
+          "title",
+          "surface",
+          "opacity",
+          "radius",
+          "shadow"
+        ]
+      },
+      "interaction_targets": [
+        {
+          "id": "card",
+          "label": "GPS Coordinates",
+          "kind": "card",
+          "allowed_actions": [
+            "more-info",
+            "popout",
+            "refresh"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "latitude",
+          "label": "Latitude",
+          "kind": "binding",
+          "binding_slot_id": "latitude",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        },
+        {
+          "id": "longitude",
+          "label": "Longitude",
+          "kind": "binding",
+          "binding_slot_id": "longitude",
+          "allowed_actions": [
+            "more-info",
+            "history",
+            "popout"
+          ],
+          "default_action": "more-info"
+        }
+      ],
+      "binding_slots": [
+        {
+          "id": "latitude",
+          "label": "Latitude",
+          "required": true,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "latitude"
+          ],
+          "compatible_integration_ids": [
+            "official-usb-gps-integration"
+          ]
+        },
+        {
+          "id": "longitude",
+          "label": "Longitude",
+          "required": false,
+          "binding_modes": [
+            "read"
+          ],
+          "capability_requirements": [
+            "longitude"
+          ],
+          "compatible_integration_ids": [
+            "official-usb-gps-integration"
+          ]
+        }
+      ],
+      "recipe": {
+        "schema_version": "1",
+        "layout": "grid",
+        "columns": 2,
+        "items": [
+          {
+            "type": "metric",
+            "slot_id": "latitude",
+            "label": "Latitude",
+            "action": {
+              "type": "details",
+              "label": "View latitude details"
+            }
+          },
+          {
+            "type": "metric",
+            "slot_id": "longitude",
+            "label": "Longitude",
+            "action": {
+              "type": "details",
+              "label": "View longitude details"
+            }
+          }
+        ]
+      },
+      "certification": {
+        "schema_version": "1",
+        "verified_gates": ["runtime", "persistence", "binding", "states", "responsive", "themes", "accessibility", "save-reload", "performance"],
+        "evidence": {
+          "runtime": ["core-profile:declarative-v2/runtime"],
+          "persistence": ["core-profile:declarative-v2/persistence"],
+          "binding": ["core-profile:declarative-v2/binding"],
+          "states": ["core-profile:declarative-v2/states"],
+          "responsive": ["core-profile:declarative-v2/responsive"],
+          "themes": ["core-profile:declarative-v2/themes"],
+          "accessibility": ["core-profile:declarative-v2/accessibility"],
+          "save-reload": ["core-profile:declarative-v2/save-reload"],
+          "performance": ["core-profile:declarative-v2/performance"]
+        }
+      },
+      "default_column_span": 4,
+      "default_row_span": 2
+    }
+  ]
+}

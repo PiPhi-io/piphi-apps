@@ -1,0 +1,135 @@
+name: Release GPS integration to Docker Hub
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: Semantic version action
+        required: true
+        default: patch
+        type: choice
+        options: [patch, minor, major, custom]
+      custom_version:
+        description: Explicit version when release_type is custom
+        required: false
+        type: string
+      push_latest:
+        description: Also publish latest
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: gps-release-${{ github.event.repository.full_name }}
+  cancel-in-progress: false
+
+env:
+  RELEASE_IMAGE: piphinetwork/official-gps-integration
+  DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_USERNAME || secrets.DOCKER_USERNAME }}
+  DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN != '' && secrets.DOCKERHUB_TOKEN || secrets.DOCKER_PASSWORD }}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Require default branch
+        run: |
+          if [[ "${GITHUB_REF_NAME}" != "${{ github.event.repository.default_branch }}" ]]; then
+            echo "Releases must run from the default branch." >&2
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install and test
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile
+          pnpm run check
+          pnpm test
+          docker build -f dockerfile -t gps-release-smoke .
+
+      - name: Resolve release version
+        id: version
+        run: |
+          if [[ "${{ inputs.release_type }}" == "custom" ]]; then
+            [[ -n "${{ inputs.custom_version }}" ]] || { echo "custom_version is required" >&2; exit 1; }
+            NEXT="${{ inputs.custom_version }}"
+          else
+            NEXT="${{ inputs.release_type }}"
+          fi
+          pnpm version "$NEXT" --no-git-tag-version
+          VERSION=$(node -p "JSON.parse(require('fs').readFileSync('package.json')).version")
+          VERSION="$VERSION" RELEASE_IMAGE="$RELEASE_IMAGE" node --input-type=module -e '
+            import fs from "node:fs";
+            const path = "src/manifest.json";
+            const manifest = JSON.parse(fs.readFileSync(path, "utf8"));
+            const image = `${process.env.RELEASE_IMAGE}:${process.env.VERSION}`;
+            manifest.version = process.env.VERSION;
+            manifest.image = image;
+            manifest.runtime.linux.container.image = image;
+            fs.writeFileSync(path, `${JSON.stringify(manifest, null, 2)}\n`);
+          '
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Validate release policy
+        run: |
+          TAG="v${{ steps.version.outputs.version }}"
+          ! git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1 || { echo "$TAG already exists" >&2; exit 1; }
+          [[ -n "${DOCKERHUB_USERNAME}" && -n "${DOCKERHUB_TOKEN}" ]] || { echo "Docker Hub credentials are missing" >&2; exit 1; }
+
+      - name: Commit release metadata
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json pnpm-lock.yaml src/manifest.json
+          git commit -m "release: v${{ steps.version.outputs.version }}"
+          git tag "v${{ steps.version.outputs.version }}"
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ env.DOCKERHUB_USERNAME }}
+          password: ${{ env.DOCKERHUB_TOKEN }}
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Prepare image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.RELEASE_IMAGE }}
+          tags: |
+            type=raw,value=${{ steps.version.outputs.version }}
+            type=raw,value=latest,enable=${{ inputs.push_latest }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Publish release revision
+        run: |
+          git push origin HEAD:${GITHUB_REF_NAME}
+          git push origin "v${{ steps.version.outputs.version }}"
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          generate_release_notes: true
+          name: v${{ steps.version.outputs.version }}

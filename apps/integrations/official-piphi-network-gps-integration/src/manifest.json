@@ -1,0 +1,197 @@
+{
+  "manifest_version": "1.0",
+  "id": "official-usb-gps-integration",
+  "name": "Official PiPhi Network GPS Integration",
+  "version": "1.1.2",
+  "description": "Integration for USB and NMEA-compatible GPS receivers connected through a serial device path.",
+  "maintainer": {
+    "name": "PiPhi Network",
+    "website": "https://piphi.io"
+  },
+  "image": "piphinetwork/official-gps-integration:1.1.2",
+  "platforms": [
+    "linux"
+  ],
+  "runtime": {
+    "linux": {
+      "type": "container",
+      "container": {
+        "image": "piphinetwork/official-gps-integration:1.1.2",
+        "ports": [
+          {
+            "container": 3080,
+            "host": 3080
+          }
+        ],
+        "environment": {
+          "LOG_LEVEL": "info"
+        },
+        "volumes": [
+          {
+            "host": "/data/gps",
+            "container": "/app/gps",
+            "mode": "rw"
+          }
+        ],
+        "restart_policy": {
+          "name": "unless-stopped",
+          "maximum_retry_count": 0
+        },
+        "privileged": true
+      },
+      "discovery": {
+        "method": "serial"
+      }
+    }
+  },
+  "api": {
+    "endpoints": {
+      "health": "/health",
+      "config": "/config",
+      "config_sync": "/config/sync",
+      "ui_config": "/ui",
+      "discover": "/discovery",
+      "deconfigure": "/deconfigure",
+      "entities": "/entities",
+      "state": "/state",
+      "command": "/command",
+      "diagnostics": "/diagnostics",
+      "events": "/events"
+    }
+  },
+  "config": {
+    "source": "endpoint",
+    "endpoint": "/ui",
+    "required": true,
+    "defaults": {},
+    "editable_fields": [
+      "path"
+    ],
+    "runtime_fields": [
+      "id",
+      "container_id"
+    ],
+    "identity_fields": [
+      "path"
+    ],
+    "secrets": [],
+    "schema": {
+      "title": "USB GPS Integration Configuration",
+      "description": "Configuration for USB and NMEA serial GPS integration.",
+      "type": "object",
+      "required": [
+        "path"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "title": "GPS Device Path",
+          "description": "USB GPS or NMEA serial device path/address"
+        }
+      }
+    }
+  },
+  "identity": {
+    "fields": [
+      "path"
+    ]
+  },
+  "capabilities": {
+    "latitude": {
+      "kind": "sensor",
+      "unit": "degrees"
+    },
+    "longitude": {
+      "kind": "sensor",
+      "unit": "degrees"
+    },
+    "satellites": {
+      "kind": "sensor",
+      "unit": "count"
+    },
+    "speed_knots": {
+      "kind": "sensor",
+      "unit": "kn"
+    },
+    "fix_status": {
+      "kind": "sensor"
+    },
+    "fix_quality": {
+      "kind": "sensor"
+    },
+    "hdop": {
+      "kind": "sensor",
+      "unit": "ratio"
+    },
+    "refresh": {
+      "kind": "action"
+    },
+    "rescan_devices": {
+      "kind": "action"
+    }
+  },
+  "commands": {
+    "refresh": {
+      "description": "Refresh runtime status for a configured GPS device",
+      "timeout_ms": 5000
+    },
+    "rescan_devices": {
+      "description": "Rescan connected GPS serial devices",
+      "timeout_ms": 5000
+    }
+  },
+  "entities": [
+    {
+      "id": "latitude",
+      "name": "Latitude",
+      "capabilities": [
+        "latitude"
+      ]
+    },
+    {
+      "id": "longitude",
+      "name": "Longitude",
+      "capabilities": [
+        "longitude"
+      ]
+    },
+    {
+      "id": "satellites",
+      "name": "Satellites",
+      "capabilities": [
+        "satellites"
+      ]
+    },
+    {
+      "id": "speed_knots",
+      "name": "Speed",
+      "capabilities": [
+        "speed_knots"
+      ]
+    },
+    {
+      "id": "fix_status",
+      "name": "Fix Status",
+      "capabilities": [
+        "fix_status"
+      ]
+    },
+    {
+      "id": "fix_quality",
+      "name": "Fix Quality",
+      "capabilities": [
+        "fix_quality"
+      ]
+    },
+    {
+      "id": "hdop",
+      "name": "HDOP",
+      "capabilities": [
+        "hdop"
+      ]
+    }
+  ],
+  "onboarding": {
+    "mode": "discovery"
+  }
+}
