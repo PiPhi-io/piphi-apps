@@ -12,7 +12,6 @@ function renderPasswordConfig(config: BrokerConfig): string[] {
     "password_file " + config.passwordFile,
   ];
 }
-
 export function renderMosquittoConfig(config: BrokerConfig): string {
   const lines = [
     "listener " + config.port + " " + config.host,
@@ -31,4 +30,3 @@ export async function writeMosquittoConfig(config: BrokerConfig): Promise<void> 
   await mkdir(dirname(config.configOutputPath), { recursive: true });
   await writeFile(config.configOutputPath, renderMosquittoConfig(config), "utf8");
 }
-

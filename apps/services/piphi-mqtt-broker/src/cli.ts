@@ -32,4 +32,3 @@ main().catch((error: unknown) => {
   process.stderr.write(message + "\n");
   process.exitCode = 1;
 });
-
