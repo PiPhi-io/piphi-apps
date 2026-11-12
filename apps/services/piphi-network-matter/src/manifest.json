@@ -1,0 +1,56 @@
+{
+  "manifest_version": "1.0",
+  "kind": "platform_service",
+  "id": "piphi.service.matter-sidecar",
+  "name": "Matter Sidecar",
+  "version": "0.2.0-alpha.3",
+  "platforms": [
+    "linux"
+  ],
+  "runtime": {
+    "linux": {
+      "type": "container",
+      "container": {
+        "image": "piphinetwork/matter-sidecar:0.2.0-alpha.3",
+        "ports": [
+          {
+            "container": 8710
+          }
+        ],
+        "network_mode": "host",
+        "privileged": false,
+        "environment": {
+          "MATTER_STORAGE_DIR": "/var/lib/piphi/matter",
+          "MATTER_API_HOST": "127.0.0.1",
+          "MATTER_MANAGE_BACKEND": "true",
+          "MATTER_ENABLE_BLE": "false"
+        }
+      }
+    }
+  },
+  "api": {
+    "endpoints": {
+      "health": "/health",
+      "snapshot": "/v1/snapshot",
+      "entities": "/entities",
+      "discover": "/v1/devices/discover",
+      "commissionables": "/v1/discovery/commissionables",
+      "registry": "/v1/registry",
+      "commission_code": "/v1/commission/code",
+      "configs": "/v1/configs",
+      "telemetry_poll": "/v1/telemetry/poll",
+      "events": "/v1/events",
+      "command_invoke": "/v1/commands/invoke",
+      "wifi_credentials": "/v1/credentials/wifi",
+      "thread_credentials": "/v1/credentials/thread"
+    }
+  },
+  "onboarding": {
+    "mode": "service"
+  },
+  "runtime_contract": {
+    "version": 1,
+    "port_binding": "core_allocated",
+    "port_env": "PORT"
+  }
+}

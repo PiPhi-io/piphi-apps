@@ -1,0 +1,26 @@
+{
+  "schema_version": "1.0",
+  "source": "Matter 1.6 via matterjs-server 1.4.0 / matter.js 0.17.9",
+  "capabilities": [
+    { "id": "connected", "kind": "state", "status": "implemented", "scope": "all commissioned endpoints", "source": "Matter node availability" },
+    { "id": "switch_on", "kind": "state", "status": "implemented", "scope": "On/Off cluster", "source": "6/0" },
+    { "id": "brightness_percent", "kind": "state", "status": "implemented", "scope": "Level Control cluster", "source": "8/0", "unit": "%" },
+    { "id": "temperature_c", "kind": "telemetry", "status": "implemented", "scope": "Temperature Measurement cluster", "source": "1026/0", "unit": "degC" },
+    { "id": "humidity_percent", "kind": "telemetry", "status": "implemented", "scope": "Relative Humidity Measurement cluster", "source": "1029/0", "unit": "%" },
+    { "id": "battery_percent", "kind": "telemetry", "status": "implemented", "scope": "Power Source cluster", "source": "47/12", "unit": "%" },
+    { "id": "contact_open", "kind": "state", "status": "implemented", "scope": "Contact Sensor device type with Boolean State cluster", "source": "69/0" },
+    { "id": "occupancy_detected", "kind": "state", "status": "implemented", "scope": "Occupancy Sensing cluster", "source": "1030/0" },
+    { "id": "illuminance_raw", "kind": "telemetry", "status": "implemented", "scope": "Illuminance Measurement cluster", "source": "1024/0", "unit": "matter_encoded_lux" },
+    { "id": "refresh", "kind": "action", "status": "implemented", "scope": "all commissioned endpoints", "risk": "read_only" },
+    { "id": "turn_on", "kind": "action", "status": "implemented", "scope": "On/Off cluster", "risk": "bounded_mutation", "idempotent": true },
+    { "id": "turn_off", "kind": "action", "status": "implemented", "scope": "On/Off cluster", "risk": "bounded_mutation", "idempotent": true },
+    { "id": "toggle", "kind": "action", "status": "implemented", "scope": "On/Off cluster", "risk": "bounded_mutation", "idempotent": false },
+    { "id": "matter_event", "kind": "event", "status": "implemented", "scope": "subscribed Matter events", "source": "matterjs-server node_event" },
+    { "id": "set_brightness", "kind": "action", "status": "planned", "scope": "Level Control cluster", "reason": "Requires boundary and transition-time contract" },
+    { "id": "thermostat", "kind": "state_action", "status": "planned", "scope": "Thermostat cluster", "reason": "Requires mode-specific feature negotiation" },
+    { "id": "door_lock", "kind": "state_action", "status": "planned", "scope": "Door Lock cluster", "reason": "High-risk action requires confirmation and credential policy" },
+    { "id": "color_control", "kind": "state_action", "status": "planned", "scope": "Color Control cluster", "reason": "Requires color-mode normalization" },
+    { "id": "ota_management", "kind": "administration", "status": "planned", "scope": "OTA Requestor", "reason": "Disabled for the initial least-privilege release" },
+    { "id": "arbitrary_cluster_invoke", "kind": "action", "status": "excluded", "scope": "all clusters", "reason": "Fails closed; arbitrary Matter commands bypass PiPhi safety review" }
+  ]
+}
