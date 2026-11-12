@@ -1,0 +1,10 @@
+{
+  "catalog_version": "1.0", "widget_id": "io.piphi.widget.calendar-agenda", "reviewed_at": "2026-09-07",
+  "sources": {"widget_sdk": "PiPhi Widget SDK 0.4.0 public host contract", "calendar_contract": "https://developers.home-assistant.io/docs/core/entity/calendar/"},
+  "rows": [
+    {"id": "agenda-data", "status": "implemented", "consumes": ["calendar_events", "calendar_active", "calendar_name", "timezone", "last_updated_at"], "interactions": ["select_event"], "states": ["loading", "empty", "live", "stale", "offline", "reconnecting", "denied", "error"], "reason": "Normalized timed/all-day agenda rendering and local selection are implemented through the public host."},
+    {"id": "presentation-accessibility", "status": "implemented", "consumes": [], "interactions": ["keyboard_navigation", "focus_visible"], "states": ["responsive", "light_theme", "dark_theme", "rtl", "reduced_motion"], "reason": "CSS and semantic markup implement adaptive, themed, RTL-safe, reduced-motion presentation."},
+    {"id": "calendar-mutation", "status": "excluded", "consumes": [], "interactions": ["create_event", "update_event", "delete_event", "respond_to_invitation"], "states": [], "reason": "This widget is monitoring-first and requests no command permission."},
+    {"id": "external-content", "status": "excluded", "consumes": [], "interactions": ["open_arbitrary_url", "load_remote_attachment"], "states": [], "reason": "Network access and arbitrary navigation are unnecessary and disallowed."}
+  ]
+}

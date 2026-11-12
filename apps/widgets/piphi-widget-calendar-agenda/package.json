@@ -1,0 +1,9 @@
+{
+  "name": "piphi-widget-calendar-agenda",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {"build": "mkdir -p dist && cp -R src/. dist/", "dev": "piphi-widget dev", "validate": "piphi-widget validate", "conformance": "piphi-widget conformance", "test": "node --test test/*.test.mjs", "pack": "piphi-widget pack"},
+  "dependencies": {"piphi-network-widget-sdk": "^0.4.0"},
+  "engines": {"node": ">=22"}
+}

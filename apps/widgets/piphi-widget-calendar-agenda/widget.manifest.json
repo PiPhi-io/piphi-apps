@@ -1,0 +1,177 @@
+{
+  "id": "io.piphi.widget.calendar-agenda",
+  "name": "Calendar & agenda",
+  "description": "Accessible multi-calendar agenda with timezone-safe timed and all-day events.",
+  "version": "0.1.0",
+  "entry": "./dist/widget.js",
+  "binding_modes": [
+    "read"
+  ],
+  "value_kinds": [
+    "json",
+    "text",
+    "boolean"
+  ],
+  "capability_requirements": [
+    "calendar_events",
+    "calendar_active",
+    "calendar_name",
+    "timezone",
+    "last_updated_at"
+  ],
+  "sdk_compatibility": {
+    "minimum": "0.4.0"
+  },
+  "conformance": {
+    "accessibility": "wcag2.2-aa",
+    "keyboard": true,
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "directions": [
+      "ltr",
+      "rtl"
+    ],
+    "states": [
+      "loading",
+      "live",
+      "stale",
+      "offline",
+      "reconnecting",
+      "denied",
+      "error"
+    ]
+  },
+  "settings_schema_version": "1",
+  "settings": [
+    {
+      "id": "title",
+      "type": "text",
+      "label": "Title",
+      "default": "Agenda"
+    },
+    {
+      "id": "calendars",
+      "type": "devices",
+      "label": "Calendars",
+      "required": true
+    },
+    {
+      "id": "days",
+      "type": "select",
+      "label": "Days to show",
+      "default": 7,
+      "options": [
+        {
+          "label": "3 days",
+          "value": 3
+        },
+        {
+          "label": "7 days",
+          "value": 7
+        },
+        {
+          "label": "14 days",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "id": "show_location",
+      "type": "boolean",
+      "label": "Show location",
+      "default": true
+    },
+    {
+      "id": "compact",
+      "type": "boolean",
+      "label": "Compact rows",
+      "default": false
+    }
+  ],
+  "layout": {
+    "min_height": 220,
+    "default_height": 420,
+    "max_height": 760
+  },
+  "previews": {
+    "light": "./previews/light.svg",
+    "dark": "./previews/dark.svg"
+  },
+  "translations": {
+    "en": {
+      "widget.title": "Agenda",
+      "widget.waiting": "Waiting for calendar events",
+      "widget.empty": "No events in this range",
+      "widget.all_day": "All day"
+    },
+    "es": {
+      "widget.title": "Agenda",
+      "widget.waiting": "Esperando eventos del calendario",
+      "widget.empty": "No hay eventos en este intervalo",
+      "widget.all_day": "Todo el día"
+    },
+    "ar": {
+      "widget.title": "جدول الأعمال",
+      "widget.waiting": "في انتظار أحداث التقويم",
+      "widget.empty": "لا توجد أحداث في هذه الفترة",
+      "widget.all_day": "طوال اليوم"
+    }
+  },
+  "security": {
+    "permissions": [],
+    "sandbox": [
+      "allow-scripts"
+    ],
+    "csp": {
+      "connect_src": []
+    }
+  },
+  "integrity": "sha256-2x3rUb1TyG/xAVhVgWOxbukiPjdUVP6Mqmr+JuOUyA8=",
+  "marketplace": {
+    "metadata_version": 2,
+    "display_name": "Calendar & agenda",
+    "summary": "See timezone-safe timed and all-day events across selected calendars.",
+    "category": "other",
+    "regions": [
+      "WW"
+    ],
+    "languages": [
+      "en",
+      "es",
+      "ar"
+    ],
+    "publisher": {
+      "name": "PiPhi Network",
+      "website_url": "https://piphi.io",
+      "support_url": "https://github.com/PiPhi-io/piphi-widget-calendar-agenda/issues",
+      "security_contact": "support@piphi.io"
+    },
+    "access": [],
+    "compatibility": [
+      {
+        "capability": "calendar_events",
+        "host_protocol": "piphi.widget.host/1",
+        "widget_sdk": ">=0.4.0"
+      }
+    ],
+    "documentation_url": "https://github.com/PiPhi-io/piphi-widget-calendar-agenda",
+    "support_url": "https://github.com/PiPhi-io/piphi-widget-calendar-agenda/issues",
+    "changelog_url": "https://github.com/PiPhi-io/piphi-widget-calendar-agenda/releases",
+    "quality_tier": "unrated",
+    "governance": {
+      "schema_version": 1,
+      "publication_status": "draft",
+      "rollout_percent": 0,
+      "lifecycle_status": "active",
+      "qualification": {
+        "status": "unverified"
+      }
+    }
+  },
+  "artifact": {
+    "release_asset": "piphi-widget-calendar-agenda-0.1.0.tgz",
+    "integrity": null
+  }
+}
