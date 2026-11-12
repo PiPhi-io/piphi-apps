@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+.pdm-python
+data/
+dist/
+build/
+*.spec

@@ -1,0 +1,51 @@
+{
+  "devices": [
+    {
+      "id": "microwave-1",
+      "name": "Microwave",
+      "icon": "microwave",
+      "tags": {
+        "DateFirstUsage": "2025-01-12",
+        "DefaultUserDeviceType": "Microwave",
+        "TimelineAllowed": "true"
+      }
+    },
+    {
+      "id": "water-heater-1",
+      "name": "Water heater",
+      "icon": "heat",
+      "tags": {
+        "UserDeviceTypeDisplayString": "Water Heater",
+        "TimelineAllowed": "false"
+      }
+    }
+  ],
+  "always_on": {
+    "always_on": 312.4,
+    "components": [{"name": "Network", "watts": 42.0}]
+  },
+  "unknown": {
+    "device": {"id": "unknown", "w": 187.6}
+  },
+  "timeline": {
+    "more_items": true,
+    "items": [
+      {
+        "time": "2026-08-31T21:57:43.086Z",
+        "type": "DeviceOn",
+        "icon": "microwave",
+        "body": "{device.name} turned on",
+        "device_id": "microwave-1",
+        "device_name": "Microwave",
+        "guid": "event-1"
+      },
+      {
+        "time": "2026-08-31T20:00:00.000Z",
+        "type": "Info",
+        "subtype": "NewDeviceFound",
+        "body": "Sense found a new device.",
+        "guid": "event-2"
+      }
+    ]
+  }
+}

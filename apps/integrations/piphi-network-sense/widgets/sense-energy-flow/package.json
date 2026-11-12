@@ -1,0 +1,23 @@
+{
+  "name": "sense-energy-flow",
+  "version": "0.1.1",
+  "private": true,
+  "type": "module",
+  "files": [
+    "dist/",
+    "widget.manifest.json",
+    "previews/",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "dev": "piphi-widget dev",
+    "validate": "piphi-widget validate",
+    "conformance": "piphi-widget conformance",
+    "test": "node --test test/*.test.mjs",
+    "pack": "piphi-widget pack"
+  },
+  "dependencies": {
+    "piphi-network-widget-sdk": "0.6.1"
+  }
+}

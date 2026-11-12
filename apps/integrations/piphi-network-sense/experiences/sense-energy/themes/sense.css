@@ -1,0 +1,14 @@
+:root {
+  --piphi-experience-accent: #ff5c35;
+  --piphi-experience-surface: linear-gradient(145deg, color-mix(in srgb, #ff5c35 8%, transparent), color-mix(in srgb, #ffb020 5%, transparent));
+  --piphi-experience-group-surface: linear-gradient(145deg, color-mix(in srgb, #ff5c35 5%, transparent), color-mix(in srgb, #ffb020 3%, transparent));
+  --piphi-experience-group-border: color-mix(in srgb, #ff7a3d 20%, currentColor 10%);
+  --piphi-experience-tile-surface: linear-gradient(145deg, color-mix(in srgb, #ff7a3d 8%, transparent), color-mix(in srgb, currentColor 5%, transparent));
+  --piphi-experience-tile-border: color-mix(in srgb, #ff7a3d 22%, transparent);
+  --piphi-experience-shadow: none;
+  --piphi-experience-tile-shadow: none;
+  --piphi-experience-radius: 16px;
+  --piphi-experience-group-radius: 15px;
+  --piphi-experience-gap: 7px;
+  --piphi-experience-energy-accent: #ff9f1c;
+}

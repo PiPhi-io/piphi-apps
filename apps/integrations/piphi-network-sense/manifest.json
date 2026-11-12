@@ -1,0 +1,176 @@
+{
+  "$schema": "./schema/piphi-manifest.schema.json",
+  "manifest_version": "1.0",
+  "id": "piphi-network-sense",
+  "name": "Sense Energy",
+  "version": "0.1.2",
+  "description": "Sense Energy Monitor integration using the unofficial sense-energy cloud API client.",
+  "marketplace": {
+    "brand_domain": "sense.com",
+    "metadata_version": 2,
+    "display_name": "Sense Energy Monitor",
+    "summary": "See live household, solar, and detected-appliance energy from your Sense account.",
+    "category": "energy",
+    "device_types": ["energy_monitor", "energy_appliance"],
+    "protocols": ["sense_cloud_api"],
+    "regions": ["US", "CA"],
+    "languages": ["en"],
+    "discovery_methods": ["account"],
+    "connectivity": "cloud",
+    "offline_support": "none",
+    "publisher": {
+      "name": "PiPhi Network",
+      "website_url": "https://piphi.io",
+      "support_url": "https://github.com/PiPhi-io/piphi-network-sense/issues",
+      "security_contact": "support@piphi.io"
+    },
+    "access": [
+      {
+        "id": "external_cloud",
+        "label": "External cloud access",
+        "reason": "Connects to Sense's cloud service to read household, solar, and detected-appliance energy data.",
+        "required": true
+      },
+      {
+        "id": "credentials",
+        "label": "Sense account credentials",
+        "reason": "Stores the Sense account credentials and optional MFA code needed to authenticate.",
+        "required": true
+      }
+    ],
+    "compatibility": [
+      {"brand": "Sense", "model": "Home Energy Monitor", "regions": ["US", "CA"]},
+      {"brand": "Sense", "model": "Home Energy Monitor with Solar", "regions": ["US", "CA"]},
+      {"brand": "Sense", "model": "Home Energy Monitor with Flex sensors", "regions": ["US", "CA"]}
+    ],
+    "documentation_url": "https://github.com/PiPhi-io/piphi-network-sense",
+    "support_url": "https://github.com/PiPhi-io/piphi-network-sense/issues",
+    "changelog_url": "https://github.com/PiPhi-io/piphi-network-sense/releases",
+    "privacy_url": "https://sense.com/privacy/",
+    "quality_tier": "unrated",
+    "governance": {
+      "schema_version": 1,
+      "publication_status": "draft",
+      "rollout_percent": 0,
+      "lifecycle_status": "active",
+      "qualification": {"status": "unverified"}
+    }
+  },
+  "metadata": {
+    "generator": "piphi-network-create",
+    "scaffold_version": "0.3.0",
+    "preset": "cloud-polling-api",
+    "domain": "cloud-api",
+    "upstream_library": "sense-energy",
+    "upstream_library_version": ">=0.14.3,<0.15.0",
+    "upstream_api_status": "unofficial"
+  },
+  "maintainer": {
+    "name": "PiPhi Network",
+    "website": "https://piphi.io"
+  },
+  "license": "Apache-2.0",
+  "image": "piphinetwork/piphi-network-sense:0.1.2",
+  "platforms": ["linux"],
+  "runtime": {
+    "linux": {
+      "type": "container",
+      "container": {
+        "image": "piphinetwork/piphi-network-sense:0.1.2",
+        "ports": [{"container": 8090, "host": 8090}],
+        "environment": {"LOG_LEVEL": "info", "PIPHI_WIDGET_DIR": "/app/widgets"},
+        "restart_policy": {"name": "unless-stopped", "maximum_retry_count": 0}
+      },
+      "discovery": {"method": "passive"}
+    }
+  },
+  "api": {
+    "required": ["health", "entities", "command", "config", "ui_config"],
+    "endpoints": {
+      "health": "/health",
+      "diagnostics": "/diagnostics",
+      "discover": "/discover",
+      "entities": "/entities",
+      "state": "/state",
+      "config": "/config",
+      "config_sync": "/config/sync",
+      "deconfigure": "/deconfigure",
+      "ui_config": "/ui-config",
+      "events": "/events",
+      "command": "/command"
+    }
+  },
+  "config": {
+    "source": "endpoint",
+    "endpoint": "/ui-config",
+    "required": true,
+    "maximum_instances": 1,
+    "editable_fields": [
+      "email", "password", "mfa_code", "alias", "poll_interval_seconds", "trend_interval_seconds"
+    ],
+    "secret_fields": ["password", "mfa_code"],
+    "runtime_fields": ["id", "config_id", "container_id", "device_id"],
+    "identity_fields": ["email"]
+  },
+  "identity": {"fields": ["email"]},
+  "capabilities": {
+    "connected": {"kind": "sensor", "unit": "bool"},
+    "active_power_w": {
+      "kind": "sensor",
+      "unit": "W",
+      "dashboard": {
+        "allowed_widgets": ["stat", "gauge", "line-chart", "external-widget"],
+        "default_widget": "gauge",
+        "recommended_widgets": ["line-chart", "external-widget"]
+      }
+    },
+    "active_solar_power_w": {"kind": "sensor", "unit": "W"},
+    "voltage_l1_v": {"kind": "sensor", "unit": "V"},
+    "voltage_l2_v": {"kind": "sensor", "unit": "V"},
+    "frequency_hz": {"kind": "sensor", "unit": "Hz"},
+    "daily_usage_kwh": {"kind": "sensor", "unit": "kWh"},
+    "daily_production_kwh": {"kind": "sensor", "unit": "kWh"},
+    "daily_from_grid_kwh": {"kind": "sensor", "unit": "kWh"},
+    "daily_to_grid_kwh": {"kind": "sensor", "unit": "kWh"},
+    "active_device_count": {"kind": "sensor", "unit": "devices"},
+    "always_on_power_w": {"kind": "sensor", "unit": "W"},
+    "other_power_w": {"kind": "sensor", "unit": "W"},
+    "device_power_w": {"kind": "sensor", "unit": "W"},
+    "device_on": {"kind": "sensor", "unit": "bool"},
+    "device_daily_energy_kwh": {"kind": "sensor", "unit": "kWh"},
+    "refresh": {"kind": "action"}
+  },
+  "commands": {
+    "refresh": {"description": "Refresh current power and daily energy from Sense.", "timeout_ms": 15000}
+  },
+  "entities": [
+    {
+      "id": "sense-monitor",
+      "name": "Sense Energy Monitor",
+      "device_id": "sense-monitor",
+      "entity_type": "energy_monitor",
+      "capabilities": [
+        "connected", "active_power_w", "active_solar_power_w", "voltage_l1_v", "voltage_l2_v",
+        "frequency_hz", "daily_usage_kwh", "daily_production_kwh", "daily_from_grid_kwh",
+        "daily_to_grid_kwh", "active_device_count", "always_on_power_w", "other_power_w", "refresh"
+      ],
+      "available_commands": [{"id": "refresh", "label": "Refresh", "kind": "action"}],
+      "dashboard": {
+        "allowed_widgets": ["energy-flow", "gauge", "line-chart", "stat", "external-widget"],
+        "default_widget": "energy-flow"
+      }
+    }
+  ],
+  "ui": {
+    "experience_packages": [
+      {
+        "registry_id": "io.piphi.sense-energy",
+        "version_range": ">=0.1,<1",
+        "auto_install": true
+      }
+    ]
+  },
+  "onboarding": {
+    "mode": "account"
+  }
+}
