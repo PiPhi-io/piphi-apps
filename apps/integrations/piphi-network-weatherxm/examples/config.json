@@ -1,0 +1,8 @@
+{
+  "id": "weatherxm-station",
+  "station_id": "12345",
+  "alias": "Backyard WeatherXM",
+  "base_url": "https://api.weatherxm.com/api/v1",
+  "api_token": "change-me",
+  "poll_interval_seconds": 60
+}

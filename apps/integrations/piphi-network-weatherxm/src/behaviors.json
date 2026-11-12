@@ -1,0 +1,953 @@
+{
+  "devices": [
+    {
+      "id": "weatherxm_station",
+      "name": "WeatherXM station",
+      "description": "WeatherXM outdoor station readings and safe cloud refresh controls.",
+      "deviceClass": "weather_station",
+      "entityType": "sensor",
+      "capabilities": [
+        "connected",
+        "temperature_c",
+        "api_rate_limit_remaining",
+        "api_latency_ms",
+        "humidity_percent",
+        "precipitation_mm",
+        "precipitation_accumulated_mm",
+        "wind_speed_ms",
+        "wind_gust_ms",
+        "wind_direction_deg",
+        "pressure_hpa",
+        "uv_index",
+        "feels_like_c",
+        "dew_point_c",
+        "solar_irradiance_w_m2",
+        "qod_score",
+        "refresh",
+        "sync_cloud"
+      ],
+      "intents": [
+        {
+          "id": "monitor_weather",
+          "label": "Watch local weather",
+          "description": "Use WeatherXM station readings to start automations when outdoor conditions change."
+        },
+        {
+          "id": "keep_cloud_readings_current",
+          "label": "Keep weather readings current",
+          "description": "Refresh one station or sync every WeatherXM station from the cloud."
+        }
+      ],
+      "conditions": [
+        {
+          "id": "connected",
+          "label": "Station is connected",
+          "type": "boolean",
+          "capability": "sensor.connected",
+          "operators": [
+            "eq",
+            "neq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "connected",
+            "operator": "eq"
+          },
+          "freshness": {
+            "maxAgeSeconds": 600,
+            "staleDataMode": "warn"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "temperature_above",
+          "label": "Temperature",
+          "type": "number",
+          "params": [
+            {
+              "name": "celsius",
+              "label": "Temperature threshold",
+              "type": "number",
+              "min": -50,
+              "max": 70,
+              "default": 30,
+              "step": 0.5,
+              "unit": "C",
+              "required": true
+            }
+          ],
+          "capability": "sensor.temperature_c",
+          "operators": [
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "temperature_c",
+            "operator": ">"
+          },
+          "freshness": {
+            "maxAgeSeconds": 600,
+            "staleDataMode": "warn"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "feels_like_above",
+          "label": "Feels-like temperature",
+          "type": "number",
+          "params": [
+            {
+              "name": "celsius",
+              "label": "Feels-like threshold",
+              "type": "number",
+              "min": -50,
+              "max": 80,
+              "default": 32,
+              "step": 0.5,
+              "unit": "C",
+              "required": true
+            }
+          ],
+          "capability": "sensor.feels_like_c",
+          "operators": [
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "feels_like_c",
+            "operator": ">"
+          },
+          "freshness": {
+            "maxAgeSeconds": 600,
+            "staleDataMode": "warn"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "dew_point_above",
+          "label": "Dew point",
+          "type": "number",
+          "params": [
+            {
+              "name": "celsius",
+              "label": "Dew point threshold",
+              "type": "number",
+              "min": -50,
+              "max": 60,
+              "default": 18,
+              "step": 0.5,
+              "unit": "C",
+              "required": true
+            }
+          ],
+          "capability": "sensor.dew_point_c",
+          "operators": [
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "dew_point_c",
+            "operator": ">"
+          },
+          "freshness": {
+            "maxAgeSeconds": 600,
+            "staleDataMode": "warn"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "humidity_outside_range",
+          "label": "Humidity",
+          "type": "number",
+          "params": [
+            {
+              "name": "min_percent",
+              "label": "Minimum humidity",
+              "type": "number",
+              "min": 0,
+              "max": 100,
+              "default": 35,
+              "step": 1,
+              "unit": "%",
+              "required": true
+            },
+            {
+              "name": "max_percent",
+              "label": "Maximum humidity",
+              "type": "number",
+              "min": 0,
+              "max": 100,
+              "default": 80,
+              "step": 1,
+              "unit": "%",
+              "required": true
+            }
+          ],
+          "capability": "sensor.humidity_percent",
+          "operators": [
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "humidity_percent",
+            "operator": ">"
+          },
+          "freshness": {
+            "maxAgeSeconds": 600,
+            "staleDataMode": "warn"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "precipitation_above",
+          "label": "Current precipitation",
+          "type": "number",
+          "params": [
+            {
+              "name": "millimeters",
+              "label": "Precipitation threshold",
+              "type": "number",
+              "min": 0,
+              "max": 500,
+              "default": 1,
+              "step": 0.1,
+              "unit": "mm",
+              "required": true
+            }
+          ],
+          "capability": "sensor.precipitation_mm",
+          "operators": [
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "precipitation_mm",
+            "operator": ">"
+          },
+          "freshness": {
+            "maxAgeSeconds": 600,
+            "staleDataMode": "warn"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "precipitation_total_above",
+          "label": "Accumulated precipitation",
+          "type": "number",
+          "params": [
+            {
+              "name": "millimeters",
+              "label": "Accumulated precipitation threshold",
+              "type": "number",
+              "min": 0,
+              "max": 1000,
+              "default": 10,
+              "step": 0.5,
+              "unit": "mm",
+              "required": true
+            }
+          ],
+          "capability": "sensor.precipitation_accumulated_mm",
+          "operators": [
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "precipitation_accumulated_mm",
+            "operator": ">"
+          },
+          "freshness": {
+            "maxAgeSeconds": 600,
+            "staleDataMode": "warn"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "wind_speed_above",
+          "label": "Wind speed",
+          "type": "number",
+          "params": [
+            {
+              "name": "meters_per_second",
+              "label": "Wind speed threshold",
+              "type": "number",
+              "min": 0,
+              "max": 100,
+              "default": 10,
+              "step": 0.5,
+              "unit": "m/s",
+              "required": true
+            }
+          ],
+          "capability": "sensor.wind_speed_ms",
+          "operators": [
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "wind_speed_ms",
+            "operator": ">"
+          },
+          "freshness": {
+            "maxAgeSeconds": 600,
+            "staleDataMode": "warn"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "wind_gust_above",
+          "label": "Wind gust",
+          "type": "number",
+          "params": [
+            {
+              "name": "meters_per_second",
+              "label": "Wind gust threshold",
+              "type": "number",
+              "min": 0,
+              "max": 120,
+              "default": 16,
+              "step": 0.5,
+              "unit": "m/s",
+              "required": true
+            }
+          ],
+          "capability": "sensor.wind_gust_ms",
+          "operators": [
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "wind_gust_ms",
+            "operator": ">"
+          },
+          "freshness": {
+            "maxAgeSeconds": 600,
+            "staleDataMode": "warn"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "wind_direction_above",
+          "label": "Wind direction",
+          "type": "number",
+          "params": [
+            {
+              "name": "degrees",
+              "label": "Wind direction threshold",
+              "type": "number",
+              "min": 0,
+              "max": 359,
+              "default": 180,
+              "step": 1,
+              "unit": "deg",
+              "required": true
+            }
+          ],
+          "capability": "sensor.wind_direction_deg",
+          "operators": [
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "wind_direction_deg",
+            "operator": ">"
+          },
+          "freshness": {
+            "maxAgeSeconds": 600,
+            "staleDataMode": "warn"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "pressure_below",
+          "label": "Air pressure",
+          "type": "number",
+          "params": [
+            {
+              "name": "hectopascals",
+              "label": "Pressure threshold",
+              "type": "number",
+              "min": 800,
+              "max": 1100,
+              "default": 1000,
+              "step": 1,
+              "unit": "hPa",
+              "required": true
+            }
+          ],
+          "capability": "sensor.pressure_hpa",
+          "operators": [
+            "<",
+            "<=",
+            ">",
+            ">=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "pressure_hpa",
+            "operator": "<"
+          },
+          "freshness": {
+            "maxAgeSeconds": 600,
+            "staleDataMode": "warn"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "uv_index_above",
+          "label": "UV index",
+          "type": "number",
+          "params": [
+            {
+              "name": "index",
+              "label": "UV index threshold",
+              "type": "number",
+              "min": 0,
+              "max": 15,
+              "default": 6,
+              "step": 0.5,
+              "unit": "index",
+              "required": true
+            }
+          ],
+          "capability": "sensor.uv_index",
+          "operators": [
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "uv_index",
+            "operator": ">"
+          },
+          "freshness": {
+            "maxAgeSeconds": 600,
+            "staleDataMode": "warn"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "solar_irradiance_above",
+          "label": "Sunlight intensity",
+          "type": "number",
+          "params": [
+            {
+              "name": "watts_per_square_meter",
+              "label": "Sunlight threshold",
+              "type": "number",
+              "min": 0,
+              "max": 1500,
+              "default": 600,
+              "step": 10,
+              "unit": "W/m2",
+              "required": true
+            }
+          ],
+          "capability": "sensor.solar_irradiance_w_m2",
+          "operators": [
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "solar_irradiance_w_m2",
+            "operator": ">"
+          },
+          "freshness": {
+            "maxAgeSeconds": 600,
+            "staleDataMode": "warn"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "qod_score_below",
+          "label": "Reading quality",
+          "type": "number",
+          "params": [
+            {
+              "name": "score",
+              "label": "Quality score threshold",
+              "type": "number",
+              "min": 0,
+              "max": 100,
+              "default": 70,
+              "step": 1,
+              "unit": "score",
+              "required": true
+            }
+          ],
+          "capability": "sensor.qod_score",
+          "operators": [
+            "<",
+            "<=",
+            ">",
+            ">=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "qod_score",
+            "operator": "<"
+          },
+          "freshness": {
+            "maxAgeSeconds": 600,
+            "staleDataMode": "warn"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "api_rate_limit_below",
+          "label": "API requests remaining",
+          "type": "number",
+          "params": [
+            {
+              "name": "requests",
+              "label": "Requests remaining threshold",
+              "type": "number",
+              "min": 0,
+              "max": 100000,
+              "default": 50,
+              "step": 1,
+              "unit": "requests",
+              "required": true
+            }
+          ],
+          "capability": "sensor.api_rate_limit_remaining",
+          "operators": [
+            "<",
+            "<=",
+            ">",
+            ">=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "api_rate_limit_remaining",
+            "operator": "<"
+          },
+          "freshness": {
+            "maxAgeSeconds": 600,
+            "staleDataMode": "warn"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "api_latency_above",
+          "label": "API response time",
+          "type": "number",
+          "params": [
+            {
+              "name": "milliseconds",
+              "label": "Response time threshold",
+              "type": "number",
+              "min": 0,
+              "max": 60000,
+              "default": 2000,
+              "step": 100,
+              "unit": "ms",
+              "required": true
+            }
+          ],
+          "capability": "sensor.api_latency_ms",
+          "operators": [
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "api_latency_ms",
+            "operator": ">"
+          },
+          "freshness": {
+            "maxAgeSeconds": 600,
+            "staleDataMode": "warn"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        }
+      ],
+      "actions": [
+        {
+          "id": "refresh",
+          "label": "Refresh this station",
+          "description": "Ask WeatherXM for the latest readings for one saved station.",
+          "capability": "action.refresh",
+          "runtime": {
+            "command": "refresh"
+          },
+          "safety": {
+            "riskLevel": "low",
+            "requiresConfirmation": false,
+            "liveRunAllowed": true
+          },
+          "targeting": {
+            "modes": [
+              "picked_devices",
+              "by_integration"
+            ],
+            "minTargets": 1,
+            "maxTargets": 1
+          },
+          "failure": {
+            "strategy": "retry_then_continue",
+            "retry": {
+              "maxAttempts": 2,
+              "delaySeconds": 5,
+              "timeoutSeconds": 5,
+              "backoff": "fixed"
+            }
+          },
+          "ui": {
+            "group": "do_this"
+          }
+        },
+        {
+          "id": "sync_cloud",
+          "label": "Sync all WeatherXM stations",
+          "description": "Refresh all saved WeatherXM stations from the cloud.",
+          "capability": "action.sync_cloud",
+          "runtime": {
+            "command": "sync_cloud"
+          },
+          "safety": {
+            "riskLevel": "low",
+            "requiresConfirmation": false,
+            "liveRunAllowed": true
+          },
+          "targeting": {
+            "modes": [
+              "by_integration"
+            ],
+            "minTargets": 0,
+            "maxTargets": 0
+          },
+          "failure": {
+            "strategy": "retry_then_continue",
+            "retry": {
+              "maxAttempts": 2,
+              "delaySeconds": 10,
+              "timeoutSeconds": 15,
+              "backoff": "fixed"
+            }
+          },
+          "ui": {
+            "group": "do_this"
+          }
+        }
+      ],
+      "targeting": {
+        "modes": [
+          "picked_devices",
+          "by_integration"
+        ],
+        "supportsGroups": false,
+        "supportsRooms": false
+      },
+      "freshness": {
+        "maxAgeSeconds": 600,
+        "staleDataMode": "warn"
+      },
+      "ui": {
+        "icon": "cloud-sun",
+        "accent": "weather",
+        "defaultListLabel": "WeatherXM stations"
+      },
+      "triggers": [
+        {
+          "id": "state_changed",
+          "label": "Weather reading changes",
+          "description": "Start when this WeatherXM station reports a new reading.",
+          "capability": "telemetry.state",
+          "runtime": {
+            "event": "device.state_changed",
+            "source": "integration"
+          },
+          "freshness": {
+            "maxAgeSeconds": 600,
+            "staleDataMode": "warn"
+          },
+          "ui": {
+            "group": "when"
+          }
+        }
+      ]
+    }
+  ],
+  "templates": [
+    {
+      "id": "weatherxm_wind_gust_refresh",
+      "label": "Refresh WeatherXM when wind picks up",
+      "description": "When a saved WeatherXM station reports strong wind gusts, refresh that station so PiPhi has the latest weather reading.",
+      "category": "Weather",
+      "deviceKey": "weatherxm_station",
+      "config": {
+        "automation_schema_version": "automation.behavior.v2",
+        "triggers": [
+          {
+            "id": "state_changed",
+            "label": "WeatherXM reading changes",
+            "type": "integration_event",
+            "event": "device.state_changed",
+            "capability": "telemetry.state",
+            "enabled": true,
+            "sourceRef": {
+              "integrationId": "{{integrationId}}",
+              "integrationKey": "{{integrationKey}}",
+              "configId": "{{configId}}",
+              "behaviorDeviceKey": "weatherxm_station",
+              "optionKey": "state_changed",
+              "capability": "telemetry.state"
+            }
+          }
+        ],
+        "trigger": {
+          "id": "state_changed",
+          "label": "WeatherXM reading changes",
+          "type": "integration_event",
+          "event": "device.state_changed",
+          "capability": "telemetry.state",
+          "enabled": true,
+          "sourceRef": {
+            "integrationId": "{{integrationId}}",
+            "integrationKey": "{{integrationKey}}",
+            "configId": "{{configId}}",
+            "behaviorDeviceKey": "weatherxm_station",
+            "optionKey": "state_changed",
+            "capability": "telemetry.state"
+          }
+        },
+        "intent": "monitor_weather",
+        "conditionTree": {
+          "id": "wind_gust_above_template",
+          "label": "Wind gust is above 16 m/s",
+          "field": "wind_gust_ms",
+          "operator": ">",
+          "value": 16,
+          "sourceRef": {
+            "integrationId": "{{integrationId}}",
+            "integrationKey": "{{integrationKey}}",
+            "configId": "{{configId}}",
+            "behaviorDeviceKey": "weatherxm_station",
+            "optionKey": "wind_gust_above",
+            "capability": "sensor.wind_gust_ms"
+          }
+        },
+        "conditions": {
+          "integrationCondition": {
+            "id": "wind_gust_above",
+            "params": {
+              "meters_per_second": 16
+            }
+          }
+        },
+        "actions": [
+          {
+            "id": "refresh",
+            "label": "Refresh this station",
+            "action": "command",
+            "capability": "action.refresh",
+            "sourceRef": {
+              "integrationId": "{{integrationId}}",
+              "integrationKey": "{{integrationKey}}",
+              "configId": "{{configId}}",
+              "behaviorDeviceKey": "weatherxm_station",
+              "optionKey": "refresh",
+              "capability": "action.refresh"
+            },
+            "target": {
+              "mode": "selection",
+              "configIds": [
+                "{{configId}}"
+              ]
+            },
+            "parameters": {},
+            "failure": {
+              "strategy": "retry_then_continue",
+              "retry": {
+                "maxAttempts": 2,
+                "delaySeconds": 5,
+                "timeoutSeconds": 5,
+                "backoff": "fixed"
+              },
+              "continueOnPartialFailure": true
+            }
+          }
+        ],
+        "safety": {
+          "staleDataMode": "warn",
+          "maxAgeSeconds": 600,
+          "requireFreshTrigger": false,
+          "dryRunFirst": false
+        },
+        "failure": {
+          "strategy": "follow_edges",
+          "fallbackBehaviorId": "",
+          "conditionTree": {
+            "op": "and",
+            "children": []
+          }
+        },
+        "stop": {
+          "never": true
+        },
+        "override": {
+          "mode": "continue"
+        }
+      },
+      "ui": {
+        "accent": "weather",
+        "icon": "cloud-sun"
+      },
+      "metadata": {
+        "recommended": true,
+        "difficulty": "easy"
+      }
+    }
+  ],
+  "behaviorSchemaVersion": "integration.behaviors.v2",
+  "telemetry": {
+    "capabilityMappings": [
+      {
+        "nativeMetric": "api_latency_ms",
+        "capability": "sensor.api_latency_ms"
+      },
+      {
+        "nativeMetric": "api_rate_limit_remaining",
+        "capability": "sensor.api_rate_limit_remaining"
+      },
+      {
+        "nativeMetric": "connected",
+        "capability": "sensor.connected"
+      },
+      {
+        "nativeMetric": "dew_point_c",
+        "capability": "sensor.dew_point_c"
+      },
+      {
+        "nativeMetric": "feels_like_c",
+        "capability": "sensor.feels_like_c"
+      },
+      {
+        "nativeMetric": "humidity_percent",
+        "capability": "sensor.humidity_percent"
+      },
+      {
+        "nativeMetric": "precipitation_accumulated_mm",
+        "capability": "sensor.precipitation_accumulated_mm"
+      },
+      {
+        "nativeMetric": "precipitation_mm",
+        "capability": "sensor.precipitation_mm"
+      },
+      {
+        "nativeMetric": "pressure_hpa",
+        "capability": "sensor.pressure_hpa"
+      },
+      {
+        "nativeMetric": "qod_score",
+        "capability": "sensor.qod_score"
+      },
+      {
+        "nativeMetric": "solar_irradiance_w_m2",
+        "capability": "sensor.solar_irradiance_w_m2"
+      },
+      {
+        "nativeMetric": "temperature_c",
+        "capability": "sensor.temperature_c"
+      },
+      {
+        "nativeMetric": "uv_index",
+        "capability": "sensor.uv_index"
+      },
+      {
+        "nativeMetric": "wind_direction_deg",
+        "capability": "sensor.wind_direction_deg"
+      },
+      {
+        "nativeMetric": "wind_gust_ms",
+        "capability": "sensor.wind_gust_ms"
+      },
+      {
+        "nativeMetric": "wind_speed_ms",
+        "capability": "sensor.wind_speed_ms"
+      }
+    ]
+  }
+}
