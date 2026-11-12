@@ -1,0 +1,7 @@
+{
+  "id": "demo-device",
+  "market_area": "SE3",
+  "alias": "Home electricity market",
+  "currency": "EUR",
+  "poll_interval_seconds": 3600
+}

@@ -1,0 +1,53 @@
+{
+  "entities": [
+    {
+      "id": "demo-device",
+      "name": "Nord Pool SE3",
+      "device_id": "demo-device",
+      "entity_type": "energy_market",
+      "capabilities": [
+        "connected",
+        "market_area",
+        "current_price_per_kwh",
+        "next_price_per_kwh",
+        "price_unit",
+        "refresh"
+      ],
+      "available_commands": [
+        {
+          "id": "refresh",
+          "label": "Refresh",
+          "kind": "action"
+        }
+      ],
+      "dashboard": {
+        "allowed_widgets": [
+          "tile",
+          "stat",
+          "line-chart",
+          "external-widget"
+        ],
+        "default_widget": "stat"
+      }
+    }
+  ],
+  "capabilities": {
+    "connected": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "market_area": {"kind": "sensor", "unit": "text", "value_kind": "text"},
+    "current_price_per_kwh": {"kind": "sensor", "unit": "currency/kWh"},
+    "next_price_per_kwh": {"kind": "sensor", "unit": "currency/kWh"},
+    "price_unit": {"kind": "sensor", "unit": "text", "value_kind": "text"},
+    "refresh": {
+      "kind": "action"
+    }
+  },
+  "commands": {
+    "refresh": {
+      "description": "Read the latest published market prices.",
+      "timeout_ms": 20000
+    }
+  }
+}

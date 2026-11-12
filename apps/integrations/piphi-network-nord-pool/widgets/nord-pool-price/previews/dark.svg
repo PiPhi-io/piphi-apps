@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="340" height="140" viewBox="0 0 340 140" role="img" aria-label="Nord Pool price widget in dark mode">
+  <rect width="340" height="140" rx="18" fill="#141d2d"/>
+  <text x="18" y="27" fill="#e6edf8" font-family="sans-serif" font-size="14" font-weight="600">Electricity price</text>
+  <text x="294" y="27" fill="#a4b0c3" font-family="sans-serif" font-size="11">SE3</text>
+  <text x="18" y="76" fill="#fff" font-family="sans-serif" font-size="38" font-weight="700">0.123</text>
+  <text x="150" y="76" fill="#a4b0c3" font-family="sans-serif" font-size="12">EUR/kWh</text>
+  <text x="18" y="111" fill="#a4b0c3" font-family="sans-serif" font-size="13">Next</text>
+  <text x="59" y="111" fill="#e6edf8" font-family="sans-serif" font-size="13" font-weight="600">0.145</text>
+</svg>

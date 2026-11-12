@@ -1,0 +1,16 @@
+{
+  "name": "piphi-widget-nord-pool-price",
+  "version": "0.1.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "esbuild src/widget.js --bundle --format=esm --platform=browser --target=es2022 --outfile=dist/widget.js",
+    "validate": "piphi-widget validate",
+    "conformance": "piphi-widget conformance",
+    "test": "node --test test/*.test.mjs",
+    "pack": "piphi-widget pack"
+  },
+  "dependencies": {"piphi-network-widget-sdk": "0.6.1"},
+  "devDependencies": {"esbuild": "0.25.12"},
+  "engines": {"node": ">=22"}
+}
