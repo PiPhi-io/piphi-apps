@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install pdm
+      - run: pdm install -G dev
+      - run: pdm run pytest
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - run: npm run validate:widgets
+      - run: npm run conformance:widgets
+      - run: python scripts/check_release.py
+      - run: npm test
+      - run: pdm run python scripts/validate.py
+      - run: docker build -t piphi-runtime-smoke .

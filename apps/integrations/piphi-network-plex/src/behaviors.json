@@ -1,0 +1,31 @@
+{
+  "behaviorSchemaVersion": "integration.behaviors.v2",
+  "templates": [],
+  "devices": [
+    {
+      "id": "plex_server",
+      "name": "Plex Media Server",
+      "description": "Plex server availability, libraries, sessions, and media events.",
+      "deviceClass": "media_server",
+      "entityType": "media_library",
+      "capabilities": ["connected", "server_count", "active_sessions", "transcode_sessions", "refresh"],
+      "targeting": {
+        "scopes": ["config", "configs", "selection"],
+        "fanout": {"supported": true, "defaultMode": "selection", "allowedModes": ["config", "configs", "selection"]}
+      },
+      "freshness": {"maxAgeSeconds": 90, "staleDataMode": "block"},
+      "ui": {"icon": "server", "category": "media"},
+      "triggers": [
+        {"id": "server_changed", "label": "Plex server state changes", "description": "Start when a configured Plex server connects or disconnects.", "capability": "telemetry.connected", "runtime": {"event": "device.state_changed", "source": "integration"}, "freshness": {"maxAgeSeconds": 90, "staleDataMode": "block"}, "ui": {"group": "when"}},
+        {"id": "session_changed", "label": "Playback session changes", "description": "Start when Plex playback begins, pauses, resumes, or stops.", "capability": "telemetry.active_sessions", "runtime": {"event": "device.state_changed", "source": "integration"}, "freshness": {"maxAgeSeconds": 45, "staleDataMode": "block"}, "ui": {"group": "when"}}
+      ],
+      "intents": [{"id": "monitor_plex", "label": "Monitor Plex", "description": "Build automations around Plex availability and playback activity."}],
+      "conditions": [
+        {"id": "server_is_connected", "label": "Server is connected", "description": "Check whether the Plex server is reachable.", "type": "boolean", "capability": "telemetry.connected", "operators": ["eq"], "runtime": {"source": "state", "field": "connected", "operator": "eq"}, "freshness": {"maxAgeSeconds": 90, "staleDataMode": "block"}, "ui": {"group": "only_if"}, "params": [{"name": "value", "label": "Connected", "type": "boolean", "required": true}]}
+      ],
+      "actions": [
+        {"id": "refresh", "label": "Refresh Plex", "description": "Refresh server discovery and current Plex state.", "capability": "action.refresh", "capabilityRequirements": ["action.refresh"], "runtime": {"command": "refresh", "endpoint": "/command", "method": "POST", "timeoutSeconds": 15}, "safety": {"riskLevel": "low", "requiresConfirmation": false, "liveRunAllowed": true}, "failure": {"strategy": "retry_then_continue", "retry": {"maxAttempts": 2, "delaySeconds": 2, "backoff": "fixed"}, "timeoutSeconds": 15, "continueOnPartialFailure": true, "idempotent": true}}
+      ]
+    }
+  ]
+}

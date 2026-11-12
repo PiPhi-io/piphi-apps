@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+dist/
+build/
+node_modules/
+!widgets/**/dist/
+!widgets/**/dist/*.js
+*.spec
+data/
+.pytest_cache/

@@ -1,0 +1,105 @@
+{
+  "id": "piphi-network-plex",
+  "name": "Plex Media Server",
+  "version": "0.1.1",
+  "type": "integration",
+  "deployment_mode": "standalone",
+  "trust_level": "experimental",
+  "risk_level": "moderate",
+  "description": "Browse and control one or more Plex Media Servers through PiPhi Network.",
+  "rewardable": false,
+  "platforms": [
+    "linux"
+  ],
+  "image": "docker.io/piphinetwork/piphi-network-plex:0.1.1",
+  "icon_url": "https://raw.githubusercontent.com/PiPhi-io/piphi-nework-registry/main/icons/placeholder.svg",
+  "owner": "PiPhi-io",
+  "repo_name": "piphi-network-plex",
+  "repo_url": "https://github.com/PiPhi-io/piphi-network-plex",
+  "manifest_path": "manifest.json",
+  "tags": [
+    "plex",
+    "media",
+    "media-library",
+    "dashboard",
+    "widget-sdk"
+  ],
+  "runtime_requirements": [
+    "secrets_or_api_tokens"
+  ],
+  "maintainer": {
+    "name": "PiPhi Network",
+    "website": "https://piphi.io",
+    "support_email": "support@piphi.io"
+  },
+  "marketplace": {
+    "changelog_url": "https://github.com/PiPhi-io/piphi-network-plex/releases",
+    "quality_tier": "unrated",
+    "governance": {
+      "schema_version": 1,
+      "publication_status": "stable",
+      "rollout_percent": 100,
+      "lifecycle_status": "active",
+      "qualification": {
+        "status": "unverified"
+      }
+    },
+    "metadata_version": 2,
+    "display_name": "Plex Media Server",
+    "summary": "Browse Plex libraries and use Plex media, servers, and players in PiPhi dashboards.",
+    "category": "media",
+    "device_types": [
+      "media_server",
+      "media_player"
+    ],
+    "protocols": [
+      "http",
+      "https",
+      "plex_media_server_api"
+    ],
+    "regions": [
+      "WW"
+    ],
+    "languages": [
+      "en"
+    ],
+    "discovery_methods": [
+      "account",
+      "manual"
+    ],
+    "connectivity": "hybrid",
+    "offline_support": "partial",
+    "privacy_url": "https://www.plex.tv/about/privacy-legal/",
+    "publisher": {
+      "name": "PiPhi Network",
+      "website_url": "https://piphi.io",
+      "support_url": "https://github.com/PiPhi-io/piphi-network-plex/issues",
+      "security_contact": "support@piphi.io"
+    },
+    "access": [
+      {
+        "id": "plex_account",
+        "label": "Plex account access",
+        "reason": "Discovers the Plex servers available to the configured account.",
+        "required": true
+      },
+      {
+        "id": "local_network",
+        "label": "Local network access",
+        "reason": "Connects directly to local Plex Media Servers when available.",
+        "required": true
+      }
+    ],
+    "compatibility": [
+      {
+        "brand": "Plex",
+        "model": "Plex Media Server",
+        "regions": [
+          "WW"
+        ]
+      }
+    ],
+    "documentation_url": "https://github.com/PiPhi-io/piphi-network-plex",
+    "support_url": "https://github.com/PiPhi-io/piphi-network-plex/issues"
+  }
+}

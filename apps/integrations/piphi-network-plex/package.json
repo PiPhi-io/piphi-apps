@@ -1,0 +1,16 @@
+{
+  "name": "piphi-plex-widgets",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build-widgets.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "validate:widgets": "piphi-widget validate widgets/plex-server-overview/widget.manifest.json && piphi-widget validate widgets/recently-added/widget.manifest.json && piphi-widget validate widgets/continue-watching/widget.manifest.json && piphi-widget validate widgets/library-search/widget.manifest.json",
+    "conformance:widgets": "node scripts/check-widget-conformance.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.12",
+    "jsdom": "^26.1.0",
+    "piphi-network-widget-sdk": "^0.6.1"
+  }
+}
