@@ -1,0 +1,73 @@
+{
+  "catalog_version": "1.0",
+  "integration_id": "piphi-network-dyson",
+  "coverage_mode": "model_negotiated_local_mqtt_and_cloud_bootstrap",
+  "reviewed_at": "2026-09-07",
+  "sources": {
+    "libdyson_neon": "https://github.com/libdyson-wg/libdyson-neon",
+    "ha_dyson": "https://github.com/libdyson-wg/ha-dyson",
+    "appapi": "https://github.com/libdyson-wg/appapi",
+    "core_vocabulary": "PiPhi Network Core and maintained PiPhi integrations"
+  },
+  "groups": [
+    {
+      "id": "runtime-foundation", "status": "implemented", "scope": ["all-configurations"],
+      "source_refs": ["core_vocabulary"],
+      "reason": "The scaffold implements configuration presence, connectivity state, refresh dispatch, and its configuration event.",
+      "state": ["connected"], "events": ["runtime.config.applied"], "conditions": ["state_matches"], "actions": ["refresh"]
+    },
+    {
+      "id": "identity-and-transport", "status": "planned", "scope": ["wifi-connected-dyson-appliances"],
+      "source_refs": ["libdyson_neon", "ha_dyson", "appapi"],
+      "reason": "Local MQTT credentials, device discovery, product-type decoding, reconnect behavior, and secret redaction need implementation and fixtures.",
+      "state": ["product_type", "model", "serial_suffix", "firmware_version", "local_mqtt_available", "cloud_bootstrap_available", "rssi_dbm", "last_seen_at", "transport_latency_ms"],
+      "events": ["device.online", "device.offline", "transport.degraded", "transport.recovered"],
+      "conditions": ["device_is_online", "device_is_stale", "signal_below"],
+      "actions": ["rediscover", "reconnect_transport"]
+    },
+    {
+      "id": "air-quality-and-environment", "status": "planned", "scope": ["models-advertising-each-sensor"],
+      "source_refs": ["libdyson_neon", "ha_dyson"],
+      "reason": "Sensor availability and encodings differ across purifier, humidifier, and formaldehyde product families and must be negotiated per entity.",
+      "state": ["temperature_c", "humidity_percent", "pm25_ug_m3", "pm10_ug_m3", "voc_index", "no2_index", "formaldehyde_mg_m3", "co2_ppm", "air_quality_level", "dust_index", "water_hardness"],
+      "events": ["air_quality.changed", "pollutant.threshold_crossed", "humidity.threshold_crossed", "temperature.threshold_crossed"],
+      "conditions": ["air_quality_is", "pm25_threshold", "pm10_threshold", "voc_threshold", "no2_threshold", "formaldehyde_threshold", "humidity_threshold", "temperature_threshold"],
+      "actions": []
+    },
+    {
+      "id": "fan-airflow-and-oscillation", "status": "planned", "scope": ["fan-and-purifier-models"],
+      "source_refs": ["libdyson_neon", "ha_dyson"],
+      "reason": "Writable ranges and supported modes vary by product type and require allow-listed, model-aware command tests.",
+      "state": ["power", "auto_mode", "fan_speed", "fan_speed_percent", "airflow_direction", "oscillation", "oscillation_angle_low", "oscillation_angle_high", "night_mode", "continuous_monitoring", "focus_mode", "breeze_mode"],
+      "events": ["power.changed", "fan_speed.changed", "oscillation.changed", "mode.changed"],
+      "conditions": ["power_is", "fan_speed_threshold", "mode_is", "oscillation_is"],
+      "actions": ["set_power", "set_auto_mode", "set_fan_speed", "set_airflow_direction", "set_oscillation", "set_oscillation_angles", "set_night_mode", "set_continuous_monitoring", "set_focus_mode", "set_breeze_mode"]
+    },
+    {
+      "id": "heating-and-humidification", "status": "planned", "scope": ["heater-and-humidifier-models"],
+      "source_refs": ["libdyson_neon", "ha_dyson"],
+      "reason": "Heat and humidification are safety-relevant, model-gated functions requiring bounds, fresh state, and confirmation semantics.",
+      "state": ["heat_mode", "target_temperature_c", "heating_active", "humidification_mode", "target_humidity_percent", "humidification_active", "water_tank_empty"],
+      "events": ["heating.started", "heating.stopped", "humidification.started", "humidification.stopped", "water_tank.empty"],
+      "conditions": ["heating_is_active", "target_temperature_is", "humidification_is_active", "target_humidity_is", "water_tank_is_empty"],
+      "actions": ["set_heat_mode", "set_target_temperature", "set_humidification_mode", "set_target_humidity"]
+    },
+    {
+      "id": "filters-maintenance-and-faults", "status": "planned", "scope": ["models-advertising-filter-or-maintenance-state"],
+      "source_refs": ["libdyson_neon", "ha_dyson"],
+      "reason": "Filter topology and fault codes vary by model; normalized maintenance state needs representative fixtures.",
+      "state": ["filter_life_percent", "hepa_filter_life_percent", "carbon_filter_life_percent", "filter_replacement_due", "fault_code", "warning_code", "maintenance_required"],
+      "events": ["filter.low", "filter.replacement_due", "fault.raised", "fault.cleared", "maintenance.required"],
+      "conditions": ["filter_life_below", "fault_is_active", "maintenance_is_required"],
+      "actions": ["reset_filter_life"]
+    },
+    {
+      "id": "unsafe-or-sensitive-surface", "status": "excluded", "scope": ["all-devices-and-accounts"],
+      "source_refs": ["appapi", "libdyson_neon"],
+      "reason": "Credentials, raw MQTT access, account mutation, destructive administration, and safety bypasses must not enter PiPhi state or behaviors.",
+      "state": ["account_password", "cloud_access_token", "mqtt_password", "raw_mqtt_payload"],
+      "events": [], "conditions": [],
+      "actions": ["publish_arbitrary_mqtt", "call_arbitrary_cloud_endpoint", "change_account", "factory_reset", "install_firmware", "disable_thermal_safety"]
+    }
+  ]
+}
