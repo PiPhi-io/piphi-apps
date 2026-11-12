@@ -1,0 +1,60 @@
+{
+  "catalog_version": "1.0",
+  "integration_id": "piphi-modbus-rtu-sidecar",
+  "coverage_mode": "serial_rtu_ascii_bus_arbitration_frame_queue_and_parent_contract",
+  "reviewed_at": "2026-09-07",
+  "sources": {
+    "modbus_serial": "https://www.modbus.org/file/secure/modbusoverserial.pdf",
+    "modbus_application": "https://www.modbus.org/docs/Modbus_Application_Protocol_V1_1b3.pdf",
+    "modbus_specs": "https://www.modbus.org/modbus-specifications",
+    "pymodbus": "https://github.com/pymodbus-dev/pymodbus",
+    "core_vocabulary": "PiPhi Network Core and maintained PiPhi integrations",
+    "parent_contract": "PiPhi Modbus integration serial transport contract"
+  },
+  "groups": [
+    {
+      "id": "runtime-foundation", "status": "implemented", "scope": ["sidecar-service"], "source_refs": ["core_vocabulary"],
+      "reason": "The scaffold implements configuration presence, connectivity state, refresh dispatch, and sanitized configuration events.",
+      "state": ["connected"], "events": ["runtime.config.applied", "runtime.config.removed", "runtime.command.received"], "conditions": [], "actions": ["refresh"]
+    },
+    {
+      "id": "serial-port-and-line-lifecycle", "status": "planned", "scope": ["allow-listed-linux-serial-devices", "rs232-rs485-rs422"], "source_refs": ["modbus_serial", "pymodbus", "parent_contract"],
+      "reason": "Port discovery, exclusive locking, line settings, hotplug, RS-485 direction control, reconnect, and stable identity require real serial adapters and mock transports.",
+      "state": ["service_available", "serial_port_connected", "serial_port_identity", "serial_port_path_redacted", "serial_number_suffix", "usb_vendor_id", "usb_product_id", "baud_rate", "data_bits", "parity", "stop_bits", "flow_control", "rs485_mode", "rts_delay_before_send_us", "rts_delay_after_send_us", "serial_latency_ms", "serial_reconnect_count", "serial_error_count", "last_serial_success_at"],
+      "events": ["serial.added", "serial.removed", "serial.connected", "serial.disconnected", "serial.lock_failed", "serial.settings_rejected", "serial.failed", "serial.recovered"],
+      "conditions": ["serial_is_connected", "serial_error_count_above", "serial_latency_above", "serial_settings_match", "serial_success_age_above"],
+      "actions": ["open_allowlisted_port", "close_port", "reconnect_serial_session", "resynchronize_serial_ports"]
+    },
+    {
+      "id": "rtu-ascii-framing-and-timing", "status": "planned", "scope": ["modbus-rtu", "modbus-ascii"], "source_refs": ["modbus_serial", "modbus_application", "modbus_specs"],
+      "reason": "RTU/ASCII framing must enforce CRC/LRC, maximum frame size, inter-character and inter-frame timing, address/function validation, and malformed-frame isolation.",
+      "state": ["transmission_mode", "inter_character_timeout_us", "inter_frame_delay_us", "response_timeout_ms", "turnaround_delay_ms", "frames_received_total", "frames_sent_total", "frame_crc_error_count", "frame_lrc_error_count", "frame_length_error_count", "frame_timeout_count", "frame_parity_error_count", "frame_overrun_count", "unexpected_response_count", "exception_response_count", "last_frame_at"],
+      "events": ["frame.received", "frame.sent", "frame.crc_failed", "frame.lrc_failed", "frame.malformed", "frame.timed_out", "response.unexpected", "exception.received", "bus.silence_violation"],
+      "conditions": ["frame_error_count_above", "timeout_count_above", "exception_count_above", "bus_is_idle", "last_frame_age_above"],
+      "actions": ["validate_frame", "discard_partial_frame", "reset_frame_decoder"]
+    },
+    {
+      "id": "request-arbitration-and-routing", "status": "planned", "scope": ["parent-configured-units-and-profiles"], "source_refs": ["modbus_application", "pymodbus", "parent_contract"],
+      "reason": "A shared serial bus requires one in-flight transaction, correlation, fair scheduling, per-unit profiles, bounded retries, cancellation, and broadcast-write restrictions.",
+      "state": ["unit_count", "request_queue_depth", "request_queue_capacity", "active_unit_id", "active_function_code", "requests_completed_total", "requests_failed_total", "requests_retried_total", "requests_cancelled_total", "request_latency_ms", "request_rate_per_minute", "unit_timeout_count", "unit_exception_count", "unit_last_seen_at", "scheduler_policy", "backpressure_active"],
+      "events": ["request.queued", "request.started", "request.completed", "request.failed", "request.retried", "request.cancelled", "unit.online", "unit.offline", "queue.saturated", "queue.recovered"],
+      "conditions": ["queue_depth_above", "unit_is_online", "unit_timeout_count_above", "request_rate_above", "request_is_in_flight"],
+      "actions": ["submit_profile_request", "cancel_queued_request", "retry_failed_request", "flush_expired_requests"]
+    },
+    {
+      "id": "health-backpressure-and-restart-recovery", "status": "planned", "scope": ["sidecar-worker", "parent-consumers"], "source_refs": ["parent_contract", "core_vocabulary"],
+      "reason": "Operational safety needs consumer isolation, queue watermarks, degraded health, persistent idempotency where required, restart reconciliation, metrics, and secret-free diagnostics.",
+      "state": ["consumer_count", "queue_high_watermark", "oldest_request_age_ms", "dropped_request_count", "retry_budget_remaining", "circuit_breaker_state", "degraded_reason", "restart_recovery_count", "orphaned_request_count", "idempotency_entry_count", "last_success_at", "health_status"],
+      "events": ["dependency.lost", "dependency.recovered", "backpressure.started", "backpressure.ended", "circuit.opened", "circuit.closed", "restart.reconciled", "request.orphaned"],
+      "conditions": ["sidecar_is_healthy", "backpressure_is_active", "circuit_is_open", "oldest_request_age_above", "retry_budget_below"],
+      "actions": ["drain_request_queue", "reconcile_inflight_requests", "reset_circuit_breaker", "purge_expired_idempotency_entries"]
+    },
+    {
+      "id": "unsafe-sensitive-and-device-owned", "status": "excluded", "scope": ["all-ports-units-and-profiles"], "source_refs": ["modbus_serial", "modbus_application", "parent_contract"],
+      "reason": "Arbitrary serial access, raw frames, unrestricted addresses/functions, broadcasts, destructive diagnostics, device semantics, and credentials remain outside the transport sidecar.",
+      "state": ["raw_serial_bytes", "raw_request_frame", "raw_response_frame", "unredacted_port_path", "device_profile_secret", "tls_private_key"],
+      "events": [], "conditions": [],
+      "actions": ["open_arbitrary_serial_device", "send_raw_frame", "read_arbitrary_address", "write_arbitrary_address", "send_vendor_function_code", "broadcast_write", "force_listen_only_mode", "clear_device_diagnostics", "restart_device_communications", "load_untrusted_profile", "interpret_device_registers"]
+    }
+  ]
+}
