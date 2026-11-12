@@ -1,0 +1,84 @@
+{
+  "catalog_version": "1.0",
+  "integration_id": "piphi-network-zwave",
+  "coverage_mode": "node_interview_command_class_value_metadata_and_security_negotiated",
+  "reviewed_at": "2026-09-07",
+  "sources": {
+    "zwave_js": "https://github.com/zwave-js/zwave-js",
+    "zwave_js_docs": "https://zwave-js.github.io/zwave-js/",
+    "zwave_js_server": "https://github.com/zwave-js/zwave-js-server",
+    "zwave_js_python": "https://github.com/home-assistant-libs/zwave-js-server-python",
+    "core_vocabulary": "PiPhi Network Core and maintained PiPhi integrations",
+    "zwave_sidecar": "PiPhi managed Z-Wave JS sidecar contract"
+  },
+  "groups": [
+    {
+      "id": "runtime-foundation", "status": "implemented", "scope": ["all-configurations"],
+      "source_refs": ["core_vocabulary"],
+      "reason": "The scaffold implements configuration presence, connectivity state, refresh dispatch, and its configuration event.",
+      "state": ["connected"], "events": ["runtime.config.applied"], "conditions": ["state_matches"], "actions": ["refresh"]
+    },
+    {
+      "id": "driver-controller-and-network", "status": "planned", "scope": ["managed-zwave-js-sidecars-and-controllers"],
+      "source_refs": ["zwave_js", "zwave_js_docs", "zwave_js_server", "zwave_js_python", "zwave_sidecar"],
+      "reason": "Driver lifecycle, controller identification, version compatibility, event subscriptions, reconnect, and redaction need implementation and fixtures.",
+      "state": ["driver_ready", "driver_version", "server_version", "controller_node_id", "controller_model", "home_id_suffix", "network_node_count", "network_ready_node_count", "network_failed_node_count", "network_sleeping_node_count", "inclusion_state", "interview_queue_depth", "last_seen_at", "command_latency_ms"],
+      "events": ["driver.ready", "driver.failed", "driver.recovered", "controller.status_changed", "network.inclusion_state_changed"],
+      "conditions": ["driver_is_ready", "network_has_failed_nodes", "inclusion_state_is", "network_node_count_above"],
+      "actions": ["reconnect_driver", "refresh_network_summary"]
+    },
+    {
+      "id": "node-identity-interview-health-and-power", "status": "planned", "scope": ["interviewed-and-partially-interviewed-nodes"],
+      "source_refs": ["zwave_js", "zwave_js_docs", "zwave_js_server", "zwave_js_python"],
+      "reason": "Node metadata and health depend on interview stage, command classes, power source, security, and sleeping behavior.",
+      "state": ["node_id", "node_name", "node_location", "manufacturer", "product_name", "product_type", "product_id", "firmware_version", "device_class", "interview_stage", "interview_complete", "node_status", "node_ready", "node_awake", "node_sleeping", "node_failed", "node_security_classes", "node_dsk_suffix", "battery_percent", "battery_low", "battery_charging", "last_wakeup_at", "last_node_seen_at"],
+      "events": ["node.added", "node.removed", "node.ready", "node.awake", "node.asleep", "node.dead", "node.alive", "node.interview_completed", "node.interview_failed", "node.battery_low"],
+      "conditions": ["node_is_ready", "node_is_awake", "node_is_failed", "node_interview_is_complete", "node_battery_below", "node_security_includes"],
+      "actions": ["refresh_node_info", "interview_node", "ping_node"]
+    },
+    {
+      "id": "switch-sensor-meter-and-notification-values", "status": "planned", "scope": ["nodes-advertising-corresponding-readable-or-writable-value-metadata"],
+      "source_refs": ["zwave_js", "zwave_js_docs", "zwave_js_python"],
+      "reason": "Values must be generated from command-class metadata, units, readable/writeable flags, bounds, enums, and endpoint scope instead of a global device schema.",
+      "state": ["binary_switch", "multilevel_switch_percent", "binary_sensor", "multilevel_sensor_value", "meter_value", "meter_accumulated_value", "power_w", "energy_kwh", "voltage_v", "current_a", "frequency_hz", "notification_state", "notification_event", "central_scene", "scene_key_attribute"],
+      "events": ["switch.changed", "sensor.changed", "meter.changed", "notification.received", "central_scene.received", "value.notification_received"],
+      "conditions": ["binary_switch_is", "multilevel_switch_threshold", "binary_sensor_is", "sensor_value_threshold", "meter_value_threshold", "notification_matches", "central_scene_matches"],
+      "actions": ["set_binary_switch", "set_multilevel_switch", "start_level_change", "stop_level_change", "reset_meter"]
+    },
+    {
+      "id": "climate-lock-cover-color-and-specialized-values", "status": "planned", "scope": ["nodes-advertising-each-specialized-command-class"],
+      "source_refs": ["zwave_js", "zwave_js_docs", "zwave_js_python"],
+      "reason": "Specialized device functions require command-class, endpoint, enum, range, supervision, and security negotiation per node.",
+      "state": ["thermostat_mode", "thermostat_setpoint_c", "thermostat_fan_mode", "thermostat_operating_state", "door_lock_state", "door_lock_mode", "barrier_position_percent", "barrier_state", "cover_position_percent", "cover_tilt_percent", "color_rgb", "color_temperature_k", "irrigation_valve_state", "sound_switch_tone", "user_code_count"],
+      "events": ["thermostat.changed", "lock.changed", "lock.operation_failed", "barrier.changed", "cover.changed", "color.changed", "irrigation.changed", "access_code.used"],
+      "conditions": ["thermostat_mode_is", "temperature_setpoint_threshold", "lock_is_locked", "barrier_is_open", "cover_position_threshold", "color_matches", "irrigation_valve_is"],
+      "actions": ["set_thermostat_mode", "set_thermostat_setpoint", "set_thermostat_fan_mode", "set_door_lock", "open_barrier", "close_barrier", "stop_barrier", "set_cover_position", "set_cover_tilt", "set_color", "set_color_temperature", "set_irrigation_valve", "play_sound"]
+    },
+    {
+      "id": "network-management-association-and-configuration", "status": "planned", "scope": ["controllers-and-nodes-with-explicit-administrator-opt-in"],
+      "source_refs": ["zwave_js", "zwave_js_docs", "zwave_js_server"],
+      "reason": "Inclusion, exclusion, healing, associations, configuration, provisioning, and firmware operations are administrative and require confirmation, durable idempotency, and no fanout.",
+      "state": ["network_heal_progress_percent", "node_route_health", "association_group_count", "configuration_parameter_count", "provisioning_entry_count", "firmware_update_available", "firmware_update_progress_percent", "statistics_messages_tx", "statistics_messages_rx", "statistics_commands_dropped", "statistics_timeout_count"],
+      "events": ["inclusion.started", "inclusion.completed", "inclusion.failed", "exclusion.started", "exclusion.completed", "network.heal_progress", "network.heal_completed", "firmware_update.progress", "firmware_update.completed", "statistics.timeout_spike"],
+      "conditions": ["network_heal_is_running", "node_route_health_below", "firmware_update_is_available", "statistics_timeout_above"],
+      "actions": ["begin_inclusion", "stop_inclusion", "begin_exclusion", "stop_exclusion", "heal_network", "heal_node", "remove_failed_node", "replace_failed_node", "set_association", "remove_association", "set_configuration_parameter", "refresh_value", "start_firmware_update", "abort_firmware_update"]
+    },
+    {
+      "id": "managed-sidecar-operations", "status": "planned", "scope": ["piphi-managed-zwave-js-sidecar"],
+      "source_refs": ["zwave_sidecar", "zwave_js_server", "core_vocabulary"],
+      "reason": "The sidecar must own serial access, security keys, event stream recovery, bounded queues, backpressure, and restart behavior.",
+      "state": ["sidecar_connected", "sidecar_serial_connected", "sidecar_event_sequence", "sidecar_queue_depth", "sidecar_queue_capacity", "sidecar_reconnect_count", "sidecar_dropped_event_count", "sidecar_last_error_code"],
+      "events": ["sidecar.connected", "sidecar.disconnected", "sidecar.serial_lost", "sidecar.queue_saturated", "sidecar.events_resynchronized", "sidecar.recovered"],
+      "conditions": ["sidecar_is_healthy", "sidecar_queue_below", "sidecar_serial_is_connected"],
+      "actions": ["restart_driver_session", "resynchronize_event_stream"]
+    },
+    {
+      "id": "unsafe-or-sensitive-surface", "status": "excluded", "scope": ["all-networks-controllers-and-nodes"],
+      "source_refs": ["zwave_js", "zwave_js_server", "zwave_sidecar"],
+      "reason": "Security keys, complete DSKs, unrestricted value/API access, controller destruction, raw serial access, and credential mutation must never enter normal state or behaviors.",
+      "state": ["s0_network_key", "s2_unauthenticated_key", "s2_authenticated_key", "s2_access_control_key", "lr_s2_key", "full_dsk", "raw_serial_frame", "raw_driver_dump"],
+      "events": [], "conditions": [],
+      "actions": ["call_arbitrary_zwave_api", "write_arbitrary_value", "send_raw_serial_frame", "reset_controller", "factory_reset_node", "change_security_keys", "expose_full_dsk", "upload_untrusted_firmware", "disable_supervision", "remove_all_nodes"]
+    }
+  ]
+}
