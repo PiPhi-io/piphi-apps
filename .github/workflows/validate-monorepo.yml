@@ -1,0 +1,25 @@
+name: Validate monorepo
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate imported registry sources
+        run: python scripts/validate_monorepo.py
+      - name: Reject whitespace errors
+        run: git diff --check "${{ github.event.pull_request.base.sha || github.event.before }}" HEAD
