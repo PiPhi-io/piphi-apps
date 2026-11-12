@@ -1,0 +1,228 @@
+{
+  "schema_version": "1",
+  "identity": {
+    "publisher_id": "io.piphi",
+    "package_id": "kasa-smart-home",
+    "version": "0.1.15"
+  },
+  "name": "Kasa Smart Home",
+  "description": "Responsive controls, environmental readings, and energy insights for TP-Link Kasa devices.",
+  "origin": "integration",
+  "owning_integration_id": "tp-link-kasa-local-api",
+  "sdk_version_range": ">=0.6.1,<0.7",
+  "requires_integrations": [
+    {
+      "integration_id": "tp-link-kasa-local-api",
+      "version_range": ">=0.1.8,<1",
+      "optional": false
+    }
+  ],
+  "recommended_for_integrations": ["tp-link-kasa-local-api"],
+  "widgets": [
+    {
+      "id": "device-control",
+      "name": "Kasa Device Control",
+      "description": "One compact surface for Kasa power and brightness control.",
+      "runtime": "sandboxed_bundle",
+      "certification": {
+        "schema_version": "1",
+        "verified_gates": ["runtime", "persistence", "binding", "states", "commands", "responsive", "themes", "accessibility", "save-reload", "performance"],
+        "evidence": {
+          "runtime": ["core-profile:sandbox-host-v1/runtime"],
+          "persistence": ["core-profile:sandbox-host-v1/persistence"],
+          "binding": ["repo:tests/test_experience_package.py::test_bindings_match_runtime_capabilities_and_are_device_scoped"],
+          "states": ["repo:tests/test_experience_package.py::test_sandbox_widget_has_accessible_responsive_loading_and_error_paths"],
+          "commands": ["repo:tests/test_experience_package.py::test_browser_helpers_cover_empty_snapshot_points_and_power_commands"],
+          "responsive": ["repo:tests/test_experience_package.py::test_sandbox_widget_has_accessible_responsive_loading_and_error_paths"],
+          "themes": ["repo:tests/test_experience_package.py::test_themes_are_bounded_and_core_typography_remains_authoritative"],
+          "accessibility": ["repo:tests/test_experience_package.py::test_sandbox_widget_has_accessible_responsive_loading_and_error_paths"],
+          "save-reload": ["core-profile:sandbox-host-v1/save-reload"],
+          "performance": ["core-profile:sandbox-host-v1/performance"]
+        }
+      },
+      "entry": "assets/kasa-widget.mjs",
+      "themes": [
+        {"id": "kasa", "name": "Kasa", "description": "A polished teal smart-home presentation.", "stylesheet": "themes/kasa.css", "color_scheme": "auto"},
+        {"id": "quiet", "name": "Quiet", "description": "A restrained presentation that blends with Core.", "stylesheet": "themes/quiet.css", "color_scheme": "auto"}
+      ],
+      "default_theme_id": "kasa",
+      "presentation": {"contract_version": "1", "shell": "core", "content_surface": "transparent", "typography": "core", "appearance_controls": ["icon", "title", "surface", "opacity", "radius", "shadow"]},
+      "interaction_targets": [
+        {"id": "device-card", "label": "Kasa device", "kind": "card", "allowed_actions": ["more-info", "popout", "refresh"], "default_action": "more-info"},
+        {"id": "power-control", "label": "Power", "kind": "binding", "binding_slot_id": "power", "allowed_actions": ["command", "more-info"], "default_action": "command"},
+        {"id": "brightness-control", "label": "Brightness", "kind": "binding", "binding_slot_id": "brightness", "allowed_actions": ["command", "more-info"], "default_action": "command"}
+      ],
+      "core_card_replacements": [
+        {"schema_version": "1", "id": "kasa-device-control-v1", "source_card_types": ["tile"], "source_capability_ids": ["switch", "brightness"], "strategy": "same-device"}
+      ],
+      "binding_slots": [
+        {"id": "power", "label": "Power", "required": true, "binding_modes": ["read-write"], "value_kinds": ["boolean"], "capability_requirements": ["switch"], "compatible_integration_ids": ["tp-link-kasa-local-api"], "data_delivery": {"mode": "stream_preferred", "stale_after_seconds": 120}},
+        {"id": "brightness", "label": "Brightness", "required": false, "binding_modes": ["read-write"], "value_kinds": ["numeric"], "capability_requirements": ["brightness"], "compatible_integration_ids": ["tp-link-kasa-local-api"], "data_delivery": {"mode": "stream_preferred", "stale_after_seconds": 120}}
+      ],
+      "permissions": ["host.executeCommand"],
+      "allowed_commands": ["toggle", "turn_on", "turn_off", "set_brightness"],
+      "settings": [],
+      "settings_schema_version": "3",
+      "settings_migrations": [
+        {"from": "1", "to": "2", "defaults": {"dashboard_density": "compact"}, "remove": ["show_brightness"]},
+        {"from": "2", "to": "3", "remove": ["dashboard_density"]}
+      ],
+      "default_column_span": 4,
+      "default_row_span": 3
+    },
+    {
+      "id": "energy-monitor",
+      "name": "Kasa Energy Monitor",
+      "description": "Current power and recent energy consumption from a Kasa device.",
+      "runtime": "declarative",
+      "certification": {
+        "schema_version": "1",
+        "verified_gates": ["runtime", "persistence", "binding", "states", "responsive", "themes", "accessibility", "save-reload", "performance"],
+        "evidence": {
+          "runtime": ["core-profile:declarative-v1/runtime"],
+          "persistence": ["core-profile:declarative-v1/persistence"],
+          "binding": ["repo:tests/test_experience_package.py::test_bindings_match_runtime_capabilities_and_are_device_scoped"],
+          "states": ["core-profile:declarative-v1/states"],
+          "responsive": ["core-profile:declarative-v1/responsive"],
+          "themes": ["core-profile:declarative-v1/themes"],
+          "accessibility": ["core-profile:declarative-v1/accessibility"],
+          "save-reload": ["core-profile:declarative-v1/save-reload"],
+          "performance": ["core-profile:declarative-v1/performance"]
+        }
+      },
+      "themes": [
+        {"id": "kasa", "name": "Kasa", "description": "A polished teal smart-home presentation.", "stylesheet": "themes/kasa.css", "color_scheme": "auto"},
+        {"id": "quiet", "name": "Quiet", "description": "A restrained presentation that blends with Core.", "stylesheet": "themes/quiet.css", "color_scheme": "auto"}
+      ],
+      "default_theme_id": "kasa",
+      "presentation": {"contract_version": "1", "shell": "core", "content_surface": "transparent", "typography": "core", "appearance_controls": ["icon", "title", "surface", "opacity", "radius", "shadow"]},
+      "interaction_targets": [
+        {"id": "energy-card", "label": "Kasa energy", "kind": "card", "allowed_actions": ["more-info", "popout", "refresh"], "default_action": "more-info"},
+        {"id": "live-power", "label": "Current power", "kind": "binding", "binding_slot_id": "live-power", "allowed_actions": ["more-info", "history", "popout"], "default_action": "history"},
+        {"id": "today", "label": "Energy today", "kind": "binding", "binding_slot_id": "today", "allowed_actions": ["more-info", "history", "popout"], "default_action": "history"},
+        {"id": "month", "label": "Energy this month", "kind": "binding", "binding_slot_id": "month", "allowed_actions": ["more-info", "history", "popout"], "default_action": "history"}
+      ],
+      "core_card_replacements": [
+        {"schema_version": "1", "id": "kasa-energy-monitor-v1", "source_card_types": ["sensor-card", "stat"], "source_capability_ids": ["energy_power", "energy_today", "energy_this_month"], "strategy": "same-device"}
+      ],
+      "binding_slots": [
+        {"id": "live-power", "label": "Current power", "required": true, "binding_modes": ["read"], "value_kinds": ["numeric"], "capability_requirements": ["energy_power"], "compatible_integration_ids": ["tp-link-kasa-local-api"], "data_delivery": {"mode": "stream_preferred", "stale_after_seconds": 120}},
+        {"id": "today", "label": "Today", "required": false, "binding_modes": ["read"], "value_kinds": ["numeric"], "capability_requirements": ["energy_today"], "compatible_integration_ids": ["tp-link-kasa-local-api"], "data_delivery": {"mode": "stream_preferred", "stale_after_seconds": 120}},
+        {"id": "month", "label": "This month", "required": false, "binding_modes": ["read"], "value_kinds": ["numeric"], "capability_requirements": ["energy_this_month"], "compatible_integration_ids": ["tp-link-kasa-local-api"], "data_delivery": {"mode": "stream_preferred", "stale_after_seconds": 120}}
+      ],
+      "recipe": {
+        "schema_version": "1",
+        "layout": "grid",
+        "columns": 2,
+        "items": [
+          {"type": "metric", "slot_id": "live-power", "label": "Right now", "format": "number", "domain": "power", "emphasis": "compact", "show_freshness": true, "action": {"type": "details", "label": "View power history"}},
+          {"type": "metric", "slot_id": "today", "label": "Today", "format": "number", "domain": "energy", "emphasis": "compact", "show_freshness": true, "action": {"type": "details", "label": "View today's energy history"}},
+          {"type": "metric", "slot_id": "month", "label": "This month", "format": "number", "domain": "energy", "emphasis": "compact", "show_freshness": true, "action": {"type": "details", "label": "View monthly energy history"}}
+        ]
+      },
+      "default_column_span": 4,
+      "default_row_span": 2
+    },
+    {
+      "id": "smart-plug",
+      "name": "Kasa Smart Plug",
+      "description": "A stacked power control and energy overview for energy-monitoring plugs.",
+      "runtime": "sandboxed_bundle",
+      "certification": {
+        "schema_version": "1",
+        "verified_gates": ["runtime", "persistence", "binding", "states", "commands", "responsive", "themes", "accessibility", "save-reload", "performance"],
+        "evidence": {
+          "runtime": ["core-profile:sandbox-host-v1/runtime"],
+          "persistence": ["core-profile:sandbox-host-v1/persistence"],
+          "binding": ["repo:tests/test_experience_package.py::test_bindings_match_runtime_capabilities_and_are_device_scoped"],
+          "states": ["repo:tests/test_experience_package.py::test_sandbox_widget_has_accessible_responsive_loading_and_error_paths"],
+          "commands": ["repo:tests/test_experience_package.py::test_browser_helpers_cover_empty_snapshot_points_and_power_commands"],
+          "responsive": ["repo:tests/test_experience_package.py::test_sandbox_widget_has_accessible_responsive_loading_and_error_paths"],
+          "themes": ["repo:tests/test_experience_package.py::test_themes_are_bounded_and_core_typography_remains_authoritative"],
+          "accessibility": ["repo:tests/test_experience_package.py::test_sandbox_widget_has_accessible_responsive_loading_and_error_paths"],
+          "save-reload": ["core-profile:sandbox-host-v1/save-reload"],
+          "performance": ["core-profile:sandbox-host-v1/performance"]
+        }
+      },
+      "entry": "assets/kasa-widget.mjs",
+      "themes": [
+        {"id": "kasa", "name": "Kasa", "description": "A polished teal smart-home presentation.", "stylesheet": "themes/kasa.css", "color_scheme": "auto"},
+        {"id": "quiet", "name": "Quiet", "description": "A restrained presentation that blends with Core.", "stylesheet": "themes/quiet.css", "color_scheme": "auto"}
+      ],
+      "default_theme_id": "kasa",
+      "presentation": {"contract_version": "1", "shell": "core", "content_surface": "transparent", "typography": "core", "appearance_controls": ["icon", "title", "surface", "opacity", "radius", "shadow"]},
+      "interaction_targets": [
+        {"id": "smart-plug-card", "label": "Kasa smart plug", "kind": "card", "allowed_actions": ["more-info", "popout", "refresh"], "default_action": "more-info"},
+        {"id": "smart-plug-power", "label": "Plug power", "kind": "binding", "binding_slot_id": "power", "allowed_actions": ["command", "more-info"], "default_action": "command"},
+        {"id": "smart-plug-energy", "label": "Current energy use", "kind": "binding", "binding_slot_id": "live-power", "allowed_actions": ["more-info", "history", "popout"], "default_action": "history"}
+      ],
+      "core_card_replacements": [
+        {"schema_version": "1", "id": "kasa-smart-plug-v1", "source_card_types": ["tile", "sensor-card", "stat"], "source_capability_ids": ["switch", "energy_power", "energy_today", "energy_this_month"], "strategy": "same-device"}
+      ],
+      "binding_slots": [
+        {"id": "power", "label": "Power", "required": true, "binding_modes": ["read-write"], "value_kinds": ["boolean"], "capability_requirements": ["switch"], "compatible_integration_ids": ["tp-link-kasa-local-api"], "data_delivery": {"mode": "stream_preferred", "stale_after_seconds": 120}},
+        {"id": "live-power", "label": "Current power", "required": true, "binding_modes": ["read"], "value_kinds": ["numeric"], "capability_requirements": ["energy_power"], "compatible_integration_ids": ["tp-link-kasa-local-api"], "data_delivery": {"mode": "stream_preferred", "stale_after_seconds": 120}},
+        {"id": "today", "label": "Today", "required": false, "binding_modes": ["read"], "value_kinds": ["numeric"], "capability_requirements": ["energy_today"], "compatible_integration_ids": ["tp-link-kasa-local-api"], "data_delivery": {"mode": "stream_preferred", "stale_after_seconds": 120}},
+        {"id": "month", "label": "This month", "required": false, "binding_modes": ["read"], "value_kinds": ["numeric"], "capability_requirements": ["energy_this_month"], "compatible_integration_ids": ["tp-link-kasa-local-api"], "data_delivery": {"mode": "stream_preferred", "stale_after_seconds": 120}}
+      ],
+      "permissions": ["host.executeCommand"],
+      "allowed_commands": ["toggle", "turn_on", "turn_off"],
+      "settings": [
+        {"id": "show_today", "type": "boolean", "label": "Show today's energy", "default": true},
+        {"id": "show_month", "type": "boolean", "label": "Show monthly energy", "default": true}
+      ],
+      "default_column_span": 5,
+      "default_row_span": 4
+    },
+    {
+      "id": "environment-monitor",
+      "name": "Kasa Environment",
+      "description": "Comfortable, glanceable temperature and humidity readings from Kasa sensors and hubs.",
+      "runtime": "declarative",
+      "certification": {
+        "schema_version": "1",
+        "verified_gates": ["runtime", "persistence", "binding", "states", "responsive", "themes", "accessibility", "save-reload", "performance"],
+        "evidence": {
+          "runtime": ["core-profile:declarative-v1/runtime"],
+          "persistence": ["core-profile:declarative-v1/persistence"],
+          "binding": ["repo:tests/test_experience_package.py::test_bindings_match_runtime_capabilities_and_are_device_scoped"],
+          "states": ["core-profile:declarative-v1/states"],
+          "responsive": ["core-profile:declarative-v1/responsive"],
+          "themes": ["core-profile:declarative-v1/themes"],
+          "accessibility": ["core-profile:declarative-v1/accessibility"],
+          "save-reload": ["core-profile:declarative-v1/save-reload"],
+          "performance": ["core-profile:declarative-v1/performance"]
+        }
+      },
+      "themes": [
+        {"id": "kasa", "name": "Kasa", "description": "A polished teal smart-home presentation.", "stylesheet": "themes/kasa.css", "color_scheme": "auto"},
+        {"id": "quiet", "name": "Quiet", "description": "A restrained presentation that blends with Core.", "stylesheet": "themes/quiet.css", "color_scheme": "auto"}
+      ],
+      "default_theme_id": "kasa",
+      "presentation": {"contract_version": "1", "shell": "core", "content_surface": "transparent", "typography": "core", "appearance_controls": ["icon", "title", "surface", "opacity", "radius", "shadow"]},
+      "interaction_targets": [
+        {"id": "environment-card", "label": "Kasa environment", "kind": "card", "allowed_actions": ["more-info", "popout", "refresh"], "default_action": "more-info"},
+        {"id": "temperature-reading", "label": "Temperature", "kind": "binding", "binding_slot_id": "temperature", "allowed_actions": ["more-info", "history", "popout"], "default_action": "history"},
+        {"id": "humidity-reading", "label": "Humidity", "kind": "binding", "binding_slot_id": "humidity", "allowed_actions": ["more-info", "history", "popout"], "default_action": "history"}
+      ],
+      "core_card_replacements": [
+        {"schema_version": "1", "id": "kasa-environment-v1", "source_card_types": ["sensor-card", "stat"], "source_capability_ids": ["temperature", "humidity"], "strategy": "same-device"}
+      ],
+      "binding_slots": [
+        {"id": "temperature", "label": "Temperature", "required": true, "binding_modes": ["read"], "value_kinds": ["numeric"], "capability_requirements": ["temperature"], "compatible_integration_ids": ["tp-link-kasa-local-api"], "data_delivery": {"mode": "stream_preferred", "stale_after_seconds": 120}},
+        {"id": "humidity", "label": "Humidity", "required": false, "binding_modes": ["read"], "value_kinds": ["numeric"], "capability_requirements": ["humidity"], "compatible_integration_ids": ["tp-link-kasa-local-api"], "data_delivery": {"mode": "stream_preferred", "stale_after_seconds": 120}}
+      ],
+      "recipe": {
+        "schema_version": "1",
+        "layout": "grid",
+        "columns": 2,
+        "items": [
+          {"type": "metric", "slot_id": "temperature", "label": "Temperature", "format": "number", "domain": "temperature", "emphasis": "hero", "show_freshness": true, "action": {"type": "details", "label": "View temperature history"}},
+          {"type": "metric", "slot_id": "humidity", "label": "Humidity", "format": "number", "domain": "humidity", "show_freshness": true, "action": {"type": "details", "label": "View humidity history"}}
+        ]
+      },
+      "default_column_span": 4,
+      "default_row_span": 3
+    }
+  ]
+}

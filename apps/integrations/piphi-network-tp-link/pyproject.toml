@@ -1,0 +1,34 @@
+[project]
+name = "piphi_network_tp_link"
+version = "0.1.14"
+description = "PiPhi TP-Link Kasa integration"
+authors = [
+    {name = "KelvinSan", email = "kelvin.sanyaolu@gmail.com"},
+]
+dependencies = [
+    "python-kasa>=0.10.2",
+    "fastapi[standard]>=0.135.2",
+    "aiofiles>=25.1.0",
+    "httpx>=0.27.0",
+    "piphi-runtime-kit-python>=0.8.1,<1.0.0",
+    "tzdata>=2026.2",
+]
+requires-python = "==3.12.*"
+readme = "README.md"
+license = {text = "MIT"}
+
+
+[tool.pdm]
+distribution = false
+
+[tool.pdm.scripts]
+release-version = "python scripts/release.py"
+release-github = "python scripts/create_github_release.py"
+build-experience = "python scripts/build_experience.py"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.0",
+    "cryptography>=43.0.0",
+    "piphi-runtime-testkit-python==0.1.4",
+]

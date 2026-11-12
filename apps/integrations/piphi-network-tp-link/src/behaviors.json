@@ -1,0 +1,1258 @@
+{
+  "devices": [
+    {
+      "id": "kasa_device",
+      "name": "TP-Link Kasa Device",
+      "description": "Generic behavior metadata for all Kasa device families supported by python-kasa.",
+      "capabilities": [
+        "switch",
+        "brightness",
+        "color_temperature",
+        "color",
+        "power",
+        "temperature",
+        "humidity",
+        "telemetry",
+        "refresh",
+        "dynamic_feature",
+        "energy_power",
+        "energy_today",
+        "energy_this_month"
+      ],
+      "intents": [
+        {
+          "id": "automate_kasa_device",
+          "label": "Automate Kasa device",
+          "description": "Build automations for any supported Kasa capability"
+        },
+        {
+          "id": "manage_energy_and_lighting",
+          "label": "Manage energy and lighting",
+          "description": "Control power and lighting features from one behavior flow"
+        },
+        {
+          "id": "resilience_recovery",
+          "label": "Resilience and recovery",
+          "description": "Recover from failures with fallback and reboot actions"
+        }
+      ],
+      "conditions": [
+        {
+          "id": "is_on",
+          "label": "Power state is on",
+          "type": "boolean",
+          "capability": "switch.power",
+          "operators": [
+            "eq",
+            "neq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "is_on",
+            "fieldAliases": [
+              "power_state",
+              "switch"
+            ],
+            "operator": "eq"
+          },
+          "freshness": {
+            "maxAgeSeconds": 300,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "feature_equals",
+          "label": "Feature equals value",
+          "type": "text",
+          "params": [
+            {
+              "name": "feature_id",
+              "label": "Feature ID",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "value",
+              "label": "Expected value",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "child_id",
+              "label": "Child ID (optional)",
+              "type": "text",
+              "required": false
+            }
+          ],
+          "capability": "sensor.feature_equals",
+          "operators": [
+            "eq",
+            "neq",
+            "contains"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "feature_equals",
+            "operator": "eq"
+          },
+          "freshness": {
+            "maxAgeSeconds": 300,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "feature_in_range",
+          "label": "Feature in numeric range",
+          "type": "number",
+          "params": [
+            {
+              "name": "feature_id",
+              "label": "Feature ID",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "min_value",
+              "label": "Minimum value",
+              "type": "number",
+              "required": true
+            },
+            {
+              "name": "max_value",
+              "label": "Maximum value",
+              "type": "number",
+              "required": true
+            },
+            {
+              "name": "child_id",
+              "label": "Child ID (optional)",
+              "type": "text",
+              "required": false
+            }
+          ],
+          "capability": "sensor.feature_in_range",
+          "operators": [
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "feature_in_range",
+            "operator": ">"
+          },
+          "freshness": {
+            "maxAgeSeconds": 300,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "signal_below",
+          "label": "Signal strength below",
+          "type": "number",
+          "params": [
+            {
+              "name": "dbm",
+              "label": "Signal threshold (dBm)",
+              "type": "number",
+              "min": -100,
+              "max": -20,
+              "default": -70,
+              "step": 1,
+              "required": true,
+              "unit": "dBm"
+            }
+          ],
+          "capability": "sensor.signal",
+          "operators": [
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "signal_strength",
+            "fieldAliases": [
+              "signal",
+              "rssi"
+            ],
+            "operator": ">"
+          },
+          "freshness": {
+            "maxAgeSeconds": 300,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "power_above",
+          "label": "Power above threshold",
+          "type": "number",
+          "params": [
+            {
+              "name": "watts",
+              "label": "Power threshold (W)",
+              "type": "number",
+              "min": 0,
+              "max": 10000,
+              "default": 500,
+              "step": 1,
+              "required": true,
+              "unit": "W"
+            },
+            {
+              "name": "child_id",
+              "label": "Child ID (optional)",
+              "type": "text",
+              "required": false
+            }
+          ],
+          "capability": "sensor.power",
+          "operators": [
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "power",
+            "operator": ">"
+          },
+          "freshness": {
+            "maxAgeSeconds": 300,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        },
+        {
+          "id": "energy_today_above",
+          "label": "Today energy above threshold",
+          "type": "number",
+          "params": [
+            {
+              "name": "kwh",
+              "label": "Today energy threshold (kWh)",
+              "type": "number",
+              "min": 0,
+              "max": 200,
+              "default": 2,
+              "step": 0.1,
+              "required": true,
+              "unit": "kWh"
+            },
+            {
+              "name": "child_id",
+              "label": "Child ID (optional)",
+              "type": "text",
+              "required": false
+            }
+          ],
+          "capability": "sensor.energy",
+          "operators": [
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "energy_today",
+            "fieldAliases": [
+              "energy",
+              "today_kwh"
+            ],
+            "operator": ">"
+          },
+          "freshness": {
+            "maxAgeSeconds": 300,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "only_if"
+          }
+        }
+      ],
+      "actions": [
+        {
+          "id": "turn_on",
+          "label": "Turn on",
+          "params": [
+            {
+              "name": "child_id",
+              "label": "Child ID (optional)",
+              "type": "text",
+              "required": false
+            }
+          ],
+          "capability": "switch.power",
+          "runtime": {
+            "command": "turn_on"
+          },
+          "safety": {
+            "riskLevel": "medium",
+            "requiresConfirmation": false,
+            "liveRunAllowed": true
+          },
+          "targeting": {
+            "fanoutSafe": true,
+            "scopes": [
+              "config",
+              "configs",
+              "room",
+              "rooms",
+              "group",
+              "groups",
+              "selection",
+              "tag",
+              "tags",
+              "capability",
+              "all_matching"
+            ],
+            "supportsMultiTarget": true
+          },
+          "failure": {
+            "strategy": "retry_then_continue",
+            "retry": {
+              "maxAttempts": 1,
+              "delaySeconds": 2,
+              "backoff": "fixed"
+            },
+            "timeoutSeconds": 30,
+            "continueOnPartialFailure": true,
+            "idempotent": true
+          },
+          "ui": {
+            "group": "do_this"
+          }
+        },
+        {
+          "id": "turn_off",
+          "label": "Turn off",
+          "params": [
+            {
+              "name": "child_id",
+              "label": "Child ID (optional)",
+              "type": "text",
+              "required": false
+            }
+          ],
+          "capability": "switch.power",
+          "runtime": {
+            "command": "turn_off"
+          },
+          "safety": {
+            "riskLevel": "medium",
+            "requiresConfirmation": false,
+            "liveRunAllowed": true
+          },
+          "targeting": {
+            "fanoutSafe": true,
+            "scopes": [
+              "config",
+              "configs",
+              "room",
+              "rooms",
+              "group",
+              "groups",
+              "selection",
+              "tag",
+              "tags",
+              "capability",
+              "all_matching"
+            ],
+            "supportsMultiTarget": true
+          },
+          "failure": {
+            "strategy": "retry_then_continue",
+            "retry": {
+              "maxAttempts": 1,
+              "delaySeconds": 2,
+              "backoff": "fixed"
+            },
+            "timeoutSeconds": 30,
+            "continueOnPartialFailure": true,
+            "idempotent": true
+          },
+          "ui": {
+            "group": "do_this"
+          }
+        },
+        {
+          "id": "toggle",
+          "label": "Toggle power",
+          "params": [
+            {
+              "name": "child_id",
+              "label": "Child ID (optional)",
+              "type": "text",
+              "required": false
+            }
+          ],
+          "capability": "switch.power",
+          "runtime": {
+            "command": "toggle"
+          },
+          "safety": {
+            "riskLevel": "medium",
+            "requiresConfirmation": false,
+            "liveRunAllowed": true
+          },
+          "targeting": {
+            "fanoutSafe": true,
+            "scopes": [
+              "config",
+              "configs",
+              "room",
+              "rooms",
+              "group",
+              "groups",
+              "selection",
+              "tag",
+              "tags",
+              "capability",
+              "all_matching"
+            ],
+            "supportsMultiTarget": true
+          },
+          "failure": {
+            "strategy": "retry_then_continue",
+            "retry": {
+              "maxAttempts": 1,
+              "delaySeconds": 2,
+              "backoff": "fixed"
+            },
+            "timeoutSeconds": 30,
+            "continueOnPartialFailure": true,
+            "idempotent": false
+          },
+          "ui": {
+            "group": "do_this"
+          }
+        },
+        {
+          "id": "set_brightness",
+          "label": "Set brightness",
+          "params": [
+            {
+              "name": "value",
+              "label": "Brightness",
+              "type": "number",
+              "min": 0,
+              "max": 100,
+              "default": 50,
+              "required": true
+            },
+            {
+              "name": "child_id",
+              "label": "Child ID (optional)",
+              "type": "text",
+              "required": false
+            }
+          ],
+          "capability": "light.brightness",
+          "runtime": {
+            "command": "set_brightness"
+          },
+          "safety": {
+            "riskLevel": "medium",
+            "requiresConfirmation": false,
+            "liveRunAllowed": true
+          },
+          "targeting": {
+            "fanoutSafe": true,
+            "scopes": [
+              "config",
+              "configs",
+              "room",
+              "rooms",
+              "group",
+              "groups",
+              "selection",
+              "tag",
+              "tags",
+              "capability",
+              "all_matching"
+            ],
+            "supportsMultiTarget": true
+          },
+          "failure": {
+            "strategy": "retry_then_continue",
+            "retry": {
+              "maxAttempts": 1,
+              "delaySeconds": 2,
+              "backoff": "fixed"
+            },
+            "timeoutSeconds": 30,
+            "continueOnPartialFailure": true,
+            "idempotent": true
+          },
+          "ui": {
+            "group": "do_this"
+          }
+        },
+        {
+          "id": "set_color_temperature",
+          "label": "Set color temperature",
+          "params": [
+            {
+              "name": "value",
+              "label": "Color temperature",
+              "type": "number",
+              "min": 1500,
+              "max": 9000,
+              "default": 3000,
+              "required": true
+            },
+            {
+              "name": "child_id",
+              "label": "Child ID (optional)",
+              "type": "text",
+              "required": false
+            }
+          ],
+          "capability": "light.color",
+          "runtime": {
+            "command": "set_color_temperature"
+          },
+          "safety": {
+            "riskLevel": "medium",
+            "requiresConfirmation": false,
+            "liveRunAllowed": true
+          },
+          "targeting": {
+            "fanoutSafe": true,
+            "scopes": [
+              "config",
+              "configs",
+              "room",
+              "rooms",
+              "group",
+              "groups",
+              "selection",
+              "tag",
+              "tags",
+              "capability",
+              "all_matching"
+            ],
+            "supportsMultiTarget": true
+          },
+          "failure": {
+            "strategy": "retry_then_continue",
+            "retry": {
+              "maxAttempts": 1,
+              "delaySeconds": 2,
+              "backoff": "fixed"
+            },
+            "timeoutSeconds": 30,
+            "continueOnPartialFailure": true,
+            "idempotent": true
+          },
+          "ui": {
+            "group": "do_this"
+          }
+        },
+        {
+          "id": "set_hue_saturation",
+          "label": "Set hue and saturation",
+          "params": [
+            {
+              "name": "hue",
+              "label": "Hue",
+              "type": "number",
+              "min": 0,
+              "max": 360,
+              "default": 180,
+              "required": true
+            },
+            {
+              "name": "saturation",
+              "label": "Saturation",
+              "type": "number",
+              "min": 0,
+              "max": 100,
+              "default": 75,
+              "required": true
+            },
+            {
+              "name": "child_id",
+              "label": "Child ID (optional)",
+              "type": "text",
+              "required": false
+            }
+          ],
+          "capability": "action.set_hue_saturation",
+          "runtime": {
+            "command": "set_hue_saturation"
+          },
+          "safety": {
+            "riskLevel": "medium",
+            "requiresConfirmation": false,
+            "liveRunAllowed": true
+          },
+          "targeting": {
+            "fanoutSafe": true,
+            "scopes": [
+              "config",
+              "configs",
+              "room",
+              "rooms",
+              "group",
+              "groups",
+              "selection",
+              "tag",
+              "tags",
+              "capability",
+              "all_matching"
+            ],
+            "supportsMultiTarget": true
+          },
+          "failure": {
+            "strategy": "retry_then_continue",
+            "retry": {
+              "maxAttempts": 1,
+              "delaySeconds": 2,
+              "backoff": "fixed"
+            },
+            "timeoutSeconds": 30,
+            "continueOnPartialFailure": true,
+            "idempotent": true
+          },
+          "ui": {
+            "group": "do_this"
+          }
+        },
+        {
+          "id": "set_alias",
+          "label": "Set alias",
+          "params": [
+            {
+              "name": "alias",
+              "label": "Alias",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "child_id",
+              "label": "Child ID (optional)",
+              "type": "text",
+              "required": false
+            }
+          ],
+          "capability": "action.set_alias",
+          "runtime": {
+            "command": "set_alias"
+          },
+          "safety": {
+            "riskLevel": "medium",
+            "requiresConfirmation": false,
+            "liveRunAllowed": true
+          },
+          "targeting": {
+            "fanoutSafe": true,
+            "scopes": [
+              "config",
+              "configs",
+              "room",
+              "rooms",
+              "group",
+              "groups",
+              "selection",
+              "tag",
+              "tags",
+              "capability",
+              "all_matching"
+            ],
+            "supportsMultiTarget": true
+          },
+          "failure": {
+            "strategy": "retry_then_continue",
+            "retry": {
+              "maxAttempts": 1,
+              "delaySeconds": 2,
+              "backoff": "fixed"
+            },
+            "timeoutSeconds": 30,
+            "continueOnPartialFailure": true,
+            "idempotent": true
+          },
+          "ui": {
+            "group": "do_this"
+          }
+        },
+        {
+          "id": "reboot",
+          "label": "Reboot device",
+          "params": [
+            {
+              "name": "delay",
+              "label": "Delay seconds",
+              "type": "number",
+              "min": 0,
+              "max": 60,
+              "default": 1,
+              "required": false
+            },
+            {
+              "name": "child_id",
+              "label": "Child ID (optional)",
+              "type": "text",
+              "required": false
+            }
+          ],
+          "capability": "device.restart",
+          "runtime": {
+            "command": "reboot"
+          },
+          "safety": {
+            "riskLevel": "high",
+            "requiresConfirmation": true,
+            "liveRunAllowed": true
+          },
+          "targeting": {
+            "fanoutSafe": true,
+            "scopes": [
+              "config",
+              "configs",
+              "room",
+              "rooms",
+              "group",
+              "groups",
+              "selection",
+              "tag",
+              "tags",
+              "capability",
+              "all_matching"
+            ],
+            "supportsMultiTarget": true
+          },
+          "failure": {
+            "strategy": "retry_then_continue",
+            "retry": {
+              "maxAttempts": 1,
+              "delaySeconds": 2,
+              "backoff": "fixed"
+            },
+            "timeoutSeconds": 30,
+            "continueOnPartialFailure": true,
+            "idempotent": true
+          },
+          "ui": {
+            "group": "do_this"
+          }
+        },
+        {
+          "id": "set_feature",
+          "label": "Set feature",
+          "params": [
+            {
+              "name": "feature_id",
+              "label": "Feature ID",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "value",
+              "label": "Value",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "child_id",
+              "label": "Child ID (optional)",
+              "type": "text",
+              "required": false
+            }
+          ],
+          "capability": "action.set_feature",
+          "runtime": {
+            "command": "set_feature"
+          },
+          "safety": {
+            "riskLevel": "high",
+            "requiresConfirmation": true,
+            "liveRunAllowed": true
+          },
+          "targeting": {
+            "fanoutSafe": true,
+            "scopes": [
+              "config",
+              "configs",
+              "room",
+              "rooms",
+              "group",
+              "groups",
+              "selection",
+              "tag",
+              "tags",
+              "capability",
+              "all_matching"
+            ],
+            "supportsMultiTarget": true
+          },
+          "failure": {
+            "strategy": "retry_then_continue",
+            "retry": {
+              "maxAttempts": 1,
+              "delaySeconds": 2,
+              "backoff": "fixed"
+            },
+            "timeoutSeconds": 30,
+            "continueOnPartialFailure": true,
+            "idempotent": true
+          },
+          "ui": {
+            "group": "do_this"
+          }
+        },
+        {
+          "id": "feature_action",
+          "label": "Feature action",
+          "params": [
+            {
+              "name": "feature_id",
+              "label": "Feature ID",
+              "type": "text",
+              "required": true
+            },
+            {
+              "name": "value",
+              "label": "Value (optional)",
+              "type": "text",
+              "required": false
+            },
+            {
+              "name": "child_id",
+              "label": "Child ID (optional)",
+              "type": "text",
+              "required": false
+            }
+          ],
+          "capability": "action.feature_action",
+          "runtime": {
+            "command": "feature_action"
+          },
+          "safety": {
+            "riskLevel": "high",
+            "requiresConfirmation": true,
+            "liveRunAllowed": true
+          },
+          "targeting": {
+            "fanoutSafe": true,
+            "scopes": [
+              "config",
+              "configs",
+              "room",
+              "rooms",
+              "group",
+              "groups",
+              "selection",
+              "tag",
+              "tags",
+              "capability",
+              "all_matching"
+            ],
+            "supportsMultiTarget": true
+          },
+          "failure": {
+            "strategy": "retry_then_continue",
+            "retry": {
+              "maxAttempts": 1,
+              "delaySeconds": 2,
+              "backoff": "fixed"
+            },
+            "timeoutSeconds": 30,
+            "continueOnPartialFailure": true,
+            "idempotent": true
+          },
+          "ui": {
+            "group": "do_this"
+          }
+        },
+        {
+          "id": "refresh",
+          "label": "Refresh state",
+          "capability": "device.refresh",
+          "runtime": {
+            "command": "refresh"
+          },
+          "safety": {
+            "riskLevel": "low",
+            "requiresConfirmation": false,
+            "liveRunAllowed": true
+          },
+          "targeting": {
+            "fanoutSafe": true,
+            "scopes": [
+              "config",
+              "configs",
+              "room",
+              "rooms",
+              "group",
+              "groups",
+              "selection",
+              "tag",
+              "tags",
+              "capability",
+              "all_matching"
+            ],
+            "supportsMultiTarget": true
+          },
+          "failure": {
+            "strategy": "retry_then_continue",
+            "retry": {
+              "maxAttempts": 1,
+              "delaySeconds": 2,
+              "backoff": "fixed"
+            },
+            "timeoutSeconds": 30,
+            "continueOnPartialFailure": true,
+            "idempotent": true
+          },
+          "ui": {
+            "group": "do_this"
+          }
+        },
+        {
+          "id": "read_energy",
+          "label": "Read energy metrics",
+          "params": [
+            {
+              "name": "child_id",
+              "label": "Child ID (optional)",
+              "type": "text",
+              "required": false
+            }
+          ],
+          "capability": "action.read_energy",
+          "runtime": {
+            "command": "read_energy"
+          },
+          "safety": {
+            "riskLevel": "low",
+            "requiresConfirmation": false,
+            "liveRunAllowed": true
+          },
+          "targeting": {
+            "fanoutSafe": true,
+            "scopes": [
+              "config",
+              "configs",
+              "room",
+              "rooms",
+              "group",
+              "groups",
+              "selection",
+              "tag",
+              "tags",
+              "capability",
+              "all_matching"
+            ],
+            "supportsMultiTarget": true
+          },
+          "failure": {
+            "strategy": "retry_then_continue",
+            "retry": {
+              "maxAttempts": 1,
+              "delaySeconds": 2,
+              "backoff": "fixed"
+            },
+            "timeoutSeconds": 30,
+            "continueOnPartialFailure": true,
+            "idempotent": true
+          },
+          "ui": {
+            "group": "do_this"
+          }
+        }
+      ],
+      "stop": [
+        {
+          "id": "after_duration",
+          "label": "After duration",
+          "type": "duration",
+          "params": [
+            {
+              "name": "duration",
+              "label": "Duration",
+              "type": "duration",
+              "default": "30m",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "when_condition_clears",
+          "label": "When condition clears",
+          "type": "boolean"
+        }
+      ],
+      "manualOverride": [
+        {
+          "id": "continue",
+          "label": "Continue automation"
+        },
+        {
+          "id": "pause",
+          "label": "Pause automation",
+          "params": [
+            {
+              "name": "duration",
+              "label": "Pause duration",
+              "type": "duration",
+              "default": "15m",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "disable_behavior",
+          "label": "Disable behavior"
+        }
+      ],
+      "deviceClass": "switch_device",
+      "entityType": "device",
+      "targeting": {
+        "scopes": [
+          "config",
+          "configs",
+          "room",
+          "rooms",
+          "group",
+          "groups",
+          "selection",
+          "tag",
+          "tags",
+          "capability",
+          "all_matching"
+        ],
+        "fanout": {
+          "supported": true,
+          "defaultMode": "selection",
+          "allowedModes": [
+            "config",
+            "configs",
+            "room",
+            "rooms",
+            "group",
+            "groups",
+            "tag",
+            "tags",
+            "capability",
+            "selection",
+            "all_matching"
+          ]
+        }
+      },
+      "freshness": {
+        "maxAgeSeconds": 300,
+        "staleDataMode": "block"
+      },
+      "ui": {
+        "icon": "power",
+        "category": "switch_device"
+      },
+      "triggers": [
+        {
+          "id": "state_changed",
+          "label": "Device updates",
+          "description": "Start when this device reports a new state.",
+          "capability": "telemetry.state",
+          "runtime": {
+            "event": "device.state_changed",
+            "source": "integration"
+          },
+          "freshness": {
+            "maxAgeSeconds": 300,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "when"
+          }
+        }
+      ]
+    }
+  ],
+  "templates": [
+    {
+      "id": "kasa_turn_on_when_state_changes",
+      "label": "Turn on a Kasa device when it is needed",
+      "description": "Starts from a Kasa update and safely turns on the selected device with retry protection.",
+      "category": "Lighting and power",
+      "deviceKey": "kasa_device",
+      "config": {
+        "automation_schema_version": "automation.behavior.v2",
+        "triggers": [
+          {
+            "id": "state_changed",
+            "label": "Kasa device updates",
+            "type": "integration_event",
+            "event": "device.state_changed",
+            "capability": "telemetry.state",
+            "enabled": true,
+            "sourceRef": {
+              "integrationId": "{{integrationId}}",
+              "integrationKey": "{{integrationKey}}",
+              "configId": "{{configId}}",
+              "behaviorDeviceKey": "kasa_device",
+              "optionKey": "state_changed",
+              "capability": "telemetry.state"
+            }
+          }
+        ],
+        "trigger": {
+          "id": "state_changed",
+          "label": "Kasa device updates",
+          "type": "integration_event",
+          "event": "device.state_changed",
+          "capability": "telemetry.state",
+          "enabled": true
+        },
+        "intent": "automate_kasa_device",
+        "conditionTree": {
+          "id": "device_is_off",
+          "label": "Device is off",
+          "field": "is_on",
+          "operator": "eq",
+          "value": false,
+          "sourceRef": {
+            "integrationId": "{{integrationId}}",
+            "integrationKey": "{{integrationKey}}",
+            "configId": "{{configId}}",
+            "behaviorDeviceKey": "kasa_device",
+            "optionKey": "is_on",
+            "capability": "switch.power"
+          }
+        },
+        "actions": [
+          {
+            "id": "turn_on",
+            "label": "Turn on Kasa device",
+            "action": "turn_on",
+            "capability": "switch.power",
+            "sourceRef": {
+              "integrationId": "{{integrationId}}",
+              "integrationKey": "{{integrationKey}}",
+              "configId": "{{configId}}",
+              "behaviorDeviceKey": "kasa_device",
+              "optionKey": "turn_on",
+              "capability": "switch.power"
+            },
+            "target": {
+              "mode": "selection",
+              "configIds": [
+                "{{configId}}"
+              ]
+            },
+            "failure": {
+              "strategy": "retry_then_continue",
+              "retry": {
+                "maxAttempts": 2,
+                "delaySeconds": 2,
+                "timeoutSeconds": 15,
+                "backoff": "fixed"
+              },
+              "continueOnPartialFailure": true
+            }
+          }
+        ],
+        "safety": {
+          "staleDataMode": "block",
+          "maxAgeSeconds": 300,
+          "requireFreshTrigger": true,
+          "dryRunFirst": false
+        },
+        "failure": {
+          "strategy": "follow_edges",
+          "fallbackBehaviorId": "",
+          "conditionTree": {
+            "op": "and",
+            "children": []
+          }
+        },
+        "stop": {
+          "never": true
+        },
+        "override": {
+          "mode": "continue"
+        }
+      },
+      "ui": {
+        "accent": "lighting",
+        "icon": "power"
+      },
+      "metadata": {
+        "recommended": true,
+        "difficulty": "easy"
+      }
+    }
+  ],
+  "behaviorSchemaVersion": "integration.behaviors.v2",
+  "telemetry": {
+    "capabilityMappings": [
+      {
+        "nativeMetric": "brightness",
+        "capability": "sensor.brightness"
+      },
+      {
+        "nativeMetric": "color",
+        "capability": "sensor.color"
+      },
+      {
+        "nativeMetric": "color_temperature",
+        "capability": "sensor.color_temperature"
+      },
+      {
+        "nativeMetric": "dynamic_feature",
+        "capability": "sensor.dynamic_feature"
+      },
+      {
+        "nativeMetric": "energy_power",
+        "capability": "sensor.energy_power"
+      },
+      {
+        "nativeMetric": "energy_this_month",
+        "capability": "sensor.energy_this_month"
+      },
+      {
+        "nativeMetric": "energy_today",
+        "capability": "sensor.energy_today"
+      },
+      {
+        "nativeMetric": "humidity",
+        "capability": "sensor.humidity"
+      },
+      {
+        "nativeMetric": "power",
+        "capability": "sensor.power"
+      },
+      {
+        "nativeMetric": "switch",
+        "capability": "sensor.switch"
+      },
+      {
+        "nativeMetric": "temperature",
+        "capability": "sensor.temperature"
+      }
+    ]
+  }
+}

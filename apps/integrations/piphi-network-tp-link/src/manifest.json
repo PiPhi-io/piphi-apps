@@ -1,0 +1,401 @@
+{
+  "manifest_version": "1.0",
+  "id": "tp-link-kasa-local-api",
+  "name": "TP-Link Kasa (Local API)",
+  "version": "0.1.14",
+  "description": "Integration for TP-Link Kasa devices over local network using python-kasa.",
+  "maintainer": {
+    "name": "PiPhi Network",
+    "website": "https://piphi.io",
+    "support_email": "support@piphi.io"
+  },
+  "platforms": [
+    "linux",
+    "windows",
+    "macos"
+  ],
+  "runtime": {
+    "linux": {
+      "type": "container",
+      "container": {
+        "image": "piphinetwork/tp-link-kasa:0.1.14",
+        "ports": [
+          {
+            "container": 3666,
+            "host": 3666
+          }
+        ],
+        "environment": {
+          "LOG_LEVEL": "info"
+        },
+        "restart_policy": {
+          "name": "unless-stopped",
+          "maximum_retry_count": 0
+        }
+      },
+      "discovery": {
+        "method": "direct",
+        "inputs": [
+          {
+            "name": "host",
+            "label": "Device IP / Host",
+            "type": "text",
+            "required": false,
+            "placeholder": "192.168.1.50",
+            "description": "Optional IP address or hostname for targeted discovery when network scanning misses a device."
+          },
+          {
+            "name": "username",
+            "label": "Username or Email",
+            "type": "email",
+            "required": false,
+            "placeholder": "kasa@example.com",
+            "description": "Optional Kasa account username/email for devices that require authenticated discovery."
+          },
+          {
+            "name": "password",
+            "label": "Password",
+            "type": "password",
+            "secret": true,
+            "required": false,
+            "description": "Optional Kasa account password paired with the username/email above."
+          }
+        ]
+      }
+    },
+    "windows": {
+      "type": "proxy",
+      "proxy": {
+        "port": 3666
+      },
+      "discovery": {
+        "method": "proxy",
+        "inputs": [
+          {
+            "name": "host",
+            "label": "Device IP / Host",
+            "type": "text",
+            "required": false,
+            "placeholder": "192.168.1.50",
+            "description": "Optional IP address or hostname for targeted discovery when network scanning misses a device."
+          },
+          {
+            "name": "username",
+            "label": "Username or Email",
+            "type": "email",
+            "required": false,
+            "placeholder": "kasa@example.com",
+            "description": "Optional Kasa account username/email for devices that require authenticated discovery."
+          },
+          {
+            "name": "password",
+            "label": "Password",
+            "type": "password",
+            "secret": true,
+            "required": false,
+            "description": "Optional Kasa account password paired with the username/email above."
+          }
+        ]
+      }
+    },
+    "macos": {
+      "type": "proxy",
+      "proxy": {
+        "port": 3666
+      },
+      "discovery": {
+        "method": "proxy",
+        "inputs": [
+          {
+            "name": "host",
+            "label": "Device IP / Host",
+            "type": "text",
+            "required": false,
+            "placeholder": "192.168.1.50",
+            "description": "Optional IP address or hostname for targeted discovery when network scanning misses a device."
+          },
+          {
+            "name": "username",
+            "label": "Username or Email",
+            "type": "email",
+            "required": false,
+            "placeholder": "kasa@example.com",
+            "description": "Optional Kasa account username/email for devices that require authenticated discovery."
+          },
+          {
+            "name": "password",
+            "label": "Password",
+            "type": "password",
+            "secret": true,
+            "required": false,
+            "description": "Optional Kasa account password paired with the username/email above."
+          }
+        ]
+      }
+    }
+  },
+  "api": {
+    "base_url": "http://127.0.0.1:3666",
+    "endpoints": {
+      "health": "/health",
+      "discover": "/discover",
+      "entities": "/entities",
+      "state": "/state",
+      "command": "/command",
+      "config": "/config",
+      "config_sync": "/configs/sync",
+      "deconfigure": "/deconfigure",
+      "ui_config": "/ui-config",
+      "events": "/events"
+    }
+  },
+  "config": {
+    "source": "endpoint",
+    "endpoint": "/ui-config",
+    "required": true
+  },
+  "identity": {
+    "fields": [
+      "host"
+    ]
+  },
+  "capabilities": {
+    "switch": {
+      "kind": "actuator",
+      "dashboard": {
+        "allowed_widgets": [
+          "toggle",
+          "button",
+          "stat"
+        ],
+        "default_widget": "toggle"
+      }
+    },
+    "brightness": {
+      "kind": "actuator",
+      "dashboard": {
+        "allowed_widgets": [
+          "slider",
+          "stat"
+        ],
+        "default_widget": "slider"
+      }
+    },
+    "color_temperature": {
+      "kind": "actuator",
+      "dashboard": {
+        "allowed_widgets": [
+          "slider",
+          "stat"
+        ],
+        "default_widget": "slider"
+      }
+    },
+    "color": {
+      "kind": "actuator",
+      "dashboard": {
+        "allowed_widgets": [
+          "color_picker",
+          "stat"
+        ],
+        "default_widget": "color_picker"
+      }
+    },
+    "power": {
+      "kind": "sensor",
+      "unit": "W",
+      "dashboard": {
+        "allowed_widgets": [
+          "stat",
+          "line_chart",
+          "gauge"
+        ],
+        "default_widget": "stat"
+      }
+    },
+    "temperature": {
+      "kind": "sensor",
+      "unit": "\u00b0C",
+      "dashboard": {
+        "allowed_widgets": [
+          "stat",
+          "line_chart"
+        ],
+        "default_widget": "stat"
+      }
+    },
+    "humidity": {
+      "kind": "sensor",
+      "unit": "%",
+      "dashboard": {
+        "allowed_widgets": [
+          "stat",
+          "line_chart"
+        ],
+        "default_widget": "stat"
+      }
+    },
+    "telemetry": {
+      "kind": "sensor",
+      "dashboard": {
+        "allowed_widgets": [
+          "stat",
+          "line_chart"
+        ],
+        "default_widget": "stat"
+      }
+    },
+    "refresh": {
+      "kind": "action",
+      "dashboard": {
+        "allowed_widgets": [
+          "button"
+        ],
+        "default_widget": "button"
+      }
+    },
+    "dynamic_feature": {
+      "kind": "action",
+      "dashboard": {
+        "allowed_widgets": [
+          "button"
+        ],
+        "default_widget": "button"
+      }
+    },
+    "energy_power": {
+      "kind": "sensor",
+      "unit": "W",
+      "dashboard": {
+        "allowed_widgets": [
+          "stat",
+          "line_chart",
+          "gauge"
+        ],
+        "default_widget": "stat"
+      }
+    },
+    "energy_today": {
+      "kind": "sensor",
+      "unit": "kWh",
+      "dashboard": {
+        "allowed_widgets": [
+          "stat",
+          "line_chart"
+        ],
+        "default_widget": "stat"
+      }
+    },
+    "energy_this_month": {
+      "kind": "sensor",
+      "unit": "kWh",
+      "dashboard": {
+        "allowed_widgets": [
+          "stat",
+          "line_chart"
+        ],
+        "default_widget": "stat"
+      }
+    }
+  },
+  "commands": {
+    "refresh": {
+      "description": "Refresh latest device state",
+      "timeout_ms": 5000
+    },
+    "turn_on": {
+      "description": "Turn device (or child) on",
+      "timeout_ms": 5000
+    },
+    "turn_off": {
+      "description": "Turn device (or child) off",
+      "timeout_ms": 5000
+    },
+    "toggle": {
+      "description": "Toggle power state",
+      "timeout_ms": 5000
+    },
+    "set_alias": {
+      "description": "Set device alias",
+      "timeout_ms": 5000
+    },
+    "reboot": {
+      "description": "Reboot device with optional delay seconds",
+      "timeout_ms": 10000
+    },
+    "set_feature": {
+      "description": "Set any writable Kasa feature via args.feature_id + args.value",
+      "timeout_ms": 5000
+    },
+    "dynamic_feature": {
+      "description": "Set or trigger any writable Kasa feature via args.feature_id and optional args.value",
+      "timeout_ms": 5000
+    },
+    "feature_action": {
+      "description": "Trigger a writable action-like feature via args.feature_id",
+      "timeout_ms": 5000
+    },
+    "set_brightness": {
+      "description": "Set brightness using device-native brightness feature",
+      "timeout_ms": 5000
+    },
+    "set_color_temperature": {
+      "description": "Set color temperature using device-native color temp feature",
+      "timeout_ms": 5000
+    },
+    "set_hue_saturation": {
+      "description": "Set hue and saturation where supported",
+      "timeout_ms": 5000
+    },
+    "read_energy": {
+      "description": "Refresh and return latest available energy metrics (power/consumption) for device or child",
+      "timeout_ms": 5000
+    }
+  },
+  "entities": [
+    {
+      "id": "kasa_device",
+      "name": "Kasa Device",
+      "capabilities": [
+        "switch",
+        "brightness",
+        "color_temperature",
+        "color",
+        "power",
+        "temperature",
+        "humidity",
+        "telemetry",
+        "refresh",
+        "dynamic_feature",
+        "energy_power",
+        "energy_today",
+        "energy_this_month"
+      ],
+      "dashboard": {
+        "allowed_widgets": [
+          "device-control",
+          "energy-monitor",
+          "smart-plug"
+        ],
+        "default_widget": "device-control",
+        "recommended_widgets": [
+          "device-control",
+          "smart-plug",
+          "energy-monitor"
+        ]
+      }
+    }
+  ],
+  "ui": {
+    "experience_packages": [
+      {
+        "registry_id": "io.piphi.kasa-smart-home",
+        "version_range": ">=0.1,<1",
+        "auto_install": true
+      }
+    ]
+  },
+  "onboarding": {
+    "mode": "discovery"
+  }
+}
