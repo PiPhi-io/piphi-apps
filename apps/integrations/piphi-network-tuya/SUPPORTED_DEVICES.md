@@ -302,5 +302,3 @@ Use this checklist for each real device model.
 - [ ] marked `Validated`, `Certified`, `Investigating`, or `Blocked`
 - [ ] appendix row added/updated
 - [ ] family notes updated if new quirks were discovered
-
-

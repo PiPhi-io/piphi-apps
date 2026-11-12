@@ -35,5 +35,5 @@ async def get_ui_schema():
             },
         },
     }
-    
+
     return dict(schema=schema)

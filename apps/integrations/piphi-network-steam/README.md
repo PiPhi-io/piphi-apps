@@ -23,4 +23,3 @@ docker build -t piphi-network-steam:dev .
 ```
 
 Steam data is subject to Valve's Steam Web API Terms of Use and is provided as-is. This project is not affiliated with or endorsed by Valve Corporation.
-
