@@ -1,0 +1,99 @@
+{
+  "manifest_version": "1.0",
+  "kind": "platform_service",
+  "id": "piphi.service.mqtt-broker",
+  "name": "MQTT Broker",
+  "description": "Shared MQTT broker for PiPhi integrations and helpers.",
+  "version": "0.1.6",
+  "platforms": [
+    "linux"
+  ],
+  "runtime": {
+    "linux": {
+      "type": "container",
+      "health": {
+        "type": "none"
+      },
+      "container": {
+        "image": "piphinetwork/mqtt-broker:0.1.6",
+        "ports": [
+          {
+            "container": 1883
+          }
+        ],
+        "volumes": [
+          {
+            "host": "/var/lib/piphi/mqtt/config",
+            "container": "/mosquitto/config"
+          },
+          {
+            "host": "/var/lib/piphi/mqtt/data",
+            "container": "/mosquitto/data"
+          },
+          {
+            "host": "/var/lib/piphi/mqtt/log",
+            "container": "/mosquitto/log"
+          }
+        ],
+        "restart_policy": {
+          "name": "unless-stopped"
+        }
+      }
+    }
+  },
+  "config": {
+    "schema": {
+      "type": "object",
+      "required": [
+        "listener_port"
+      ],
+      "properties": {
+        "listener_port": {
+          "type": "integer",
+          "title": "MQTT Port",
+          "x-env": "MQTT_PORT",
+          "default": 1883
+        },
+        "allow_anonymous": {
+          "type": "boolean",
+          "title": "Allow Anonymous Clients",
+          "x-env": "MQTT_ALLOW_ANONYMOUS",
+          "default": false
+        },
+        "username": {
+          "type": "string",
+          "title": "Broker Username",
+          "x-env": "MQTT_USERNAME"
+        },
+        "password": {
+          "type": "string",
+          "title": "Broker Password",
+          "format": "password",
+          "x-env": "MQTT_PASSWORD"
+        },
+        "topic_prefix": {
+          "type": "string",
+          "title": "Topic Prefix",
+          "x-env": "MQTT_TOPIC_PREFIX",
+          "default": "piphi"
+        }
+      }
+    }
+  },
+  "exports": {
+    "env": {
+      "MQTT_ENABLED": "true",
+      "MQTT_HOST": "mqtt-broker",
+      "MQTT_PORT": "1883",
+      "MQTT_TOPIC_PREFIX": "piphi"
+    }
+  },
+  "onboarding": {
+    "mode": "service"
+  },
+  "runtime_contract": {
+    "version": 1,
+    "port_binding": "core_allocated",
+    "port_env": "PORT"
+  }
+}
