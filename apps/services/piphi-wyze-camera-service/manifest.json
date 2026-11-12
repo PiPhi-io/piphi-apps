@@ -1,0 +1,149 @@
+{
+  "$schema": "./schema/piphi-manifest.schema.json",
+  "manifest_version": "1.0",
+  "kind": "platform_service",
+  "deployment_mode": "sidecar",
+  "id": "piphi.service.wyze-camera-bridge",
+  "name": "PiPhi Wyze Camera Bridge",
+  "version": "0.1.2",
+  "description": "Shared managed bridge that makes authorized Wyze cameras available to PiPhi camera integrations as local RTSP sources.",
+  "metadata": {
+    "generator": "piphi-network-create",
+    "scaffold_version": "0.3.0",
+    "preset": "platform-service",
+    "domain": "camera-bridge",
+    "upstream": {
+      "name": "docker-wyze-bridge",
+      "version": "2.10.3",
+      "repository": "https://github.com/mrlt8/docker-wyze-bridge",
+      "license": "AGPL-3.0"
+    }
+  },
+  "maintainer": {
+    "name": "PiPhi-io",
+    "website": "https://github.com/PiPhi-io",
+    "support_email": "support@piphi.io"
+  },
+  "license": "AGPL-3.0",
+  "image": "ghcr.io/piphi-io/piphi-wyze-camera-service:0.1.2",
+  "platforms": ["linux"],
+  "runtime_requirements": [
+    "sidecar_runtime",
+    "cloud_account",
+    "internet_access",
+    "local_network_access",
+    "secrets_or_api_tokens",
+    "tcp_port_18554"
+  ],
+  "runtime": {
+    "linux": {
+      "type": "container",
+      "container": {
+        "image": "ghcr.io/piphi-io/piphi-wyze-camera-service:0.1.2",
+        "ports": [
+          {"container": 8090},
+          {"container": 8554, "host": 18554, "protocol": "tcp"}
+        ],
+        "environment": {
+          "LOG_LEVEL": "info",
+          "PIPHI_ENV": "production",
+          "PIPHI_WYZE_RTSP_HOST_PORT": "18554"
+        },
+        "restart_policy": {"name": "unless-stopped", "maximum_retry_count": 0}
+      }
+    }
+  },
+  "provides": {
+    "services": [
+      {
+        "id": "piphi.service.wyze-camera-bridge",
+        "kind": "platform_service",
+        "capabilities": ["camera.bridge.wyze.v1"],
+        "shared": true
+      }
+    ]
+  },
+  "api": {
+    "required": ["health", "status", "configure", "cameras"],
+    "endpoints": {
+      "health": "/health",
+      "diagnostics": "/diagnostics",
+      "contract": "/contract",
+      "configure": "/v1/wyze-bridge/config",
+      "deconfigure": "/v1/wyze-bridge/config",
+      "status": "/v1/wyze-bridge/status",
+      "cameras": "/v1/wyze-bridge/cameras"
+    }
+  },
+  "capabilities": {},
+  "marketplace": {
+    "metadata_version": 2,
+    "display_name": "Wyze Camera Bridge",
+    "summary": "Connects supported Wyze cameras to compatible PiPhi camera apps through one managed local bridge.",
+    "category": "camera",
+    "device_types": ["camera_bridge", "platform_service"],
+    "protocols": ["wyze_p2p", "rtsp"],
+    "regions": ["US", "CA"],
+    "languages": ["en"],
+    "discovery_methods": ["manual"],
+    "connectivity": "hybrid",
+    "offline_support": "partial",
+    "access_declared": true,
+    "publisher": {
+      "name": "PiPhi-io",
+      "website_url": "https://github.com/PiPhi-io",
+      "support_url": "https://github.com/PiPhi-io/piphi-wyze-camera-service/issues",
+      "security_contact": "support@piphi.io"
+    },
+    "access": [
+      {
+        "id": "wyze_account",
+        "label": "Wyze account",
+        "reason": "Uses encrypted Wyze account credentials and a Wyze API key supplied by a compatible PiPhi camera integration.",
+        "required": true
+      },
+      {
+        "id": "internet_access",
+        "label": "Wyze cloud access",
+        "reason": "Signs in to Wyze and refreshes the authorized camera list; local streaming may continue temporarily if cloud access is interrupted.",
+        "required": true
+      },
+      {
+        "id": "local_camera_network",
+        "label": "Local camera network",
+        "reason": "Connects to authorized cameras and exposes authenticated RTSP streams only to compatible PiPhi services.",
+        "required": true
+      },
+      {
+        "id": "companion_service",
+        "label": "Background camera bridge",
+        "reason": "Keeps one shared bridge available for all compatible Wyze camera connections in the home.",
+        "required": true
+      }
+    ],
+    "compatibility": [
+      {
+        "brand": "Wyze",
+        "model": "Cameras supported by docker-wyze-bridge v2.10.3"
+      }
+    ],
+    "documentation_url": "https://github.com/PiPhi-io/piphi-wyze-camera-service",
+    "support_url": "https://github.com/PiPhi-io/piphi-wyze-camera-service/issues",
+    "changelog_url": "https://github.com/PiPhi-io/piphi-wyze-camera-service/releases",
+    "privacy_url": "https://github.com/PiPhi-io/piphi-wyze-camera-service/blob/main/PRIVACY.md",
+    "quality_tier": "unrated",
+    "governance": {
+      "schema_version": 1,
+      "publication_status": "beta",
+      "rollout_percent": 1,
+      "lifecycle_status": "active",
+      "qualification": {"status": "unverified"}
+    }
+  },
+  "onboarding": {"mode": "service"},
+  "runtime_contract": {
+    "version": 1,
+    "port_binding": "core_allocated",
+    "port_env": "PORT"
+  }
+}
