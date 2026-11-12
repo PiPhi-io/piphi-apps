@@ -1,0 +1,1114 @@
+{
+  "schema_version": 1,
+  "generated_from": "/home/kelvinfor3xzorin/Documents/PiPhi/PiPhi-Network-Core-main/.codex-widget-work/piphi-nework-registry/registry.json",
+  "summary": {
+    "entries": 66,
+    "repositories": 63,
+    "integrations": 45,
+    "platform_services": 11,
+    "widgets": 10
+  },
+  "repositories": [
+    {
+      "source_url": "https://github.com/KelvinSan/Official-PiPhi-Network-GPS-Integration",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/integrations/official-piphi-network-gps-integration"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "official-usb-gps-integration",
+          "type": "integration",
+          "version": "1.1.2",
+          "ref": "v1.1.2",
+          "manifest_path": "src/manifest.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/KelvinSan/piphi-network-atmotube",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/integrations/piphi-network-atmotube"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "atmotube-pro-ble",
+          "type": "integration",
+          "version": "0.1.5",
+          "ref": null,
+          "manifest_path": "src/manifest.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/KelvinSan/piphi-network-awair-element",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/integrations/piphi-network-awair-element"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "awair-element-local-api",
+          "type": "integration",
+          "version": "0.1.13",
+          "ref": "v0.1.13",
+          "manifest_path": "src/manifest.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/KelvinSan/piphi_network_tp_link",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/integrations/piphi-network-tp-link"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "tp-link-kasa-local-api",
+          "type": "integration",
+          "version": "0.1.14",
+          "ref": "v0.1.14",
+          "manifest_path": "src/manifest.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/PiPhi-io/piphi-android-adb-sidecar",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/services/piphi-android-adb-sidecar"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "piphi-android-adb-sidecar",
+          "type": "platform_service",
+          "version": "0.1.1",
+          "ref": "v0.1.1",
+          "manifest_path": "manifest.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/PiPhi-io/piphi-ble-gateway-sidecar",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/services/piphi-ble-gateway-sidecar"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "piphi-ble-gateway-sidecar",
+          "type": "platform_service",
+          "version": "0.1.1",
+          "ref": "v0.1.1",
+          "manifest_path": "manifest.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/PiPhi-io/piphi-camera-stream",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/integrations/piphi-camera-stream"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "piphi-camera-stream",
+          "type": "integration",
+          "version": "0.1.4",
+          "ref": "v0.1.4",
+          "manifest_path": "manifest.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/PiPhi-io/piphi-modbus-rtu-sidecar",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/services/piphi-modbus-rtu-sidecar"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "piphi-modbus-rtu-sidecar",
+          "type": "platform_service",
+          "version": "0.1.1",
+          "ref": "v0.1.1",
+          "manifest_path": "manifest.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/PiPhi-io/piphi-mqtt-broker",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/services/piphi-mqtt-broker"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "piphi.service.mqtt-broker",
+          "type": "platform_service",
+          "version": "0.1.6",
+          "ref": "v0.1.6",
+          "manifest_path": "src/manifest.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/PiPhi-io/piphi-network-433mhz",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/integrations/piphi-network-433mhz"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "piphi-network-433mhz",
+          "type": "integration",
+          "version": "0.1.7",
+          "ref": "v0.1.7",
+          "manifest_path": "src/manifest.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/PiPhi-io/piphi-network-SolarEdge",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/integrations/piphi-network-solaredge"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "io.piphi.solaredge-solar-energy",
+          "type": "widget",
+          "version": "0.1.0",
+          "ref": "experience-solar-energy-v0.1.0",
+          "manifest_path": "experiences/solar-energy/package.source.json"
+        },
+        {
+          "id": "piphi-network-solaredge",
+          "type": "integration",
+          "version": "0.2.2",
+          "ref": "v0.2.2",
+          "manifest_path": "manifest.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/PiPhi-io/piphi-network-airthings",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/integrations/piphi-network-airthings"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "airthings-consumer-cloud-api",
+          "type": "integration",
+          "version": "0.1.7",
+          "ref": "v0.1.7",
+          "manifest_path": "src/manifest.json"
+        },
+        {
+          "id": "io.piphi.airthings-air-quality",
+          "type": "widget",
+          "version": "0.1.7",
+          "ref": "experience-air-quality-v0.1.7",
+          "manifest_path": "experiences/air-quality/package.source.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/PiPhi-io/piphi-network-android-tv",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/integrations/piphi-network-android-tv"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "piphi-network-android-tv",
+          "type": "integration",
+          "version": "0.1.0",
+          "ref": null,
+          "manifest_path": "manifest.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/PiPhi-io/piphi-network-aqara",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/integrations/piphi-network-aqara"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "aqara-open-api",
+          "type": "integration",
+          "version": "0.1.3",
+          "ref": "v0.1.3",
+          "manifest_path": "src/manifest.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/PiPhi-io/piphi-network-bacnet",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/integrations/piphi-network-bacnet"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "piphi-network-bacnet",
+          "type": "integration",
+          "version": "0.1.0",
+          "ref": null,
+          "manifest_path": "manifest.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/PiPhi-io/piphi-network-bambu-lab",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/integrations/piphi-network-bambu-lab"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "piphi-network-bambu-lab",
+          "type": "integration",
+          "version": "0.1.0",
+          "ref": null,
+          "manifest_path": "manifest.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/PiPhi-io/piphi-network-bermuda-presence",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/integrations/piphi-network-bermuda-presence"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "piphi-network-bermuda-presence",
+          "type": "integration",
+          "version": "0.1.0",
+          "ref": null,
+          "manifest_path": "manifest.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/PiPhi-io/piphi-network-daikin-onecta",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/integrations/piphi-network-daikin-onecta"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "piphi-network-daikin-onecta",
+          "type": "integration",
+          "version": "0.1.0",
+          "ref": null,
+          "manifest_path": "manifest.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/PiPhi-io/piphi-network-dyson",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/integrations/piphi-network-dyson"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "piphi-network-dyson",
+          "type": "integration",
+          "version": "0.1.0",
+          "ref": null,
+          "manifest_path": "manifest.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/PiPhi-io/piphi-network-eufy-security",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/integrations/piphi-network-eufy-security"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "piphi-network-eufy-security",
+          "type": "integration",
+          "version": "0.1.0",
+          "ref": null,
+          "manifest_path": "manifest.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/PiPhi-io/piphi-network-huawei-solar",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/integrations/piphi-network-huawei-solar"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "piphi-network-huawei-solar",
+          "type": "integration",
+          "version": "0.1.0",
+          "ref": null,
+          "manifest_path": "manifest.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/PiPhi-io/piphi-network-kia-hyundai-connect",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/integrations/piphi-network-kia-hyundai-connect"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "piphi-network-kia-hyundai-connect",
+          "type": "integration",
+          "version": "0.1.0",
+          "ref": null,
+          "manifest_path": "manifest.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/PiPhi-io/piphi-network-knx",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/integrations/piphi-network-knx"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "piphi-network-knx",
+          "type": "integration",
+          "version": "0.1.0",
+          "ref": null,
+          "manifest_path": "manifest.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/PiPhi-io/piphi-network-llm-vision",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/services/piphi-network-llm-vision"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "piphi-network-llm-vision",
+          "type": "platform_service",
+          "version": "0.1.1",
+          "ref": "v0.1.1",
+          "manifest_path": "manifest.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/PiPhi-io/piphi-network-matter",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/services/piphi-network-matter"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "piphi.service.matter-sidecar",
+          "type": "platform_service",
+          "version": "0.2.0-alpha.3",
+          "ref": "v0.2.0-alpha.3",
+          "manifest_path": "src/manifest.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/PiPhi-io/piphi-network-midea-ac-lan",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/integrations/piphi-network-midea-ac-lan"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "piphi-network-midea-ac-lan",
+          "type": "integration",
+          "version": "0.1.0",
+          "ref": null,
+          "manifest_path": "manifest.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/PiPhi-io/piphi-network-mikrotik-router",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/integrations/piphi-network-mikrotik-router"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "piphi-network-mikrotik-router",
+          "type": "integration",
+          "version": "0.1.0",
+          "ref": null,
+          "manifest_path": "manifest.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/PiPhi-io/piphi-network-modbus",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/integrations/piphi-network-modbus"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "piphi-network-modbus",
+          "type": "integration",
+          "version": "0.1.0",
+          "ref": null,
+          "manifest_path": "manifest.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/PiPhi-io/piphi-network-nord-pool",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/integrations/piphi-network-nord-pool"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "piphi-network-nord-pool",
+          "type": "integration",
+          "version": "0.1.0",
+          "ref": null,
+          "manifest_path": "manifest.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/PiPhi-io/piphi-network-octopus-energy",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/integrations/piphi-network-octopus-energy"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "piphi-network-octopus-energy",
+          "type": "integration",
+          "version": "0.1.0",
+          "ref": null,
+          "manifest_path": "manifest.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/PiPhi-io/piphi-network-openepaperlink",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/integrations/piphi-network-openepaperlink"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "piphi-network-openepaperlink",
+          "type": "integration",
+          "version": "0.1.0",
+          "ref": null,
+          "manifest_path": "manifest.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/PiPhi-io/piphi-network-passive-ble-monitor",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/integrations/piphi-network-passive-ble-monitor"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "piphi-network-passive-ble-monitor",
+          "type": "integration",
+          "version": "0.1.0",
+          "ref": null,
+          "manifest_path": "manifest.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/PiPhi-io/piphi-network-pfsense",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/integrations/piphi-network-pfsense"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "piphi-network-pfsense",
+          "type": "integration",
+          "version": "0.1.0",
+          "ref": null,
+          "manifest_path": "manifest.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/PiPhi-io/piphi-network-plex",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/integrations/piphi-network-plex"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "piphi-network-plex",
+          "type": "integration",
+          "version": "0.1.1",
+          "ref": "v0.1.1",
+          "manifest_path": "manifest.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/PiPhi-io/piphi-network-reolink",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/integrations/piphi-network-reolink"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "piphi-network-reolink",
+          "type": "integration",
+          "version": "0.1.0",
+          "ref": null,
+          "manifest_path": "manifest.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/PiPhi-io/piphi-network-sense",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/integrations/piphi-network-sense"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "piphi-network-sense",
+          "type": "integration",
+          "version": "0.2.0",
+          "ref": "v0.1.2",
+          "manifest_path": "manifest.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/PiPhi-io/piphi-network-sonoff-lan",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/integrations/piphi-network-sonoff-lan"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "piphi-network-sonoff-lan",
+          "type": "integration",
+          "version": "0.1.0",
+          "ref": null,
+          "manifest_path": "manifest.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/PiPhi-io/piphi-network-steam",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/integrations/piphi-network-steam"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "piphi-network-steam",
+          "type": "integration",
+          "version": "0.1.0",
+          "ref": null,
+          "manifest_path": "src/manifest.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/PiPhi-io/piphi-network-tapo-cameras",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/integrations/piphi-network-tapo-cameras"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "piphi-network-tapo-cameras",
+          "type": "integration",
+          "version": "0.1.0",
+          "ref": null,
+          "manifest_path": "manifest.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/PiPhi-io/piphi-network-thinqconnect",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/integrations/piphi-network-thinqconnect"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "lg-thinq-connect-api",
+          "type": "integration",
+          "version": "0.1.14",
+          "ref": "v0.1.14",
+          "manifest_path": "src/manifest.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/PiPhi-io/piphi-network-washdata",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/integrations/piphi-network-washdata"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "piphi-network-washdata",
+          "type": "integration",
+          "version": "0.1.0",
+          "ref": null,
+          "manifest_path": "manifest.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/PiPhi-io/piphi-network-waste-collection",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/integrations/piphi-network-waste-collection"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "piphi-network-waste-collection",
+          "type": "integration",
+          "version": "0.1.0",
+          "ref": null,
+          "manifest_path": "manifest.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/PiPhi-io/piphi-network-xiaomi-home",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/integrations/piphi-network-xiaomi-home"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "piphi-network-xiaomi-home",
+          "type": "integration",
+          "version": "0.1.0",
+          "ref": null,
+          "manifest_path": "manifest.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/PiPhi-io/piphi-network-zwave",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/integrations/piphi-network-zwave"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "piphi-network-zwave",
+          "type": "integration",
+          "version": "0.1.0",
+          "ref": null,
+          "manifest_path": "manifest.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/PiPhi-io/piphi-rtl433-bridge",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/services/piphi-rtl433-bridge"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "piphi.service.rtl433-bridge",
+          "type": "platform_service",
+          "version": "0.1.6",
+          "ref": "v0.1.6",
+          "manifest_path": "src/manifest.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/PiPhi-io/piphi-webrtc-sidecar",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/services/piphi-webrtc-sidecar"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "piphi.service.webrtc-sidecar",
+          "type": "platform_service",
+          "version": "0.3.4",
+          "ref": "v0.3.4",
+          "manifest_path": "manifest.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/PiPhi-io/piphi-widget-awair-air-quality",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/widgets/piphi-widget-awair-air-quality"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "io.piphi.awair-air-quality",
+          "type": "widget",
+          "version": "0.1.16",
+          "ref": "v0.1.16",
+          "manifest_path": "package.source.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/PiPhi-io/piphi-widget-calendar-agenda",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/widgets/piphi-widget-calendar-agenda"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "io.piphi.widget.calendar-agenda",
+          "type": "widget",
+          "version": "0.1.0",
+          "ref": null,
+          "manifest_path": "widget.manifest.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/PiPhi-io/piphi-widget-kasa-smart-home",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/widgets/piphi-widget-kasa-smart-home"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "io.piphi.kasa-smart-home",
+          "type": "widget",
+          "version": "0.1.17",
+          "ref": "v0.1.17",
+          "manifest_path": "package.source.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/PiPhi-io/piphi-widget-vacuum-map",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/widgets/piphi-widget-vacuum-map"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "io.piphi.widget.vacuum-map",
+          "type": "widget",
+          "version": "0.1.0",
+          "ref": null,
+          "manifest_path": "widget.manifest.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/PiPhi-io/piphi-widget-zigbee2mqtt-network-map",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/widgets/piphi-widget-zigbee2mqtt-network-map"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "io.piphi.zigbee2mqtt-network-map",
+          "type": "widget",
+          "version": "0.1.0",
+          "ref": "v0.1.0",
+          "manifest_path": "package.source.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/PiPhi-io/piphi-wyze-camera-service",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/services/piphi-wyze-camera-service"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "piphi.service.wyze-camera-bridge",
+          "type": "platform_service",
+          "version": "0.1.2",
+          "ref": "v0.1.2",
+          "manifest_path": "manifest.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/PiPhi-io/piphi-zwave-js-sidecar",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/services/piphi-zwave-js-sidecar"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "piphi-zwave-js-sidecar",
+          "type": "platform_service",
+          "version": "0.1.1",
+          "ref": "v0.1.1",
+          "manifest_path": "manifest.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/PiPhi-io/piphi_network-spi",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/integrations/piphi-network-spi"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "piphi-network-spi",
+          "type": "integration",
+          "version": "0.1.3",
+          "ref": "v0.1.3",
+          "manifest_path": "src/manifest.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/PiPhi-io/piphi_network_i2c",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/integrations/piphi-network-i2c"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "piphi-network-i2c",
+          "type": "integration",
+          "version": "0.1.3",
+          "ref": "v0.1.3",
+          "manifest_path": "src/manifest.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/PiPhi-io/piphi_network_kaiterra_api",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/integrations/piphi-network-kaiterra-api"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "piphi-network-kaiterra-api",
+          "type": "integration",
+          "version": "0.1.5",
+          "ref": "v0.1.5",
+          "manifest_path": "src/manifest.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/PiPhi-io/piphi_network_tesla_ev",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/integrations/piphi-network-tesla-ev"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "piphi-network-tesla-ev",
+          "type": "integration",
+          "version": "0.2.3",
+          "ref": "v0.2.3",
+          "manifest_path": "src/manifest.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/PiPhi-io/piphi_network_tuya",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/integrations/piphi-network-tuya"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "piphi-network-tuya",
+          "type": "integration",
+          "version": "0.1.4",
+          "ref": "v0.1.4",
+          "manifest_path": "src/manifest.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/PiPhi-io/piphi_network_weatherxm",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/integrations/piphi-network-weatherxm"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "piphi-network-weatherxm",
+          "type": "integration",
+          "version": "0.1.4",
+          "ref": "v0.1.4",
+          "manifest_path": "src/manifest.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/PiPhi-io/piphi_network_webRTC",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/widgets/piphi-network-webrtc"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "io.piphi.webrtc.camera",
+          "type": "widget",
+          "version": "0.1.0",
+          "ref": null,
+          "manifest_path": "widgets/webrtc-camera/widget.manifest.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/PiPhi-io/piphi_network_widget_sdk",
+      "import": {
+        "mode": "selected_paths",
+        "targets": [
+          {
+            "source_path": "pilot-packages/home-health",
+            "destination": "apps/widgets/home-health"
+          },
+          {
+            "source_path": "pilot-packages/whole-home-energy",
+            "destination": "apps/widgets/whole-home-energy"
+          }
+        ]
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "io.piphi.home-health",
+          "type": "widget",
+          "version": "0.1.0",
+          "ref": "experiences-v0.1.0",
+          "manifest_path": "pilot-packages/home-health/package.source.json"
+        },
+        {
+          "id": "io.piphi.whole-home-energy",
+          "type": "widget",
+          "version": "0.1.0",
+          "ref": "experiences-v0.1.0",
+          "manifest_path": "pilot-packages/whole-home-energy/package.source.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/PiPhi-io/piphi_network_zigbee",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/integrations/piphi-network-zigbee"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "piphi-network-zigbee",
+          "type": "integration",
+          "version": "0.1.10",
+          "ref": "v0.1.10",
+          "manifest_path": "src/manifest.json"
+        }
+      ]
+    },
+    {
+      "source_url": "https://github.com/PiPhi-io/piphi_network_zigbee2mqtt",
+      "import": {
+        "mode": "repository",
+        "destination": "apps/services/piphi-network-zigbee2mqtt"
+      },
+      "status": "pending",
+      "entries": [
+        {
+          "id": "piphi.service.zigbee2mqtt-sidecar",
+          "type": "platform_service",
+          "version": "0.1.17",
+          "ref": "v0.1.17",
+          "manifest_path": "src/manifest.json"
+        }
+      ]
+    }
+  ]
+}
