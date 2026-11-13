@@ -78,6 +78,23 @@ def _validate_publish_target(target: Any, field: str, app_path: Path) -> None:
         )
 
 
+def _manifest_image(manifest: dict[str, Any]) -> str | None:
+    if isinstance(manifest.get("image"), str):
+        return manifest["image"]
+    container = manifest.get("container")
+    if isinstance(container, dict) and isinstance(container.get("image"), str):
+        return container["image"]
+    runtime = manifest.get("runtime")
+    if isinstance(runtime, dict):
+        for platform in runtime.values():
+            if not isinstance(platform, dict):
+                continue
+            container = platform.get("container")
+            if isinstance(container, dict) and isinstance(container.get("image"), str):
+                return container["image"]
+    return None
+
+
 def validate_app(path: Path, package_ids: set[str] | None = None) -> int:
     data = load_app(path)
     relative = path.relative_to(ROOT)
@@ -160,6 +177,15 @@ def validate_app(path: Path, package_ids: set[str] | None = None) -> int:
             }:
                 raise AppMetadataError(f"{relative}: OCI publishing mode is invalid")
             _validate_publish_target(publishing.get("primary"), "publishing.primary", path)
+            if ci["enforcement"] == "full":
+                primary = publishing["primary"]
+                expected_image = f"{primary['registry']}/{primary['repository']}:{version}"
+                manifest_image = _manifest_image(manifest)
+                if manifest_image != expected_image:
+                    raise AppMetadataError(
+                        f"{relative}: manifest image {manifest_image!r} must match "
+                        f"the release target {expected_image!r}"
+                    )
             mirrors = publishing.get("mirrors", [])
             if not isinstance(mirrors, list):
                 raise AppMetadataError(f"{relative}: publishing.mirrors must be an array")

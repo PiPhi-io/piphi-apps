@@ -12,7 +12,7 @@ const [pkg, manifest, behaviors, catalog] = await Promise.all([
 assert.equal(manifest.id, "piphi.service.matter-sidecar");
 assert.equal(manifest.kind, "platform_service");
 assert.equal(manifest.version, pkg.version);
-assert.equal(manifest.runtime.linux.container.image, `piphinetwork/matter-sidecar:${pkg.version}`);
+assert.equal(manifest.runtime.linux.container.image, `ghcr.io/piphi-io/matter-sidecar:${pkg.version}`);
 assert.equal(manifest.runtime.linux.container.privileged, false);
 
 const rows = catalog.capabilities;
