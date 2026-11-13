@@ -108,8 +108,8 @@ The primary target is split into a registry host and repository namespace:
 
 ```json
 {
-  "registry": "docker.io",
-  "repository": "piphinetwork/example-device"
+  "registry": "ghcr.io",
+  "repository": "piphi-io/example-device"
 }
 ```
 
@@ -120,8 +120,11 @@ environment named by `publishing.environment` provides:
 - `OCI_REGISTRY_USERNAME` as an environment secret;
 - `OCI_REGISTRY_TOKEN` as an environment secret.
 
-GHCR uses the workflow's short-lived `GITHUB_TOKEN`. Other registries should use
-OIDC where supported; the username/token pair is the compatibility path.
+PiPhi-managed packages use GHCR as their primary target. GHCR uses the workflow's
+short-lived `GITHUB_TOKEN`, while GitHub OIDC supplies the identity used for
+provenance and attestations. Other registries remain supported for external
+packages and approved mirrors; they should use OIDC where supported, with the
+username/token pair retained as the compatibility path.
 
 Mirrors are optional. Each mirror must preserve the same image content, and the
 release evidence must record every resulting digest. A non-GHCR mirror needs its
