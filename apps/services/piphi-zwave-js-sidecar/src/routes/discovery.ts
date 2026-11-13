@@ -15,8 +15,9 @@ export function registerDiscoveryRoutes(app: FastifyInstance): void {
       {
         id: "zwave-js-service",
         deviceId: "zwave-js-service",
-        host: String(inputs.host ?? "127.0.0.1"),
-        alias: "Z-Wave JS Service",
+        host: "local-controller",
+        alias: String(inputs.alias ?? "Z-Wave JS Controller"),
+        metadata: { controller_path_required: true },
       },
     ]);
   });

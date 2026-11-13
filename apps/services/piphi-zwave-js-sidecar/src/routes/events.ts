@@ -2,11 +2,21 @@ import type { FastifyInstance } from "fastify";
 import { buildEventIngestResponse, buildEventListResponse } from "piphi-runtime-kit-node";
 
 import { integrationId } from "../settings.js";
-import { appendRuntimeEvent, registry, runtime } from "../state.js";
+import { appendRuntimeEvent, readZWaveEvents, registry, runtime } from "../state.js";
 
 export function registerEventRoutes(app: FastifyInstance): void {
   app.get("/events", async () => {
     return buildEventListResponse(registry.recentEvents);
+  });
+
+  app.get("/v1/zwave/events", async (request, reply) => {
+    const query = request.query as { after?: string; limit?: string };
+    const after = query.after == null ? 0 : Number(query.after);
+    const limit = query.limit == null ? 100 : Number(query.limit);
+    if (!Number.isInteger(after) || after < 0 || !Number.isInteger(limit) || limit < 1 || limit > 500) {
+      return reply.code(400).send({ ok: false, reason: "after and limit must be bounded integers" });
+    }
+    return readZWaveEvents(after, limit);
   });
 
   app.post("/events/example", async () => {
@@ -32,7 +42,7 @@ export function registerEventRoutes(app: FastifyInstance): void {
     }
     const event = appendRuntimeEvent("runtime.device.checked", entry, {
       message: "Example local runtime event for a configured device",
-      host: entry.host,
+      controller_path_configured: true,
     });
     return buildEventIngestResponse(event);
   });

@@ -1,6 +1,7 @@
 {
-  "id": "demo-device",
-  "host": "127.0.0.1",
-  "alias": "Demo Device",
-  "service_name": "local-helper"
+  "id": "primary-zwave-controller",
+  "controller_path": "/dev/serial/by-id/usb-Z-Wave_Controller-if00",
+  "alias": "Primary Z-Wave controller",
+  "event_queue_capacity": 1000,
+  "command_queue_capacity": 100
 }

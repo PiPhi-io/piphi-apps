@@ -46,8 +46,8 @@
       "status": 200,
       "body": {
         "id": "demo-device",
-        "host": "127.0.0.1",
-        "alias": "Demo Device"
+        "controller_path": "/dev/serial/by-id/usb-test-controller-if00",
+        "alias": "Test Controller"
       },
       "required_any_keys": [
         [
@@ -78,15 +78,15 @@
       "status": 200,
       "body": {
         "contract_version": "automation.runtime.command.v1",
-        "command": "refresh",
+        "command": "refresh_controller_information",
         "target": {
           "device_id": "demo-device",
           "config_id": "demo-device"
         },
         "params": {},
-        "capability": "device.refresh",
+        "capability": "action.refresh_controller_information",
         "capability_requirements": [
-          "device.refresh"
+          "action.refresh_controller_information"
         ]
       },
       "required_any_keys": [

@@ -3,7 +3,7 @@
   "manifest_version": "1.0",
   "id": "piphi-zwave-js-sidecar",
   "name": "Z-Wave JS sidecar",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Own the Z-Wave controller and deliver schema-versioned node events to PiPhi.",
   "metadata": {
     "generator": "piphi-network-create",
@@ -17,7 +17,7 @@
     "website": "https://piphi.io"
   },
   "license": "Apache-2.0",
-  "image": "docker.io/piphinetwork/piphi-zwave-js-sidecar:0.1.1",
+  "image": "ghcr.io/piphi-io/piphi-zwave-js-sidecar:0.2.0",
   "platforms": [
     "linux"
   ],
@@ -25,19 +25,35 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "docker.io/piphinetwork/piphi-zwave-js-sidecar:0.1.1",
+        "image": "ghcr.io/piphi-io/piphi-zwave-js-sidecar:0.2.0",
         "ports": [
           {
             "container": 4211
           }
         ],
         "environment": {
-          "LOG_LEVEL": "info"
+          "LOG_LEVEL": "info",
+          "PIPHI_ZWAVE_CACHE_DIR": "/var/lib/piphi/zwave-js/cache",
+          "PIPHI_ZWAVE_LOCK_DIR": "/var/lib/piphi/zwave-js/locks"
         },
         "restart_policy": {
           "name": "unless-stopped",
           "maximum_retry_count": 0
-        }
+        },
+        "volumes": [
+          {
+            "host": "/var/lib/piphi/zwave-js",
+            "container": "/var/lib/piphi/zwave-js",
+            "mode": "rw"
+          }
+        ],
+        "devices": [
+          {
+            "host": "/dev/serial",
+            "container": "/dev/serial",
+            "permissions": "rwm"
+          }
+        ]
       },
       "discovery": {
         "method": "passive"
@@ -63,7 +79,8 @@
       "deconfigure": "/deconfigure",
       "ui_config": "/ui-config",
       "events": "/events",
-      "command": "/command"
+      "command": "/command",
+      "zwave_events": "/v1/zwave/events"
     }
   },
   "config": {
@@ -71,9 +88,9 @@
     "endpoint": "/ui-config",
     "required": true,
     "editable_fields": [
-      "host",
+      "controller_path",
       "alias",
-      "service_name"
+      "event_queue_capacity"
     ],
     "runtime_fields": [
       "id",
@@ -82,12 +99,12 @@
       "device_id"
     ],
     "identity_fields": [
-      "host"
+      "controller_path"
     ]
   },
   "identity": {
     "fields": [
-      "host"
+      "controller_path"
     ]
   },
   "capabilities": {
@@ -95,14 +112,78 @@
       "kind": "sensor",
       "unit": "bool"
     },
-    "refresh": {
+    "driver_ready": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "controller_ready": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "node_count": {
+      "kind": "sensor",
+      "unit": "nodes"
+    },
+    "ready_node_count": {
+      "kind": "sensor",
+      "unit": "nodes"
+    },
+    "sleeping_node_count": {
+      "kind": "sensor",
+      "unit": "nodes"
+    },
+    "dead_node_count": {
+      "kind": "sensor",
+      "unit": "nodes"
+    },
+    "event_queue_depth": {
+      "kind": "sensor",
+      "unit": "events"
+    },
+    "dropped_event_count": {
+      "kind": "sensor",
+      "unit": "events"
+    },
+    "command_queue_depth": {
+      "kind": "sensor",
+      "unit": "commands"
+    },
+    "refresh_controller_information": {
+      "kind": "action"
+    },
+    "reconnect_driver": {
+      "kind": "action"
+    },
+    "ping_node": {
+      "kind": "action"
+    },
+    "request_node_interview": {
+      "kind": "action"
+    },
+    "refresh_node_values": {
       "kind": "action"
     }
   },
   "commands": {
-    "refresh": {
-      "description": "Refresh the device state.",
-      "timeout_ms": 5000
+    "refresh_controller_information": {
+      "description": "Read the current controller and queue state.",
+      "timeout_ms": 10000
+    },
+    "reconnect_driver": {
+      "description": "Restart the managed Z-Wave JS driver.",
+      "timeout_ms": 30000
+    },
+    "ping_node": {
+      "description": "Ask Z-Wave JS to test whether a node is reachable.",
+      "timeout_ms": 30000
+    },
+    "request_node_interview": {
+      "description": "Request a new Z-Wave JS interview for one node.",
+      "timeout_ms": 120000
+    },
+    "refresh_node_values": {
+      "description": "Refresh the known values for one node.",
+      "timeout_ms": 120000
     }
   },
   "entities": [
@@ -113,12 +194,45 @@
       "entity_type": "service",
       "capabilities": [
         "connected",
-        "refresh"
+        "driver_ready",
+        "controller_ready",
+        "node_count",
+        "ready_node_count",
+        "sleeping_node_count",
+        "dead_node_count",
+        "event_queue_depth",
+        "dropped_event_count",
+        "command_queue_depth",
+        "refresh_controller_information",
+        "reconnect_driver",
+        "ping_node",
+        "request_node_interview",
+        "refresh_node_values"
       ],
       "available_commands": [
         {
-          "id": "refresh",
-          "label": "Refresh",
+          "id": "refresh_controller_information",
+          "label": "Refresh controller",
+          "kind": "action"
+        },
+        {
+          "id": "reconnect_driver",
+          "label": "Reconnect driver",
+          "kind": "action"
+        },
+        {
+          "id": "ping_node",
+          "label": "Ping node",
+          "kind": "action"
+        },
+        {
+          "id": "request_node_interview",
+          "label": "Interview node",
+          "kind": "action"
+        },
+        {
+          "id": "refresh_node_values",
+          "label": "Refresh node values",
           "kind": "action"
         }
       ],
@@ -151,15 +265,9 @@
     },
     "access": [
       {
-        "id": "local_network",
-        "label": "Local network access",
-        "reason": "Discovers or communicates with supported services and devices on the homeowner's local network.",
-        "required": true
-      },
-      {
         "id": "device_access",
         "label": "Z-Wave controller device access",
-        "reason": "Uses the explicitly configured host device to communicate with supported hardware.",
+        "reason": "Uses only the configured stable serial controller path and persistent Z-Wave JS cache.",
         "required": true
       },
       {

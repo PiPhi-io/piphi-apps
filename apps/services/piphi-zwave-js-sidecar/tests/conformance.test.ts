@@ -4,6 +4,8 @@ import test from "node:test";
 import { buildConfigPayload, buildRuntimeHeaders } from "piphi-runtime-testkit-node";
 
 import { createApp } from "../src/app.js";
+import { setDriverSessionFactory } from "../src/state.js";
+import { createMockDriverFactory } from "./helpers/mock-driver.js";
 
 type FixtureCase = {
   id: string;
@@ -20,6 +22,7 @@ const fixtures = JSON.parse(fs.readFileSync("tests/fixtures/contract-conformance
 };
 
 test("runtime conforms to shared PiPhi contract fixtures", async (t) => {
+  setDriverSessionFactory(createMockDriverFactory());
   const app = createApp();
   t.after?.(() => app.close());
 
