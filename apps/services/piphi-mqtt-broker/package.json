@@ -9,7 +9,7 @@
     "dev": "tsx src/cli.ts --print",
     "print-config": "tsx src/cli.ts --print",
     "generate-config": "tsx src/cli.ts",
-    "test": "node --test --import tsx tests/**/*.test.ts"
+    "test": "node --test --import tsx tests/*.test.ts"
   },
   "engines": {
     "node": ">=20"
