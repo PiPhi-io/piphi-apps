@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 from piphi_network_zigbee2mqtt.adapter_detector import infer_adapter_hint
-from piphi_network_zigbee2mqtt.bridge_models import MqttSettings, SerialSettings, Zigbee2MqttBridgeConfig
+from piphi_network_zigbee2mqtt.bridge_models import (
+    MqttSettings,
+    SerialSettings,
+    Zigbee2MqttBridgeConfig,
+)
 from piphi_network_zigbee2mqtt.config_renderer import render_zigbee2mqtt_config
 
 

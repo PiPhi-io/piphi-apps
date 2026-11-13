@@ -95,10 +95,7 @@ def _render_yaml_lines(value: Any, indent: int) -> list[str]:
     if isinstance(value, dict):
         lines: list[str] = []
         for key, item in value.items():
-            if isinstance(item, dict):
-                lines.append(f"{prefix}{key}:")
-                lines.extend(_render_yaml_lines(item, indent + 2))
-            elif isinstance(item, list):
+            if isinstance(item, (dict, list)):
                 lines.append(f"{prefix}{key}:")
                 lines.extend(_render_yaml_lines(item, indent + 2))
             else:

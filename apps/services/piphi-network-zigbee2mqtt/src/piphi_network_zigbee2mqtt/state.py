@@ -3,17 +3,16 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import HTTPException
-
 from piphi_runtime_kit_python import (
     build_local_event_record,
     build_runtime_identity,
     create_runtime_starter,
 )
 
-from .contract import CAPABILITIES, COMMANDS
 from .bridge_models import MqttSettings, SerialSettings, SidecarStore, Zigbee2MqttBridgeConfig
 from .config_renderer import render_zigbee2mqtt_config
 from .config_store import write_config_atomic
+from .contract import CAPABILITIES, COMMANDS
 from .schemas import DeviceConfig
 from .settings import INTEGRATION_ID, INTEGRATION_NAME, INTEGRATION_VERSION
 

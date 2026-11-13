@@ -53,7 +53,7 @@ npm test
 ## Docker Build
 
 ```bash
-docker build -t piphinetwork/mqtt-broker:0.1.0 .
+docker build -t ghcr.io/piphi-io/mqtt-broker:0.1.7 .
 ```
 
 ## Example Run
@@ -63,7 +63,7 @@ docker run --rm \
   -p 1883:1883 \
   -e MQTT_USERNAME=piphi \
   -e MQTT_PASSWORD=changeme \
-  piphinetwork/mqtt-broker:0.1.0
+  ghcr.io/piphi-io/mqtt-broker:0.1.7
 ```
 
 By default, anonymous MQTT clients are disabled. If you do not want to set credentials for local testing, start the broker with:
@@ -72,16 +72,18 @@ By default, anonymous MQTT clients are disabled. If you do not want to set crede
 docker run --rm \
   -p 1883:1883 \
   -e MQTT_ALLOW_ANONYMOUS=true \
-  piphinetwork/mqtt-broker:0.1.0
+  ghcr.io/piphi-io/mqtt-broker:0.1.7
 ```
 
 ## Release
 
-Use the GitHub Actions `Release` workflow to publish `piphinetwork/mqtt-broker:<version>` to Docker Hub, tag the repo, and create a GitHub release. Choose `current` for the first `0.1.0` publish, or choose a semantic version bump for later releases.
+Use the monorepo `Release one app package` workflow to publish
+`ghcr.io/piphi-io/mqtt-broker:<version>` with SBOM and provenance attestations,
+then create the namespaced GitHub release.
 
 ## Platform Service Manifest
 
-The broker manifest lives at [src/manifest.json](/home/kelvinfor3xzorin/Documents/PiPhi/piphi-mqtt-broker/src/manifest.json) and uses:
+The broker manifest lives at [src/manifest.json](src/manifest.json) and uses:
 
 - `kind: "platform_service"`
 - Linux container runtime

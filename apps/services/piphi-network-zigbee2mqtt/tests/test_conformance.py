@@ -10,7 +10,6 @@ from piphi_runtime_testkit_python import build_config_payload, build_runtime_hea
 
 from piphi_network_zigbee2mqtt.main import app
 
-
 FIXTURES = json.loads((Path(__file__).parent / "fixtures" / "contract-conformance.json").read_text())
 
 

@@ -1,12 +1,20 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 from urllib.parse import urlsplit, urlunsplit
 
-from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_serializer,
+    field_validator,
+    model_validator,
+)
 
+from .settings import DEFAULT_ZIGBEE2MQTT_IMAGE
 
 AdapterTransport = Literal["serial", "tcp", "socket"]
 AdapterRuntime = Literal["docker", "native"]
@@ -87,7 +95,7 @@ class RenderedBridgeConfig(BaseModel):
     data_path: str
     config_path: str | None = None
     runtime: AdapterRuntime
-    rendered_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    rendered_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     config_hash: str | None = None
 
 
@@ -102,7 +110,7 @@ class ConfigWriteResult(BaseModel):
     previous_hash: str | None = None
     changed: bool
     backup_path: str | None = None
-    written_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    written_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class BridgeSnapshot(BaseModel):
@@ -136,7 +144,7 @@ class CommandResult(BaseModel):
 
 
 class DockerSupervisorSettings(BaseModel):
-    image: str = "ghcr.io/koenkk/zigbee2mqtt:latest"
+    image: str = DEFAULT_ZIGBEE2MQTT_IMAGE
     container_name: str = "piphi-zigbee2mqtt"
     host_data_path: str
     container_data_path: str = "/app/data"
@@ -243,7 +251,7 @@ class Zigbee2MqttDevice(BaseModel):
     import_blocked_reason: str | None = None
 
     @model_validator(mode="after")
-    def derive_import_eligibility(self) -> "Zigbee2MqttDevice":
+    def derive_import_eligibility(self) -> Zigbee2MqttDevice:
         state = str(self.interview_state or "").strip().lower()
         device_type = str(self.type or "").strip().lower()
         if device_type == "coordinator":
@@ -310,7 +318,7 @@ class NetworkMapResponse(BaseModel):
     nodes: list[NetworkMapNode] = Field(default_factory=list)
     links: list[NetworkMapLink] = Field(default_factory=list)
     routes_included: bool = False
-    collected_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    collected_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     server: str
     base_topic: str
     request_topic: str

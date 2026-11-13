@@ -4,13 +4,16 @@ import os
 
 INTEGRATION_ID = "piphi.service.zigbee2mqtt-sidecar"
 INTEGRATION_NAME = "Zigbee2MQTT Sidecar"
-INTEGRATION_VERSION = "0.1.5"
+INTEGRATION_VERSION = "0.1.18"
 PROJECT_KIND = "sidecar"
 PROJECT_PRESET = "platform-service"
 PROJECT_DOMAIN = "sidecar-service"
 DEFAULT_PORT = 8720
 DEFAULT_ZIGBEE2MQTT_CONTAINER = "piphi-zigbee2mqtt"
-DEFAULT_ZIGBEE2MQTT_IMAGE = "ghcr.io/koenkk/zigbee2mqtt:latest"
+DEFAULT_ZIGBEE2MQTT_IMAGE = (
+    "ghcr.io/koenkk/zigbee2mqtt"
+    "@sha256:fb4a6b0f6868ad1cd6a9996479802b2420e599c3463b62bbff8c8cd9a908f43a"
+)
 DEFAULT_ZIGBEE2MQTT_PM2_NAME = "piphi-zigbee2mqtt"
 DEFAULT_ZIGBEE2MQTT_FRONTEND_PORT = 8080
 DEFAULT_ZIGBEE2MQTT_CONTAINER_DATA_PATH = "/app/data"

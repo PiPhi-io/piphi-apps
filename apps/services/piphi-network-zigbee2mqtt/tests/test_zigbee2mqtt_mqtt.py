@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from types import SimpleNamespace
+from typing import ClassVar
 
 import pytest
 
@@ -10,7 +11,7 @@ from piphi_network_zigbee2mqtt.zigbee2mqtt_mqtt import Zigbee2MqttMqttClient
 
 
 class FakeMqttModule:
-    instances: list["FakeMqttClient"] = []
+    instances: ClassVar[list[FakeMqttClient]] = []
 
     class Client:
         def __init__(self, client_id: str) -> None:
