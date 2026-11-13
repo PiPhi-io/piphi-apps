@@ -1,4 +1,7 @@
-FROM node:22-alpine@sha256:1314fb30ec37592d5845e5a160d522c0e680972aa534549940b8d73bde88481a AS build
+# TypeScript output is architecture-neutral and serialport ships both glibc and
+# musl prebuilds for every supported architecture. Run npm/Node on the native
+# builder platform so arm64 publication never executes Node through QEMU.
+FROM --platform=$BUILDPLATFORM node:22-alpine@sha256:1314fb30ec37592d5845e5a160d522c0e680972aa534549940b8d73bde88481a AS build
 WORKDIR /app
 RUN apk add --no-cache python3 make g++
 COPY package*.json ./

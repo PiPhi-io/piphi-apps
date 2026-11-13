@@ -30,6 +30,9 @@ if (!dockerfile.includes(`ARG VERSION=${manifest.version}`)) {
 if (!dockerfile.includes("@sha256:")) {
   errors.push("Dockerfile base image must be digest pinned");
 }
+if (!dockerfile.includes("FROM --platform=$BUILDPLATFORM")) {
+  errors.push("Dockerfile build stage must use BUILDPLATFORM to avoid emulated Node/npm execution");
+}
 
 if (manifest.$schema !== "./schema/piphi-manifest.schema.json") {
   errors.push("manifest must reference ./schema/piphi-manifest.schema.json");
