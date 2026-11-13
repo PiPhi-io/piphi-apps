@@ -45,10 +45,10 @@
       },
       "publishing": {
         "mode": "piphi_managed",
-        "environment": "release-docker-io",
+        "environment": "release-ghcr-io",
         "primary": {
-          "registry": "docker.io",
-          "repository": "piphinetwork/official-gps-integration"
+          "registry": "ghcr.io",
+          "repository": "piphi-io/official-gps-integration"
         },
         "mirrors": []
       }

@@ -40,10 +40,10 @@
       },
       "publishing": {
         "mode": "piphi_managed",
-        "environment": "release-docker-io",
+        "environment": "release-ghcr-io",
         "primary": {
-          "registry": "docker.io",
-          "repository": "piphinetwork/i2c-integration"
+          "registry": "ghcr.io",
+          "repository": "piphi-io/i2c-integration"
         },
         "mirrors": []
       }
