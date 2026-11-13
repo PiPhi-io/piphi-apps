@@ -3,7 +3,7 @@
   "kind": "platform_service",
   "id": "piphi.service.matter-sidecar",
   "name": "Matter Sidecar",
-  "version": "0.2.0-alpha.3",
+  "version": "0.2.0-alpha.4",
   "platforms": [
     "linux"
   ],
@@ -11,7 +11,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "piphinetwork/matter-sidecar:0.2.0-alpha.3",
+        "image": "ghcr.io/piphi-io/matter-sidecar:0.2.0-alpha.4",
         "ports": [
           {
             "container": 8710

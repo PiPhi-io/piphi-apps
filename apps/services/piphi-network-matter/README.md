@@ -52,10 +52,10 @@ MATTER_STORAGE_DIR=./matter-state npm start
 ## Container
 
 ```bash
-docker build -t piphinetwork/matter-sidecar:dev .
+docker build -t ghcr.io/piphi-io/matter-sidecar:dev .
 docker run --rm --network host \
   -v "$PWD/matter-state:/var/lib/piphi/matter" \
-  piphinetwork/matter-sidecar:dev
+  ghcr.io/piphi-io/matter-sidecar:dev
 ```
 
 BLE commissioning is optional and requires appropriate host Bluetooth/D-Bus access. Do not grant blanket privileged-container access; add only the host resources required by the deployment.

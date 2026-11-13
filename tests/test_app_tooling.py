@@ -18,7 +18,14 @@ class AppToolingTests(unittest.TestCase):
         path = root / "apps" / "integrations" / "example"
         path.mkdir(parents=True)
         (path / "manifest.json").write_text(
-            json.dumps({"id": "example", "version": "1.2.3"}), encoding="utf-8"
+            json.dumps(
+                {
+                    "id": "example",
+                    "version": "1.2.3",
+                    "image": "ghcr.io/piphi-io/example:1.2.3",
+                }
+            ),
+            encoding="utf-8",
         )
         (path / "Dockerfile").write_text("FROM scratch\n", encoding="utf-8")
         (path / "piphi-app.json").write_text(
@@ -92,6 +99,18 @@ class AppToolingTests(unittest.TestCase):
             metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
             with patch.object(app_tooling, "ROOT", root):
                 with self.assertRaisesRegex(app_tooling.AppMetadataError, "tag or digest"):
+                    app_tooling.validate_app(path)
+
+    def test_full_oci_manifest_must_match_release_target(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            path = self.app_fixture(root)
+            manifest_path = path / "manifest.json"
+            manifest = json.loads(manifest_path.read_text())
+            manifest["image"] = "docker.io/example/old:1.2.3"
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            with patch.object(app_tooling, "ROOT", root):
+                with self.assertRaisesRegex(app_tooling.AppMetadataError, "release target"):
                     app_tooling.validate_app(path)
 
     def test_namespaced_release_plan_uses_immutable_package_identity(self) -> None:
