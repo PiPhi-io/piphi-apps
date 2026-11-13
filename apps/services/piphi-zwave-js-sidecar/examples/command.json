@@ -1,14 +1,13 @@
 {
   "contract_version": "automation.runtime.command.v1",
-  "command": "refresh",
+  "command": "refresh_node_values",
   "target": {
-    "config_id": "demo-device",
-    "device_id": "demo-device",
-    "entity_id": null
+    "config_id": "primary-zwave-controller",
+    "device_id": "zwave-js-service"
   },
-  "params": {},
-  "capability": "device.refresh",
-  "capability_requirements": [
-    "device.refresh"
-  ]
+  "params": {
+    "node_id": 5
+  },
+  "capability": "action.refresh_node_values",
+  "capability_requirements": ["action.refresh_node_values"]
 }

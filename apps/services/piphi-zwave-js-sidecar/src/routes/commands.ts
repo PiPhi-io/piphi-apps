@@ -34,7 +34,7 @@ export function registerCommandRoutes(app: FastifyInstance): void {
       body.capability,
       ...(Array.isArray(body.capability_requirements) ? body.capability_requirements : []),
     ].filter((value): value is string => Boolean(value));
-    const unsupportedCapability = requestedCapabilities.find((capability) => capability !== "device.refresh" && capability !== `action.${commandName}`);
+    const unsupportedCapability = requestedCapabilities.find((capability) => capability !== `action.${commandName}`);
     if (unsupportedCapability) {
       return reply.code(400).send({
         ok: false,

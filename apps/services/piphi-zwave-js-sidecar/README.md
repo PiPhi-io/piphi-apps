@@ -1,62 +1,50 @@
-# PiPhi Z-Wave JS Sidecar
+# PiPhi Z-Wave JS sidecar
 
-Managed Node-native Z-Wave JS driver and controller transport for the PiPhi
-Z-Wave integration.
+Managed Node-native Z-Wave JS controller transport for PiPhi Network.
 
-## Ownership boundary
+The sidecar owns the driver lifecycle, serial controller, bounded event replay,
+serialized maintenance commands, recovery, and schema `piphi.zwave.event.v1`.
+The parent `piphi-network-zwave` integration owns homeowner-facing device and
+capability normalization.
 
-The sidecar owns the controller serial adapter, Z-Wave JS driver lifecycle,
-server schema negotiation, node/value event transport, controller management
-prompts, bounded command queues, backpressure, and restart reconciliation. The
-parent integration owns normalized device entities, command-class capability
-negotiation, state, telemetry, widgets, and behaviors.
+## Safety boundary
 
-The machine-readable `capability-catalog.json` inventories driver, controller,
-radio, node event, inclusion/security, NVM, queue, and recovery behavior. Only
-`connected` and `refresh` are implemented in this starter; network keys, raw
-frames, unrestricted controller calls, and factory reset are excluded.
+- Accepts stable `/dev/serial/by-id/` and `/dev/serial/by-path/` paths by default.
+- Reads network keys only from `PIPHI_ZWAVE_*_KEY` environment variables.
+- Recursively redacts keys, DSKs, credentials, raw frames, binary data, and NVM.
+- Does not expose arbitrary Z-Wave JS calls, factory reset, raw serial, or NVM.
+- Keeps inclusion, RF, and secure-device support unverified without hardware.
 
-## Run locally
+## Development
+
+Requires Node 20 or newer; CI and the container use Node 22.
 
 ```bash
-npm install
-npm run dev
-npm run build
-npm run test
+npm ci
+npm run check
+npm test
 npm run validate
+npm run build
 ```
 
-The runtime listens on port `4211` by default and exposes the common PiPhi runtime route contract:
+Representative tests use Z-Wave JS command-class value definitions and bundled
+device metadata for switch, lock, thermostat, multilevel sensor, electric meter,
+and battery events. `MockCoreServer` verifies actual Core event delivery.
 
-- `GET /health`
-- `GET /diagnostics`
-- `POST /discover`
-- `POST /config`
-- `POST /config/sync`
-- `POST /deconfigure`
-- `POST /deconfigure/{config_id}`
-- `GET /state`
-- `GET /contract`
-- `GET /entities`
-- `GET /events`
-- `POST /events/device/{config_id}/example`
-- `POST /telemetry/example`
-- `POST /telemetry/device/{config_id}/example`
+## Runtime
+
+The API listens on `PORT` (default `4211`). Important routes:
+
+- `GET /health` and `GET /diagnostics`
+- `POST /config`, `POST /config/sync`, and `POST /deconfigure`
+- `GET /state`, `GET /entities`, and `GET /contract`
+- `GET /v1/zwave/events?after=0&limit=100`
 - `POST /command`
 
-## Manifest
+See [`docs/contract.md`](docs/contract.md) for the command and event boundary.
 
-`manifest.json` is a starter manifest. Before publishing, update:
+## Container
 
-- `image`
-- `version`
-- capabilities and commands
-- config fields and identity fields
-- entity metadata
-
-## Docker
-
-```bash
-docker build -t docker.io/piphinetwork/piphi-zwave-js-sidecar:0.1.1 .
-docker run --rm -p 4211:4211 docker.io/piphinetwork/piphi-zwave-js-sidecar:0.1.1
-```
+The image target is `ghcr.io/piphi-io/piphi-zwave-js-sidecar:0.2.0`. Mount
+`/var/lib/piphi/zwave-js` read-write and provide the configured serial controller
+under `/dev/serial`. The image runs as the unprivileged `node` user.

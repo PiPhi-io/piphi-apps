@@ -2,11 +2,14 @@ import type { FastifyInstance } from "fastify";
 
 import { endpoints, requiredEndpoints } from "../contract.js";
 import { projectKind } from "../settings.js";
-import { registry, starter } from "../state.js";
+import { controllerDiagnostics, registry, starter } from "../state.js";
 
 export function registerHealthRoutes(app: FastifyInstance): void {
   app.get("/health", async () => {
-    return starter.healthResponse({ activeConfigs: registry.ids().length });
+    return starter.healthResponse({
+      activeConfigs: registry.ids().length,
+      controller: controllerDiagnostics(),
+    });
   });
 
   app.get("/diagnostics", async () => {
@@ -18,6 +21,7 @@ export function registerHealthRoutes(app: FastifyInstance): void {
         endpoints,
         required: requiredEndpoints,
       },
+      controller: controllerDiagnostics(),
     });
   });
 }

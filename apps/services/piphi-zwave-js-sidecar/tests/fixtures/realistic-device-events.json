@@ -1,0 +1,58 @@
+{
+  "schema_version": "piphi.zwave.event.v1",
+  "sources": {
+    "value_model": "https://zwave-js.github.io/zwave-js/#/api/valueid",
+    "command_classes": "Z-Wave JS 15.32.3 @zwave-js/cc value definitions",
+    "device_database": "Z-Wave JS 15.32.2 bundled @zwave-js/config device database"
+  },
+  "cases": [
+    {
+      "id": "smart-plug-switch",
+      "model": "AiBase HA-ZW-5PA Smart Plug",
+      "device_config": "0x0384/ha-zw-5pa.json",
+      "node_id": 2,
+      "event_type": "value updated",
+      "args": [{ "commandClass": 37, "endpoint": 0, "property": "currentValue", "propertyName": "Current value", "prevValue": false, "newValue": true }]
+    },
+    {
+      "id": "door-lock",
+      "model": "Schlage BE469",
+      "device_config": "0x0003/be469.json",
+      "node_id": 3,
+      "event_type": "value updated",
+      "args": [{ "commandClass": 98, "endpoint": 0, "property": "currentMode", "propertyName": "Current mode", "prevValue": 0, "newValue": 255 }]
+    },
+    {
+      "id": "thermostat-heating-setpoint",
+      "model": "GoControl GC-TBZ48",
+      "device_config": "0x014f/gocontrol_gc-tbz48.json",
+      "node_id": 4,
+      "event_type": "value updated",
+      "args": [{ "commandClass": 67, "endpoint": 0, "property": "setpoint", "propertyKey": 1, "propertyName": "Setpoint", "propertyKeyName": "Heating", "prevValue": 20, "newValue": 21.5, "metadata": { "unit": "°C", "type": "number" } }]
+    },
+    {
+      "id": "multilevel-temperature-sensor",
+      "model": "Express Controls EZMultiPli",
+      "device_config": "0x001e/ezmultipli.json",
+      "node_id": 5,
+      "event_type": "value updated",
+      "args": [{ "commandClass": 49, "endpoint": 0, "property": "Air temperature", "propertyKey": 1, "propertyName": "Air temperature", "prevValue": 21.8, "newValue": 22.1, "metadata": { "unit": "°C", "type": "number" } }]
+    },
+    {
+      "id": "electric-meter",
+      "model": "AiBase HA-ZW-5PA Smart Plug",
+      "device_config": "0x0384/ha-zw-5pa.json",
+      "node_id": 2,
+      "event_type": "value updated",
+      "args": [{ "commandClass": 50, "endpoint": 0, "property": "value", "propertyKey": 65537, "propertyName": "Electric", "propertyKeyName": "Power", "prevValue": 41.2, "newValue": 46.7, "metadata": { "unit": "W", "type": "number" } }]
+    },
+    {
+      "id": "battery-level",
+      "model": "Express Controls EZMultiPli",
+      "device_config": "0x001e/ezmultipli.json",
+      "node_id": 5,
+      "event_type": "value updated",
+      "args": [{ "commandClass": 128, "endpoint": 0, "property": "level", "propertyName": "Battery level", "prevValue": 88, "newValue": 87, "metadata": { "unit": "%", "min": 0, "max": 100, "type": "number" } }]
+    }
+  ]
+}

@@ -22,7 +22,7 @@ test("runtime implements the advertised contract routes", async (t) => {
     "ui_config",
   ]);
 
-  for (const url of ["/ui-config", "/entities", "/state", "/contract", "/events"]) {
+  for (const url of ["/ui-config", "/entities", "/state", "/contract", "/events", "/v1/zwave/events"]) {
     const response = await app.inject({ method: "GET", url });
     assert.equal(response.statusCode, 200, url);
   }
@@ -34,5 +34,6 @@ test("runtime implements the advertised contract routes", async (t) => {
   });
   assert.equal(missingCommand.statusCode, 400);
 
-  assert.ok("refresh" in commands);
+  assert.ok("refresh_controller_information" in commands);
+  assert.ok("ping_node" in commands);
 });

@@ -10,15 +10,24 @@ import { applyConfig, configSync, registry, removeConfig, runtime } from "../sta
 import type { DeviceConfig } from "../types.js";
 
 export function registerConfigRoutes(app: FastifyInstance): void {
-  app.post("/config", async (request) => {
+  app.post("/config", async (request, reply) => {
     const payload = request.body as DeviceConfig;
     syncRuntimeAuthFromFastifyRequest(runtime, request, payload.containerId);
-    await applyConfig(payload);
+    try {
+      await applyConfig(payload);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "configuration_failed";
+      const validationFailure = /^(id |controller_path |event_queue_capacity |command_queue_capacity )/.test(reason);
+      const status = reason === "only_one_controller_configuration_is_supported"
+        ? 409
+        : validationFailure ? 400 : 503;
+      return reply.code(status).send({ ok: false, reason });
+    }
     return buildConfigApplyResponse({
       configId: payload.configId ?? payload.id,
       containerId: payload.containerId,
       metadata: {
-        host: payload.host,
+        controller_path_configured: true,
         alias: payload.alias ?? null,
       },
     });

@@ -4,11 +4,32 @@ const manifest = JSON.parse(fs.readFileSync("manifest.json", "utf8"));
 const behaviorPath = fs.existsSync("src/behaviors.json") ? "src/behaviors.json" : "behaviors.json";
 const behavior = fs.existsSync(behaviorPath) ? JSON.parse(fs.readFileSync(behaviorPath, "utf8")) : null;
 const dockerfile = fs.existsSync("Dockerfile") ? fs.readFileSync("Dockerfile", "utf8") : "";
+const packageJson = JSON.parse(fs.readFileSync("package.json", "utf8"));
+const appMetadata = JSON.parse(fs.readFileSync("piphi-app.json", "utf8"));
+const settings = fs.readFileSync("src/settings.ts", "utf8");
 const required = ["health", "entities", "command", "config", "ui_config"];
 const endpoints = manifest.api?.endpoints ?? {};
 const errors = [];
 const riskLevels = new Set(["low", "medium", "high", "critical"]);
 const automationSchemaVersions = new Set(["automation.behavior.v1", "automation.behavior.v2"]);
+const packageMetadata = appMetadata.packages?.find((item) => item.id === manifest.id);
+
+if (manifest.version !== packageJson.version || manifest.version !== packageMetadata?.version) {
+  errors.push("manifest, package.json, and piphi-app.json versions must match");
+}
+if (!settings.includes(`integrationVersion = "${manifest.version}"`)) {
+  errors.push("src/settings.ts integrationVersion must match manifest version");
+}
+const expectedImage = `ghcr.io/piphi-io/${manifest.id}:${manifest.version}`;
+if (manifest.image !== expectedImage || manifest.runtime?.linux?.container?.image !== expectedImage) {
+  errors.push(`manifest images must equal ${expectedImage}`);
+}
+if (!dockerfile.includes(`ARG VERSION=${manifest.version}`)) {
+  errors.push("Dockerfile VERSION must match manifest version");
+}
+if (!dockerfile.includes("@sha256:")) {
+  errors.push("Dockerfile base image must be digest pinned");
+}
 
 if (manifest.$schema !== "./schema/piphi-manifest.schema.json") {
   errors.push("manifest must reference ./schema/piphi-manifest.schema.json");

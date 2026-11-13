@@ -1,6 +1,6 @@
 {
   "name": "piphi-zwave-js-sidecar",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Managed Z-Wave JS driver sidecar for PiPhi Network.",
   "type": "module",
   "scripts": {
@@ -13,7 +13,8 @@
   },
   "dependencies": {
     "fastify": "^5.3.0",
-    "piphi-runtime-kit-node": "^0.5.1"
+    "piphi-runtime-kit-node": "^0.5.1",
+    "zwave-js": "15.32.3"
   },
   "devDependencies": {
     "@types/node": "^22.15.3",
@@ -22,6 +23,6 @@
     "typescript": "^6.0.2"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   }
 }

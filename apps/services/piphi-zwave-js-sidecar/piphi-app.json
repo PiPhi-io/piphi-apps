@@ -9,10 +9,10 @@
     "node"
   ],
   "toolchains": {
-    "node": "18"
+    "node": "22"
   },
   "ci": {
-    "enforcement": "legacy-static",
+    "enforcement": "full",
     "commands": [
       "npm ci",
       "npm audit --omit=dev --audit-level=high",
@@ -21,13 +21,13 @@
       "npm run validate",
       "npm run build"
     ],
-    "build_container": false
+    "build_container": true
   },
   "packages": [
     {
       "id": "piphi-zwave-js-sidecar",
       "type": "platform_service",
-      "version": "0.1.1",
+      "version": "0.2.0",
       "manifest": "manifest.json",
       "release": {
         "tag": "apps/{package_id}/v{version}",
