@@ -16,7 +16,7 @@
     "commands": [
       "pdm install --check",
       "pdm run pytest",
-      "python scripts/validate.py"
+      "pdm run python scripts/validate.py"
     ],
     "build_container": true
   },
