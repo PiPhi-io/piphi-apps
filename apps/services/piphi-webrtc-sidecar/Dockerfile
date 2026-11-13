@@ -2,7 +2,7 @@ FROM ghcr.io/alexxit/go2rtc:1.9.15@sha256:e098de5c2f8040dc3d4784ed2d5cfdac3b0979
 
 FROM python:3.12-slim@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea AS dependencies
 
-ARG PDM_VERSION=2.26.7
+ARG PDM_VERSION=2.29.7
 WORKDIR /build
 RUN pip install --no-cache-dir "pdm==${PDM_VERSION}"
 COPY pyproject.toml pdm.lock ./
