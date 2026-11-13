@@ -1,12 +1,12 @@
 # Release
 
-Version `0.2.0` targets:
+Version `0.3.0` targets:
 
 ```text
-ghcr.io/piphi-io/piphi-zwave-js-sidecar:0.2.0
+ghcr.io/piphi-io/piphi-zwave-js-sidecar:0.3.0
 ```
 
-Before tagging `apps/piphi-zwave-js-sidecar/v0.2.0`:
+Before tagging `apps/piphi-zwave-js-sidecar/v0.3.0`:
 
 1. Run `npm ci`, high-severity audit, check, tests, validation, and build.
 2. Build the container for `linux/amd64` and `linux/arm64`.

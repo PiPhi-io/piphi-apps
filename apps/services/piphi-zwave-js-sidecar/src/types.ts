@@ -62,6 +62,59 @@ export type ZWaveTransportEvent = {
   payload: Record<string, unknown>;
 };
 
+export type ZWaveValueId = {
+  command_class: number;
+  endpoint: number;
+  property: string | number;
+  property_key?: string | number;
+};
+
+export type ZWaveValueSnapshot = {
+  id: ZWaveValueId;
+  label: string;
+  property_name?: string;
+  property_key_name?: string;
+  value: unknown;
+  updated_at?: string;
+  metadata: {
+    type: string;
+    readable: boolean;
+    writeable: boolean;
+    stateful: boolean;
+    unit?: string;
+    min?: number;
+    max?: number;
+    step?: number;
+    states?: Record<string, string>;
+    description?: string;
+  };
+};
+
+export type ZWaveNodeSnapshot = {
+  node_id: number;
+  name?: string;
+  location?: string;
+  manufacturer_id?: number;
+  product_type?: number;
+  product_id?: number;
+  firmware_version?: string;
+  status: string;
+  ready: boolean;
+  last_seen_at?: string;
+  values: ZWaveValueSnapshot[];
+};
+
+export type ZWaveNetworkSnapshot = {
+  schema_version: "piphi.zwave.snapshot.v1";
+  generated_at: string;
+  config_id: string;
+  stream_id: string;
+  latest_sequence: number;
+  dropped_event_count: number;
+  controller: DriverSnapshot;
+  nodes: ZWaveNodeSnapshot[];
+};
+
 export type DriverSnapshot = {
   lifecycle: DriverLifecycle;
   driverReady: boolean;
@@ -84,13 +137,15 @@ export type DriverCommand =
   | { name: "reconnect_driver" }
   | { name: "ping_node"; nodeId: number }
   | { name: "request_node_interview"; nodeId: number }
-  | { name: "refresh_node_values"; nodeId: number };
+  | { name: "refresh_node_values"; nodeId: number }
+  | { name: "set_value"; nodeId: number; valueId: ZWaveValueId; value: unknown };
 
 export interface DriverSession {
   start(): Promise<void>;
   stop(): Promise<void>;
   execute(command: DriverCommand): Promise<Record<string, unknown>>;
   snapshot(): DriverSnapshot;
+  nodesSnapshot(): ZWaveNodeSnapshot[];
 }
 
 export type DriverSessionFactory = (options: {

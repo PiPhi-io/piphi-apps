@@ -17,15 +17,15 @@ async def events():
 @router.post("/events/example")
 async def event_example():
     entry = registry.primary_entry() or {
-        "device_id": "demo-device",
-        "config_id": "demo-device",
+        "device_id": "zwave-network",
+        "config_id": "zwave-network",
         "integration_id": INTEGRATION_ID,
         "container_id": runtime.auth.container_id or None,
     }
     event = append_runtime_event(
         "runtime.event",
         entry,
-        {"message": "Example local runtime event"},
+        {"message": "Z-Wave runtime event probe"},
     )
     return build_event_ingest_response(event)
 

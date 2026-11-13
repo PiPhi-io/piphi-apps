@@ -1,14 +1,12 @@
 {
   "contract_version": "automation.runtime.command.v1",
-  "command": "refresh",
+  "command": "set_switch",
   "target": {
-    "config_id": "demo-device",
-    "device_id": "demo-device",
+    "config_id": "home-network",
+    "device_id": "zwave-node-2-endpoint-0",
     "entity_id": null
   },
-  "params": {},
-  "capability": "device.refresh",
-  "capability_requirements": [
-    "device.refresh"
-  ]
+  "params": {"value": true},
+  "capability": "action.set_switch",
+  "capability_requirements": ["action.set_switch"]
 }

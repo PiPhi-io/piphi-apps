@@ -22,6 +22,13 @@ timestamp, event type, node/endpoint/command-class identity when available, and
 sanitized Z-Wave JS payload data. Buffer overflow drops the oldest record and
 increments `dropped_event_count`.
 
+`GET /v1/zwave/snapshot` returns `piphi.zwave.snapshot.v1`: a complete,
+redacted controller and node/value view with the current stream ID and sequence.
+The parent uses it as the resynchronization point after overflow or restart.
+
+In production, both Z-Wave routes and `POST /command` require the bearer token
+from `PIPHI_ZWAVE_SIDECAR_TOKEN`, falling back to the runtime internal token.
+
 ## Commands
 
 `POST /command` accepts only:
@@ -31,10 +38,12 @@ increments `dropped_event_count`.
 - `ping_node` with `params.node_id`
 - `request_node_interview` with `params.node_id`
 - `refresh_node_values` with `params.node_id`
+- `set_value` with `params.node_id`, an exact metadata-declared `value_id`, and
+  a type/range/state-valid `value`
 
 Commands are serialized through a bounded queue. Arbitrary API calls, raw serial
-frames, factory reset, inclusion, NVM operations, and network-key access fail
-closed.
+frames, unrestricted writes, factory reset, inclusion, NVM operations, and
+network-key access fail closed.
 
 ## Health and shutdown
 

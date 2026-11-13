@@ -41,6 +41,29 @@ export function createMockDriverFactory(): DriverSessionFactory {
           reconnectCount: 0,
         };
       },
+      nodesSnapshot() {
+        return [
+          {
+            node_id: 2,
+            name: "Kitchen switch",
+            status: "alive",
+            ready: true,
+            values: [
+              {
+                id: { command_class: 37, endpoint: 0, property: "currentValue" },
+                label: "Current value",
+                value: false,
+                metadata: {
+                  type: "boolean",
+                  readable: true,
+                  writeable: true,
+                  stateful: true,
+                },
+              },
+            ],
+          },
+        ];
+      },
     };
     return session;
   };

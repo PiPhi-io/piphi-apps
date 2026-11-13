@@ -1,18 +1,86 @@
 {
   "entities": [
     {
-      "id": "demo-device",
-      "name": "Demo Device",
-      "device_id": "demo-device",
+      "id": "zwave-node",
+      "name": "Negotiated Z-Wave node",
+      "device_id": "zwave-node",
       "entity_type": "zwave_device",
       "capabilities": [
         "connected",
-        "refresh"
+        "availability",
+        "node_status",
+        "switch_state",
+        "level_percent",
+        "battery_percent",
+        "battery_low",
+        "temperature_c",
+        "humidity_percent",
+        "illuminance_lux",
+        "multilevel_sensor_value",
+        "meter_value",
+        "power_w",
+        "power_kw",
+        "energy_kwh",
+        "voltage_v",
+        "current_a",
+        "frequency_hz",
+        "lock_state",
+        "thermostat_mode",
+        "thermostat_setpoint_c",
+        "refresh",
+        "ping_node",
+        "request_node_interview",
+        "reconnect_driver",
+        "set_switch",
+        "set_level",
+        "set_lock",
+        "set_thermostat_mode",
+        "set_thermostat_setpoint"
       ],
       "available_commands": [
         {
           "id": "refresh",
           "label": "Refresh",
+          "kind": "action"
+        },
+        {
+          "id": "ping_node",
+          "label": "Ping Node",
+          "kind": "action"
+        },
+        {
+          "id": "request_node_interview",
+          "label": "Request Node Interview",
+          "kind": "action"
+        },
+        {
+          "id": "reconnect_driver",
+          "label": "Reconnect Driver",
+          "kind": "action"
+        },
+        {
+          "id": "set_switch",
+          "label": "Set Switch",
+          "kind": "action"
+        },
+        {
+          "id": "set_level",
+          "label": "Set Level",
+          "kind": "action"
+        },
+        {
+          "id": "set_lock",
+          "label": "Set Lock",
+          "kind": "action"
+        },
+        {
+          "id": "set_thermostat_mode",
+          "label": "Set Thermostat Mode",
+          "kind": "action"
+        },
+        {
+          "id": "set_thermostat_setpoint",
+          "label": "Set Thermostat Setpoint",
           "kind": "action"
         }
       ],
@@ -20,7 +88,8 @@
         "allowed_widgets": [
           "tile",
           "stat",
-          "button"
+          "button",
+          "gauge"
         ],
         "default_widget": "tile"
       }
@@ -31,14 +100,145 @@
       "kind": "sensor",
       "unit": "bool"
     },
+    "availability": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "node_status": {
+      "kind": "sensor"
+    },
+    "switch_state": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "level_percent": {
+      "kind": "sensor",
+      "unit": "%"
+    },
+    "battery_percent": {
+      "kind": "sensor",
+      "unit": "%"
+    },
+    "battery_low": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "temperature_c": {
+      "kind": "sensor",
+      "unit": "\u00b0C"
+    },
+    "humidity_percent": {
+      "kind": "sensor",
+      "unit": "%"
+    },
+    "illuminance_lux": {
+      "kind": "sensor",
+      "unit": "lx"
+    },
+    "multilevel_sensor_value": {
+      "kind": "sensor"
+    },
+    "meter_value": {
+      "kind": "sensor"
+    },
+    "power_w": {
+      "kind": "sensor",
+      "unit": "W"
+    },
+    "power_kw": {
+      "kind": "sensor",
+      "unit": "kW"
+    },
+    "energy_kwh": {
+      "kind": "sensor",
+      "unit": "kWh"
+    },
+    "voltage_v": {
+      "kind": "sensor",
+      "unit": "V"
+    },
+    "current_a": {
+      "kind": "sensor",
+      "unit": "A"
+    },
+    "frequency_hz": {
+      "kind": "sensor",
+      "unit": "Hz"
+    },
+    "lock_state": {
+      "kind": "sensor"
+    },
+    "thermostat_mode": {
+      "kind": "sensor"
+    },
+    "thermostat_setpoint_c": {
+      "kind": "sensor",
+      "unit": "\u00b0C"
+    },
     "refresh": {
+      "kind": "action"
+    },
+    "ping_node": {
+      "kind": "action"
+    },
+    "request_node_interview": {
+      "kind": "action"
+    },
+    "reconnect_driver": {
+      "kind": "action"
+    },
+    "set_switch": {
+      "kind": "action"
+    },
+    "set_level": {
+      "kind": "action"
+    },
+    "set_lock": {
+      "kind": "action"
+    },
+    "set_thermostat_mode": {
+      "kind": "action"
+    },
+    "set_thermostat_setpoint": {
       "kind": "action"
     }
   },
   "commands": {
     "refresh": {
-      "description": "Refresh the device state.",
-      "timeout_ms": 5000
+      "description": "Refresh this node's values.",
+      "timeout_ms": 120000
+    },
+    "ping_node": {
+      "description": "Check whether this node is reachable.",
+      "timeout_ms": 30000
+    },
+    "request_node_interview": {
+      "description": "Request a fresh node interview.",
+      "timeout_ms": 120000
+    },
+    "reconnect_driver": {
+      "description": "Reconnect the managed Z-Wave driver.",
+      "timeout_ms": 30000
+    },
+    "set_switch": {
+      "description": "Set a metadata-declared writable binary switch.",
+      "timeout_ms": 30000
+    },
+    "set_level": {
+      "description": "Set a metadata-declared writable multilevel value.",
+      "timeout_ms": 30000
+    },
+    "set_lock": {
+      "description": "Set a metadata-declared writable lock mode.",
+      "timeout_ms": 30000
+    },
+    "set_thermostat_mode": {
+      "description": "Set an allowed thermostat mode.",
+      "timeout_ms": 30000
+    },
+    "set_thermostat_setpoint": {
+      "description": "Set a bounded thermostat setpoint.",
+      "timeout_ms": 30000
     }
   }
 }

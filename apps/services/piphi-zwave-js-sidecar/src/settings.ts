@@ -1,6 +1,6 @@
 export const integrationId = "piphi-zwave-js-sidecar";
 export const integrationName = "Piphi Zwave Js Sidecar";
-export const integrationVersion = "0.2.0";
+export const integrationVersion = "0.3.0";
 export const projectKind = "sidecar";
 export const projectPreset = "sidecar-worker";
 export const projectDomain = "sidecar-service";

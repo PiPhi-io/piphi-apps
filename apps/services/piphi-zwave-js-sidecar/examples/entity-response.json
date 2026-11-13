@@ -20,7 +20,8 @@
         "reconnect_driver",
         "ping_node",
         "request_node_interview",
-        "refresh_node_values"
+        "refresh_node_values",
+        "set_value"
       ],
       "available_commands": [
         {
@@ -46,6 +47,11 @@
         {
           "id": "refresh_node_values",
           "label": "Refresh node values",
+          "kind": "action"
+        },
+        {
+          "id": "set_value",
+          "label": "Set writable value",
           "kind": "action"
         }
       ],
@@ -114,6 +120,9 @@
     },
     "refresh_node_values": {
       "kind": "action"
+    },
+    "set_value": {
+      "kind": "action"
     }
   },
   "commands": {
@@ -136,6 +145,10 @@
     "refresh_node_values": {
       "description": "Refresh the known values for one node.",
       "timeout_ms": 120000
+    },
+    "set_value": {
+      "description": "Set one metadata-declared writable Z-Wave value.",
+      "timeout_ms": 30000
     }
   }
 }

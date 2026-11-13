@@ -1,184 +1,128 @@
 {
   "behaviorSchemaVersion": "integration.behaviors.v2",
-  "templates": [
-    {
-      "id": "refresh_on_config_applied",
-      "label": "Refresh after configuration",
-      "description": "Refreshes the runtime after a configuration is applied.",
-      "category": "Starter",
-      "deviceKey": "piphi_network_zwave_device",
-      "config": {
-        "automation_schema_version": "automation.behavior.v2",
-        "triggers": [
-          {
-            "id": "config_applied",
-            "label": "Configuration applied",
-            "type": "integration_event",
-            "event": "runtime.config.applied",
-            "capability": "runtime.configuration",
-            "enabled": true,
-            "sourceRef": {
-              "integrationId": "{{integrationId}}",
-              "integrationKey": "{{integrationKey}}",
-              "configId": "{{configId}}",
-              "behaviorDeviceKey": "piphi_network_zwave_device",
-              "optionKey": "config_applied",
-              "capability": "runtime.configuration"
-            }
-          }
-        ],
-        "trigger": {
-          "id": "config_applied",
-          "label": "Configuration applied",
-          "type": "integration_event",
-          "event": "runtime.config.applied",
-          "capability": "runtime.configuration",
-          "enabled": true
-        },
-        "intent": "keep_updated",
-        "conditionTree": {
-          "op": "and",
-          "children": []
-        },
-        "actions": [
-          {
-            "id": "starter_notification",
-            "label": "Send notification",
-            "action": "refresh",
-            "sourceRef": {
-              "integrationId": "{{integrationId}}",
-              "integrationKey": "{{integrationKey}}",
-              "configId": "{{configId}}",
-              "behaviorDeviceKey": "piphi_network_zwave_device",
-              "optionKey": "refresh"
-            },
-            "target": {
-              "mode": "selection",
-              "configIds": [
-                "{{configId}}"
-              ]
-            },
-            "failure": {
-              "strategy": "retry_then_continue",
-              "retry": {
-                "maxAttempts": 2,
-                "delaySeconds": 2,
-                "timeoutSeconds": 10,
-                "backoff": "fixed"
-              },
-              "continueOnPartialFailure": true
-            }
-          }
-        ],
-        "safety": {
-          "staleDataMode": "block",
-          "maxAgeSeconds": 300,
-          "requireFreshTrigger": true,
-          "dryRunFirst": false
-        },
-        "failure": {
-          "strategy": "follow_edges",
-          "fallbackBehaviorId": "",
-          "conditionTree": {
-            "op": "and",
-            "children": []
-          }
-        },
-        "stop": {
-          "never": true
-        },
-        "override": {
-          "mode": "continue"
-        },
-        "execution": {
-          "failureStrategy": "follow_edges",
-          "fallbackBehaviorId": "",
-          "dispatchMode": "runtime"
-        },
-        "policies": {
-          "execution": {
-            "failureStrategy": "follow_edges",
-            "fallbackBehaviorId": "",
-            "dispatchMode": "runtime"
-          },
-          "freshness": {
-            "staleDataMode": "block"
-          },
-          "manualOverride": {
-            "mode": "continue"
-          },
-          "cooldownSeconds": 0
-        }
-      },
-      "metadata": {
-        "generated": true,
-        "recommended": true
-      }
-    }
-  ],
+  "templates": [],
   "devices": [
     {
-      "id": "piphi_network_zwave_device",
-      "name": "Piphi Network Zwave",
-      "description": "Automation metadata for Piphi Network Zwave.",
+      "id": "zwave_node",
+      "name": "Z-Wave node",
+      "description": "Metadata-negotiated node exposed by the managed Z-Wave JS sidecar.",
       "deviceClass": "zwave_device",
       "entityType": "zwave_device",
       "capabilities": [
         "connected",
-        "refresh"
+        "availability",
+        "node_status",
+        "switch_state",
+        "level_percent",
+        "battery_percent",
+        "battery_low",
+        "temperature_c",
+        "humidity_percent",
+        "illuminance_lux",
+        "multilevel_sensor_value",
+        "meter_value",
+        "power_w",
+        "power_kw",
+        "energy_kwh",
+        "voltage_v",
+        "current_a",
+        "frequency_hz",
+        "lock_state",
+        "thermostat_mode",
+        "thermostat_setpoint_c",
+        "refresh",
+        "ping_node",
+        "request_node_interview",
+        "reconnect_driver",
+        "set_switch",
+        "set_level",
+        "set_lock",
+        "set_thermostat_mode",
+        "set_thermostat_setpoint"
       ],
       "targeting": {
         "scopes": [
-          "config",
-          "configs",
-          "room",
-          "rooms",
-          "group",
-          "groups",
-          "tag",
-          "tags",
-          "capability",
-          "selection",
-          "all_matching"
+          "selection"
         ],
         "fanout": {
-          "supported": true,
+          "supported": false,
           "defaultMode": "selection",
           "allowedModes": [
-            "config",
-            "configs",
-            "room",
-            "rooms",
-            "group",
-            "groups",
-            "tag",
-            "tags",
-            "capability",
-            "selection",
-            "all_matching"
+            "selection"
           ]
         }
       },
       "freshness": {
-        "maxAgeSeconds": 300,
+        "maxAgeSeconds": 120,
         "staleDataMode": "block"
       },
       "ui": {
-        "icon": "power",
+        "icon": "radio",
         "category": "bridge"
       },
       "triggers": [
         {
-          "id": "config_applied",
-          "label": "Configuration applied",
-          "description": "Start when a configuration is applied.",
-          "capability": "runtime.configuration",
+          "id": "zwave_config_applied",
+          "label": "Zwave Config Applied",
+          "description": "Start when zwave.config.applied occurs.",
+          "capability": "zwave.event",
           "runtime": {
-            "event": "runtime.config.applied",
+            "event": "zwave.config.applied",
             "source": "integration"
           },
           "freshness": {
-            "maxAgeSeconds": 300,
+            "maxAgeSeconds": 120,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "when"
+          }
+        },
+        {
+          "id": "zwave_events_resynchronized",
+          "label": "Zwave Events Resynchronized",
+          "description": "Start when zwave.events.resynchronized occurs.",
+          "capability": "zwave.event",
+          "runtime": {
+            "event": "zwave.events.resynchronized",
+            "source": "integration"
+          },
+          "freshness": {
+            "maxAgeSeconds": 120,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "when"
+          }
+        },
+        {
+          "id": "zwave_sidecar_disconnected",
+          "label": "Zwave Sidecar Disconnected",
+          "description": "Start when zwave.sidecar.disconnected occurs.",
+          "capability": "zwave.event",
+          "runtime": {
+            "event": "zwave.sidecar.disconnected",
+            "source": "integration"
+          },
+          "freshness": {
+            "maxAgeSeconds": 120,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "when"
+          }
+        },
+        {
+          "id": "zwave_command_completed",
+          "label": "Zwave Command Completed",
+          "description": "Start when zwave.command.completed occurs.",
+          "capability": "zwave.event",
+          "runtime": {
+            "event": "zwave.command.completed",
+            "source": "integration"
+          },
+          "freshness": {
+            "maxAgeSeconds": 120,
             "staleDataMode": "block"
           },
           "ui": {
@@ -188,62 +132,64 @@
       ],
       "intents": [
         {
-          "id": "keep_updated",
-          "label": "Keep this device useful",
-          "description": "Build automations around this device's state and commands."
+          "id": "control_zwave_device",
+          "label": "Control this Z-Wave device",
+          "description": "Build automations from negotiated Z-Wave state and controls."
         }
       ],
-      "conditions": [
-        {
-          "id": "state_matches",
-          "label": "State matches",
-          "description": "Only run when a reported state value matches what you choose.",
-          "type": "text",
-          "capability": "telemetry.state",
-          "operators": [
-            "eq",
-            "neq",
-            "contains"
-          ],
-          "runtime": {
-            "source": "state",
-            "field": "state",
-            "operator": "eq"
-          },
-          "freshness": {
-            "maxAgeSeconds": 300,
-            "staleDataMode": "block"
-          },
-          "ui": {
-            "group": "only_if"
-          },
-          "params": [
-            {
-              "name": "field",
-              "label": "State field",
-              "type": "text",
-              "required": true
-            },
-            {
-              "name": "value",
-              "label": "Value",
-              "type": "text",
-              "required": true
-            }
-          ]
-        }
-      ],
+      "conditions": [],
       "actions": [
         {
           "id": "refresh",
           "label": "Refresh",
-          "description": "Run refresh on the selected device.",
-          "capability": "device.refresh",
+          "description": "Refresh this node's values.",
+          "capability": "action.refresh",
           "capabilityRequirements": [
-            "device.refresh"
+            "action.refresh"
           ],
           "runtime": {
             "command": "refresh",
+            "endpoint": "/command",
+            "method": "POST",
+            "timeoutSeconds": 120
+          },
+          "safety": {
+            "riskLevel": "low",
+            "requiresConfirmation": false,
+            "liveRunAllowed": true
+          },
+          "targeting": {
+            "fanoutSafe": true,
+            "supportsMultiTarget": true,
+            "scopes": [
+              "selection"
+            ]
+          },
+          "failure": {
+            "strategy": "stop",
+            "retry": {
+              "maxAttempts": 0,
+              "delaySeconds": 0,
+              "backoff": "fixed"
+            },
+            "timeoutSeconds": 120,
+            "continueOnPartialFailure": false,
+            "idempotent": true
+          },
+          "ui": {
+            "group": "do_this"
+          }
+        },
+        {
+          "id": "ping_node",
+          "label": "Ping Node",
+          "description": "Check whether this node is reachable.",
+          "capability": "action.ping_node",
+          "capabilityRequirements": [
+            "action.ping_node"
+          ],
+          "runtime": {
+            "command": "ping_node",
             "endpoint": "/command",
             "method": "POST",
             "timeoutSeconds": 30
@@ -257,65 +203,349 @@
             "fanoutSafe": true,
             "supportsMultiTarget": true,
             "scopes": [
-              "config",
-              "configs",
-              "room",
-              "rooms",
-              "group",
-              "groups",
-              "tag",
-              "tags",
-              "capability",
-              "selection",
-              "all_matching"
+              "selection"
             ]
           },
           "failure": {
-            "strategy": "retry_then_continue",
+            "strategy": "stop",
             "retry": {
-              "maxAttempts": 1,
-              "delaySeconds": 2,
+              "maxAttempts": 0,
+              "delaySeconds": 0,
               "backoff": "fixed"
             },
             "timeoutSeconds": 30,
-            "continueOnPartialFailure": true,
+            "continueOnPartialFailure": false,
             "idempotent": true
           },
           "ui": {
             "group": "do_this"
           }
-        }
-      ],
-      "stop": [
+        },
         {
-          "id": "after_duration",
-          "label": "After a set time",
-          "type": "duration",
+          "id": "request_node_interview",
+          "label": "Request Node Interview",
+          "description": "Request a fresh node interview.",
+          "capability": "action.request_node_interview",
+          "capabilityRequirements": [
+            "action.request_node_interview"
+          ],
+          "runtime": {
+            "command": "request_node_interview",
+            "endpoint": "/command",
+            "method": "POST",
+            "timeoutSeconds": 120
+          },
+          "safety": {
+            "riskLevel": "high",
+            "requiresConfirmation": true,
+            "liveRunAllowed": true
+          },
+          "targeting": {
+            "fanoutSafe": false,
+            "supportsMultiTarget": false,
+            "scopes": [
+              "selection"
+            ]
+          },
+          "failure": {
+            "strategy": "stop",
+            "retry": {
+              "maxAttempts": 0,
+              "delaySeconds": 0,
+              "backoff": "fixed"
+            },
+            "timeoutSeconds": 120,
+            "continueOnPartialFailure": false,
+            "idempotent": false
+          },
+          "ui": {
+            "group": "do_this"
+          }
+        },
+        {
+          "id": "reconnect_driver",
+          "label": "Reconnect Driver",
+          "description": "Reconnect the managed Z-Wave driver.",
+          "capability": "action.reconnect_driver",
+          "capabilityRequirements": [
+            "action.reconnect_driver"
+          ],
+          "runtime": {
+            "command": "reconnect_driver",
+            "endpoint": "/command",
+            "method": "POST",
+            "timeoutSeconds": 30
+          },
+          "safety": {
+            "riskLevel": "high",
+            "requiresConfirmation": true,
+            "liveRunAllowed": true
+          },
+          "targeting": {
+            "fanoutSafe": false,
+            "supportsMultiTarget": false,
+            "scopes": [
+              "selection"
+            ]
+          },
+          "failure": {
+            "strategy": "stop",
+            "retry": {
+              "maxAttempts": 0,
+              "delaySeconds": 0,
+              "backoff": "fixed"
+            },
+            "timeoutSeconds": 30,
+            "continueOnPartialFailure": false,
+            "idempotent": true
+          },
+          "ui": {
+            "group": "do_this"
+          }
+        },
+        {
+          "id": "set_switch",
+          "label": "Set Switch",
+          "description": "Set a metadata-declared writable binary switch.",
+          "capability": "action.set_switch",
+          "capabilityRequirements": [
+            "action.set_switch"
+          ],
+          "runtime": {
+            "command": "set_switch",
+            "endpoint": "/command",
+            "method": "POST",
+            "timeoutSeconds": 30
+          },
+          "safety": {
+            "riskLevel": "medium",
+            "requiresConfirmation": false,
+            "liveRunAllowed": true
+          },
+          "targeting": {
+            "fanoutSafe": false,
+            "supportsMultiTarget": false,
+            "scopes": [
+              "selection"
+            ]
+          },
+          "failure": {
+            "strategy": "stop",
+            "retry": {
+              "maxAttempts": 0,
+              "delaySeconds": 0,
+              "backoff": "fixed"
+            },
+            "timeoutSeconds": 30,
+            "continueOnPartialFailure": false,
+            "idempotent": true
+          },
+          "ui": {
+            "group": "do_this"
+          },
           "params": [
             {
-              "name": "duration",
-              "label": "How long",
-              "type": "duration",
-              "default": "30m",
+              "name": "value",
+              "label": "On",
+              "type": "boolean",
               "required": true
             }
           ]
-        }
-      ],
-      "manualOverride": [
-        {
-          "id": "continue",
-          "label": "Keep running"
         },
         {
-          "id": "pause",
-          "label": "Pause",
+          "id": "set_level",
+          "label": "Set Level",
+          "description": "Set a metadata-declared writable multilevel value.",
+          "capability": "action.set_level",
+          "capabilityRequirements": [
+            "action.set_level"
+          ],
+          "runtime": {
+            "command": "set_level",
+            "endpoint": "/command",
+            "method": "POST",
+            "timeoutSeconds": 30
+          },
+          "safety": {
+            "riskLevel": "medium",
+            "requiresConfirmation": false,
+            "liveRunAllowed": true
+          },
+          "targeting": {
+            "fanoutSafe": false,
+            "supportsMultiTarget": false,
+            "scopes": [
+              "selection"
+            ]
+          },
+          "failure": {
+            "strategy": "stop",
+            "retry": {
+              "maxAttempts": 0,
+              "delaySeconds": 0,
+              "backoff": "fixed"
+            },
+            "timeoutSeconds": 30,
+            "continueOnPartialFailure": false,
+            "idempotent": true
+          },
+          "ui": {
+            "group": "do_this"
+          },
           "params": [
             {
-              "name": "duration",
-              "label": "Pause time",
-              "type": "duration",
-              "default": "30m",
+              "name": "value",
+              "label": "Level",
+              "type": "number",
+              "required": true,
+              "min": 0,
+              "max": 100
+            }
+          ]
+        },
+        {
+          "id": "set_lock",
+          "label": "Set Lock",
+          "description": "Set a metadata-declared writable lock mode.",
+          "capability": "action.set_lock",
+          "capabilityRequirements": [
+            "action.set_lock"
+          ],
+          "runtime": {
+            "command": "set_lock",
+            "endpoint": "/command",
+            "method": "POST",
+            "timeoutSeconds": 30
+          },
+          "safety": {
+            "riskLevel": "high",
+            "requiresConfirmation": true,
+            "liveRunAllowed": true
+          },
+          "targeting": {
+            "fanoutSafe": false,
+            "supportsMultiTarget": false,
+            "scopes": [
+              "selection"
+            ]
+          },
+          "failure": {
+            "strategy": "stop",
+            "retry": {
+              "maxAttempts": 0,
+              "delaySeconds": 0,
+              "backoff": "fixed"
+            },
+            "timeoutSeconds": 30,
+            "continueOnPartialFailure": false,
+            "idempotent": true
+          },
+          "ui": {
+            "group": "do_this"
+          },
+          "params": [
+            {
+              "name": "value",
+              "label": "Allowed mode",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "set_thermostat_mode",
+          "label": "Set Thermostat Mode",
+          "description": "Set an allowed thermostat mode.",
+          "capability": "action.set_thermostat_mode",
+          "capabilityRequirements": [
+            "action.set_thermostat_mode"
+          ],
+          "runtime": {
+            "command": "set_thermostat_mode",
+            "endpoint": "/command",
+            "method": "POST",
+            "timeoutSeconds": 30
+          },
+          "safety": {
+            "riskLevel": "medium",
+            "requiresConfirmation": false,
+            "liveRunAllowed": true
+          },
+          "targeting": {
+            "fanoutSafe": false,
+            "supportsMultiTarget": false,
+            "scopes": [
+              "selection"
+            ]
+          },
+          "failure": {
+            "strategy": "stop",
+            "retry": {
+              "maxAttempts": 0,
+              "delaySeconds": 0,
+              "backoff": "fixed"
+            },
+            "timeoutSeconds": 30,
+            "continueOnPartialFailure": false,
+            "idempotent": true
+          },
+          "ui": {
+            "group": "do_this"
+          },
+          "params": [
+            {
+              "name": "value",
+              "label": "Allowed mode",
+              "type": "text",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "set_thermostat_setpoint",
+          "label": "Set Thermostat Setpoint",
+          "description": "Set a bounded thermostat setpoint.",
+          "capability": "action.set_thermostat_setpoint",
+          "capabilityRequirements": [
+            "action.set_thermostat_setpoint"
+          ],
+          "runtime": {
+            "command": "set_thermostat_setpoint",
+            "endpoint": "/command",
+            "method": "POST",
+            "timeoutSeconds": 30
+          },
+          "safety": {
+            "riskLevel": "medium",
+            "requiresConfirmation": false,
+            "liveRunAllowed": true
+          },
+          "targeting": {
+            "fanoutSafe": false,
+            "supportsMultiTarget": false,
+            "scopes": [
+              "selection"
+            ]
+          },
+          "failure": {
+            "strategy": "stop",
+            "retry": {
+              "maxAttempts": 0,
+              "delaySeconds": 0,
+              "backoff": "fixed"
+            },
+            "timeoutSeconds": 30,
+            "continueOnPartialFailure": false,
+            "idempotent": true
+          },
+          "ui": {
+            "group": "do_this"
+          },
+          "params": [
+            {
+              "name": "value",
+              "label": "Setpoint",
+              "type": "number",
               "required": true
             }
           ]

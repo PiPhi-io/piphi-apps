@@ -60,5 +60,12 @@ test("bounded replay reports overwritten events and monotonic cursors", () => {
   assert.equal(replay.events.length, 10);
   assert.equal(replay.events[0]?.sequence, 3);
   assert.equal(replay.next_cursor, 12);
+  assert.equal(replay.first_sequence, 3);
+  assert.equal(replay.latest_sequence, 12);
+  assert.equal(replay.gap, false);
+  assert.ok(replay.stream_id);
   assert.equal(replay.dropped, 2);
+
+  const gap = buffer.read(1, 500);
+  assert.equal(gap.gap, true);
 });

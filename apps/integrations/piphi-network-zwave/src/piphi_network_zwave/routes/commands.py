@@ -6,12 +6,14 @@ from fastapi import APIRouter, HTTPException, Request
 from piphi_runtime_kit_python.fastapi import dispatch_automation_action_from_fastapi
 
 from ..state import automations, commands
+from ..runtime_auth import authorize_runtime_request
 
 router = APIRouter(tags=["commands"])
 
 
 @router.post("/command")
 async def command(payload: dict[str, Any], request: Request):
+    authorize_runtime_request(request)
     command_name = str(payload.get("command") or payload.get("capability_id") or "").strip()
     if not command_name:
         raise HTTPException(status_code=400, detail="Missing command")
@@ -19,7 +21,7 @@ async def command(payload: dict[str, Any], request: Request):
         raise HTTPException(status_code=400, detail=f"Unsupported command: {command_name}")
 
     target = payload.get("target") if isinstance(payload.get("target"), dict) else {}
-    device_id = str(payload.get("device_id") or target.get("device_id") or "demo-device")
+    device_id = str(payload.get("device_id") or target.get("device_id") or "")
     config_id = str(payload.get("config_id") or target.get("config_id") or device_id)
     requirements = payload.get("capability_requirements")
     requested_capabilities = [
@@ -31,7 +33,7 @@ async def command(payload: dict[str, Any], request: Request):
         (
             capability
             for capability in requested_capabilities
-            if capability not in {"device.refresh", f"action.{command_name}"}
+            if capability not in {f"action.{command_name}", command_name}
         ),
         None,
     )

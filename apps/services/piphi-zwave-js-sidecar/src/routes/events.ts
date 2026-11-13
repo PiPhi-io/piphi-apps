@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { buildEventIngestResponse, buildEventListResponse } from "piphi-runtime-kit-node";
 
 import { integrationId } from "../settings.js";
-import { appendRuntimeEvent, readZWaveEvents, registry, runtime } from "../state.js";
+import { appendRuntimeEvent, readZWaveEvents, registry, runtime, zwaveNetworkSnapshot } from "../state.js";
 
 export function registerEventRoutes(app: FastifyInstance): void {
   app.get("/events", async () => {
@@ -17,6 +17,17 @@ export function registerEventRoutes(app: FastifyInstance): void {
       return reply.code(400).send({ ok: false, reason: "after and limit must be bounded integers" });
     }
     return readZWaveEvents(after, limit);
+  });
+
+  app.get("/v1/zwave/snapshot", async (_request, reply) => {
+    try {
+      return zwaveNetworkSnapshot();
+    } catch (error) {
+      return reply.code(503).send({
+        ok: false,
+        reason: error instanceof Error ? error.message : "snapshot_unavailable",
+      });
+    }
   });
 
   app.post("/events/example", async () => {

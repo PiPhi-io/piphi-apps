@@ -19,7 +19,9 @@ import type {
   DriverCommand,
   DriverSession,
   DriverSessionFactory,
+  ZWaveNetworkSnapshot,
   ZWaveTransportEvent,
+  ZWaveValueId,
 } from "./types.js";
 
 export const starter = createRuntimeStarter({
@@ -85,6 +87,10 @@ export async function applyConfig(config: DeviceConfig): Promise<void> {
     onEvent: (event) => receiveZWaveEvent(entry, event),
   });
   const previousSession = activeSession;
+  const previousConfigId = activeConfigId;
+  const previousEntry = previousConfigId ? registry.get(previousConfigId) : undefined;
+  const previousEventBuffer = eventBuffer;
+  const previousCommandQueue = commandQueue;
   if (previousSession) await previousSession.stop();
 
   eventBuffer = nextEventBuffer;
@@ -97,7 +103,26 @@ export async function applyConfig(config: DeviceConfig): Promise<void> {
   try {
     await session.start();
   } catch (error) {
-    updateControllerState(entry);
+    await session.stop();
+    if (previousSession && previousEntry) {
+      eventBuffer = previousEventBuffer;
+      commandQueue = previousCommandQueue;
+      activeSession = previousSession;
+      activeConfigId = previousConfigId;
+      registry.set(previousEntry.configId, previousEntry);
+      try {
+        await previousSession.start();
+      } catch {
+        // Preserve the previous identity and degraded state for explicit recovery.
+      }
+      updateControllerState(previousEntry);
+    } else {
+      eventBuffer = previousEventBuffer;
+      commandQueue = previousCommandQueue;
+      activeSession = undefined;
+      activeConfigId = undefined;
+      registry.remove(entry.configId);
+    }
     throw error;
   }
 
@@ -141,6 +166,21 @@ export async function executeDriverCommand(
 
 export function readZWaveEvents(after = 0, limit = 100) {
   return eventBuffer.read(after, limit);
+}
+
+export function zwaveNetworkSnapshot(): ZWaveNetworkSnapshot {
+  const entry = activeConfigId ? registry.get(activeConfigId) : undefined;
+  if (!entry || !activeSession) throw new Error("controller_not_configured");
+  return {
+    schema_version: "piphi.zwave.snapshot.v1",
+    generated_at: new Date().toISOString(),
+    config_id: entry.configId,
+    stream_id: eventBuffer.streamId,
+    latest_sequence: eventBuffer.lastSequence,
+    dropped_event_count: eventBuffer.dropped,
+    controller: activeSession.snapshot(),
+    nodes: activeSession.nodesSnapshot(),
+  };
 }
 
 export function controllerDiagnostics(): Record<string, unknown> {
@@ -235,7 +275,45 @@ function parseDriverCommand(commandName: keyof typeof commands, args: Record<str
   if (commandName === "reconnect_driver") return { name: commandName };
   const nodeId = Number(args.node_id ?? args.nodeId);
   if (!Number.isInteger(nodeId) || nodeId < 1 || nodeId > 4_000) throw new Error("node_id must be an integer between 1 and 4000");
+  if (commandName === "set_value") {
+    const rawValueId = args.value_id ?? args.valueId;
+    if (!rawValueId || typeof rawValueId !== "object" || Array.isArray(rawValueId)) {
+      throw new Error("value_id is required");
+    }
+    if (!("value" in args)) throw new Error("value is required");
+    return {
+      name: commandName,
+      nodeId,
+      valueId: parseValueId(rawValueId as Record<string, unknown>),
+      value: args.value,
+    };
+  }
   return { name: commandName, nodeId } as DriverCommand;
+}
+
+function parseValueId(input: Record<string, unknown>): ZWaveValueId {
+  const commandClass = Number(input.command_class ?? input.commandClass);
+  const endpoint = Number(input.endpoint ?? 0);
+  const property = input.property;
+  if (!Number.isInteger(commandClass) || commandClass < 0 || commandClass > 0xffff) {
+    throw new Error("value_id.command_class is invalid");
+  }
+  if (!Number.isInteger(endpoint) || endpoint < 0 || endpoint > 127) {
+    throw new Error("value_id.endpoint is invalid");
+  }
+  if (typeof property !== "string" && typeof property !== "number") {
+    throw new Error("value_id.property is invalid");
+  }
+  const propertyKey = input.property_key ?? input.propertyKey;
+  if (propertyKey != null && typeof propertyKey !== "string" && typeof propertyKey !== "number") {
+    throw new Error("value_id.property_key is invalid");
+  }
+  return {
+    command_class: commandClass,
+    endpoint,
+    property,
+    ...(propertyKey != null ? { property_key: propertyKey } : {}),
+  };
 }
 
 function validateConfig(config: DeviceConfig): void {

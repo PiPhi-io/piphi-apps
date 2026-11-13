@@ -12,6 +12,7 @@ from piphi_runtime_kit_python import (
 from piphi_runtime_kit_python.fastapi import sync_runtime_auth_from_fastapi_payload
 
 from ..schemas import DeviceConfig
+from ..runtime_auth import authorize_runtime_request
 from ..state import (
     apply_config,
     config_sync,
@@ -25,12 +26,17 @@ router = APIRouter(tags=["config"])
 
 @router.post("/config")
 async def configure(payload: DeviceConfig, request: Request):
+    authorize_runtime_request(
+        request,
+        allow_bootstrap=True,
+        payload_container_id=payload.container_id,
+    )
     sync_runtime_auth_from_fastapi_payload(runtime, request, payload)
     await apply_config(payload)
     return build_config_apply_response(
         config_id=payload.config_id or payload.id,
         container_id=payload.container_id,
-        metadata={"host": payload.host, "alias": payload.alias},
+        metadata={"alias": payload.alias, "sidecar_managed": True},
     )
 
 

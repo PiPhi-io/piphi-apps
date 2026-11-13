@@ -1,6 +1,6 @@
 {
   "name": "piphi-zwave-js-sidecar",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Managed Z-Wave JS driver sidecar for PiPhi Network.",
   "type": "module",
   "scripts": {

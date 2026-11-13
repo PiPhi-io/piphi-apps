@@ -36,4 +36,5 @@ test("runtime implements the advertised contract routes", async (t) => {
 
   assert.ok("refresh_controller_information" in commands);
   assert.ok("ping_node" in commands);
+  assert.ok("set_value" in commands);
 });

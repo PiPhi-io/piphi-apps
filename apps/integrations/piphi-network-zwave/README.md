@@ -1,61 +1,56 @@
-# Piphi Network Zwave
+# PiPhi Network Z-Wave
 
-Generated PiPhi integration runtime.
+Homeowner-facing Z-Wave runtime backed by the managed
+`piphi-zwave-js-sidecar`. The sidecar owns the serial controller and Z-Wave JS
+driver; this parent integration owns stable node/endpoint entities, normalized
+state, safe controls, replay reconciliation, and Core delivery.
 
-## Run locally
+## Implemented boundary
+
+- Authenticated `piphi.zwave.snapshot.v1` reconciliation and bounded
+  `piphi.zwave.event.v1` replay.
+- Automatic recovery after sidecar outages, replay gaps, or stream restarts.
+- Stable entities grouped by node and endpoint.
+- Switch, level, lock, thermostat, sensor, meter, and battery normalization.
+- Controls only for metadata-declared writable, non-secret values, with type,
+  range, and state validation.
+- No arbitrary driver calls, raw serial/NVM access, full DSKs, network keys, or
+  unrestricted value writes.
+
+Secure commissioning, broader network administration, RF behavior, controller
+hardware, and real-device interoperability remain unverified.
+
+## Development
 
 ```bash
-pdm install -G dev
-pdm run uvicorn piphi_network_zwave.main:app --reload --port 4221
+pdm install --check
 pdm run pytest
 pdm run python scripts/validate.py
 ```
 
-The runtime listens on port `4221` by default and exposes the common PiPhi runtime route contract:
-
-- `GET /health`
-- `GET /diagnostics`
-- `POST /discover`
-- `POST /config`
-- `POST /config/sync`
-- `POST /deconfigure`
-- `POST /deconfigure/{config_id}`
-- `GET /state`
-- `GET /contract`
-- `GET /entities`
-- `GET /events`
-- `POST /events/device/{config_id}/example`
-- `POST /telemetry/example`
-- `POST /telemetry/device/{config_id}/example`
-- `POST /command`
-
-## Capability coverage
-
-`capability-catalog.json` inventories the Z-Wave JS driver, controller,
-network, node interviews, value metadata, command classes, specialized device
-controls, network administration, and managed-sidecar behavior. Each candidate
-is classified as implemented, planned, or excluded, and contract tests prevent
-unimplemented features from being advertised.
-
-Node capabilities remain planned until the managed Z-Wave JS connection,
-command-class and endpoint negotiation, value bounds, supervision, security,
-sleeping-node behavior, transition fixtures, and administrative confirmations
-exist. Network keys, raw serial traffic, and arbitrary API/value writes are
-explicitly excluded.
-
-## Manifest
-
-`manifest.json` is a starter manifest. Before publishing, update:
-
-- `image`
-- `version`
-- capabilities and commands
-- config fields and identity fields
-- entity metadata
-
-## Docker
+Run the sidecar on port `4211`, set the same long random token in
+`PIPHI_ZWAVE_SIDECAR_TOKEN` for both processes, then start the parent:
 
 ```bash
-docker build -t docker.io/piphinetwork/piphi-network-zwave:0.1.0 .
-docker run --rm -p 4221:4221 docker.io/piphinetwork/piphi-network-zwave:0.1.0
+pdm run uvicorn piphi_network_zwave.main:app --host 0.0.0.0 --port 4221
+```
+
+Production `/config` and `/command` requests also require the runtime identity
+headers supplied by PiPhi Core. The runtime fails closed if authentication is
+not configured.
+
+## Runtime routes
+
+The parent exposes the standard PiPhi health, diagnostics, discovery,
+configuration, entities, state, events, telemetry, command, and contract routes.
+See [`docs/contract.md`](docs/contract.md) for the parent/sidecar boundary.
+
+## Container
+
+```bash
+docker build -t ghcr.io/piphi-io/piphi-network-zwave:0.3.0 .
+docker run --rm -p 4221:4221 \
+  -e PIPHI_ZWAVE_SIDECAR_URL=http://host.docker.internal:4211 \
+  -e PIPHI_ZWAVE_SIDECAR_TOKEN=replace-with-a-long-random-token \
+  ghcr.io/piphi-io/piphi-network-zwave:0.3.0
 ```

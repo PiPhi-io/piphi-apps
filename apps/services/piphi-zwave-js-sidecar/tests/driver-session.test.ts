@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { redactControllerPath, validateControllerPath } from "../src/driver-session.js";
+import {
+  isSensitiveValue,
+  redactControllerPath,
+  validateControllerPath,
+} from "../src/driver-session.js";
 
 test("controller path policy accepts stable paths and rejects arbitrary devices", () => {
   assert.doesNotThrow(() => validateControllerPath("/dev/serial/by-id/usb-Z-Wave_Controller-if00"));
@@ -15,4 +19,21 @@ test("diagnostics expose only a short controller path suffix", () => {
   const redacted = redactControllerPath("/dev/serial/by-id/usb-0658_0200-if00");
   assert.equal(redacted, "58_0200-if00");
   assert.doesNotMatch(redacted, /^\/dev\//);
+});
+
+test("snapshot and write policy reject sensitive value metadata", () => {
+  assert.equal(
+    isSensitiveValue(
+      { property: "dsk", propertyName: "Device-specific key" },
+      { type: "string", readable: true, writeable: true },
+    ),
+    true,
+  );
+  assert.equal(
+    isSensitiveValue(
+      { property: "currentValue", propertyName: "Current value" },
+      { type: "boolean", readable: true, writeable: true },
+    ),
+    false,
+  );
 });

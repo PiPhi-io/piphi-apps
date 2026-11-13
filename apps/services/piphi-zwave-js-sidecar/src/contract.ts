@@ -10,6 +10,7 @@ export const endpoints = {
   uiConfig: "/ui-config",
   events: "/events",
   zwaveEvents: "/v1/zwave/events",
+  zwaveSnapshot: "/v1/zwave/snapshot",
   command: "/command",
 } as const;
 
@@ -43,6 +44,9 @@ export const capabilities = {
   },
   "refresh_node_values": {
     "kind": "action"
+  },
+  "set_value": {
+    "kind": "action"
   }
 } as const;
 
@@ -66,6 +70,10 @@ export const commands = {
   "refresh_node_values": {
     "description": "Refresh the known values for one node.",
     "timeout_ms": 120000
+  },
+  "set_value": {
+    "description": "Set one metadata-declared writable Z-Wave value.",
+    "timeout_ms": 30000
   }
 } as const;
 
@@ -127,6 +135,7 @@ export const fallbackEntity = {
     "ping_node",
     "request_node_interview",
     "refresh_node_values"
+    ,"set_value"
   ],
   "available_commands": [
     {
@@ -138,6 +147,7 @@ export const fallbackEntity = {
     { "id": "ping_node", "label": "Ping node", "kind": "action" },
     { "id": "request_node_interview", "label": "Interview node", "kind": "action" },
     { "id": "refresh_node_values", "label": "Refresh node values", "kind": "action" }
+    ,{ "id": "set_value", "label": "Set writable value", "kind": "action" }
   ],
   "dashboard": {
     "allowed_widgets": [

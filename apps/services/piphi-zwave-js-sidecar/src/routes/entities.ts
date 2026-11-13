@@ -11,7 +11,7 @@ export function registerEntityRoutes(app: FastifyInstance): void {
       entities: entries.length > 0
         ? entries.map((entry) => ({
             id: entry.deviceId,
-            name: entry.alias ?? "Demo Device",
+            name: entry.alias ?? "Z-Wave JS controller",
             config_id: entry.configId,
             device_id: entry.deviceId,
             entity_type: fallbackEntity.entity_type,

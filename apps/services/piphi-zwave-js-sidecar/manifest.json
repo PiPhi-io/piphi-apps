@@ -3,7 +3,7 @@
   "manifest_version": "1.0",
   "id": "piphi-zwave-js-sidecar",
   "name": "Z-Wave JS sidecar",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Own the Z-Wave controller and deliver schema-versioned node events to PiPhi.",
   "metadata": {
     "generator": "piphi-network-create",
@@ -17,7 +17,7 @@
     "website": "https://piphi.io"
   },
   "license": "Apache-2.0",
-  "image": "ghcr.io/piphi-io/piphi-zwave-js-sidecar:0.2.0",
+  "image": "ghcr.io/piphi-io/piphi-zwave-js-sidecar:0.3.0",
   "platforms": [
     "linux"
   ],
@@ -25,7 +25,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "ghcr.io/piphi-io/piphi-zwave-js-sidecar:0.2.0",
+        "image": "ghcr.io/piphi-io/piphi-zwave-js-sidecar:0.3.0",
         "ports": [
           {
             "container": 4211
@@ -80,7 +80,8 @@
       "ui_config": "/ui-config",
       "events": "/events",
       "command": "/command",
-      "zwave_events": "/v1/zwave/events"
+      "zwave_events": "/v1/zwave/events",
+      "zwave_snapshot": "/v1/zwave/snapshot"
     }
   },
   "config": {
@@ -162,6 +163,9 @@
     },
     "refresh_node_values": {
       "kind": "action"
+    },
+    "set_value": {
+      "kind": "action"
     }
   },
   "commands": {
@@ -184,6 +188,10 @@
     "refresh_node_values": {
       "description": "Refresh the known values for one node.",
       "timeout_ms": 120000
+    },
+    "set_value": {
+      "description": "Set one metadata-declared writable Z-Wave value.",
+      "timeout_ms": 30000
     }
   },
   "entities": [
@@ -207,7 +215,8 @@
         "reconnect_driver",
         "ping_node",
         "request_node_interview",
-        "refresh_node_values"
+        "refresh_node_values",
+        "set_value"
       ],
       "available_commands": [
         {
@@ -233,6 +242,11 @@
         {
           "id": "refresh_node_values",
           "label": "Refresh node values",
+          "kind": "action"
+        },
+        {
+          "id": "set_value",
+          "label": "Set writable value",
           "kind": "action"
         }
       ],

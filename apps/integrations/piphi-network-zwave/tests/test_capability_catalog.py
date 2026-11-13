@@ -88,10 +88,10 @@ async def test_config_apply_emits_the_implemented_behavior_event() -> None:
     config_id = "capability-catalog-test"
     async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
         try:
-            response = await client.post("/config", json={"id": config_id, "host": "127.0.0.1", "alias": "Coverage Test"})
+            response = await client.post("/config", json={"id": config_id, "alias": "Coverage Test"})
             assert response.status_code == 200
             events = (await client.get("/events")).json()["events"]
-            assert any(event["event_type"] == "runtime.config.applied" and event["config_id"] == config_id for event in events)
+            assert any(event["event_type"] == "zwave.config.applied" and event["config_id"] == config_id for event in events)
         finally:
             await client.post(f"/deconfigure/{config_id}")
 
@@ -106,7 +106,7 @@ async def test_unimplemented_and_unsafe_commands_fail_closed(command: str) -> No
             json={
                 "contract_version": "automation.runtime.command.v1",
                 "command": command,
-                "target": {"device_id": "demo-device", "config_id": "demo-device"},
+                "target": {"device_id": "zwave-node-2-endpoint-0", "config_id": "home-network"},
                 "params": {},
             },
         )
