@@ -10,16 +10,17 @@ Before cutting a release:
 - Run the local validation and conformance tests.
 - Run `piphi-network-create publish-check -C .` from this project.
 
-The generated workflow is triggered manually from GitHub Actions. It bumps the
-semantic version, updates release metadata, commits and tags the release, builds
-a multi-architecture Docker image, pushes it, and creates a GitHub release.
+The monorepo release workflow is triggered manually from the protected default
+branch after the semantic version and release metadata are reviewed and merged.
+It builds a multi-architecture image, records SBOM and provenance attestations,
+and creates a namespaced GitHub release.
 
-Images starting with `ghcr.io/` publish to GitHub Container Registry. Images
-using `docker.io/org/image:tag` or `org/image:tag` publish to Docker Hub with
-the `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` repository secrets.
+PiPhi-managed images publish to GHCR with the workflow's short-lived
+`GITHUB_TOKEN`. GitHub OIDC supplies the identity for provenance and
+attestations; no Docker Hub credential is required.
 
 Current image target:
 
 ```text
-piphinetwork/zigbee2mqtt-sidecar:0.1.1
+ghcr.io/piphi-io/zigbee2mqtt-sidecar:0.1.18
 ```

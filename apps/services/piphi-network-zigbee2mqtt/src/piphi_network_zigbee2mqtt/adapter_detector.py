@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import glob
 import platform
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable
 
 from serial.tools import list_ports
 
@@ -124,7 +124,7 @@ def _score(candidate: AdapterCandidate) -> tuple[float, bool]:
 
 
 def _is_stable_path(path: str) -> bool:
-    return path.startswith("/dev/serial/by-id/") or path.startswith("/dev/serial/by-path/")
+    return path.startswith(("/dev/serial/by-id/", "/dev/serial/by-path/"))
 
 
 def _display_name(*, product: str | None, manufacturer: str | None, path: str) -> str:

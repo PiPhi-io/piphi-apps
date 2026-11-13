@@ -4,7 +4,7 @@
   "kind": "platform_service",
   "id": "piphi.service.zigbee2mqtt-sidecar",
   "name": "Zigbee2MQTT Sidecar",
-  "version": "0.1.17",
+  "version": "0.1.18",
   "description": "PiPhi sidecar service for detecting Zigbee coordinators and rendering Zigbee2MQTT bridge configuration.",
   "metadata": {
     "generator": "piphi-network-create",
@@ -49,7 +49,7 @@
     "website": "https://piphi.io"
   },
   "license": "Apache-2.0",
-  "image": "piphinetwork/zigbee2mqtt-sidecar:0.1.17",
+  "image": "ghcr.io/piphi-io/zigbee2mqtt-sidecar:0.1.18",
   "platforms": [
     "linux",
     "windows",
@@ -59,7 +59,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "piphinetwork/zigbee2mqtt-sidecar:0.1.17",
+        "image": "ghcr.io/piphi-io/zigbee2mqtt-sidecar:0.1.18",
         "ports": [
           {
             "container": 8720
@@ -68,7 +68,7 @@
         "environment": {
           "LOG_LEVEL": "info",
           "ZIGBEE2MQTT_BRIDGE_CONTAINER": "piphi-zigbee2mqtt",
-          "ZIGBEE2MQTT_BRIDGE_IMAGE": "ghcr.io/koenkk/zigbee2mqtt:latest",
+          "ZIGBEE2MQTT_BRIDGE_IMAGE": "ghcr.io/koenkk/zigbee2mqtt@sha256:fb4a6b0f6868ad1cd6a9996479802b2420e599c3463b62bbff8c8cd9a908f43a",
           "ZIGBEE2MQTT_CONTAINER_DATA_PATH": "/app/data",
           "ZIGBEE2MQTT_DATA_PATH": "/app/data",
           "ZIGBEE2MQTT_HOST_DATA_PATH": "/var/lib/piphi/zigbee2mqtt",

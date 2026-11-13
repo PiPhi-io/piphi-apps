@@ -12,20 +12,20 @@
     "node": "20"
   },
   "ci": {
-    "enforcement": "legacy-static",
+    "enforcement": "full",
     "commands": [
       "npm ci",
       "npm audit --omit=dev --audit-level=high",
       "npm run test",
       "npm run build"
     ],
-    "build_container": false
+    "build_container": true
   },
   "packages": [
     {
       "id": "piphi.service.mqtt-broker",
       "type": "platform_service",
-      "version": "0.1.6",
+      "version": "0.1.7",
       "manifest": "src/manifest.json",
       "release": {
         "tag": "apps/{package_id}/v{version}",

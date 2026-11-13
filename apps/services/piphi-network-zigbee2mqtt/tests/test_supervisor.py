@@ -7,8 +7,8 @@ from piphi_network_zigbee2mqtt.bridge_models import (
     DockerSupervisorSettings,
     Pm2SupervisorSettings,
     PrerequisiteCheckRequest,
-    SupervisorRequest,
     SupervisorLogsRequest,
+    SupervisorRequest,
 )
 from piphi_network_zigbee2mqtt.broker_health import parse_mqtt_endpoint
 from piphi_network_zigbee2mqtt.supervisor import check_prerequisites, supervise, supervisor_logs
@@ -52,7 +52,11 @@ async def test_docker_start_runs_container_when_missing() -> None:
     assert result.commands[0][:2] == ["docker", "inspect"]
     run_command = result.commands[1]
     assert run_command[:3] == ["docker", "run", "-d"]
-    assert "ghcr.io/koenkk/zigbee2mqtt:latest" in run_command
+    assert (
+        "ghcr.io/koenkk/zigbee2mqtt"
+        "@sha256:fb4a6b0f6868ad1cd6a9996479802b2420e599c3463b62bbff8c8cd9a908f43a"
+        in run_command
+    )
     assert "--device" in run_command
     assert "/dev/ttyUSB0:/dev/ttyUSB0" in run_command
 

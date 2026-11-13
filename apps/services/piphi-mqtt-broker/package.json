@@ -1,6 +1,6 @@
 {
   "name": "piphi-mqtt-broker",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "private": true,
   "description": "Managed MQTT broker platform service for PiPhi.",
   "type": "module",
@@ -9,7 +9,7 @@
     "dev": "tsx src/cli.ts --print",
     "print-config": "tsx src/cli.ts --print",
     "generate-config": "tsx src/cli.ts",
-    "test": "node --test --import tsx tests/**/*.test.ts"
+    "test": "node --test --import tsx tests/*.test.ts"
   },
   "engines": {
     "node": ">=20"

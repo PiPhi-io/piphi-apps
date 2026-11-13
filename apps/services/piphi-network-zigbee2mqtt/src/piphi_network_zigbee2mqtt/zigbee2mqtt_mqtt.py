@@ -4,6 +4,7 @@ import asyncio
 import json
 import threading
 import uuid
+from contextlib import suppress
 from typing import Any
 from urllib.parse import unquote, urlparse
 
@@ -175,7 +176,7 @@ class Zigbee2MqttMqttClient:
         def on_message(_client, _userdata, message):
             try:
                 decoded = json.loads(message.payload.decode("utf-8"))
-            except Exception as exc:
+            except (UnicodeDecodeError, json.JSONDecodeError) as exc:
                 error.append(f"invalid_json_response:{exc}")
                 response_event.set()
                 return
@@ -227,7 +228,7 @@ class Zigbee2MqttMqttClient:
         def on_message(_client, _userdata, message):
             try:
                 decoded = json.loads(message.payload.decode("utf-8"))
-            except Exception as exc:
+            except (UnicodeDecodeError, json.JSONDecodeError) as exc:
                 error.append(f"invalid_json_response:{exc}")
                 response_event.set()
                 return
@@ -317,14 +318,10 @@ def _connect_and_wait(
     except Exception as exc:
         raise Zigbee2MqttMqttError(str(exc)) from exc
     finally:
-        try:
+        with suppress(OSError, RuntimeError):
             client.loop_stop()
-        except Exception:
-            pass
-        try:
+        with suppress(OSError, RuntimeError):
             client.disconnect()
-        except Exception:
-            pass
 
 
 def _mqtt_credentials(settings: MqttSettings) -> tuple[str | None, str | None]:

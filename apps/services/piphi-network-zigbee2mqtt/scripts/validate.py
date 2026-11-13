@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 import json
+import tomllib
 from pathlib import Path
 
 from piphi_network_zigbee2mqtt.contract import COMMANDS, ENDPOINTS, REQUIRED_ENDPOINTS
+from piphi_network_zigbee2mqtt.settings import INTEGRATION_VERSION
 
 ROOT = Path(__file__).resolve().parents[1]
 manifest = json.loads((ROOT / "src" / "manifest.json").read_text())
+app_metadata = json.loads((ROOT / "piphi-app.json").read_text())
+pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text())
 behavior_path = ROOT / "src" / "behaviors.json"
 if not behavior_path.exists():
     behavior_path = ROOT / "behaviors.json"
@@ -15,6 +19,23 @@ dockerfile = (ROOT / "Dockerfile").read_text() if (ROOT / "Dockerfile").exists()
 errors: list[str] = []
 risk_levels = {"low", "medium", "high", "critical"}
 automation_schema_versions = {"automation.behavior.v1", "automation.behavior.v2"}
+release_package = app_metadata["packages"][0]
+release_version = release_package["version"]
+release_image = f"ghcr.io/piphi-io/zigbee2mqtt-sidecar:{release_version}"
+
+if manifest.get("version") != release_version:
+    errors.append("manifest version must match piphi-app.json")
+if pyproject.get("project", {}).get("version") != release_version:
+    errors.append("pyproject version must match piphi-app.json")
+if INTEGRATION_VERSION != release_version:
+    errors.append("runtime version must match piphi-app.json")
+if manifest.get("image") != release_image:
+    errors.append("manifest image must match the GHCR release target")
+if (
+    manifest.get("runtime", {}).get("linux", {}).get("container", {}).get("image")
+    != release_image
+):
+    errors.append("Linux runtime image must match the GHCR release target")
 
 if manifest.get("$schema") != "./schema/piphi-manifest.schema.json":
     errors.append("manifest must reference ./schema/piphi-manifest.schema.json")

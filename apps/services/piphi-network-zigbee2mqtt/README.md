@@ -100,7 +100,7 @@ curl -s http://127.0.0.1:8720/v1/supervisor/start \
   -d '{
     "mode": "docker",
     "docker": {
-      "image": "ghcr.io/koenkk/zigbee2mqtt:latest",
+      "image": "ghcr.io/koenkk/zigbee2mqtt@sha256:fb4a6b0f6868ad1cd6a9996479802b2420e599c3463b62bbff8c8cd9a908f43a",
       "container_name": "piphi-zigbee2mqtt",
       "host_data_path": "/var/lib/piphi/zigbee2mqtt",
       "container_data_path": "/app/data",
@@ -258,8 +258,8 @@ Windows/macOS:
 ## Docker Build
 
 ```bash
-docker build -t piphinetwork/zigbee2mqtt-sidecar:0.1.0 .
-docker run --rm -p 8720:8720 piphinetwork/zigbee2mqtt-sidecar:0.1.0
+docker build -t ghcr.io/piphi-io/zigbee2mqtt-sidecar:0.1.18 .
+docker run --rm -p 8720:8720 ghcr.io/piphi-io/zigbee2mqtt-sidecar:0.1.18
 ```
 
 For live Linux adapter detection/config writes, run with the PiPhi-managed

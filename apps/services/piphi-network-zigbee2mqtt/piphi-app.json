@@ -12,18 +12,21 @@
     "python": "3.12"
   },
   "ci": {
-    "enforcement": "legacy-static",
+    "enforcement": "full",
     "commands": [
       "pdm install --check",
+      "pdm export --prod --without-hashes --output /tmp/piphi-zigbee2mqtt-requirements.txt && pdm run pip-audit -r /tmp/piphi-zigbee2mqtt-requirements.txt",
+      "pdm run ruff check .",
+      "pdm run python scripts/validate.py",
       "pdm run pytest"
     ],
-    "build_container": false
+    "build_container": true
   },
   "packages": [
     {
       "id": "piphi.service.zigbee2mqtt-sidecar",
       "type": "platform_service",
-      "version": "0.1.17",
+      "version": "0.1.18",
       "manifest": "src/manifest.json",
       "release": {
         "tag": "apps/{package_id}/v{version}",
