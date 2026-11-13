@@ -5,7 +5,7 @@
   "deployment_mode": "sidecar",
   "id": "piphi.service.webrtc-sidecar",
   "name": "PiPhi Camera Media Service",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "description": "Shared go2rtc-backed camera media service for PiPhi camera integrations and dashboard cards.",
   "metadata": {
     "generator": "piphi-network-create",
@@ -24,7 +24,7 @@
     "support_email": "support@piphi.io"
   },
   "license": "MIT",
-  "image": "ghcr.io/piphi-io/piphi-webrtc-sidecar:0.3.4",
+  "image": "ghcr.io/piphi-io/piphi-webrtc-sidecar:0.3.5",
   "platforms": [
     "linux"
   ],
@@ -38,7 +38,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "ghcr.io/piphi-io/piphi-webrtc-sidecar:0.3.4",
+        "image": "ghcr.io/piphi-io/piphi-webrtc-sidecar:0.3.5",
         "ports": [
           {
             "container": 8090
@@ -121,7 +121,7 @@
     "publisher": {
       "name": "PiPhi-io",
       "website_url": "https://github.com/PiPhi-io",
-      "support_url": "https://github.com/PiPhi-io/piphi-webrtc-sidecar/issues",
+      "support_url": "https://github.com/PiPhi-io/piphi-apps/issues",
       "security_contact": "support@piphi.io"
     },
     "access": [
@@ -145,9 +145,9 @@
       }
     ],
     "compatibility": [],
-    "documentation_url": "https://github.com/PiPhi-io/piphi-webrtc-sidecar",
-    "support_url": "https://github.com/PiPhi-io/piphi-webrtc-sidecar/issues",
-    "changelog_url": "https://github.com/PiPhi-io/piphi-webrtc-sidecar/releases",
+    "documentation_url": "https://github.com/PiPhi-io/piphi-apps/tree/main/apps/services/piphi-webrtc-sidecar",
+    "support_url": "https://github.com/PiPhi-io/piphi-apps/issues",
+    "changelog_url": "https://github.com/PiPhi-io/piphi-apps/releases",
     "quality_tier": "unrated",
     "governance": {
       "schema_version": 1,

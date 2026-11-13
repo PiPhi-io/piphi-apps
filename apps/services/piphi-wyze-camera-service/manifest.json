@@ -5,7 +5,7 @@
   "deployment_mode": "sidecar",
   "id": "piphi.service.wyze-camera-bridge",
   "name": "PiPhi Wyze Camera Bridge",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Shared managed bridge that makes authorized Wyze cameras available to PiPhi camera integrations as local RTSP sources.",
   "metadata": {
     "generator": "piphi-network-create",
@@ -25,7 +25,7 @@
     "support_email": "support@piphi.io"
   },
   "license": "AGPL-3.0",
-  "image": "ghcr.io/piphi-io/piphi-wyze-camera-service:0.1.2",
+  "image": "ghcr.io/piphi-io/piphi-wyze-camera-service:0.1.3",
   "platforms": ["linux"],
   "runtime_requirements": [
     "sidecar_runtime",
@@ -39,7 +39,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "ghcr.io/piphi-io/piphi-wyze-camera-service:0.1.2",
+        "image": "ghcr.io/piphi-io/piphi-wyze-camera-service:0.1.3",
         "ports": [
           {"container": 8090},
           {"container": 8554, "host": 18554, "protocol": "tcp"}
@@ -92,7 +92,7 @@
     "publisher": {
       "name": "PiPhi-io",
       "website_url": "https://github.com/PiPhi-io",
-      "support_url": "https://github.com/PiPhi-io/piphi-wyze-camera-service/issues",
+      "support_url": "https://github.com/PiPhi-io/piphi-apps/issues",
       "security_contact": "support@piphi.io"
     },
     "access": [
@@ -127,10 +127,10 @@
         "model": "Cameras supported by docker-wyze-bridge v2.10.3"
       }
     ],
-    "documentation_url": "https://github.com/PiPhi-io/piphi-wyze-camera-service",
-    "support_url": "https://github.com/PiPhi-io/piphi-wyze-camera-service/issues",
-    "changelog_url": "https://github.com/PiPhi-io/piphi-wyze-camera-service/releases",
-    "privacy_url": "https://github.com/PiPhi-io/piphi-wyze-camera-service/blob/main/PRIVACY.md",
+    "documentation_url": "https://github.com/PiPhi-io/piphi-apps/tree/main/apps/services/piphi-wyze-camera-service",
+    "support_url": "https://github.com/PiPhi-io/piphi-apps/issues",
+    "changelog_url": "https://github.com/PiPhi-io/piphi-apps/releases",
+    "privacy_url": "https://github.com/PiPhi-io/piphi-apps/blob/main/apps/services/piphi-wyze-camera-service/PRIVACY.md",
     "quality_tier": "unrated",
     "governance": {
       "schema_version": 1,

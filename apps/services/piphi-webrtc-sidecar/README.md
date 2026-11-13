@@ -48,12 +48,12 @@ pdm run python scripts/validate.py
 ## Container
 
 ```bash
-docker build -t ghcr.io/piphi-io/piphi-webrtc-sidecar:0.3.4 .
+docker build -t ghcr.io/piphi-io/piphi-webrtc-sidecar:0.3.5 .
 docker run --rm \
   -p 8090:8090 \
   -p 8555:8555/tcp \
   -p 8555:8555/udp \
-  ghcr.io/piphi-io/piphi-webrtc-sidecar:0.3.4
+  ghcr.io/piphi-io/piphi-webrtc-sidecar:0.3.5
 ```
 
 The pinned upstream is go2rtc `1.9.15`. No host networking or privileged container mode is
