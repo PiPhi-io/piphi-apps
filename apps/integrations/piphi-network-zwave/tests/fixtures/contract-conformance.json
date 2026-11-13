@@ -45,9 +45,8 @@
       "path": "/config",
       "status": 200,
       "body": {
-        "id": "demo-device",
-        "host": "127.0.0.1",
-        "alias": "Demo Device"
+        "id": "home-network",
+        "alias": "Home Z-Wave"
       },
       "required_any_keys": [
         [
@@ -80,13 +79,13 @@
         "contract_version": "automation.runtime.command.v1",
         "command": "refresh",
         "target": {
-          "device_id": "demo-device",
-          "config_id": "demo-device"
+          "device_id": "zwave-node-2-endpoint-0",
+          "config_id": "home-network"
         },
         "params": {},
-        "capability": "device.refresh",
+        "capability": "action.refresh",
         "capability_requirements": [
-          "device.refresh"
+          "action.refresh"
         ]
       },
       "required_any_keys": [

@@ -1,9 +1,12 @@
+import { randomUUID } from "node:crypto";
+
 import { ZWAVE_EVENT_SCHEMA, type ZWaveTransportEvent } from "./types.js";
 
 const SENSITIVE_KEY = /(security|network.?key|credential|token|secret|password|dsk|raw.?frame|nvm)/i;
 
 export class BoundedEventBuffer {
   readonly capacity: number;
+  readonly streamId = randomUUID();
   private readonly events: ZWaveTransportEvent[] = [];
   private nextSequence = 1;
   dropped = 0;
@@ -25,12 +28,25 @@ export class BoundedEventBuffer {
     return record;
   }
 
-  read(after = 0, limit = 100): { events: ZWaveTransportEvent[]; next_cursor: number; dropped: number } {
+  read(after = 0, limit = 100): {
+    events: ZWaveTransportEvent[];
+    next_cursor: number;
+    first_sequence: number;
+    latest_sequence: number;
+    stream_id: string;
+    gap: boolean;
+    dropped: number;
+  } {
     const boundedLimit = Math.max(1, Math.min(500, Math.trunc(limit)));
+    const firstSequence = this.events[0]?.sequence ?? this.nextSequence;
     const events = this.events.filter((event) => event.sequence > after).slice(0, boundedLimit);
     return {
       events,
       next_cursor: events.at(-1)?.sequence ?? after,
+      first_sequence: firstSequence,
+      latest_sequence: this.lastSequence,
+      stream_id: this.streamId,
+      gap: after > 0 && after < firstSequence - 1,
       dropped: this.dropped,
     };
   }

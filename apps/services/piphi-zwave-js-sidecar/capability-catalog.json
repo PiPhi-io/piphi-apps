@@ -14,46 +14,151 @@
     {
       "id": "driver-runtime",
       "status": "implemented",
-      "scope": ["one-allow-listed-controller", "direct-zwave-js-driver"],
-      "source_refs": ["zwave_js", "zwave_js_docs", "core_vocabulary"],
-      "reason": "The sidecar starts and stops one Z-Wave JS driver, exposes redacted readiness and queue health, and serializes bounded controller work.",
-      "state": ["connected", "driver_ready", "controller_ready", "node_count", "ready_node_count", "sleeping_node_count", "dead_node_count", "event_queue_depth", "dropped_event_count", "command_queue_depth"],
-      "events": ["driver.ready", "driver.failed", "driver.destroyed", "runtime.config.applied", "runtime.config.removed", "runtime.command.completed"],
+      "scope": [
+        "one-allow-listed-controller",
+        "direct-zwave-js-driver"
+      ],
+      "source_refs": [
+        "zwave_js",
+        "zwave_js_docs",
+        "core_vocabulary"
+      ],
+      "reason": "The sidecar starts and supervises one Z-Wave JS driver, exposes redacted readiness and queue health, serializes bounded controller work, and constrains writes to metadata-declared non-secret values.",
+      "state": [
+        "connected",
+        "driver_ready",
+        "controller_ready",
+        "node_count",
+        "ready_node_count",
+        "sleeping_node_count",
+        "dead_node_count",
+        "event_queue_depth",
+        "dropped_event_count",
+        "command_queue_depth"
+      ],
+      "events": [
+        "driver.ready",
+        "driver.failed",
+        "driver.destroyed",
+        "runtime.config.applied",
+        "runtime.config.removed",
+        "runtime.command.completed",
+        "driver.recovered"
+      ],
       "conditions": [],
-      "actions": ["refresh_controller_information", "reconnect_driver", "ping_node", "request_node_interview", "refresh_node_values"]
+      "actions": [
+        "refresh_controller_information",
+        "reconnect_driver",
+        "ping_node",
+        "request_node_interview",
+        "refresh_node_values",
+        "set_value"
+      ]
     },
     {
       "id": "raw-node-event-transport",
       "status": "implemented-internal",
-      "scope": ["parent-owned-zwave-nodes-and-endpoints"],
-      "source_refs": ["zwave_js", "zwave_js_docs", "zwave_config_db", "parent_contract"],
-      "reason": "Schema piphi.zwave.event.v1 preserves Z-Wave JS node lifecycle, value metadata, notification, interview, wake, and firmware events in a bounded replay buffer and Core event payload.",
-      "state": ["event_sequence", "event_queue_capacity", "last_event_at"],
-      "events": ["node.ready", "node.interview_started", "node.interview_completed", "node.interview_failed", "node.wake_up", "node.sleep", "node.dead", "node.alive", "node.value_added", "node.value_updated", "node.value_removed", "node.value_notification", "node.metadata_updated", "node.notification", "node.firmware_update_progress", "node.firmware_update_finished"],
+      "scope": [
+        "parent-owned-zwave-nodes-and-endpoints"
+      ],
+      "source_refs": [
+        "zwave_js",
+        "zwave_js_docs",
+        "zwave_config_db",
+        "parent_contract"
+      ],
+      "reason": "Schema piphi.zwave.event.v1 preserves sanitized node events in a bounded gap-detecting replay buffer; piphi.zwave.snapshot.v1 supplies a complete metadata-driven resynchronization point for the parent.",
+      "state": [
+        "event_sequence",
+        "event_queue_capacity",
+        "last_event_at"
+      ],
+      "events": [
+        "node.ready",
+        "node.interview_started",
+        "node.interview_completed",
+        "node.interview_failed",
+        "node.wake_up",
+        "node.sleep",
+        "node.dead",
+        "node.alive",
+        "node.value_added",
+        "node.value_updated",
+        "node.value_removed",
+        "node.value_notification",
+        "node.metadata_updated",
+        "node.notification",
+        "node.firmware_update_progress",
+        "node.firmware_update_finished"
+      ],
       "conditions": [],
-      "actions": ["replay_events_from_cursor"]
+      "actions": [
+        "replay_events_from_cursor"
+      ]
     },
     {
       "id": "hardware-qualified-radio-management",
       "status": "planned",
-      "scope": ["physical-controller-required"],
-      "source_refs": ["zwave_js", "zwave_js_docs"],
+      "scope": [
+        "physical-controller-required"
+      ],
+      "source_refs": [
+        "zwave_js",
+        "zwave_js_docs"
+      ],
       "reason": "RF region, hotplug recovery, secure inclusion, controller reset, network healing, firmware, and NVM behavior require physical controller qualification.",
-      "state": ["controller_rf_region", "controller_statistics", "inclusion_state", "heal_progress", "nvm_backup_status"],
-      "events": ["controller.jammed", "controller.unjammed", "inclusion.started", "inclusion.completed", "heal.completed"],
-      "conditions": ["controller_is_jammed", "inclusion_is_active"],
-      "actions": ["begin_inclusion", "begin_exclusion", "begin_network_heal", "backup_nvm"]
+      "state": [
+        "controller_rf_region",
+        "controller_statistics",
+        "inclusion_state",
+        "heal_progress",
+        "nvm_backup_status"
+      ],
+      "events": [
+        "controller.jammed",
+        "controller.unjammed",
+        "inclusion.started",
+        "inclusion.completed",
+        "heal.completed"
+      ],
+      "conditions": [
+        "controller_is_jammed",
+        "inclusion_is_active"
+      ],
+      "actions": [
+        "begin_inclusion",
+        "begin_exclusion",
+        "begin_network_heal",
+        "backup_nvm"
+      ]
     },
     {
       "id": "unsafe-sensitive-and-parent-owned",
       "status": "excluded",
-      "scope": ["all-controllers-nodes-and-clients"],
-      "source_refs": ["zwave_js", "parent_contract"],
+      "scope": [
+        "all-controllers-nodes-and-clients"
+      ],
+      "source_refs": [
+        "zwave_js",
+        "parent_contract"
+      ],
       "reason": "Secrets, raw serial/NVM access, arbitrary driver calls, destructive administration, and homeowner-facing capability normalization are outside this sidecar contract.",
-      "state": ["network_keys", "raw_serial_frames", "raw_nvm_contents", "full_dsk", "unredacted_controller_path"],
+      "state": [
+        "network_keys",
+        "raw_serial_frames",
+        "raw_nvm_contents",
+        "full_dsk",
+        "unredacted_controller_path"
+      ],
       "events": [],
       "conditions": [],
-      "actions": ["execute_arbitrary_server_command", "send_raw_serial_frame", "factory_reset_controller", "restore_untrusted_nvm", "normalize_device_entities"]
+      "actions": [
+        "execute_arbitrary_server_command",
+        "send_raw_serial_frame",
+        "factory_reset_controller",
+        "restore_untrusted_nvm",
+        "normalize_device_entities"
+      ]
     }
   ]
 }

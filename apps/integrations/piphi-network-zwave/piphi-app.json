@@ -12,18 +12,19 @@
     "python": "3.12"
   },
   "ci": {
-    "enforcement": "legacy-static",
+    "enforcement": "full",
     "commands": [
       "pdm install --check",
-      "pdm run pytest"
+      "pdm run pytest",
+      "pdm run python scripts/validate.py"
     ],
-    "build_container": false
+    "build_container": true
   },
   "packages": [
     {
       "id": "piphi-network-zwave",
       "type": "integration",
-      "version": "0.1.0",
+      "version": "0.3.0",
       "manifest": "manifest.json",
       "release": {
         "tag": "apps/{package_id}/v{version}",
