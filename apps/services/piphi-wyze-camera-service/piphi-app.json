@@ -12,18 +12,20 @@
     "python": "3.12"
   },
   "ci": {
-    "enforcement": "legacy-static",
+    "enforcement": "full",
     "commands": [
       "pdm install --check",
+      "pdm run pip-audit",
+      "pdm run ruff check .",
       "pdm run pytest"
     ],
-    "build_container": false
+    "build_container": true
   },
   "packages": [
     {
       "id": "piphi.service.wyze-camera-bridge",
       "type": "platform_service",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "manifest": "manifest.json",
       "release": {
         "tag": "apps/{package_id}/v{version}",

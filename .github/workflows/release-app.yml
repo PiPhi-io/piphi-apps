@@ -281,7 +281,7 @@ jobs:
           php -r "exit(version_compare(PHP_VERSION, '${{ needs.plan.outputs.php_version }}', '>=') ? 0 : 1);"
       - name: Prepare Python package tooling
         if: needs.plan.outputs.python == 'true'
-        run: python -m pip install "pdm==2.26.2"
+        run: python -m pip install "pdm==2.29.7"
       - name: Build release output
         working-directory: ${{ needs.plan.outputs.app_path }}
         env:

@@ -38,7 +38,7 @@ jobs:
         with:
           python-version: ${{ inputs.python_version }}
       - if: inputs.python
-        run: python -m pip install "pdm==2.26.2"
+        run: python -m pip install "pdm==2.29.7"
       - if: inputs.node
         uses: actions/setup-node@v4
         with:

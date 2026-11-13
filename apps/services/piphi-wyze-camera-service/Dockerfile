@@ -1,6 +1,6 @@
 FROM python:3.12-slim@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea AS package
 
-ARG PDM_VERSION=2.26.7
+ARG PDM_VERSION=2.29.7
 WORKDIR /build
 RUN pip install --no-cache-dir "pdm==${PDM_VERSION}"
 COPY pyproject.toml pdm.lock ./
@@ -8,10 +8,10 @@ RUN pdm export --prod --without-hashes --output requirements.txt
 
 FROM docker.io/mrlt8/wyze-bridge:2.10.3@sha256:af2d638a6d6d52e15ddcfb711e5b905e484b1f519986ad33b9be562b6277b987
 
-ARG APP_VERSION=0.1.2
+ARG APP_VERSION=0.1.3
 LABEL org.opencontainers.image.title="PiPhi Wyze Camera Bridge" \
       org.opencontainers.image.description="Managed Wyze-to-RTSP bridge for PiPhi camera integrations" \
-      org.opencontainers.image.source="https://github.com/PiPhi-io/piphi-wyze-camera-service" \
+      org.opencontainers.image.source="https://github.com/PiPhi-io/piphi-apps" \
       org.opencontainers.image.version="${APP_VERSION}" \
       org.opencontainers.image.licenses="AGPL-3.0-only"
 
