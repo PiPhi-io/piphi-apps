@@ -3,7 +3,7 @@
   "manifest_version": "1.0",
   "id": "piphi-network-modbus",
   "name": "Modbus",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Monitor and safely control profile-declared Modbus TCP and RTU points.",
   "metadata": {
     "generator": "piphi-network-create",
@@ -17,7 +17,7 @@
     "website": "https://piphi.io"
   },
   "license": "Apache-2.0",
-  "image": "ghcr.io/piphi-io/piphi-network-modbus:0.3.0",
+  "image": "ghcr.io/piphi-io/piphi-network-modbus:0.3.1",
   "platforms": [
     "linux"
   ],
@@ -25,7 +25,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "ghcr.io/piphi-io/piphi-network-modbus:0.3.0",
+        "image": "ghcr.io/piphi-io/piphi-network-modbus:0.3.1",
         "ports": [
           {
             "container": 4222,
@@ -33,7 +33,9 @@
           }
         ],
         "environment": {
-          "LOG_LEVEL": "info"
+          "LOG_LEVEL": "info",
+          "PIPHI_ENV": "production",
+          "PIPHI_MODBUS_SIDECAR_URL": "http://piphi-modbus-rtu-sidecar:4212"
         },
         "restart_policy": {
           "name": "unless-stopped",
@@ -44,6 +46,20 @@
         "method": "passive"
       }
     }
+  },
+  "requires": {
+    "services": [
+      {
+        "id": "piphi-modbus-rtu-sidecar",
+        "kind": "platform_service",
+        "version_range": ">=0.2.1,<0.3.0",
+        "recommended_version": "0.2.1",
+        "required": true,
+        "shared": true,
+        "auto_install": true,
+        "reason": "Owns authenticated serial access, RTU framing, bounded request arbitration, and read/write execution for profile-declared RTU points."
+      }
+    ]
   },
   "api": {
     "required": [

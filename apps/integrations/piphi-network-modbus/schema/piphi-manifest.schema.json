@@ -51,6 +51,52 @@
         }
       }
     },
+    "requires": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "services": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "kind": {
+                "const": "platform_service"
+              },
+              "version_range": {
+                "type": "string",
+                "minLength": 1
+              },
+              "recommended_version": {
+                "type": "string",
+                "minLength": 1
+              },
+              "required": {
+                "type": "boolean"
+              },
+              "shared": {
+                "type": "boolean"
+              },
+              "auto_install": {
+                "type": "boolean"
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      }
+    },
     "onboarding": {
       "type": "object",
       "additionalProperties": false,

@@ -17,6 +17,19 @@ unencrypted, so use only a trusted local network.
 The original `register_address` plus optional `unit_id` configuration remains
 supported for compatibility as a read-only unsigned holding-register entity.
 
+## Managed RTU sidecar
+
+Installing this integration also installs the shared
+`piphi-modbus-rtu-sidecar` service in the compatible `0.2.x` line. The service
+has no host-published port, runs in production authentication mode, and receives
+`/dev/serial` access for explicitly configured RTU ports. The parent reaches it
+only on the internal service network at
+`http://piphi-modbus-rtu-sidecar:4212`.
+
+PiPhi Core injects the internal token used by both containers. Profiles and
+configuration never contain that token. TCP configurations do not send work to
+the sidecar; the shared service remains idle until an RTU profile is applied.
+
 The bundled declarative Widget SDK card displays the raw register value and
 offers details/history. A Modbus TCP simulator can serve a documented register
 at the configured address for end-to-end testing; the same configuration and
@@ -75,6 +88,6 @@ and untrusted profiles remain excluded.
 ## Docker
 
 ```bash
-docker build -t ghcr.io/piphi-io/piphi-network-modbus:0.3.0 .
-docker run --rm -p 4222:4222 ghcr.io/piphi-io/piphi-network-modbus:0.3.0
+docker build -t ghcr.io/piphi-io/piphi-network-modbus:0.3.1 .
+docker run --rm -p 4222:4222 ghcr.io/piphi-io/piphi-network-modbus:0.3.1
 ```
