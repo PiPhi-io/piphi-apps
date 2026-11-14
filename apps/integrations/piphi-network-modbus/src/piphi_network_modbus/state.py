@@ -18,8 +18,9 @@ from piphi_runtime_kit_python import (
 )
 
 from .contract import CAPABILITIES, COMMANDS
-from .modbus_tcp import read_holding_register
+from .modbus_tcp import ModbusTCPClient, read_holding_register
 from .modbus_model import entity_response, normalize_snapshot
+from .profile_codec import profile_hash
 from .schemas import DeviceConfig
 from .settings import INTEGRATION_ID, INTEGRATION_NAME, INTEGRATION_VERSION
 from .sidecar_client import ModbusSidecarClient, SidecarError
@@ -47,6 +48,8 @@ point_models: dict[str, list[dict[str, Any]]] = {}
 sidecar_clients: dict[str, ModbusSidecarClient] = {}
 sidecar_replay: dict[str, dict[str, Any]] = {}
 sidecar_client_factory: Callable[[], ModbusSidecarClient] = ModbusSidecarClient
+tcp_clients: dict[str, ModbusTCPClient] = {}
+tcp_client_factory: Callable[..., ModbusTCPClient] = ModbusTCPClient
 
 
 def make_entry(config: DeviceConfig) -> dict[str, Any]:
@@ -85,6 +88,11 @@ def get_entry_or_404(config_id: str) -> dict[str, Any]:
 async def apply_config(config: DeviceConfig) -> None:
     entry = make_entry(config)
     config_id = str(entry["config_id"])
+    previous_tcp = tcp_clients.pop(config_id, None)
+    if previous_tcp is not None:
+        await previous_tcp.close()
+    sidecar_clients.pop(config_id, None)
+    sidecar_replay.pop(config_id, None)
     registry.set(config_id, entry)
     if config.transport == "rtu_sidecar":
         client = sidecar_client_factory()
@@ -115,6 +123,18 @@ async def apply_config(config: DeviceConfig) -> None:
             "runtime.config.applied",
             entry,
             {"transport": "rtu_sidecar", "alias": config.alias},
+        )
+        return
+    if config.points:
+        client = tcp_client_factory(
+            config.host, timeout=config.response_timeout_seconds
+        )
+        tcp_clients[config_id] = client
+        await sync_tcp_entry(entry, client)
+        append_runtime_event(
+            "runtime.config.applied",
+            entry,
+            {"transport": "tcp", "profile_id": config.profile_id, "alias": config.alias},
         )
         return
     registry.update_state(
@@ -173,6 +193,15 @@ async def refresh_entry(entry: dict[str, Any]) -> dict[str, Any]:
             }
             registry.update_state(entry["config_id"], state, device_id=entry["device_id"])
             return state
+    if config.points:
+        config_id = str(entry["config_id"])
+        client = tcp_clients.get(config_id)
+        if client is None:
+            client = tcp_client_factory(
+                config.host, timeout=config.response_timeout_seconds
+            )
+            tcp_clients[config_id] = client
+        return await sync_tcp_entry(entry, client)
     if config.register_address is None:
         state = {"connected": False, "reason": "register_address_missing"}
         registry.update_state(entry["config_id"], state, device_id=entry["device_id"])
@@ -231,6 +260,9 @@ async def remove_config(config_id: str) -> bool:
     point_models.pop(config_id, None)
     sidecar_clients.pop(config_id, None)
     sidecar_replay.pop(config_id, None)
+    tcp_client = tcp_clients.pop(config_id, None)
+    if tcp_client is not None:
+        await tcp_client.close()
     entry = registry.remove(config_id)
     if entry is None:
         return False
@@ -240,6 +272,44 @@ async def remove_config(config_id: str) -> bool:
         {"host": entry.get("host"), "alias": entry.get("alias")},
     )
     return True
+
+
+async def sync_tcp_entry(
+    entry: dict[str, Any], client: ModbusTCPClient
+) -> dict[str, Any]:
+    config_id = str(entry["config_id"])
+    config = DeviceConfig.model_validate(entry["config"])
+    snapshot = await client.snapshot(config.points)
+    snapshot.update(
+        profile_id=config.profile_id,
+        profile_version=config.profile_version,
+        profile_hash=profile_hash(
+            profile_id=config.profile_id,
+            profile_version=config.profile_version,
+            profile_provenance=config.profile_provenance,
+            points=config.points,
+        ),
+    )
+    models = normalize_snapshot(snapshot, config_id=config_id)
+    point_models[config_id] = models
+    state = {
+        "connected": bool(snapshot.get("connected")),
+        "transport": "tcp",
+        "quality": "good" if snapshot.get("connected") else "unavailable",
+        "profile_id": snapshot["profile_id"],
+        "profile_version": snapshot["profile_version"],
+        "profile_hash": snapshot["profile_hash"],
+        "responsive_unit_ids": snapshot.get("responsive_unit_ids", []),
+        "request_count": snapshot.get("request_count", 0),
+        "points": {model["point_id"]: model["state"] for model in models},
+        "config_id": config_id,
+        "last_error_code": snapshot.get("last_error_code"),
+    }
+    registry.update_state(config_id, state, device_id=entry["device_id"])
+    entry["next_poll_at"] = time.monotonic() + max(
+        5, config.poll_interval_seconds or 15
+    )
+    return state
 
 
 async def sync_sidecar_entry(
@@ -364,6 +434,33 @@ async def execute_sidecar_command(
     return result
 
 
+async def execute_tcp_command(
+    *, config_id: str, device_id: str, command: str, args: dict[str, Any]
+) -> dict[str, Any]:
+    client = tcp_clients.get(config_id)
+    entry = registry.get(config_id)
+    if client is None or entry is None:
+        raise ValueError("tcp_profile_not_configured")
+    config = DeviceConfig.model_validate(entry["config"])
+    model = find_point_model(config_id, device_id)
+    point = next(
+        (candidate for candidate in config.points if candidate.id == model["point_id"]),
+        None,
+    )
+    if point is None:
+        raise ValueError("unknown_modbus_point")
+    if command == "refresh":
+        await sync_tcp_entry(entry, client)
+        return {"ok": True, "point_id": point.id}
+    if command != "set_value":
+        raise ValueError("unsupported_modbus_command")
+    if "value" not in args:
+        raise ValueError("value_required")
+    value = await client.write_point(point, args["value"])
+    await sync_tcp_entry(entry, client)
+    return {"ok": True, "point_id": point.id, "value": value}
+
+
 def _register_automation_actions() -> None:
     for command_name, command_definition in commands.items():
 
@@ -378,8 +475,13 @@ def _register_automation_actions() -> None:
             if entry is None:
                 raise ValueError("Unknown configured register")
             config = DeviceConfig.model_validate(entry["config"])
-            if config.transport == "rtu_sidecar":
-                result = await execute_sidecar_command(
+            if config.points:
+                executor = (
+                    execute_sidecar_command
+                    if config.transport == "rtu_sidecar"
+                    else execute_tcp_command
+                )
+                result = await executor(
                     config_id=config_id,
                     device_id=device_id,
                     command=_command_name,
