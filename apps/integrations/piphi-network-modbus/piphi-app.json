@@ -25,7 +25,7 @@
     {
       "id": "piphi-network-modbus",
       "type": "integration",
-      "version": "0.3.0",
+      "version": "0.3.1",
       "manifest": "manifest.json",
       "release": {
         "tag": "apps/{package_id}/v{version}",

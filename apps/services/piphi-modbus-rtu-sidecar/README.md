@@ -15,6 +15,12 @@ timing, request routing, queueing, recovery, and deliberately excluded raw or
 unrestricted operations. Only `connected` and `refresh` are implemented in this
 starter.
 
+Managed deployment is internal-only and maps `/dev/serial` into the container.
+The service runs with production authentication enabled and accepts only the
+shared internal token injected by PiPhi Core. The parent Modbus integration
+auto-installs the compatible sidecar release and never stores this token in a
+device profile.
+
 ## Run locally
 
 ```bash
@@ -55,6 +61,9 @@ The runtime listens on port `4212` by default and exposes the common PiPhi runti
 ## Docker
 
 ```bash
-docker build -t ghcr.io/piphi-io/piphi-modbus-rtu-sidecar:0.2.0 .
-docker run --rm -p 4212:4212 ghcr.io/piphi-io/piphi-modbus-rtu-sidecar:0.2.0
+docker build -t ghcr.io/piphi-io/piphi-modbus-rtu-sidecar:0.2.1 .
+docker run --rm --device /dev/serial:/dev/serial \
+  -e PIPHI_ENV=production \
+  -e PIPHI_MODBUS_SIDECAR_TOKEN=replace-with-a-local-test-token \
+  -p 4212:4212 ghcr.io/piphi-io/piphi-modbus-rtu-sidecar:0.2.1
 ```

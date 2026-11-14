@@ -25,7 +25,7 @@
     {
       "id": "piphi-modbus-rtu-sidecar",
       "type": "platform_service",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "manifest": "manifest.json",
       "release": {
         "tag": "apps/{package_id}/v{version}",
