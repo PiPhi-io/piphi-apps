@@ -70,6 +70,6 @@ excluded.
 ## Docker
 
 ```bash
-docker build -t docker.io/piphinetwork/piphi-network-modbus:0.1.0 .
-docker run --rm -p 4222:4222 docker.io/piphinetwork/piphi-network-modbus:0.1.0
+docker build -t ghcr.io/piphi-io/piphi-network-modbus:0.2.0 .
+docker run --rm -p 4222:4222 ghcr.io/piphi-io/piphi-network-modbus:0.2.0
 ```

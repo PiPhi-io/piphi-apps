@@ -4,6 +4,7 @@ import asyncio
 import logging
 import os
 import time
+from collections.abc import Callable
 from typing import Any
 
 from fastapi import HTTPException
@@ -18,8 +19,10 @@ from piphi_runtime_kit_python import (
 
 from .contract import CAPABILITIES, COMMANDS
 from .modbus_tcp import read_holding_register
+from .modbus_model import entity_response, normalize_snapshot
 from .schemas import DeviceConfig
 from .settings import INTEGRATION_ID, INTEGRATION_NAME, INTEGRATION_VERSION
+from .sidecar_client import ModbusSidecarClient, SidecarError
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +43,10 @@ automations = AutomationRegistry(
 
 capabilities = CAPABILITIES
 commands = COMMANDS
+point_models: dict[str, list[dict[str, Any]]] = {}
+sidecar_clients: dict[str, ModbusSidecarClient] = {}
+sidecar_replay: dict[str, dict[str, Any]] = {}
+sidecar_client_factory: Callable[[], ModbusSidecarClient] = ModbusSidecarClient
 
 
 def make_entry(config: DeviceConfig) -> dict[str, Any]:
@@ -77,9 +84,41 @@ def get_entry_or_404(config_id: str) -> dict[str, Any]:
 
 async def apply_config(config: DeviceConfig) -> None:
     entry = make_entry(config)
-    registry.set(entry["config_id"], entry)
+    config_id = str(entry["config_id"])
+    registry.set(config_id, entry)
+    if config.transport == "rtu_sidecar":
+        client = sidecar_client_factory()
+        sidecar_payload = sidecar_config_payload(config)
+        sidecar_clients[config_id] = client
+        try:
+            await client.configure(sidecar_payload)
+            snapshot = await client.snapshot(config_id)
+            await sync_sidecar_entry(entry, client)
+            sidecar_replay[config_id] = {
+                "cursor": int(snapshot.get("latest_sequence") or 0),
+                "stream_id": str(snapshot.get("stream_id") or ""),
+                "dropped": int(snapshot.get("dropped_event_count") or 0),
+            }
+        except (SidecarError, TypeError, ValueError) as exc:
+            registry.update_state(
+                config_id,
+                {
+                    "connected": False,
+                    "transport": "rtu_sidecar",
+                    "quality": "unavailable",
+                    "last_error_code": type(exc).__name__,
+                    "config_id": config_id,
+                },
+                device_id=entry["device_id"],
+            )
+        append_runtime_event(
+            "runtime.config.applied",
+            entry,
+            {"transport": "rtu_sidecar", "alias": config.alias},
+        )
+        return
     registry.update_state(
-        entry["config_id"],
+        config_id,
         {
             "connected": False,
             "host": config.host,
@@ -99,6 +138,41 @@ async def apply_config(config: DeviceConfig) -> None:
 
 async def refresh_entry(entry: dict[str, Any]) -> dict[str, Any]:
     config = DeviceConfig.model_validate(entry["config"])
+    if config.transport == "rtu_sidecar":
+        client = sidecar_clients.get(str(entry["config_id"]))
+        if client is None:
+            client = sidecar_client_factory()
+            sidecar_clients[str(entry["config_id"])] = client
+        try:
+            await replay_sidecar_events(entry, client)
+            await client.refresh(str(entry["config_id"]))
+            return await sync_sidecar_entry(entry, client)
+        except (SidecarError, TypeError, ValueError) as exc:
+            try:
+                await client.configure(sidecar_config_payload(config))
+                snapshot = await client.snapshot(str(entry["config_id"]))
+                recovered_state = await sync_sidecar_entry(entry, client)
+                sidecar_replay[str(entry["config_id"])] = {
+                    "cursor": int(snapshot.get("latest_sequence") or 0),
+                    "stream_id": str(snapshot.get("stream_id") or ""),
+                    "dropped": int(snapshot.get("dropped_event_count") or 0),
+                }
+                append_runtime_event(
+                    "modbus.sidecar.recovered",
+                    entry,
+                    {"reason": "configuration_reapplied"},
+                )
+                return recovered_state
+            except (SidecarError, TypeError, ValueError):
+                pass
+            state = {
+                "connected": False,
+                "transport": "rtu_sidecar",
+                "quality": "unavailable",
+                "last_error_code": type(exc).__name__,
+            }
+            registry.update_state(entry["config_id"], state, device_id=entry["device_id"])
+            return state
     if config.register_address is None:
         state = {"connected": False, "reason": "register_address_missing"}
         registry.update_state(entry["config_id"], state, device_id=entry["device_id"])
@@ -154,6 +228,9 @@ async def poll_registers() -> None:
 
 
 async def remove_config(config_id: str) -> bool:
+    point_models.pop(config_id, None)
+    sidecar_clients.pop(config_id, None)
+    sidecar_replay.pop(config_id, None)
     entry = registry.remove(config_id)
     if entry is None:
         return False
@@ -163,6 +240,128 @@ async def remove_config(config_id: str) -> bool:
         {"host": entry.get("host"), "alias": entry.get("alias")},
     )
     return True
+
+
+async def sync_sidecar_entry(
+    entry: dict[str, Any], client: ModbusSidecarClient
+) -> dict[str, Any]:
+    config_id = str(entry["config_id"])
+    snapshot = await client.snapshot(config_id)
+    models = normalize_snapshot(snapshot, config_id=config_id)
+    point_models[config_id] = models
+    state = {
+        "connected": bool(snapshot.get("connected")),
+        "transport": "rtu_sidecar",
+        "quality": "good" if snapshot.get("connected") else "unavailable",
+        "profile_id": snapshot.get("profile_id"),
+        "profile_version": snapshot.get("profile_version"),
+        "profile_hash": snapshot.get("profile_hash"),
+        "port_open": snapshot.get("port_open"),
+        "responsive_unit_ids": snapshot.get("responsive_unit_ids", []),
+        "queue_depth": snapshot.get("queue_depth"),
+        "queue_capacity": snapshot.get("queue_capacity"),
+        "points": {model["point_id"]: model["state"] for model in models},
+        "config_id": config_id,
+        "last_error_code": snapshot.get("last_error_code"),
+    }
+    registry.update_state(config_id, state, device_id=entry["device_id"])
+    config = DeviceConfig.model_validate(entry["config"])
+    entry["next_poll_at"] = time.monotonic() + max(
+        5, config.poll_interval_seconds or 15
+    )
+    return state
+
+
+def sidecar_config_payload(config: DeviceConfig) -> dict[str, Any]:
+    payload = config.model_dump(exclude={"api_key", "base_url"})
+    payload["registers"] = payload.pop("points")
+    payload["host"] = "modbus-rtu-sidecar"
+    return payload
+
+
+async def replay_sidecar_events(
+    entry: dict[str, Any], client: ModbusSidecarClient
+) -> None:
+    config_id = str(entry["config_id"])
+    position = sidecar_replay.setdefault(
+        config_id, {"cursor": 0, "stream_id": "", "dropped": 0}
+    )
+    replay = await client.events(config_id, after=int(position["cursor"]))
+    stream_id = str(replay.get("stream_id") or "")
+    dropped = int(replay.get("dropped") or 0)
+    restarted = bool(position["stream_id"] and stream_id != position["stream_id"])
+    gap = bool(replay.get("gap")) or dropped < int(position["dropped"])
+    if restarted or gap:
+        snapshot = await sync_sidecar_entry(entry, client)
+        position.update(
+            cursor=int(snapshot.get("latest_sequence") or 0),
+            stream_id=str(snapshot.get("stream_id") or stream_id),
+            dropped=int(snapshot.get("dropped_event_count") or 0),
+        )
+        append_runtime_event(
+            "modbus.events.resynchronized",
+            entry,
+            {"reason": "sidecar_restart" if restarted else "replay_gap"},
+        )
+        return
+    for event in replay.get("events", []):
+        if not isinstance(event, dict):
+            continue
+        append_runtime_event(
+            str(event.get("event_type") or "modbus.event"),
+            entry,
+            {
+                "sequence": event.get("sequence"),
+                "payload": event.get("payload") if isinstance(event.get("payload"), dict) else {},
+            },
+        )
+    position.update(
+        cursor=int(replay.get("next_cursor") or position["cursor"]),
+        stream_id=stream_id or position["stream_id"],
+        dropped=dropped,
+    )
+
+
+def all_entities() -> list[dict[str, Any]]:
+    return [
+        entity_response(model)
+        for config_id in sorted(point_models)
+        for model in point_models[config_id]
+    ]
+
+
+def find_point_model(config_id: str, device_id: str) -> dict[str, Any]:
+    model = next(
+        (
+            item
+            for item in point_models.get(config_id, [])
+            if item["device_id"] == device_id
+        ),
+        None,
+    )
+    if model is None:
+        raise ValueError("unknown_modbus_point")
+    return model
+
+
+async def execute_sidecar_command(
+    *, config_id: str, device_id: str, command: str, args: dict[str, Any]
+) -> dict[str, Any]:
+    client = sidecar_clients.get(config_id)
+    entry = registry.get(config_id)
+    if client is None or entry is None:
+        raise ValueError("sidecar_not_configured")
+    model = find_point_model(config_id, device_id)
+    if command == "refresh":
+        result = await client.refresh(config_id, str(model["point_id"]))
+    elif command == "set_value":
+        if "value" not in args:
+            raise ValueError("value_required")
+        result = await client.write(config_id, str(model["point_id"]), args["value"])
+    else:
+        raise ValueError("unsupported_modbus_command")
+    await sync_sidecar_entry(entry, client)
+    return result
 
 
 def _register_automation_actions() -> None:
@@ -178,6 +377,20 @@ def _register_automation_actions() -> None:
             entry = registry.get(config_id)
             if entry is None:
                 raise ValueError("Unknown configured register")
+            config = DeviceConfig.model_validate(entry["config"])
+            if config.transport == "rtu_sidecar":
+                result = await execute_sidecar_command(
+                    config_id=config_id,
+                    device_id=device_id,
+                    command=_command_name,
+                    args=request.args,
+                )
+                return {
+                    "command": _command_name,
+                    "device_id": device_id,
+                    "config_id": config_id,
+                    "result": result,
+                }
             metrics = await refresh_entry(entry)
             if not metrics.get("connected"):
                 raise RuntimeError("Modbus register is unavailable")

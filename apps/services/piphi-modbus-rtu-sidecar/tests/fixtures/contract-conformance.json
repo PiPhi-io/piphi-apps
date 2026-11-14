@@ -46,8 +46,19 @@
       "status": 200,
       "body": {
         "id": "demo-device",
-        "host": "127.0.0.1",
-        "alias": "Demo Device"
+        "host": "modbus-rtu-sidecar",
+        "alias": "Demo Device",
+        "serial_port": "/dev/serial/by-id/example",
+        "registers": [
+          {
+            "id": "temperature",
+            "name": "Temperature",
+            "unit_id": 1,
+            "address": 10,
+            "unit": "°C",
+            "scale": 0.1
+          }
+        ]
       },
       "required_any_keys": [
         [
