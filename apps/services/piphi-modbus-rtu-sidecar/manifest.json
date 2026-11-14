@@ -3,7 +3,7 @@
   "manifest_version": "1.0",
   "id": "piphi-modbus-rtu-sidecar",
   "name": "Modbus RTU sidecar",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Coordinate bounded Modbus RTU and ASCII requests over serial buses.",
   "metadata": {
     "generator": "piphi-network-create",
@@ -17,7 +17,7 @@
     "website": "https://piphi.io"
   },
   "license": "Apache-2.0",
-  "image": "docker.io/piphinetwork/piphi-modbus-rtu-sidecar:0.1.1",
+  "image": "ghcr.io/piphi-io/piphi-modbus-rtu-sidecar:0.2.0",
   "platforms": [
     "linux"
   ],
@@ -25,7 +25,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "docker.io/piphinetwork/piphi-modbus-rtu-sidecar:0.1.1",
+        "image": "ghcr.io/piphi-io/piphi-modbus-rtu-sidecar:0.2.0",
         "ports": [
           {
             "container": 4212

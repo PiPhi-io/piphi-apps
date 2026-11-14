@@ -9,14 +9,20 @@
       "kind": "sensor",
       "value_kind": "numeric"
     },
+    "point_value": {"kind": "sensor", "value_kind": "numeric_or_boolean"},
     "refresh": {
       "kind": "action"
-    }
+    },
+    "set_value": {"kind": "action"}
   },
   "commands": {
     "refresh": {
       "description": "Refresh the device state.",
       "timeout_ms": 12000
+    },
+    "set_value": {
+      "description": "Set a profile-declared writable point within its bounds.",
+      "timeout_ms": 30000
     }
   }
 }

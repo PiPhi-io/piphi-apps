@@ -66,7 +66,23 @@ async def test_config_apply_emits_the_implemented_event() -> None:
     config_id = "capability-catalog-test"
     async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
         try:
-            response = await client.post("/config", json={"id": config_id, "host": "127.0.0.1", "alias": "Coverage Test"})
+            response = await client.post(
+                "/config",
+                json={
+                    "id": config_id,
+                    "host": "modbus-rtu-sidecar",
+                    "alias": "Coverage Test",
+                    "serial_port": "/dev/serial/by-id/example",
+                    "registers": [
+                        {
+                            "id": "temperature",
+                            "name": "Temperature",
+                            "unit_id": 1,
+                            "address": 10,
+                        }
+                    ],
+                },
+            )
             assert response.status_code == 200
             events = (await client.get("/events")).json()["events"]
             assert any(event["event_type"] == "runtime.config.applied" and event["config_id"] == config_id for event in events)

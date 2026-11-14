@@ -6,12 +6,14 @@ from fastapi import APIRouter, HTTPException, Request
 from piphi_runtime_kit_python.fastapi import dispatch_automation_action_from_fastapi
 
 from ..state import automations, commands
+from ..runtime_auth import authorize_runtime_request
 
 router = APIRouter(tags=["commands"])
 
 
 @router.post("/command")
 async def command(payload: dict[str, Any], request: Request):
+    authorize_runtime_request(request)
     command_name = str(
         payload.get("command") or payload.get("capability_id") or ""
     ).strip()

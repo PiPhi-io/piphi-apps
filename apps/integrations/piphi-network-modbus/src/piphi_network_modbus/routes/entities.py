@@ -5,7 +5,7 @@ from typing import Any
 from fastapi import APIRouter
 
 from ..contract import FALLBACK_ENTITY
-from ..state import capabilities, commands, registry
+from ..state import all_entities, capabilities, commands, registry
 
 router = APIRouter(tags=["entities"])
 
@@ -13,7 +13,7 @@ router = APIRouter(tags=["entities"])
 @router.get("/entities")
 async def entities() -> dict[str, Any]:
     entries = list(registry.entries.values())
-    runtime_entities = [
+    runtime_entities = all_entities() or [
         {
             "id": entry["device_id"],
             "name": entry.get("alias") or "Modbus register",

@@ -4,7 +4,7 @@ import os
 
 INTEGRATION_ID = "piphi-modbus-rtu-sidecar"
 INTEGRATION_NAME = "Piphi Modbus Rtu Sidecar"
-INTEGRATION_VERSION = "0.1.1"
+INTEGRATION_VERSION = "0.2.0"
 PROJECT_KIND = "sidecar"
 PROJECT_PRESET = "sidecar-worker"
 PROJECT_DOMAIN = "sidecar-service"

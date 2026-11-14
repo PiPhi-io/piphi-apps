@@ -1,0 +1,96 @@
+{
+  "schema_version": "piphi.modbus.fixture.v1",
+  "sources": {
+    "home_assistant": {
+      "url": "https://github.com/home-assistant/core/blob/a0f0cf28fea4e1dfea7937305808a3b5414111fd/tests/components/modbus/test_sensor.py",
+      "license": "Apache-2.0",
+      "note": "Selected generic decode vectors adapted to PiPhi point profiles; no Home Assistant implementation code is copied."
+    },
+    "eastron_sdm630": {
+      "url": "https://www.eastroneurope.com/images/uploads/products/protocol/SDM630_MODBUS_Protocol.pdf",
+      "note": "Input-register measurements use FC04, two registers and IEEE-754 float32, most-significant register first."
+    },
+    "waveshare_relay": {
+      "url": "https://www.waveshare.com/wiki/Modbus_RTU_Relay",
+      "note": "Relay channels 1-8 are coils 0x0000-0x0007; software version is holding register 0x8000 scaled by 0.01."
+    },
+    "daikin_wall_controller": {
+      "url": "https://www.daikin.co.uk/content/dam/document-library/installation-manuals/heat/accessories/EKWHCTRL1,EKRTCTRL1,EKWHCTRL0_Installation%20manual_N420384A%20ModBus%20RTU_English.pdf",
+      "note": "Air temperature register 0 and setpoint register 231 use signed values scaled by 0.1 degrees Celsius."
+    }
+  },
+  "cases": [
+    {
+      "id": "ha_int16_minimum",
+      "source": "home_assistant",
+      "point": {"area": "holding_register", "data_type": "int16"},
+      "payload": [32768],
+      "expected": -32768.0
+    },
+    {
+      "id": "ha_int32_signed",
+      "source": "home_assistant",
+      "point": {"area": "holding_register", "data_type": "int32"},
+      "payload": [35243, 52719],
+      "expected": -1985229329.0
+    },
+    {
+      "id": "ha_float32",
+      "source": "home_assistant",
+      "point": {"area": "input_register", "data_type": "float32"},
+      "payload": [16286, 1617],
+      "expected": 1.2345670461654663
+    },
+    {
+      "id": "ha_byte_and_word_swap",
+      "source": "home_assistant",
+      "point": {"area": "holding_register", "data_type": "uint32", "byte_order": "DCBA"},
+      "payload": [258, 772],
+      "expected": 67305985.0
+    },
+    {
+      "id": "eastron_phase_1_voltage",
+      "source": "eastron_sdm630",
+      "point": {"area": "input_register", "address": 0, "data_type": "float32", "unit": "V"},
+      "payload": [17254, 32768],
+      "expected": 230.5
+    },
+    {
+      "id": "eastron_phase_1_current",
+      "source": "eastron_sdm630",
+      "point": {"area": "input_register", "address": 6, "data_type": "float32", "unit": "A"},
+      "payload": [16709, 28836],
+      "expected": 12.34000015258789
+    },
+    {
+      "id": "waveshare_relay_1_on",
+      "source": "waveshare_relay",
+      "point": {"area": "coil", "address": 0, "data_type": "bool", "writable": true},
+      "payload": [true],
+      "expected": true
+    },
+    {
+      "id": "waveshare_software_version",
+      "source": "waveshare_relay",
+      "point": {"area": "holding_register", "address": 32768, "data_type": "uint16", "scale": 0.01},
+      "payload": [100],
+      "expected": 1.0
+    },
+    {
+      "id": "daikin_air_temperature",
+      "source": "daikin_wall_controller",
+      "point": {"area": "holding_register", "address": 0, "data_type": "int16", "scale": 0.1, "unit": "°C"},
+      "payload": [65501],
+      "expected": -3.5
+    },
+    {
+      "id": "daikin_setpoint",
+      "source": "daikin_wall_controller",
+      "point": {"area": "holding_register", "address": 231, "data_type": "int16", "scale": 0.1, "unit": "°C", "minimum": 5.0, "maximum": 40.0, "writable": true},
+      "payload": [220],
+      "expected": 22.0,
+      "write_value": 23.5,
+      "expected_write_payload": [235]
+    }
+  ]
+}

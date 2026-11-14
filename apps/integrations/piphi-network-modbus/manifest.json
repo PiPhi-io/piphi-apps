@@ -3,8 +3,8 @@
   "manifest_version": "1.0",
   "id": "piphi-network-modbus",
   "name": "Modbus",
-  "version": "0.1.0",
-  "description": "Read one configured holding register from a local Modbus TCP device.",
+  "version": "0.2.0",
+  "description": "Monitor and safely control profile-declared Modbus TCP and RTU points.",
   "metadata": {
     "generator": "piphi-network-create",
     "scaffold_version": "0.3.0",
@@ -17,7 +17,7 @@
     "website": "https://piphi.io"
   },
   "license": "Apache-2.0",
-  "image": "docker.io/piphinetwork/piphi-network-modbus:0.1.0",
+  "image": "ghcr.io/piphi-io/piphi-network-modbus:0.2.0",
   "platforms": [
     "linux"
   ],
@@ -25,7 +25,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "docker.io/piphinetwork/piphi-network-modbus:0.1.0",
+        "image": "ghcr.io/piphi-io/piphi-network-modbus:0.2.0",
         "ports": [
           {
             "container": 4222,
@@ -99,14 +99,20 @@
       "unit": "bool"
     },
     "holding_register_value": {"kind": "sensor", "value_kind": "numeric"},
+    "point_value": {"kind": "sensor", "value_kind": "numeric_or_boolean"},
     "refresh": {
       "kind": "action"
-    }
+    },
+    "set_value": {"kind": "action"}
   },
   "commands": {
     "refresh": {
       "description": "Refresh the device state.",
       "timeout_ms": 12000
+    },
+    "set_value": {
+      "description": "Set a profile-declared writable point within its bounds.",
+      "timeout_ms": 30000
     }
   },
   "entities": [
@@ -118,6 +124,8 @@
       "capabilities": [
         "connected",
         "holding_register_value",
+        "point_value",
+        "set_value",
         "refresh"
       ],
       "available_commands": [
@@ -125,7 +133,8 @@
           "id": "refresh",
           "label": "Refresh",
           "kind": "action"
-        }
+        },
+        {"id": "set_value", "label": "Set value", "kind": "action"}
       ],
       "dashboard": {
         "allowed_widgets": [
@@ -145,7 +154,7 @@
   "marketplace": {
     "metadata_version": 2,
     "display_name": "Modbus",
-    "summary": "Read one configured holding register from a local Modbus TCP device.",
+    "summary": "Profile-driven Modbus TCP and RTU monitoring with constrained controls.",
     "category": "other",
     "regions": [
       "WW"

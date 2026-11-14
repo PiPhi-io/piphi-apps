@@ -24,15 +24,21 @@ CAPABILITIES: dict[str, dict[str, Any]] = {
         "unit": "bool"
     },
     "holding_register_value": {"kind": "sensor", "value_kind": "numeric"},
+    "point_value": {"kind": "sensor", "value_kind": "numeric_or_boolean"},
     "refresh": {
         "kind": "action"
-    }
+    },
+    "set_value": {"kind": "action"}
 }
 
 COMMANDS: dict[str, dict[str, Any]] = {
     "refresh": {
         "description": "Refresh the device state.",
         "timeout_ms": 12000
+    },
+    "set_value": {
+        "description": "Set a profile-declared writable point within its bounds.",
+        "timeout_ms": 30000
     }
 }
 
@@ -76,6 +82,8 @@ FALLBACK_ENTITY: dict[str, Any] = {
     "capabilities": [
         "connected",
         "holding_register_value",
+        "point_value",
+        "set_value",
         "refresh"
     ],
     "available_commands": [
@@ -83,7 +91,8 @@ FALLBACK_ENTITY: dict[str, Any] = {
             "id": "refresh",
             "label": "Refresh",
             "kind": "action"
-        }
+        },
+        {"id": "set_value", "label": "Set value", "kind": "action"}
     ],
     "dashboard": {
         "allowed_widgets": [

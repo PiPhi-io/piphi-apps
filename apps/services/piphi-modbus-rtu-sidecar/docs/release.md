@@ -21,5 +21,5 @@ the `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` repository secrets.
 Current image target:
 
 ```text
-docker.io/piphinetwork/piphi-modbus-rtu-sidecar:0.1.1
+ghcr.io/piphi-io/piphi-modbus-rtu-sidecar:0.2.0
 ```

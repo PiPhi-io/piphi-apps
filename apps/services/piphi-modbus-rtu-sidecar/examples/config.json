@@ -1,6 +1,21 @@
 {
   "id": "demo-device",
-  "host": "127.0.0.1",
+  "host": "modbus-rtu-sidecar",
   "alias": "Demo Device",
-  "service_name": "local-helper"
+  "serial_port": "/dev/serial/by-id/usb-example",
+  "baud_rate": 9600,
+  "parity": "N",
+  "stop_bits": 1,
+  "registers": [
+    {
+      "id": "temperature",
+      "name": "Temperature",
+      "unit_id": 1,
+      "address": 10,
+      "data_type": "int16",
+      "unit": "°C",
+      "scale": 0.1,
+      "writable": false
+    }
+  ]
 }

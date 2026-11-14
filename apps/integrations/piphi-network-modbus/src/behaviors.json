@@ -126,6 +126,8 @@
       "capabilities": [
         "connected",
         "holding_register_value",
+        "point_value",
+        "set_value",
         "refresh"
       ],
       "targeting": {
@@ -285,6 +287,19 @@
           "ui": {
             "group": "do_this"
           }
+        },
+        {
+          "id": "set_value",
+          "label": "Set value",
+          "description": "Set a profile-declared writable Modbus point.",
+          "capability": "action.set_value",
+          "capabilityRequirements": ["action.set_value"],
+          "runtime": {"command": "set_value", "endpoint": "/command", "method": "POST", "timeoutSeconds": 30},
+          "safety": {"riskLevel": "medium", "requiresConfirmation": true, "liveRunAllowed": true},
+          "targeting": {"fanoutSafe": false, "supportsMultiTarget": false, "scopes": ["selection"]},
+          "failure": {"strategy": "stop", "timeoutSeconds": 30, "continueOnPartialFailure": false, "idempotent": true},
+          "params": [{"name": "value", "label": "Value", "type": "number", "required": true}],
+          "ui": {"group": "do_this"}
         }
       ],
       "stop": [
