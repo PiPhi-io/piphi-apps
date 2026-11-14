@@ -4,7 +4,7 @@ import os
 
 INTEGRATION_ID = "piphi-network-modbus"
 INTEGRATION_NAME = "Piphi Network Modbus"
-INTEGRATION_VERSION = "0.2.0"
+INTEGRATION_VERSION = "0.3.0"
 PROJECT_KIND = "integration"
 PROJECT_PRESET = "protocol-bridge"
 PROJECT_DOMAIN = "bridge"

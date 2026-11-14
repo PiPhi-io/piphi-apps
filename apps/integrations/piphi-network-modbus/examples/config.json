@@ -1,7 +1,31 @@
 {
-  "id": "demo-device",
-  "host": "127.0.0.1",
-  "alias": "Demo Device",
-  "bridge_address": "tcp://127.0.0.1:9000",
-  "protocol": "mqtt"
+  "id": "meter-main",
+  "host": "192.168.1.40:502",
+  "alias": "Main meter",
+  "transport": "tcp",
+  "profile_id": "example.energy-meter",
+  "profile_version": "1.0.0",
+  "profile_provenance": "Reviewed manufacturer register table",
+  "poll_interval_seconds": 15,
+  "points": [
+    {
+      "id": "voltage",
+      "name": "Voltage",
+      "unit_id": 1,
+      "area": "input_register",
+      "address": 0,
+      "data_type": "float32",
+      "byte_order": "ABCD",
+      "unit": "V"
+    },
+    {
+      "id": "relay",
+      "name": "Relay",
+      "unit_id": 1,
+      "area": "coil",
+      "address": 0,
+      "data_type": "bool",
+      "writable": true
+    }
+  ]
 }

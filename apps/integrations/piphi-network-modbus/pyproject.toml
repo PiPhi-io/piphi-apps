@@ -1,6 +1,6 @@
 [project]
 name = "piphi-network-modbus"
-version = "0.2.0"
+version = "0.3.0"
 description = "Piphi Network Modbus PiPhi integration runtime."
 requires-python = ">=3.11"
 dependencies = [

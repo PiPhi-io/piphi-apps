@@ -3,7 +3,7 @@
   "manifest_version": "1.0",
   "id": "piphi-network-modbus",
   "name": "Modbus",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Monitor and safely control profile-declared Modbus TCP and RTU points.",
   "metadata": {
     "generator": "piphi-network-create",
@@ -17,7 +17,7 @@
     "website": "https://piphi.io"
   },
   "license": "Apache-2.0",
-  "image": "ghcr.io/piphi-io/piphi-network-modbus:0.2.0",
+  "image": "ghcr.io/piphi-io/piphi-network-modbus:0.3.0",
   "platforms": [
     "linux"
   ],
@@ -25,7 +25,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "ghcr.io/piphi-io/piphi-network-modbus:0.2.0",
+        "image": "ghcr.io/piphi-io/piphi-network-modbus:0.3.0",
         "ports": [
           {
             "container": 4222,
@@ -74,9 +74,15 @@
     "editable_fields": [
       "host",
       "alias",
+      "transport",
       "register_address",
       "unit_id",
-      "poll_interval_seconds"
+      "poll_interval_seconds",
+      "response_timeout_seconds",
+      "profile_id",
+      "profile_version",
+      "profile_provenance",
+      "points"
     ],
     "runtime_fields": [
       "id",
@@ -180,7 +186,7 @@
     "compatibility": [
       {
         "brand": "Multi-vendor",
-        "model": "Local Modbus TCP server with a configured holding register"
+        "model": "Local Modbus TCP or RTU device with reviewed point profiles"
       }
     ],
     "documentation_url": "https://github.com/PiPhi-io/piphi-network-modbus",
@@ -197,10 +203,12 @@
       }
     },
     "device_types": [
-      "Modbus TCP server"
+      "Modbus TCP server",
+      "Modbus RTU device"
     ],
     "protocols": [
-      "Modbus TCP"
+      "Modbus TCP",
+      "Modbus RTU"
     ],
     "discovery_methods": [
       "manual"
