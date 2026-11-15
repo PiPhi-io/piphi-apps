@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import os
 import pty
+import random
 import struct
 import tty
 
@@ -10,7 +11,13 @@ import pytest
 
 from piphi_modbus_rtu_sidecar.profile import decode_point, encode_point, profile_hash
 from piphi_modbus_rtu_sidecar.schemas import DeviceConfig, RegisterProfile
-from piphi_modbus_rtu_sidecar.transport import SerialRTUSession, frame_with_crc, validate_rtu_response
+from piphi_modbus_rtu_sidecar.transport import (
+    SerialRTUSession,
+    frame_ascii,
+    frame_with_crc,
+    validate_ascii_response,
+    validate_rtu_response,
+)
 
 
 def point(**updates) -> RegisterProfile:
@@ -116,6 +123,7 @@ def test_profile_hash_is_stable_and_semantic() -> None:
         deep=True,
     )
     assert profile_hash(changed) != first
+    assert profile_hash(config.model_copy(update={"serial_mode": "ascii"})) != first
 
 
 @pytest.mark.anyio
@@ -190,3 +198,67 @@ async def test_real_pty_fc15_multiple_coil_write() -> None:
         await session.close()
         os.close(master_fd)
         os.close(slave_fd)
+
+
+@pytest.mark.anyio
+async def test_real_pty_serial_ascii_read() -> None:
+    master_fd, slave_fd = pty.openpty()
+    tty.setraw(master_fd)
+    slave_name = os.ttyname(slave_fd)
+    profile = point(writable=True)
+    session = SerialRTUSession(
+        DeviceConfig(
+            id="ascii-bus",
+            serial_port=slave_name,
+            serial_mode="ascii",
+            data_bits=7,
+            parity="E",
+            registers=[profile],
+        )
+    )
+    await session.open()
+
+    async def simulator() -> None:
+        request = await asyncio.to_thread(os.read, master_fd, 256)
+        assert validate_ascii_response(
+            request, unit_id=7, function=3
+        ) == struct.pack(">HH", 42, 1)
+        os.write(master_fd, frame_ascii(bytes.fromhex("0703021234")))
+        write_request = await asyncio.to_thread(os.read, master_fd, 256)
+        assert validate_ascii_response(
+            write_request, unit_id=7, function=6
+        ) == struct.pack(">HH", 42, 99)
+        os.write(master_fd, write_request)
+
+    task = asyncio.create_task(simulator())
+    try:
+        assert await session.read(profile) == [0x1234]
+        await session.write(profile, [99])
+        await task
+    finally:
+        await session.close()
+        os.close(master_fd)
+        os.close(slave_fd)
+
+
+def test_ascii_lrc_validation_fails_closed() -> None:
+    valid = frame_ascii(bytes.fromhex("0703021234"))
+    assert validate_ascii_response(valid, unit_id=7, function=3) == bytes.fromhex(
+        "021234"
+    )
+    corrupted = valid[:-4] + b"00\r\n"
+    with pytest.raises(ValueError, match="invalid_modbus_lrc"):
+        validate_ascii_response(corrupted, unit_id=7, function=3)
+
+
+def test_serial_frame_parsers_reject_random_input_without_crashing() -> None:
+    generator = random.Random(20261115)
+    for _ in range(500):
+        candidate = bytes(
+            generator.randrange(256) for _ in range(generator.randrange(0, 260))
+        )
+        for parser in (validate_rtu_response, validate_ascii_response):
+            try:
+                parser(candidate, unit_id=7, function=3)
+            except ValueError:
+                pass

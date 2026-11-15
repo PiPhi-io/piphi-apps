@@ -151,7 +151,7 @@ async def apply_config(config: DeviceConfig) -> None:
     sidecar_clients.pop(config_id, None)
     sidecar_replay.pop(config_id, None)
     registry.set(config_id, entry)
-    if config.transport == "rtu_sidecar":
+    if config.transport in {"rtu_sidecar", "ascii_sidecar"}:
         client = sidecar_client_factory()
         sidecar_payload = sidecar_config_payload(config)
         sidecar_clients[config_id] = client
@@ -169,7 +169,7 @@ async def apply_config(config: DeviceConfig) -> None:
                 config_id,
                 {
                     "connected": False,
-                    "transport": "rtu_sidecar",
+                    "transport": config.transport,
                     "quality": "unavailable",
                     "last_error_code": type(exc).__name__,
                     "config_id": config_id,
@@ -179,7 +179,7 @@ async def apply_config(config: DeviceConfig) -> None:
         append_runtime_event(
             "runtime.config.applied",
             entry,
-            {"transport": "rtu_sidecar", "alias": config.alias},
+            {"transport": config.transport, "alias": config.alias},
         )
         initialize_poll_schedule(entry, config)
         return
@@ -188,13 +188,20 @@ async def apply_config(config: DeviceConfig) -> None:
             config.host,
             timeout=config.response_timeout_seconds,
             inter_message_delay_ms=config.inter_message_delay_ms,
+            transport=config.transport,
+            tls_ca_certificate=config.tls_ca_certificate,
+            tls_server_name=config.tls_server_name,
         )
         tcp_clients[config_id] = client
         await sync_tcp_entry(entry, client)
         append_runtime_event(
             "runtime.config.applied",
             entry,
-            {"transport": "tcp", "profile_id": config.profile_id, "alias": config.alias},
+            {
+                "transport": config.transport,
+                "profile_id": config.profile_id,
+                "alias": config.alias,
+            },
         )
         initialize_poll_schedule(entry, config)
         return
@@ -220,7 +227,7 @@ async def apply_config(config: DeviceConfig) -> None:
 
 async def refresh_entry(entry: dict[str, Any]) -> dict[str, Any]:
     config = DeviceConfig.model_validate(entry["config"])
-    if config.transport == "rtu_sidecar":
+    if config.transport in {"rtu_sidecar", "ascii_sidecar"}:
         client = sidecar_clients.get(str(entry["config_id"]))
         if client is None:
             client = sidecar_client_factory()
@@ -249,7 +256,7 @@ async def refresh_entry(entry: dict[str, Any]) -> dict[str, Any]:
                 pass
             state = {
                 "connected": False,
-                "transport": "rtu_sidecar",
+                "transport": config.transport,
                 "quality": "unavailable",
                 "last_error_code": type(exc).__name__,
             }
@@ -263,6 +270,9 @@ async def refresh_entry(entry: dict[str, Any]) -> dict[str, Any]:
                 config.host,
                 timeout=config.response_timeout_seconds,
                 inter_message_delay_ms=config.inter_message_delay_ms,
+                transport=config.transport,
+                tls_ca_certificate=config.tls_ca_certificate,
+                tls_server_name=config.tls_server_name,
             )
             tcp_clients[config_id] = client
         return await sync_tcp_entry(entry, client)
@@ -336,7 +346,7 @@ async def poll_group(
     config_id = str(entry["config_id"])
     current = time.monotonic() if now is None else now
     try:
-        if config.transport == "rtu_sidecar":
+        if config.transport in {"rtu_sidecar", "ascii_sidecar"}:
             client = sidecar_clients.get(config_id)
             if client is None:
                 raise ValueError("sidecar_not_configured")
@@ -577,7 +587,7 @@ async def sync_tcp_entry(
     unit_health = snapshot.get("unit_health", [])
     state = {
         "connected": quality_counts["good"] > 0,
-        "transport": "tcp",
+        "transport": config.transport,
         "quality": "good" if snapshot.get("connected") else "unavailable",
         "profile_id": snapshot["profile_id"],
         "profile_version": snapshot["profile_version"],
@@ -642,7 +652,7 @@ async def sync_sidecar_entry(
     polled_quality_counts = _quality_counts(polled_models)
     state = {
         "connected": bool(snapshot.get("connected")),
-        "transport": "rtu_sidecar",
+        "transport": config.transport,
         "quality": "good" if snapshot.get("connected") else "unavailable",
         "profile_id": snapshot.get("profile_id"),
         "profile_version": snapshot.get("profile_version"),
@@ -670,6 +680,7 @@ async def sync_sidecar_entry(
         "reconnect_count": snapshot.get("reconnect_count", 0),
         "timeout_count": snapshot.get("timeout_count", 0),
         "crc_error_count": snapshot.get("crc_error_count", 0),
+        "lrc_error_count": snapshot.get("lrc_error_count", 0),
         "transport_error_count": snapshot.get("transport_error_count", 0),
         "poll_group_count": len(configured_poll_groups(config)),
         "polling_enabled": any(
@@ -713,6 +724,10 @@ def sidecar_config_payload(config: DeviceConfig) -> dict[str, Any]:
     )
     payload["registers"] = payload.pop("points")
     payload["host"] = "modbus-rtu-sidecar"
+    payload["serial_mode"] = "ascii" if config.transport == "ascii_sidecar" else "rtu"
+    payload.pop("transport", None)
+    payload.pop("tls_ca_certificate", None)
+    payload.pop("tls_server_name", None)
     return payload
 
 
@@ -992,7 +1007,7 @@ def _register_automation_actions() -> None:
             if config.points:
                 executor = (
                     execute_sidecar_command
-                    if config.transport == "rtu_sidecar"
+                    if config.transport in {"rtu_sidecar", "ascii_sidecar"}
                     else execute_tcp_command
                 )
                 result = await executor(

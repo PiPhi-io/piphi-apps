@@ -144,6 +144,7 @@ class BusController:
         self.request_failure_count = 0
         self.timeout_count = 0
         self.crc_error_count = 0
+        self.lrc_error_count = 0
         self.transport_error_count = 0
         self.last_poll_duration_ms = 0.0
         self.unit_health: dict[int, dict[str, Any]] = {}
@@ -223,6 +224,8 @@ class BusController:
                 self.timeout_count += 1
             elif self.last_error_code == "invalid_modbus_crc":
                 self.crc_error_count += 1
+            elif self.last_error_code == "invalid_modbus_lrc":
+                self.lrc_error_count += 1
             else:
                 self.transport_error_count += 1
             health.update(
@@ -299,6 +302,7 @@ class BusController:
             "request_failure_count": self.request_failure_count,
             "timeout_count": self.timeout_count,
             "crc_error_count": self.crc_error_count,
+            "lrc_error_count": self.lrc_error_count,
             "transport_error_count": self.transport_error_count,
             "poll_duration_ms": self.last_poll_duration_ms,
             "unit_health": [

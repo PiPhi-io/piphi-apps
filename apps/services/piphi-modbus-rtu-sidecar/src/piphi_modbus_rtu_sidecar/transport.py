@@ -39,6 +39,36 @@ def validate_rtu_response(frame: bytes, *, unit_id: int, function: int) -> bytes
     return frame[2:-2]
 
 
+def lrc(data: bytes) -> int:
+    return (-sum(data)) & 0xFF
+
+
+def frame_ascii(payload: bytes) -> bytes:
+    encoded = payload + bytes([lrc(payload)])
+    return b":" + encoded.hex().upper().encode("ascii") + b"\r\n"
+
+
+def validate_ascii_response(frame: bytes, *, unit_id: int, function: int) -> bytes:
+    if not frame.startswith(b":") or not frame.endswith(b"\r\n"):
+        raise ValueError("invalid_modbus_ascii_frame")
+    encoded = frame[1:-2]
+    if not 6 <= len(encoded) <= 510 or len(encoded) % 2:
+        raise ValueError("invalid_modbus_ascii_length")
+    try:
+        decoded = bytes.fromhex(encoded.decode("ascii"))
+    except (UnicodeDecodeError, ValueError) as exc:
+        raise ValueError("invalid_modbus_ascii_hex") from exc
+    if lrc(decoded[:-1]) != decoded[-1]:
+        raise ValueError("invalid_modbus_lrc")
+    if decoded[0] != unit_id:
+        raise ValueError("unexpected_modbus_unit")
+    if decoded[1] == function | 0x80:
+        raise ValueError(f"modbus_exception_{decoded[2]}")
+    if decoded[1] != function:
+        raise ValueError("unexpected_modbus_function")
+    return decoded[2:-1]
+
+
 class BoundedQueue:
     def __init__(self, capacity: int = 100) -> None:
         if not 1 <= capacity <= 1000:
@@ -261,8 +291,17 @@ class SerialRTUSession:
         if serial_port is None or not serial_port.is_open:
             raise ConnectionError("serial_port_not_open")
         serial_port.reset_input_buffer()
-        serial_port.write(request)
+        serial_port.write(
+            frame_ascii(request[:-2]) if self.config.serial_mode == "ascii" else request
+        )
         serial_port.flush()
+        if self.config.serial_mode == "ascii":
+            frame = serial_port.read_until(b"\r\n", 513)
+            if not frame:
+                raise TimeoutError("modbus_response_timeout")
+            return validate_ascii_response(
+                frame, unit_id=unit_id, function=function
+            )
         header = serial_port.read(3)
         if len(header) != 3:
             raise TimeoutError("modbus_response_timeout")

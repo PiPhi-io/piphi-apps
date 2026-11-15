@@ -293,7 +293,9 @@ class CoilCommandProfile(BaseModel):
 
 class DeviceConfig(RuntimeConfig):
     host: str
-    transport: Literal["tcp", "rtu_sidecar"] = "tcp"
+    transport: Literal[
+        "tcp", "tls", "udp", "rtu_over_tcp", "rtu_sidecar", "ascii_sidecar"
+    ] = "tcp"
     alias: str | None = None
     api_key: str | None = None
     base_url: str | None = None
@@ -311,6 +313,10 @@ class DeviceConfig(RuntimeConfig):
     stop_bits: Literal[1, 2] = 1
     data_bits: Literal[7, 8] = 8
     response_timeout_seconds: float = Field(default=1.0, ge=0.1, le=10.0)
+    tls_ca_certificate: str | None = Field(default=None, min_length=1, max_length=4096)
+    tls_server_name: str | None = Field(
+        default=None, pattern=r"^[A-Za-z0-9][A-Za-z0-9.-]{0,251}$"
+    )
     profile_id: str = Field(default="inline-profile", pattern=r"^[a-z][a-z0-9_.-]{0,127}$")
     profile_version: str = Field(default="1.0.0", min_length=1, max_length=64)
     profile_provenance: str = Field(default="user-reviewed", min_length=1, max_length=200)
@@ -341,9 +347,17 @@ class DeviceConfig(RuntimeConfig):
 
     @model_validator(mode="after")
     def validate_transport(self):
-        if self.transport == "rtu_sidecar":
+        if self.transport in {"rtu_sidecar", "ascii_sidecar"}:
             if not self.serial_port or not self.points:
-                raise ValueError("rtu_sidecar requires serial_port and points")
+                raise ValueError("serial sidecar transport requires serial_port and points")
+        if self.transport == "tls" and not self.tls_ca_certificate:
+            raise ValueError("tls transport requires tls_ca_certificate")
+        if self.transport != "tls" and (
+            self.tls_ca_certificate is not None or self.tls_server_name is not None
+        ):
+            raise ValueError("TLS settings require tls transport")
+        if self.transport != "tcp" and not self.points:
+            raise ValueError("non-TCP transports require profile points")
         point_by_id = {point.id: point for point in self.points}
         coil_command_ids = [command.id for command in self.coil_commands]
         if len(coil_command_ids) != len(set(coil_command_ids)):

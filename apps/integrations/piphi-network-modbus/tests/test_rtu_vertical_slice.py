@@ -259,6 +259,19 @@ async def test_parent_routes_profile_coil_command_without_transport_overrides(
         await state.remove_config("rtu-coils")
 
 
+def test_ascii_sidecar_payload_compiles_serial_mode() -> None:
+    payload = rtu_config("ascii-profile").model_dump()
+    payload["transport"] = "ascii_sidecar"
+    payload["data_bits"] = 7
+    payload["parity"] = "E"
+    config = DeviceConfig.model_validate(payload)
+    compiled = state.sidecar_config_payload(config)
+    assert compiled["serial_mode"] == "ascii"
+    assert compiled["data_bits"] == 7
+    assert compiled["parity"] == "E"
+    assert "transport" not in compiled
+
+
 @pytest.mark.anyio
 async def test_parent_replays_events_and_resynchronizes_after_restart(
     monkeypatch: pytest.MonkeyPatch,

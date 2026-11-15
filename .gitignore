@@ -5,6 +5,7 @@
 __pycache__/
 .pytest_cache/
 .ruff_cache/
+.pdm-python
 node_modules/
 dist/
 build/
