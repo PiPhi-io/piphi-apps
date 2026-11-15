@@ -11,6 +11,7 @@ class DeviceConfig(RuntimeConfig):
     poll_interval_seconds: int | None = None
     service_name: str | None = None
     serial_port: str | None = None
+    coordinator_identity: str | None = None
     adapter: str | None = None
     mqtt_server: str = "mqtt://127.0.0.1:1883"
     mqtt_base_topic: str = "zigbee2mqtt"

@@ -3,7 +3,9 @@ from __future__ import annotations
 import httpx
 import pytest
 
+from piphi_network_zigbee2mqtt.coordinator_claims import CoordinatorClaimStore
 from piphi_network_zigbee2mqtt.main import app
+from piphi_network_zigbee2mqtt.routes import bridge
 
 
 @pytest.mark.anyio
@@ -37,7 +39,9 @@ async def test_v1_routes_fail_closed_without_production_token(
 
 
 @pytest.mark.anyio
-async def test_bridge_routes_render_and_snapshot() -> None:
+async def test_bridge_routes_render_and_snapshot(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("PIPHI_ZIGBEE2MQTT_ALLOWED_DATA_ROOTS", str(tmp_path))
+    monkeypatch.setattr(bridge, "claim_store", CoordinatorClaimStore(tmp_path / "claims.json"))
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
         render_response = await client.post(
@@ -86,29 +90,90 @@ async def test_bridge_routes_render_and_snapshot() -> None:
         )
         devices_response = await client.post(
             "/v1/devices",
-            json={"dry_run": True},
+            json={
+                "dry_run": True,
+                "server": "mqtt://127.0.0.1:1883",
+                "base_topic": "zigbee2mqtt",
+            },
         )
         network_map_response = await client.post(
             "/v1/network-map",
-            json={"dry_run": True, "routes": False},
+            json={
+                "dry_run": True,
+                "routes": False,
+                "server": "mqtt://127.0.0.1:1883",
+                "base_topic": "zigbee2mqtt",
+            },
         )
         permit_join_response = await client.post(
             "/v1/permit-join",
-            json={"dry_run": True, "time": 30, "device": "coordinator"},
+            json={
+                "dry_run": True,
+                "time": 30,
+                "device": "coordinator",
+                "server": "mqtt://127.0.0.1:1883",
+                "base_topic": "zigbee2mqtt",
+            },
         )
         apply_response = await client.post(
             "/v1/apply",
             json={
-                "config_path": "/tmp/piphi-zigbee2mqtt-test-configuration.yaml",
+                "config_path": str(tmp_path / "configuration.yaml"),
                 "restart_policy": "never",
+                "coordinator_identity": "usb:sonoff-zbdongle-e:1234",
                 "config": {
                     "mqtt": {"server": "mqtt://127.0.0.1:1883", "base_topic": "zigbee2mqtt"},
                     "serial": {"port": "/dev/ttyUSB0", "adapter": "ember"},
                     "runtime": "docker",
-                    "data_path": "/tmp",
+                    "data_path": str(tmp_path),
                 },
                 "mqtt_check": {"server": "mqtt://127.0.0.1:1883", "dry_run": True},
             },
+        )
+        network_change = {
+            "config_path": str(tmp_path / "configuration.yaml"),
+            "restart_policy": "never",
+            "coordinator_identity": "usb:sonoff-zbdongle-e:1234",
+            "config": {
+                "mqtt": {"server": "mqtt://127.0.0.1:1883", "base_topic": "zigbee2mqtt"},
+                "serial": {"port": "/dev/ttyUSB0", "adapter": "ember"},
+                "runtime": "docker",
+                "data_path": str(tmp_path),
+                "advanced": {"network_key": list(range(16))},
+            },
+            "mqtt_check": None,
+        }
+        rejected_change_response = await client.post("/v1/apply", json=network_change)
+        backup_response = await client.post("/v1/network-backup", json={"data_path": str(tmp_path)})
+        backup = backup_response.json()
+        accepted_change_response = await client.post(
+            "/v1/apply",
+            json=network_change
+            | {
+                "backup_path": backup["backup_path"],
+                "backup_sha256": backup["backup_sha256"],
+            },
+        )
+        monkeypatch.setattr(bridge, "claim_owner_id", lambda: "another-runtime")
+        conflicting_owner_response = await client.post(
+            "/v1/apply",
+            json=network_change
+            | {
+                "backup_path": backup["backup_path"],
+                "backup_sha256": backup["backup_sha256"],
+            },
+        )
+        stop_response = await client.post(
+            "/v1/supervisor/stop",
+            json={
+                "mode": "docker",
+                "dry_run": True,
+                "docker": {"host_data_path": "/var/lib/piphi/zigbee2mqtt"},
+            },
+        )
+        new_owner_response = await client.post(
+            "/v1/apply",
+            json=network_change,
         )
         final_snapshot_response = await client.get("/v1/snapshot")
 
@@ -119,9 +184,8 @@ async def test_bridge_routes_render_and_snapshot() -> None:
 
     assert snapshot_response.status_code == 200
     snapshot = snapshot_response.json()
-    assert snapshot["configured"] is True
-    assert snapshot["adapter_path"] == "COM4"
-    assert snapshot["adapter_hint"] == "zstack"
+    assert snapshot["configured"] is False
+    assert snapshot["adapter_path"] is None
 
     assert supervisor_response.status_code == 200
     supervisor = supervisor_response.json()
@@ -170,9 +234,18 @@ async def test_bridge_routes_render_and_snapshot() -> None:
     assert applied["ok"] is True
     assert applied["restart_required"] is False
     assert applied["write"]["config_hash"].startswith("sha256:")
+    assert rejected_change_response.status_code == 409
+    assert backup_response.status_code == 200
+    assert accepted_change_response.status_code == 200
+    assert 'network_key: "[redacted]"' in accepted_change_response.json()["rendered"]["yaml"]
+    assert "- 15" not in accepted_change_response.json()["rendered"]["yaml"]
+    assert conflicting_owner_response.status_code == 409
+    assert stop_response.status_code == 200
+    assert new_owner_response.status_code == 200
 
     assert final_snapshot_response.status_code == 200
     final_snapshot = final_snapshot_response.json()
+    assert final_snapshot["coordinator_claimed"] is True
     assert final_snapshot["devices"]["status"] == "planned"
     assert final_snapshot["network_map"]["status"] == "planned"
     assert final_snapshot["permit_join"]["status"] == "planned"

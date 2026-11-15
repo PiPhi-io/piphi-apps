@@ -6,7 +6,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from piphi_runtime_kit_python import runtime_lifespan
 
-from .state import runtime
+from .coordinator_claims import claim_store
+from .state import runtime, sidecar_store
 
 
 async def startup_sync(_runtime, _client) -> None:
@@ -17,4 +18,13 @@ async def startup_sync(_runtime, _client) -> None:
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     async with runtime_lifespan(runtime, on_startup=startup_sync):
-        yield
+        try:
+            yield
+        finally:
+            if sidecar_store.coordinator_identity and sidecar_store.coordinator_owner_id:
+                claim_store.release(
+                    sidecar_store.coordinator_identity,
+                    sidecar_store.coordinator_owner_id,
+                )
+                sidecar_store.coordinator_identity = None
+                sidecar_store.coordinator_owner_id = None

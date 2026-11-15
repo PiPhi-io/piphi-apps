@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import pytest
 
+from piphi_network_zigbee2mqtt import state
+from piphi_network_zigbee2mqtt.coordinator_claims import CoordinatorClaimStore
 from piphi_network_zigbee2mqtt.routes.config import _runtime_config_payloads
 from piphi_network_zigbee2mqtt.schemas import DeviceConfig
 from piphi_network_zigbee2mqtt.state import apply_config, sidecar_store
@@ -32,12 +34,15 @@ def test_runtime_config_payloads_normalizes_runtime_config_models() -> None:
 
 
 @pytest.mark.anyio
-async def test_apply_config_writes_zigbee2mqtt_configuration(tmp_path) -> None:
+async def test_apply_config_writes_zigbee2mqtt_configuration(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("PIPHI_ZIGBEE2MQTT_ALLOWED_DATA_ROOTS", str(tmp_path))
+    monkeypatch.setattr(state, "claim_store", CoordinatorClaimStore(tmp_path / "claims.json"))
     config = DeviceConfig(
         id="bridge-config",
         config_id="bridge-config",
         container_id="runtime-container",
         serial_port="/dev/ttyUSB0",
+        coordinator_identity="usb:sonoff:serial-123",
         adapter="zstack",
         mqtt_server="mqtt://user:pass@127.0.0.1:1883",
         mqtt_base_topic="zigbee2mqtt",

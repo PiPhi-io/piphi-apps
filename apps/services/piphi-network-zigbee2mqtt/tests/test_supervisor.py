@@ -144,13 +144,29 @@ async def test_supervisor_response_redacts_secret_values() -> None:
             mode="docker",
             docker=DockerSupervisorSettings(
                 host_data_path="/var/lib/piphi/zigbee2mqtt",
-                environment={"MQTT_PASSWORD": "super-secret"},
+                environment={"TZ": "UTC"},
             ),
         ),
         runner=runner,
     )
 
     assert result.ok is True
-    assert "MQTT_PASSWORD=[redacted]" in result.commands[1]
+    assert "TZ=UTC" in result.commands[1]
     assert "super-secret" not in result.results[1].stdout
     assert "mqtt://user:[redacted]@broker.local" in result.results[1].stdout
+
+
+@pytest.mark.parametrize(
+    "settings",
+    [
+        {"host_data_path": "/var/lib/piphi/zigbee2mqtt", "image": "attacker/image:latest"},
+        {"host_data_path": "/var/lib/piphi/zigbee2mqtt", "network_mode": "host"},
+        {"host_data_path": "/var/lib/piphi/zigbee2mqtt", "environment": {"LD_PRELOAD": "/tmp/x"}},
+        {"host_data_path": "/var/lib/piphi/zigbee2mqtt", "device_path": "/dev/tty/../../etc/passwd"},
+    ],
+)
+def test_docker_supervisor_rejects_caller_controlled_runtime_options(settings) -> None:
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        DockerSupervisorSettings(**settings)

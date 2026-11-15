@@ -25,6 +25,7 @@ def test_runtime_implements_contract_routes() -> None:
         "/command",
         "/v1/snapshot",
         "/v1/adapters",
+        "/v1/network-backup",
         "/v1/config/render",
         "/v1/config/write",
         "/v1/apply",
