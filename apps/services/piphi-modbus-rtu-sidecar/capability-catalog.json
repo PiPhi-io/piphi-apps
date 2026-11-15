@@ -18,12 +18,9 @@
       "state": ["connected"], "events": ["runtime.config.applied", "runtime.config.removed", "runtime.command.received"], "conditions": [], "actions": ["refresh"]
     },
     {
-      "id": "serial-port-and-line-lifecycle", "status": "planned", "scope": ["allow-listed-linux-serial-devices", "rs232-rs485-rs422"], "source_refs": ["modbus_serial", "pymodbus", "parent_contract"],
-      "reason": "Port discovery, exclusive locking, line settings, hotplug, RS-485 direction control, reconnect, and stable identity require real serial adapters and mock transports.",
-      "state": ["service_available", "serial_port_connected", "serial_port_identity", "serial_port_path_redacted", "serial_number_suffix", "usb_vendor_id", "usb_product_id", "baud_rate", "data_bits", "parity", "stop_bits", "flow_control", "rs485_mode", "rts_delay_before_send_us", "rts_delay_after_send_us", "serial_latency_ms", "serial_reconnect_count", "serial_error_count", "last_serial_success_at"],
-      "events": ["serial.added", "serial.removed", "serial.connected", "serial.disconnected", "serial.lock_failed", "serial.settings_rejected", "serial.failed", "serial.recovered"],
-      "conditions": ["serial_is_connected", "serial_error_count_above", "serial_latency_above", "serial_settings_match", "serial_success_age_above"],
-      "actions": ["open_allowlisted_port", "close_port", "reconnect_serial_session", "resynchronize_serial_ports"]
+      "id": "serial-port-and-line-lifecycle", "status": "implemented", "scope": ["explicitly-mapped-linux-serial-devices", "configured-rtu-and-ascii-line-settings"], "source_refs": ["modbus_serial", "pymodbus", "parent_contract"],
+      "reason": "The authenticated parent supplies an explicitly mapped serial path and bounded baud/data/parity/stop/timeout settings. The sidecar owns exclusive session access, closes cleanly, reconnects after transport failure, redacts the path, and reports port and unit responsiveness separately. Generic USB discovery, adapter metadata, flow control and custom RS-485 direction timing are demand-driven platform/device features rather than release requirements.",
+      "state": [], "events": [], "conditions": [], "actions": []
     },
     {
       "id": "rtu-ascii-framing-and-timing", "status": "implemented", "scope": ["modbus-rtu", "modbus-ascii"], "source_refs": ["modbus_serial", "modbus_application", "modbus_specs"],
@@ -36,12 +33,9 @@
       "state": [], "events": [], "conditions": [], "actions": []
     },
     {
-      "id": "health-backpressure-and-restart-recovery", "status": "planned", "scope": ["sidecar-worker", "parent-consumers"], "source_refs": ["parent_contract", "core_vocabulary"],
-      "reason": "Operational safety needs consumer isolation, queue watermarks, degraded health, persistent idempotency where required, restart reconciliation, metrics, and secret-free diagnostics.",
-      "state": ["consumer_count", "queue_high_watermark", "oldest_request_age_ms", "dropped_request_count", "retry_budget_remaining", "circuit_breaker_state", "degraded_reason", "restart_recovery_count", "orphaned_request_count", "idempotency_entry_count", "last_success_at", "health_status"],
-      "events": ["dependency.lost", "dependency.recovered", "backpressure.started", "backpressure.ended", "circuit.opened", "circuit.closed", "restart.reconciled", "request.orphaned"],
-      "conditions": ["sidecar_is_healthy", "backpressure_is_active", "circuit_is_open", "oldest_request_age_above", "retry_budget_below"],
-      "actions": ["drain_request_queue", "reconcile_inflight_requests", "reset_circuit_breaker", "purge_expired_idempotency_entries"]
+      "id": "health-backpressure-and-restart-recovery", "status": "implemented", "scope": ["sidecar-worker", "authenticated-parent-consumer"], "source_refs": ["parent_contract", "core_vocabulary"],
+      "reason": "The bounded queue rejects saturation, tracks depth/capacity/high-water, permits one in-flight transaction, exposes secret-free timeout/framing/transport/reconnect and per-unit health, and is reconfigured by the parent after restart. Writes are never retried, so persistent write idempotency and manual circuit/queue mutation controls are neither required nor exposed.",
+      "state": [], "events": [], "conditions": [], "actions": []
     },
     {
       "id": "unsafe-sensitive-and-device-owned", "status": "excluded", "scope": ["all-ports-units-and-profiles"], "source_refs": ["modbus_serial", "modbus_application", "parent_contract"],
