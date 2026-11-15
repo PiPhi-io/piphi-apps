@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import ssl
 from urllib.parse import urlparse
 
 from .bridge_models import MqttCheckResponse
@@ -13,8 +14,16 @@ async def check_mqtt_tcp(
     if dry_run:
         return MqttCheckResponse(ok=True, server=server, host=host, port=port, status="planned")
     try:
+        parsed = urlparse(server if "://" in server else f"mqtt://{server}")
+        tls_context = ssl.create_default_context() if parsed.scheme == "mqtts" else None
         _reader, writer = await asyncio.wait_for(
-            asyncio.open_connection(host, port), timeout=timeout_seconds
+            asyncio.open_connection(
+                host,
+                port,
+                ssl=tls_context,
+                server_hostname=host if tls_context else None,
+            ),
+            timeout=timeout_seconds,
         )
         writer.close()
         await writer.wait_closed()

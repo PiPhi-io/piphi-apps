@@ -5,7 +5,7 @@ from urllib.parse import urlparse
 
 INTEGRATION_ID = "piphi-network-zigbee"
 INTEGRATION_NAME = "PiPhi Network Zigbee"
-INTEGRATION_VERSION = "0.1.10"
+INTEGRATION_VERSION = "0.1.11"
 PROJECT_KIND = "integration"
 PROJECT_PRESET = "protocol-bridge"
 PROJECT_DOMAIN = "bridge"

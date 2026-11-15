@@ -3,7 +3,7 @@
   "manifest_version": "1.0",
   "id": "piphi-network-zigbee",
   "name": "PiPhi Network Zigbee",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "description": "Generic Zigbee integration runtime backed by the shared Zigbee2MQTT sidecar.",
   "metadata": {
     "generator": "piphi-network-create",
