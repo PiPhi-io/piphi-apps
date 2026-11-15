@@ -1,8 +1,10 @@
 # Home Assistant quality comparison: PiPhi Android TV and ADB sidecar
 
-**Research cutoff:** 2026-11-15  
-**PiPhi revision audited:** [`e9c7fb5`](https://github.com/PiPhi-io/piphi-apps/tree/e9c7fb55230a5512735f333c7f802e580f81743a)  
-**Home Assistant Core revision audited:** [`fa833f6`](https://github.com/home-assistant/core/tree/fa833f65085ff72e8191620ae2fc2a378205b6f2)  
+**Research cutoff:** 2026-11-15
+
+**PiPhi revision audited:** [`e9c7fb5`](https://github.com/PiPhi-io/piphi-apps/tree/e9c7fb55230a5512735f333c7f802e580f81743a)
+
+**Home Assistant Core revision audited:** [`fa833f6`](https://github.com/home-assistant/core/tree/fa833f65085ff72e8191620ae2fc2a378205b6f2)
 **Home Assistant documentation revision audited:** [`8d777bf`](https://github.com/home-assistant/home-assistant.io/tree/8d777bfc7ab4b0bb6b16a4eb605f6dd5d4138a2f)
 
 ## Executive conclusion

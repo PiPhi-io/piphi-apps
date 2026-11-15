@@ -1,7 +1,8 @@
 # Home Assistant camera quality comparison
 
-**Research cutoff:** 2026-11-15  
-**PiPhi revision reviewed:** [`e9c7fb55230a5512735f333c7f802e580f81743a`](https://github.com/PiPhi-io/piphi-apps/tree/e9c7fb55230a5512735f333c7f802e580f81743a)  
+**Research cutoff:** 2026-11-15
+
+**PiPhi revision reviewed:** [`e9c7fb55230a5512735f333c7f802e580f81743a`](https://github.com/PiPhi-io/piphi-apps/tree/e9c7fb55230a5512735f333c7f802e580f81743a)
 **Scope:** `piphi-camera-stream` 0.1.5, `piphi-webrtc-sidecar` 0.3.5, and `piphi-wyze-camera-service` 0.1.3.
 
 ## Executive conclusion
