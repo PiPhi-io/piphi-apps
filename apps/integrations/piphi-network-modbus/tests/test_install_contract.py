@@ -17,8 +17,8 @@ def test_parent_auto_installs_compatible_rtu_sidecar() -> None:
         {
             "id": "piphi-modbus-rtu-sidecar",
             "kind": "platform_service",
-            "version_range": ">=0.2.1,<0.3.0",
-            "recommended_version": "0.2.1",
+            "version_range": ">=0.3.0,<0.4.0",
+            "recommended_version": "0.3.0",
             "required": True,
             "shared": True,
             "auto_install": True,
@@ -31,7 +31,7 @@ def test_parent_auto_installs_compatible_rtu_sidecar() -> None:
     package = SIDECAR_PACKAGE["packages"][0]
     assert package["id"] == "piphi-modbus-rtu-sidecar"
     assert package["type"] == "platform_service"
-    assert package["version"] == "0.2.1"
+    assert package["version"] == "0.3.0"
 
 
 def test_managed_rtu_sidecar_is_internal_authenticated_and_serial_only() -> None:
@@ -56,7 +56,7 @@ def test_managed_rtu_sidecar_is_internal_authenticated_and_serial_only() -> None
 
 
 def test_coordinated_patch_versions_and_images_are_consistent() -> None:
-    assert PARENT_MANIFEST["version"] == "0.3.1"
-    assert PARENT_MANIFEST["image"].endswith(":0.3.1")
-    assert SIDECAR_MANIFEST["version"] == "0.2.1"
-    assert SIDECAR_MANIFEST["image"].endswith(":0.2.1")
+    assert PARENT_MANIFEST["version"] == "0.4.0"
+    assert PARENT_MANIFEST["image"].endswith(":0.4.0")
+    assert SIDECAR_MANIFEST["version"] == "0.3.0"
+    assert SIDECAR_MANIFEST["image"].endswith(":0.3.0")

@@ -2,7 +2,7 @@
   "catalog_version": "1.0",
   "integration_id": "piphi-modbus-rtu-sidecar",
   "coverage_mode": "serial_rtu_ascii_bus_arbitration_frame_queue_and_parent_contract",
-  "reviewed_at": "2026-09-07",
+  "reviewed_at": "2026-11-15",
   "sources": {
     "modbus_serial": "https://www.modbus.org/file/secure/modbusoverserial.pdf",
     "modbus_application": "https://www.modbus.org/docs/Modbus_Application_Protocol_V1_1b3.pdf",

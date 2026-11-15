@@ -9,12 +9,18 @@ from typing import Any
 from .schemas import PointProfile
 
 
-BYTE_INDEXES = {
-    "ABCD": (0, 1, 2, 3),
-    "BADC": (1, 0, 3, 2),
-    "CDAB": (2, 3, 0, 1),
-    "DCBA": (3, 2, 1, 0),
-}
+INTEGER_TYPES = {"uint16", "int16", "uint32", "int32", "uint64", "int64"}
+SIGNED_TYPES = {"int16", "int32", "int64"}
+FLOAT_FORMATS = {"float32": ">f", "float64": ">d"}
+
+
+def _ordered_bytes(raw: bytes, byte_order: str) -> bytes:
+    words = [raw[index : index + 2] for index in range(0, len(raw), 2)]
+    if byte_order in {"BADC", "DCBA"}:
+        words = [word[::-1] for word in words]
+    if byte_order in {"CDAB", "DCBA"}:
+        words.reverse()
+    return b"".join(words)
 
 
 def profile_hash(
@@ -30,7 +36,7 @@ def profile_hash(
     return hashlib.sha256(encoded).hexdigest()
 
 
-def decode_point(point: PointProfile, values: list[int | bool]) -> bool | float:
+def decode_point(point: PointProfile, values: list[int | bool]) -> bool | int | float | str:
     if point.data_type == "bool":
         if len(values) != 1 or type(values[0]) is not bool:
             raise ValueError("invalid_point_width")
@@ -38,25 +44,41 @@ def decode_point(point: PointProfile, values: list[int | bool]) -> bool | float:
     if len(values) != point.width or any(type(value) is not int for value in values):
         raise ValueError("invalid_point_width")
     raw = b"".join(int(value).to_bytes(2, "big") for value in values)
-    if point.width == 2:
-        raw = bytes(raw[index] for index in BYTE_INDEXES[point.byte_order])
-    if point.data_type == "uint16":
-        decoded: int | float = int.from_bytes(raw, "big")
-    elif point.data_type == "int16":
-        decoded = int.from_bytes(raw, "big", signed=True)
-    elif point.data_type == "uint32":
-        decoded = int.from_bytes(raw, "big")
-    elif point.data_type == "int32":
-        decoded = int.from_bytes(raw, "big", signed=True)
+    raw = _ordered_bytes(raw, point.byte_order)
+    if point.data_type == "string":
+        encoded = raw[: point.string_length].split(b"\0", 1)[0]
+        try:
+            return encoded.decode(point.string_encoding)
+        except UnicodeDecodeError as exc:
+            raise ValueError("invalid_string_encoding") from exc
+    if point.data_type in INTEGER_TYPES:
+        decoded: int | float = int.from_bytes(
+            raw, "big", signed=point.data_type in SIGNED_TYPES
+        )
     else:
-        decoded = struct.unpack(">f", raw)[0]
+        decoded = struct.unpack(FLOAT_FORMATS[point.data_type], raw)[0]
         if not math.isfinite(decoded):
             raise ValueError("non_finite_point_value")
-    result = float(decoded) * point.scale + point.offset
+    if point.bit_mask is not None:
+        shift = (point.bit_mask & -point.bit_mask).bit_length() - 1
+        return (int(decoded) & point.bit_mask) >> shift
+    result: int | float = (
+        decoded
+        if point.scale == 1 and point.offset == 0
+        else float(decoded) * point.scale + point.offset
+    )
     if point.minimum is not None and result < point.minimum:
         raise ValueError("point_value_below_minimum")
     if point.maximum is not None and result > point.maximum:
         raise ValueError("point_value_above_maximum")
+    if point.enum_values is not None:
+        label = next(
+            (label for label, mapped in point.enum_values.items() if mapped == result),
+            None,
+        )
+        if label is None:
+            raise ValueError("unknown_enum_value")
+        return label
     return result
 
 
@@ -67,34 +89,54 @@ def encode_point(point: PointProfile, value: Any) -> list[int | bool]:
         if type(value) is not bool:
             raise ValueError("boolean_value_required")
         return [value]
+    if point.data_type == "string":
+        if not isinstance(value, str):
+            raise ValueError("string_value_required")
+        try:
+            encoded = value.encode(point.string_encoding)
+        except UnicodeEncodeError as exc:
+            raise ValueError("invalid_string_encoding") from exc
+        if len(encoded) > (point.string_length or 0):
+            raise ValueError("string_value_too_long")
+        raw = encoded.ljust(point.width * 2, b"\0")
+        raw = _ordered_bytes(raw, point.byte_order)
+        return [
+            int.from_bytes(raw[index : index + 2], "big")
+            for index in range(0, len(raw), 2)
+        ]
+    if point.enum_values is not None:
+        if not isinstance(value, str) or value not in point.enum_values:
+            raise ValueError("unknown_enum_label")
+        value = point.enum_values[value]
     if type(value) not in {int, float} or not math.isfinite(float(value)):
         raise ValueError("finite_numeric_value_required")
-    numeric = float(value)
-    if point.minimum is not None and numeric < point.minimum:
+    if point.minimum is not None and value < point.minimum:
         raise ValueError("point_value_below_minimum")
-    if point.maximum is not None and numeric > point.maximum:
+    if point.maximum is not None and value > point.maximum:
         raise ValueError("point_value_above_maximum")
-    raw_value = (numeric - point.offset) / point.scale
-    if point.data_type != "float32" and not raw_value.is_integer():
+    if (
+        point.data_type in INTEGER_TYPES
+        and type(value) is int
+        and point.scale == 1
+        and point.offset == 0
+    ):
+        raw_value: int | float = value
+    else:
+        raw_value = (float(value) - point.offset) / point.scale
+    if point.data_type in INTEGER_TYPES and int(raw_value) != raw_value:
         raise ValueError("point_value_not_representable")
     try:
-        if point.data_type == "uint16":
-            raw = int(raw_value).to_bytes(2, "big", signed=False)
-        elif point.data_type == "int16":
-            raw = int(raw_value).to_bytes(2, "big", signed=True)
-        elif point.data_type == "uint32":
-            raw = int(raw_value).to_bytes(4, "big", signed=False)
-        elif point.data_type == "int32":
-            raw = int(raw_value).to_bytes(4, "big", signed=True)
+        if point.data_type in INTEGER_TYPES:
+            raw = int(raw_value).to_bytes(
+                point.width * 2,
+                "big",
+                signed=point.data_type in SIGNED_TYPES,
+            )
         else:
-            raw = struct.pack(">f", raw_value)
+            raw = struct.pack(FLOAT_FORMATS[point.data_type], raw_value)
     except (OverflowError, struct.error) as exc:
         raise ValueError("point_value_not_representable") from exc
-    if point.width == 2:
-        inverse = [0, 0, 0, 0]
-        for output_index, input_index in enumerate(BYTE_INDEXES[point.byte_order]):
-            inverse[input_index] = output_index
-        raw = bytes(raw[index] for index in inverse)
+    raw = _ordered_bytes(raw, point.byte_order)
     return [
         int.from_bytes(raw[index : index + 2], "big")
         for index in range(0, len(raw), 2)
@@ -111,6 +153,10 @@ def point_metadata(point: PointProfile) -> dict[str, Any]:
         "width": point.width,
         "data_type": point.data_type,
         "byte_order": point.byte_order,
+        "string_length": point.string_length,
+        "string_encoding": point.string_encoding,
+        "enum_values": point.enum_values,
+        "bit_mask": point.bit_mask,
         "unit": point.unit,
         "writable": point.writable,
         "minimum": point.minimum,

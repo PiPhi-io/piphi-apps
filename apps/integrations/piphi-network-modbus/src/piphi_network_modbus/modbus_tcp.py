@@ -117,7 +117,7 @@ class ModbusTCPClient:
         self._writer: asyncio.StreamWriter | Any | None = None
         self._lock = asyncio.Lock()
         self._transaction = 0
-        self._point_cache: dict[str, tuple[bool | float, str]] = {}
+        self._point_cache: dict[str, tuple[bool | int | float | str, str]] = {}
 
     @property
     def connected(self) -> bool:
@@ -252,7 +252,9 @@ class ModbusTCPClient:
             "last_error_code": last_error,
         }
 
-    async def write_point(self, point: PointProfile, value: Any) -> bool | float:
+    async def write_point(
+        self, point: PointProfile, value: Any
+    ) -> bool | int | float | str:
         values = encode_point(point, value)
         async with self._lock:
             if point.area == "coil" and len(values) == 1 and type(values[0]) is bool:
@@ -290,11 +292,14 @@ class ModbusTCPClient:
                 ReadBlock(point.unit_id, point.area, point.address, point.width, (point,))
             )
         decoded = decode_point(point, readback)
-        matches = (
-            decoded is value
-            if type(value) is bool
-            else math.isclose(float(decoded), float(value), rel_tol=1e-6, abs_tol=1e-6)
-        )
+        if type(value) is bool or isinstance(value, str):
+            matches = decoded == value
+        elif type(value) is int and type(decoded) is int:
+            matches = decoded == value
+        else:
+            matches = math.isclose(
+                float(decoded), float(value), rel_tol=1e-6, abs_tol=1e-6
+            )
         if not matches:
             raise ValueError("modbus_write_readback_mismatch")
         return decoded

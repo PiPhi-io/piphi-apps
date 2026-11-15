@@ -16,6 +16,7 @@ def normalize_snapshot(snapshot: dict[str, Any], *, config_id: str) -> list[dict
             continue
         writable = bool(raw.get("writable"))
         is_bool = raw.get("data_type") == "bool"
+        is_enum = bool(raw.get("enum_values"))
         device_id = f"{config_id}:{point_id}"
         commands = [{"id": "refresh", "label": "Refresh", "kind": "action"}]
         if writable:
@@ -30,7 +31,17 @@ def normalize_snapshot(snapshot: dict[str, Any], *, config_id: str) -> list[dict
                 "config_id": config_id,
                 "point_id": point_id,
                 "name": str(raw.get("name") or point_id),
-                "entity_type": "switch" if is_bool and writable else "binary_sensor" if is_bool else "sensor",
+                "entity_type": (
+                    "switch"
+                    if is_bool and writable
+                    else "binary_sensor"
+                    if is_bool
+                    else "select"
+                    if is_enum
+                    else "number"
+                    if writable and raw.get("data_type") != "string"
+                    else "sensor"
+                ),
                 "capabilities": capabilities,
                 "available_commands": commands,
                 "state": {
@@ -42,7 +53,19 @@ def normalize_snapshot(snapshot: dict[str, Any], *, config_id: str) -> list[dict
                 },
                 "metadata": {
                     key: raw.get(key)
-                    for key in ("area", "data_type", "byte_order", "unit", "minimum", "maximum", "writable")
+                    for key in (
+                        "area",
+                        "data_type",
+                        "byte_order",
+                        "string_length",
+                        "string_encoding",
+                        "enum_values",
+                        "bit_mask",
+                        "unit",
+                        "minimum",
+                        "maximum",
+                        "writable",
+                    )
                 },
                 "dashboard": {
                     "allowed_widgets": ["tile", "stat", "button"],

@@ -137,7 +137,7 @@ async def test_parent_configures_sidecar_and_creates_metadata_entity(
         async with httpx.AsyncClient(transport=transport, base_url="http://parent") as http:
             entities = (await http.get("/entities")).json()["entities"]
         entity = next(item for item in entities if item["id"] == "rtu-parent:temperature")
-        assert entity["entity_type"] == "sensor"
+        assert entity["entity_type"] == "number"
         assert entity["state"]["point_value"] == pytest.approx(21.5)
         assert entity["state"]["quality"] == "good"
         assert entity["metadata"]["writable"] is True

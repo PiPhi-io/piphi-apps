@@ -7,6 +7,7 @@ import pytest
 
 from piphi_network_modbus import state
 from piphi_network_modbus.modbus_tcp import MBAP, ModbusTCPClient, plan_read_blocks
+from piphi_network_modbus.modbus_model import normalize_snapshot
 from piphi_network_modbus.schemas import DeviceConfig, PointProfile
 
 
@@ -232,6 +233,78 @@ async def test_tcp_profile_constrained_writes_have_readback() -> None:
 
 
 @pytest.mark.anyio
+async def test_tcp_extended_types_and_semantic_entities() -> None:
+    device = ModbusTCPDevice()
+    device.registers.update(
+        {
+            20: 0x0123,
+            21: 0x4567,
+            22: 0x89AB,
+            23: 0xCDEF,
+            24: 0x3FF8,
+            25: 0,
+            26: 0,
+            27: 0,
+            28: 0x4142,
+            29: 0x4344,
+            30: 0,
+            31: 2,
+            32: 0x00B0,
+        }
+    )
+    points = [
+        PointProfile(id="counter", name="Counter", unit_id=1, address=20, data_type="uint64"),
+        PointProfile(id="energy", name="Energy", unit_id=1, address=24, data_type="float64"),
+        PointProfile(
+            id="label",
+            name="Label",
+            unit_id=1,
+            address=28,
+            data_type="string",
+            string_length=6,
+            writable=True,
+        ),
+        PointProfile(
+            id="mode",
+            name="Mode",
+            unit_id=1,
+            address=31,
+            data_type="uint16",
+            enum_values={"off": 0, "heat": 2, "cool": 3},
+            writable=True,
+        ),
+        PointProfile(
+            id="status",
+            name="Status",
+            unit_id=1,
+            address=32,
+            data_type="uint16",
+            bit_mask=0x00F0,
+        ),
+    ]
+    await device.start()
+    client = ModbusTCPClient(f"127.0.0.1:{device.port}")
+    try:
+        snapshot = await client.snapshot(points)
+        values = {item["id"]: item["value"] for item in snapshot["points"]}
+        assert values == {
+            "counter": 0x0123456789ABCDEF,
+            "energy": 1.5,
+            "label": "ABCD",
+            "mode": "heat",
+            "status": 11,
+        }
+        entities = {item["point_id"]: item for item in normalize_snapshot(snapshot, config_id="extended")}
+        assert entities["mode"]["entity_type"] == "select"
+        assert entities["status"]["entity_type"] == "sensor"
+        assert await client.write_point(points[2], "ZX") == "ZX"
+        assert await client.write_point(points[3], "cool") == "cool"
+    finally:
+        await client.close()
+        await device.close()
+
+
+@pytest.mark.anyio
 async def test_parent_tcp_profile_creates_entities_and_routes_named_write(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -250,6 +323,7 @@ async def test_parent_tcp_profile_creates_entities_and_routes_named_write(
         entities = {entity["id"]: entity for entity in state.all_entities()}
         assert entities["tcp-profile:voltage"]["state"]["point_value"] == pytest.approx(230.5)
         assert entities["tcp-profile:relay"]["entity_type"] == "switch"
+        assert entities["tcp-profile:setpoint"]["entity_type"] == "number"
         result = await state.execute_tcp_command(
             config_id="tcp-profile",
             device_id="tcp-profile:setpoint",
