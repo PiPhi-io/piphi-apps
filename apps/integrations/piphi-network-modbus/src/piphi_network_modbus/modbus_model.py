@@ -77,7 +77,7 @@ def normalize_snapshot(snapshot: dict[str, Any], *, config_id: str) -> list[dict
 
 
 def entity_response(model: dict[str, Any]) -> dict[str, Any]:
-    return {
+    response = {
         key: model[key]
         for key in (
             "id",
@@ -92,3 +92,6 @@ def entity_response(model: dict[str, Any]) -> dict[str, Any]:
             "dashboard",
         )
     }
+    if model.get("device_class"):
+        response["device_class"] = model["device_class"]
+    return response

@@ -22,6 +22,13 @@ support `ABCD`, `BADC`, `CDAB`, and `DCBA` byte/word policies. Writable numeric
 points become number entities, writable enums become selects, and writable
 booleans become switches.
 
+Reviewed profiles may compose those points into light, fan, cover, and climate
+entities. Each state role references a stable point ID. Each composite command
+references one writable point and either a fixed reviewed value or one named
+argument such as brightness, position, mode, fan speed, or temperature. Runtime
+callers cannot override the point, unit, address, function, or confirmation
+policy.
+
 The original `register_address` plus optional `unit_id` configuration remains
 supported for compatibility as a read-only unsigned holding-register entity.
 
@@ -96,6 +103,6 @@ and untrusted profiles remain excluded.
 ## Docker
 
 ```bash
-docker build -t ghcr.io/piphi-io/piphi-network-modbus:0.4.0 .
-docker run --rm -p 4222:4222 ghcr.io/piphi-io/piphi-network-modbus:0.4.0
+docker build -t ghcr.io/piphi-io/piphi-network-modbus:0.5.0 .
+docker run --rm -p 4222:4222 ghcr.io/piphi-io/piphi-network-modbus:0.5.0
 ```

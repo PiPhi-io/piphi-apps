@@ -10,10 +10,32 @@
       "value_kind": "numeric"
     },
     "point_value": {"kind": "sensor", "value_kind": "numeric_or_boolean"},
+    "power": {"kind": "sensor", "unit": "bool"},
+    "brightness_percent": {"kind": "sensor", "unit": "%"},
+    "color_temp_percent": {"kind": "sensor", "unit": "%"},
+    "fan_speed_percent": {"kind": "sensor", "unit": "%"},
+    "oscillating": {"kind": "sensor", "unit": "bool"},
+    "position_percent": {"kind": "sensor", "unit": "%"},
+    "movement_state": {"kind": "sensor", "unit": "string"},
+    "temperature_c": {"kind": "sensor", "unit": "C"},
+    "target_temperature_c": {"kind": "sensor", "unit": "C"},
+    "mode": {"kind": "sensor", "unit": "string"},
     "refresh": {
       "kind": "action"
     },
-    "set_value": {"kind": "action"}
+    "set_value": {"kind": "action"},
+    "turn_on": {"kind": "action"},
+    "turn_off": {"kind": "action"},
+    "set_brightness": {"kind": "action"},
+    "set_color_temp": {"kind": "action"},
+    "set_mode": {"kind": "action"},
+    "set_fan_speed": {"kind": "action"},
+    "set_oscillate": {"kind": "action"},
+    "open_cover": {"kind": "action"},
+    "close_cover": {"kind": "action"},
+    "stop_cover": {"kind": "action"},
+    "set_cover_position": {"kind": "action"},
+    "set_temperature": {"kind": "action"}
   },
   "commands": {
     "refresh": {
@@ -23,6 +45,18 @@
     "set_value": {
       "description": "Set a profile-declared writable point within its bounds.",
       "timeout_ms": 30000
-    }
+    },
+    "turn_on": {"description": "Turn on a profile-composed device.", "timeout_ms": 30000},
+    "turn_off": {"description": "Turn off a profile-composed device.", "timeout_ms": 30000},
+    "set_brightness": {"description": "Set profile-composed light brightness.", "timeout_ms": 30000, "args_schema": {"brightness": {"type": "number", "required": true, "minimum": 0, "maximum": 100, "unit": "%"}}},
+    "set_color_temp": {"description": "Set profile-composed light color temperature.", "timeout_ms": 30000, "args_schema": {"color_temp": {"type": "number", "required": true, "minimum": 0, "maximum": 100, "unit": "%"}}},
+    "set_mode": {"description": "Set a reviewed profile mode.", "timeout_ms": 30000, "args_schema": {"mode": {"type": "string", "required": true}}},
+    "set_fan_speed": {"description": "Set profile-composed fan speed.", "timeout_ms": 30000, "args_schema": {"speed": {"type": "number", "required": true, "minimum": 0, "maximum": 100, "unit": "%"}}},
+    "set_oscillate": {"description": "Set profile-composed fan oscillation.", "timeout_ms": 30000, "args_schema": {"oscillating": {"type": "boolean", "required": true}}},
+    "open_cover": {"description": "Open a profile-composed cover.", "timeout_ms": 30000},
+    "close_cover": {"description": "Close a profile-composed cover.", "timeout_ms": 30000},
+    "stop_cover": {"description": "Stop a profile-composed cover.", "timeout_ms": 30000},
+    "set_cover_position": {"description": "Set profile-composed cover position.", "timeout_ms": 30000, "args_schema": {"position": {"type": "number", "required": true, "minimum": 0, "maximum": 100, "unit": "%"}}},
+    "set_temperature": {"description": "Set profile-composed target temperature.", "timeout_ms": 30000, "args_schema": {"temperature_c": {"type": "number", "required": true, "unit": "C"}}}
   }
 }
