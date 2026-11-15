@@ -21,5 +21,5 @@ the `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` repository secrets.
 Current image target:
 
 ```text
-ghcr.io/piphi-io/piphi-network-bermuda-presence:0.2.0
+ghcr.io/piphi-io/piphi-network-bermuda-presence:0.2.1
 ```

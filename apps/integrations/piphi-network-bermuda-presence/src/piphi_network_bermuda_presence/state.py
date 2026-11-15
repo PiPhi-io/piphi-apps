@@ -37,6 +37,7 @@ automations = AutomationRegistry(
 capabilities = CAPABILITIES
 commands = COMMANDS
 coordinators: dict[str, PresenceCoordinator] = {}
+_config_lock = asyncio.Lock()
 
 
 def make_entry(config: DeviceConfig) -> dict[str, Any]:
@@ -72,44 +73,71 @@ def get_entry_or_404(config_id: str) -> dict[str, Any]:
     return entry
 
 
+def _reject_duplicate_target(entry: dict[str, Any]) -> None:
+    candidate_config = entry["config"]
+    candidate_gateway = str(entry["host"]).rstrip("/")
+    candidate_handles = set(candidate_config["selected_device_handles"])
+    for existing_id in registry.ids():
+        existing = registry.get(existing_id)
+        if existing is None or existing_id == entry["config_id"]:
+            continue
+        existing_config = existing.get("config", {})
+        if str(existing.get("host", "")).rstrip("/") != candidate_gateway:
+            continue
+        same_consumer = existing_config.get("consumer_id") == candidate_config["consumer_id"]
+        overlapping_handles = candidate_handles.intersection(existing_config.get("selected_device_handles", []))
+        if same_consumer or overlapping_handles:
+            raise HTTPException(
+                status_code=409,
+                detail=f"BLE presence target is already configured by config_id={existing_id}",
+            )
+
+
 async def apply_config(config: DeviceConfig) -> None:
     entry = make_entry(config)
     config_id = str(entry["config_id"])
-    old = coordinators.pop(config_id, None)
-    if old:
-        await old.stop()
+    async with _config_lock:
+        _reject_duplicate_target(entry)
 
-    def transition(event_type, device) -> None:
-        append_runtime_event(event_type, entry, {
-            "entity_id": entity_id(config_id, device.handle),
-            "presence": device.presence,
-            "area_id": device.area_id,
-        })
+        def transition(event_type, device) -> None:
+            append_runtime_event(event_type, entry, {
+                "entity_id": entity_id(config_id, device.handle),
+                "presence": device.presence,
+                "area_id": device.area_id,
+            })
 
-    coordinator = PresenceCoordinator(config, transition)
-    coordinators[config_id] = coordinator
-    registry.set(config.id, entry)
-    try:
-        await coordinator.start()
-    except GatewayError as exc:
-        coordinator.last_error = str(exc)
-        coordinator.gateway_available = False
-    registry.update_state(
-        config.id,
-        {
-            "connected": coordinator.gateway_available,
-            "coverage_degraded": True,
-            "tracking": coordinator.entity_states(),
-            "alias": config.alias,
-            "config_id": entry["config_id"],
-        },
-        device_id=entry["device_id"],
-    )
-    append_runtime_event(
-        "runtime.config.applied",
-        entry,
-        {"selected_device_count": len(config.selected_device_handles), "alias": config.alias},
-    )
+        coordinator = PresenceCoordinator(config, transition)
+        try:
+            await coordinator.start()
+        except (GatewayError, ValueError):
+            await coordinator.stop()
+            raise
+
+        old = coordinators.get(config_id)
+        coordinators[config_id] = coordinator
+        registry.set(config_id, entry)
+        if old is not None:
+            same_remote_consumer = (
+                old.config.gateway_url.rstrip("/") == config.gateway_url.rstrip("/")
+                and old.consumer_id == coordinator.consumer_id
+            )
+            await old.stop(unregister=not same_remote_consumer)
+        registry.update_state(
+            config_id,
+            {
+                "connected": coordinator.gateway_available,
+                "coverage_degraded": True,
+                "tracking": coordinator.entity_states(),
+                "alias": config.alias,
+                "config_id": entry["config_id"],
+            },
+            device_id=entry["device_id"],
+        )
+        append_runtime_event(
+            "runtime.config.applied",
+            entry,
+            {"selected_device_count": len(config.selected_device_handles), "alias": config.alias},
+        )
 
 
 async def remove_config(config_id: str) -> bool:

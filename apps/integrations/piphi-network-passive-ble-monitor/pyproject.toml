@@ -1,6 +1,6 @@
 [project]
 name = "piphi-network-passive-ble-monitor"
-version = "0.3.0"
+version = "0.3.1"
 description = "Managed-gateway BTHome v2 observation consumer for PiPhi Network."
 requires-python = ">=3.11"
 dependencies = [

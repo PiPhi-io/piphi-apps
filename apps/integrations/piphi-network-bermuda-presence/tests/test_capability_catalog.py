@@ -6,6 +6,7 @@ from pathlib import Path
 import httpx
 import pytest
 
+from piphi_network_bermuda_presence.coordinator import PresenceCoordinator
 from piphi_network_bermuda_presence.main import app
 
 ROOT = Path(__file__).parents[1]
@@ -109,7 +110,11 @@ def test_implemented_behavior_events_and_conditions_are_declared() -> None:
 
 
 @pytest.mark.anyio
-async def test_config_apply_emits_the_implemented_behavior_event() -> None:
+async def test_config_apply_emits_the_implemented_behavior_event(monkeypatch) -> None:
+    async def connected_start(coordinator: PresenceCoordinator) -> None:
+        coordinator.gateway_available = True
+
+    monkeypatch.setattr(PresenceCoordinator, "start", connected_start)
     transport = httpx.ASGITransport(app=app)
     config_id = "capability-catalog-test"
     async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:

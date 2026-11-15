@@ -51,9 +51,10 @@ class PresenceCoordinator:
         except GatewayError as exc:
             self.last_error = str(exc)
             self.gateway_available = False
+            raise
         self.task = asyncio.create_task(self._run(), name=f"ble-presence-{self.consumer_id}")
 
-    async def stop(self) -> None:
+    async def stop(self, *, unregister: bool = True) -> None:
         if self.task:
             self.task.cancel()
             try:
@@ -62,7 +63,8 @@ class PresenceCoordinator:
                 pass
         if self.client:
             try:
-                await self.client.unregister(self.consumer_id)
+                if unregister:
+                    await self.client.unregister(self.consumer_id)
             except GatewayError:
                 pass
             await self.client.close()

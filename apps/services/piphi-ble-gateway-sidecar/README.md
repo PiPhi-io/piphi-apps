@@ -41,6 +41,37 @@ platform-neutral Python wheel, qualified on `windows-latest`, for the manifest's
 Windows proxy runtime. Installing that wheel provides the supervised
 `piphi_ble_gateway_sidecar` executable and lets Bleak select WinRT without D-Bus.
 
+## Installation and removal
+
+PiPhi installs the Linux OCI image as a singleton platform service. Select the
+approved adapter (or `default`), mount persistent access-controlled paths for
+`PIPHI_BLE_HANDLE_KEY_PATH` and `PIPHI_BLE_CHECKPOINT_PATH`, and grant only the
+documented BlueZ Adapter1 access. Windows installs the wheel from the matching
+GitHub release and supervises the `piphi_ble_gateway_sidecar` entry point.
+
+Before removal, deconfigure parent consumers so their registrations are deleted.
+Then stop the supervised process and remove the container or wheel. The handle
+key and checkpoint may be deleted when stable handles and restart replay are no
+longer needed; neither file contains raw Bluetooth addresses.
+
+## Automation
+
+The service exposes the idempotent `refresh` action. Runtime configuration and
+command audit events are `runtime.config.applied`, `runtime.config.removed`, and
+`runtime.command.received`. It defines no user automation conditions or BLE
+device triggers; parent integrations own device semantics.
+
+## Troubleshooting and limitations
+
+- `adapter_powered=false` or an rfkill flag identifies host radio state; the
+  gateway may only power the configured adapter and never performs a broad reset.
+- A failed scanner start remains retryable and the supervisor retries after the
+  configured adapter or BlueZ daemon returns.
+- Remote receivers, rotating/private identity resolution, pairing, connection
+  slots, and GATT are not part of this release.
+- Diagnostics intentionally omit addresses, names, keys, raw advertisements,
+  and the D-Bus object tree.
+
 ## Validate
 
 ```bash
@@ -49,9 +80,10 @@ pdm run pytest
 pdm run python scripts/validate.py
 pdm export --prod --output /tmp/piphi-ble-gateway-sidecar-requirements.txt
 pdm run pip-audit --disable-pip -r /tmp/piphi-ble-gateway-sidecar-requirements.txt
-docker build -t ghcr.io/piphi-io/piphi-ble-gateway-sidecar:0.3.0 .
+docker build -t ghcr.io/piphi-io/piphi-ble-gateway-sidecar:0.3.1 .
 ```
 
-Deterministic fake-D-Bus or virtual-radio soak evidence for BlueZ daemon restart,
-adapter loss/reappearance, rfkill, and least-privilege recovery remains required
-before production promotion. Physical hardware evidence is useful but not a gate.
+Deterministic fake-D-Bus evidence covers configured-adapter power loss,
+disappearance, reappearance, retryable scanner startup, and least-privilege
+recovery. Physical hardware evidence remains useful compatibility input, not a
+release or quality-tier gate.

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 from datetime import datetime, timezone
+from fastapi import HTTPException
 
 from piphi_network_passive_ble_monitor import state
 from piphi_network_passive_ble_monitor.bthome import BTHOME_UUID
@@ -107,3 +108,21 @@ def test_config_requires_opaque_handle_and_secret_is_redacted() -> None:
     with pytest.raises(ValueError, match="opaque"):
         DeviceConfig(id="bad", gateway_url="https://gateway.test", gateway_token="secret", device_handle="AA:BB:CC:DD:EE:FF")
     assert "secret-token" not in repr(config())
+
+
+@pytest.mark.anyio
+async def test_different_config_id_cannot_duplicate_gateway_device(monkeypatch) -> None:
+    existing = config("existing-device")
+    state.registry.set(existing.id, state.make_entry(existing))
+    monkeypatch.setattr(
+        state,
+        "gateway_client",
+        lambda _config: pytest.fail("duplicate must be rejected before gateway registration"),
+    )
+    try:
+        with pytest.raises(HTTPException) as caught:
+            await state.apply_config(config("duplicate-device"))
+        assert caught.value.status_code == 409
+        assert "existing-device" in str(caught.value.detail)
+    finally:
+        state.registry.remove(existing.id)
