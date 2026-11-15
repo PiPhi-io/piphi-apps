@@ -110,8 +110,12 @@ async def test_tls_requires_ca_and_enables_hostname_verification(
         seen.update(host=host, port=port, **kwargs)
         return asyncio.StreamReader(), Writer()
 
+    async def getaddrinfo(*_args, **_kwargs):
+        return [(2, 1, 6, "", ("192.168.1.20", 802))]
+
     monkeypatch.setattr(modbus_tcp.ssl, "create_default_context", context_factory)
     monkeypatch.setattr(modbus_tcp.asyncio, "open_connection", open_connection)
+    monkeypatch.setattr(asyncio.get_running_loop(), "getaddrinfo", getaddrinfo)
     client = ModbusTCPClient(
         "meter.local",
         transport="tls",

@@ -14,6 +14,8 @@ from piphi_modbus_rtu_sidecar.transport import (
     sanitize,
     validate_rtu_response,
 )
+from piphi_modbus_rtu_sidecar.schemas import DeviceConfig
+from piphi_modbus_rtu_sidecar import state
 
 
 def test_crc_and_response_validation() -> None:
@@ -114,3 +116,80 @@ async def test_parent_api_requires_valid_bearer_token(
         )
     assert denied.status_code == 401
     assert accepted.status_code != 401
+
+
+@pytest.mark.anyio
+async def test_all_operational_routes_require_sidecar_identity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PIPHI_MODBUS_SIDECAR_TOKEN", "expected")
+    routes = [
+        ("GET", "/state"),
+        ("GET", "/entities"),
+        ("GET", "/events"),
+        ("GET", "/diagnostics"),
+        ("GET", "/contract"),
+        ("GET", "/ui-config"),
+        ("POST", "/events/example"),
+        ("POST", "/telemetry/example"),
+        ("POST", "/discover"),
+    ]
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://sidecar") as client:
+        assert (await client.get("/health")).status_code == 200
+        for method, path in routes:
+            denied = await client.request(method, path, json={})
+            accepted = await client.request(
+                method,
+                path,
+                json={},
+                headers={"Authorization": "Bearer expected"},
+            )
+            assert denied.status_code == 401, path
+            assert accepted.status_code != 401, path
+
+
+@pytest.mark.anyio
+async def test_controller_reopens_serial_descriptor_after_transport_failure() -> None:
+    class ReplacingSession:
+        def __init__(self) -> None:
+            self.queue = BoundedQueue(10)
+            self.opens = 0
+            self.reads = 0
+
+        async def open(self) -> None:
+            self.opens += 1
+
+        async def close(self) -> None:
+            return None
+
+        async def read(self, _point):
+            self.reads += 1
+            if self.reads == 1:
+                raise OSError("descriptor replaced")
+            return [42]
+
+    config = DeviceConfig.model_validate(
+        {
+            "id": "recovery-test",
+            "serial_port": "/dev/serial/by-id/recovery-test",
+            "registers": [
+                {
+                    "id": "value",
+                    "name": "Value",
+                    "unit_id": 1,
+                    "address": 0,
+                }
+            ],
+        }
+    )
+    session = ReplacingSession()
+    controller = state.BusController(
+        config=config,
+        entry=state.make_entry(config),
+        session=session,  # type: ignore[arg-type]
+    )
+    assert await controller.open() is True
+    assert controller.values["value"]["value"] == 42
+    assert controller.reconnect_count == 1
+    assert session.opens == 2

@@ -10,6 +10,10 @@ Before cutting a release:
 - Run the local validation and conformance tests.
 - Run `piphi-network-create publish-check -C .` from this project.
 
+Physical Modbus hardware is not required for publication. Serial transport is
+qualified with protocol simulators and PTYs; release notes must state that no
+physical adapter was tested and hardware compatibility is not guaranteed.
+
 The generated workflow is triggered manually from GitHub Actions. It bumps the
 semantic version, updates release metadata, commits and tags the release, builds
 a multi-architecture Docker image, pushes it, and creates a GitHub release.
@@ -21,5 +25,5 @@ the `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` repository secrets.
 Current image target:
 
 ```text
-ghcr.io/piphi-io/piphi-modbus-rtu-sidecar:0.7.0
+ghcr.io/piphi-io/piphi-modbus-rtu-sidecar:0.8.0
 ```

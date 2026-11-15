@@ -78,9 +78,9 @@ The runtime listens on port `4212` by default and exposes the common PiPhi runti
 ## Docker
 
 ```bash
-docker build -t ghcr.io/piphi-io/piphi-modbus-rtu-sidecar:0.7.0 .
+docker build -t ghcr.io/piphi-io/piphi-modbus-rtu-sidecar:0.8.0 .
 docker run --rm --device /dev/serial:/dev/serial \
   -e PIPHI_ENV=production \
   -e PIPHI_MODBUS_SIDECAR_TOKEN=replace-with-a-local-test-token \
-  -p 4212:4212 ghcr.io/piphi-io/piphi-modbus-rtu-sidecar:0.7.0
+  -p 4212:4212 ghcr.io/piphi-io/piphi-modbus-rtu-sidecar:0.8.0
 ```

@@ -18,13 +18,13 @@
       "state": ["connected"], "events": ["runtime.config.applied", "runtime.config.removed", "runtime.command.received"], "conditions": [], "actions": ["refresh"]
     },
     {
-      "id": "serial-port-and-line-lifecycle", "status": "implemented", "scope": ["explicitly-mapped-linux-serial-devices", "configured-rtu-and-ascii-line-settings"], "source_refs": ["modbus_serial", "pymodbus", "parent_contract"],
-      "reason": "The authenticated parent supplies an explicitly mapped serial path and bounded baud/data/parity/stop/timeout settings. The sidecar owns exclusive session access, closes cleanly, reconnects after transport failure, redacts the path, and reports port and unit responsiveness separately. Generic USB discovery, adapter metadata, flow control and custom RS-485 direction timing are demand-driven platform/device features rather than release requirements.",
+      "id": "serial-port-and-line-lifecycle", "status": "implemented", "scope": ["stable-linux-serial-by-id-devices", "configured-rtu-and-ascii-line-settings"], "source_refs": ["modbus_serial", "pymodbus", "parent_contract"],
+      "reason": "The authenticated parent supplies a stable /dev/serial/by-id path and bounded baud/data/parity/stop/timeout settings. The sidecar rejects paths outside that mount and duplicate ownership of one resolved physical bus, owns exclusive session access, closes cleanly, reconnects after transport failure, redacts the path, and reports port and unit responsiveness separately. Generic USB discovery, adapter metadata, flow control and custom RS-485 direction timing remain demand-driven platform/device features.",
       "state": [], "events": [], "conditions": [], "actions": []
     },
     {
       "id": "rtu-ascii-framing-and-timing", "status": "implemented", "scope": ["modbus-rtu", "modbus-ascii"], "source_refs": ["modbus_serial", "modbus_application", "modbus_specs"],
-      "reason": "RTU validates bounded binary frames, CRC, unit, function and exceptions. ASCII validates colon/CRLF delimiters, bounded even-length hexadecimal payloads, LRC, unit, function and exceptions. Both use configured bounded response timeouts and one in-flight transaction.",
+      "reason": "RTU validates bounded binary frames, CRC, unit, function and exceptions and enforces the required 3.5-character inter-frame silence (1.75 ms above 19,200 baud). ASCII validates colon/CRLF delimiters, bounded even-length hexadecimal payloads, LRC, unit, function and exceptions. Both use configured bounded response timeouts and one in-flight transaction.",
       "state": [], "events": [], "conditions": [], "actions": []
     },
     {

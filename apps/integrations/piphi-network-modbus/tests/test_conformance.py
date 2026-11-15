@@ -8,6 +8,7 @@ import httpx
 import pytest
 
 from piphi_network_modbus.main import app
+from piphi_network_modbus.state import runtime
 
 FIXTURES = json.loads(
     (Path(__file__).parent / "fixtures" / "contract-conformance.json").read_text()
@@ -53,3 +54,38 @@ def _assert_required_any_keys(
         assert any(key in body for key in group), (
             f"{fixture_id} missing one of {', '.join(group)}"
         )
+
+
+@pytest.mark.anyio
+async def test_operational_routes_require_runtime_identity() -> None:
+    runtime.auth.container_id = "secured-container"
+    runtime.auth.internal_token = "secured-token"
+    headers = {
+        "X-Container-Id": "secured-container",
+        "X-PiPhi-Integration-Token": "secured-token",
+    }
+    routes = [
+        ("GET", "/state"),
+        ("GET", "/entities"),
+        ("GET", "/events"),
+        ("GET", "/diagnostics"),
+        ("GET", "/contract"),
+        ("GET", "/ui-config"),
+        ("POST", "/events/example"),
+        ("POST", "/telemetry/example"),
+        ("POST", "/discover"),
+    ]
+    transport = httpx.ASGITransport(app=app)
+    try:
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://testserver"
+        ) as client:
+            assert (await client.get("/health")).status_code == 200
+            for method, path in routes:
+                denied = await client.request(method, path, json={})
+                accepted = await client.request(method, path, json={}, headers=headers)
+                assert denied.status_code == 401, path
+                assert accepted.status_code != 401, path
+    finally:
+        runtime.auth.container_id = ""
+        runtime.auth.internal_token = ""

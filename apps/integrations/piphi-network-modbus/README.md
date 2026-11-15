@@ -17,10 +17,11 @@ An unsuccessful block marks only its points unavailable. Modbus TCP is
 unencrypted, so use only a trusted local network.
 
 Set `transport` to `udp` for MBAP datagrams or `rtu_over_tcp` for CRC-framed
-RTU messages over a persistent TCP stream. Set it to `tls` for Modbus Security
-framing on port 802; `tls_ca_certificate` is mandatory and hostname validation
-uses `tls_server_name` (or the configured host). TLS never falls back to clear
-TCP. Profile reads retry once after transport failure; writes remain single
+RTU messages over a persistent TCP stream. Set it to `tls` for
+server-authenticated TLS-wrapped Modbus/TCP on port 802; `tls_ca_certificate` is
+mandatory and hostname validation uses `tls_server_name` (or the configured
+host). This is not full mutual-certificate Modbus Security. TLS never falls
+back to clear TCP. Profile reads retry once after transport failure; writes remain single
 attempt and always require confirmation plus read-back.
 
 Numeric profiles support signed and unsigned 16-, 32-, and 64-bit integers,
@@ -134,6 +135,6 @@ and untrusted profiles remain excluded.
 ## Docker
 
 ```bash
-docker build -t ghcr.io/piphi-io/piphi-network-modbus:0.9.0 .
-docker run --rm -p 4222:4222 ghcr.io/piphi-io/piphi-network-modbus:0.9.0
+docker build -t ghcr.io/piphi-io/piphi-network-modbus:0.10.0 .
+docker run --rm -p 4222:4222 ghcr.io/piphi-io/piphi-network-modbus:0.10.0
 ```

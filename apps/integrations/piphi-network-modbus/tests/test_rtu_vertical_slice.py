@@ -30,6 +30,11 @@ class FakeSidecarClient:
         self.calls.append(("configure", payload))
         return {"ok": True}
 
+    async def deconfigure(self, config_id: str) -> dict[str, Any]:
+        self.calls.append(("deconfigure", config_id))
+        self.config = {}
+        return {"ok": True}
+
     async def snapshot(self, config_id: str) -> dict[str, Any]:
         self.calls.append(("snapshot", config_id))
         return {
