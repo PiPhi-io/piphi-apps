@@ -4,7 +4,6 @@ import os
 from typing import Any
 
 from fastapi import HTTPException
-
 from piphi_runtime_kit_python import (
     AutomationRegistry,
     SQLiteAutomationIdempotencyStore,
@@ -75,8 +74,8 @@ async def apply_config(config: DeviceConfig) -> None:
     registry.update_state(
         config.id,
         {
-            "connected": True,
-            "host": config.host,
+            # A configured target is not connected until ADB authenticates it.
+            "connected": False,
             "alias": config.alias,
             "config_id": entry["config_id"],
         },
@@ -85,7 +84,7 @@ async def apply_config(config: DeviceConfig) -> None:
     append_runtime_event(
         "runtime.config.applied",
         entry,
-        {"host": config.host, "alias": config.alias},
+        {"alias": config.alias},
     )
 
 
@@ -96,7 +95,7 @@ async def remove_config(config_id: str) -> bool:
     append_runtime_event(
         "runtime.config.removed",
         entry,
-        {"host": entry.get("host"), "alias": entry.get("alias")},
+        {"alias": entry.get("alias")},
     )
     return True
 

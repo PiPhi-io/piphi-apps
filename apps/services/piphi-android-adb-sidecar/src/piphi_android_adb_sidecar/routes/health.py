@@ -18,7 +18,7 @@ async def health():
 async def diagnostics():
     return starter.diagnostics_response(
         diagnostics={
-            "active_config_ids": registry.ids(),
+            "active_config_count": len(registry.ids()),
             "recent_event_count": len(registry.recent_events),
             "kind": PROJECT_KIND,
             "contract": {

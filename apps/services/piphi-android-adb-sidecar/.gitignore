@@ -6,3 +6,5 @@ dist/
 build/
 *.spec
 data/*.sqlite3
+.coverage
+htmlcov/

@@ -1,19 +1,28 @@
 # PiPhi Android ADB Sidecar
 
-Managed Android Debug Bridge transport for PiPhi Android integrations.
+Draft Android Debug Bridge sidecar for PiPhi Android integrations. No ADB
+binary, authenticated device transport, USB path, or command execution exists
+yet.
 
 ## Ownership boundary
 
-The sidecar owns the local ADB server, Platform Tools compatibility, USB and
-wireless transport, pairing handoff, target selection, bounded command queues,
-backpressure, and restart recovery. Parent integrations own Android device
+The sidecar is intended to own the local ADB server, Platform Tools
+compatibility, USB and wireless transport, pairing handoff, target selection,
+bounded command queues, backpressure, and restart recovery. Parent integrations own Android device
 entities, normalized state, telemetry, behaviors, and widgets. Arbitrary shell,
 file, package, forwarding, privilege, and multi-device commands are excluded.
 
 The machine-readable `capability-catalog.json` covers ADB server and device
 lifecycle, wireless pairing, safe parent operations, queues, recovery, and
-explicit unsafe boundaries. Only `connected` and `refresh` are implemented in
-this starter.
+explicit unsafe boundaries. The starter currently reports only an explicitly
+unavailable `connected` state and configuration lifecycle events.
+
+`parent_contract_v1.py` defines the implemented transport-independent message
+boundary. It requires one opaque target ID, bounds payloads/timeouts/repeats,
+allows only conservative key events and property queries, rejects extra or
+duplicate fields, and exposes only `unauthorized`, `offline`, `timeout`,
+`queue_full`, and `unsupported` errors. The contract does not execute ADB and
+is not advertised as a working command endpoint yet.
 
 ## Run locally
 
@@ -55,6 +64,6 @@ The runtime listens on port `4213` by default and exposes the common PiPhi runti
 ## Docker
 
 ```bash
-docker build -t docker.io/piphinetwork/piphi-android-adb-sidecar:0.1.1 .
-docker run --rm -p 4213:4213 docker.io/piphinetwork/piphi-android-adb-sidecar:0.1.1
+docker build -t ghcr.io/piphi-io/piphi-android-adb-sidecar:0.2.0-rc.1 .
+docker run --rm -p 4213:4213 ghcr.io/piphi-io/piphi-android-adb-sidecar:0.2.0-rc.1
 ```

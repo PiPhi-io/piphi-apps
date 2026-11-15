@@ -6,8 +6,9 @@ from pathlib import Path
 import httpx
 import pytest
 
+from piphi_network_android_tv import state as runtime_state
 from piphi_network_android_tv.main import app
-
+from piphi_network_android_tv.routes import discovery as discovery_routes
 
 ROOT = Path(__file__).parents[1]
 CATALOG = json.loads((ROOT / "capability-catalog.json").read_text())
@@ -59,20 +60,17 @@ def test_only_implemented_capabilities_are_advertised() -> None:
 
     manifest_capabilities = set(MANIFEST["capabilities"])
     manifest_commands = set(MANIFEST["commands"])
-    entity_capabilities = {capability for entity in MANIFEST["entities"] for capability in entity["capabilities"]}
-    entity_commands = {command["id"] for entity in MANIFEST["entities"] for command in entity["available_commands"]}
     behavior_capabilities = {capability for device in BEHAVIORS["devices"] for capability in device["capabilities"]}
     behavior_actions = {action["id"] for device in BEHAVIORS["devices"] for action in device["actions"]}
 
     assert manifest_capabilities == implemented_capabilities
     assert manifest_commands == implemented_actions
-    assert entity_capabilities == implemented_capabilities
-    assert entity_commands == implemented_actions
+    assert MANIFEST["entities"] == []
     assert behavior_capabilities == implemented_capabilities
     assert behavior_actions == implemented_actions
     assert set(ENTITY_EXAMPLE["capabilities"]) == implemented_capabilities
     assert set(ENTITY_EXAMPLE["commands"]) == implemented_actions
-    assert not planned_or_excluded & (manifest_capabilities | manifest_commands | entity_capabilities | entity_commands | behavior_actions)
+    assert not planned_or_excluded & (manifest_capabilities | manifest_commands | behavior_actions)
 
 
 def test_implemented_behavior_events_and_conditions_are_declared() -> None:
@@ -83,7 +81,16 @@ def test_implemented_behavior_events_and_conditions_are_declared() -> None:
 
 
 @pytest.mark.anyio
-async def test_config_apply_emits_the_implemented_behavior_event() -> None:
+async def test_config_apply_emits_the_implemented_behavior_event(monkeypatch) -> None:
+    async def configure(_config, entry):
+        runtime_state.registry.set(entry["config_id"], entry)
+        runtime_state.registry.update_state(
+            entry["config_id"],
+            {"connected": True},
+            device_id=entry["device_id"],
+        )
+
+    monkeypatch.setattr(runtime_state.android_tv_service, "configure", configure)
     transport = httpx.ASGITransport(app=app)
     config_id = "capability-catalog-test"
     async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
@@ -94,6 +101,55 @@ async def test_config_apply_emits_the_implemented_behavior_event() -> None:
             assert any(event["event_type"] == "runtime.config.applied" and event["config_id"] == config_id for event in events)
         finally:
             await client.post(f"/deconfigure/{config_id}")
+
+
+@pytest.mark.anyio
+async def test_config_rejects_unpaired_device_before_saving() -> None:
+    transport = httpx.ASGITransport(app=app)
+    config_id = "unreachable-device-test"
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+        try:
+            response = await client.post(
+                "/config",
+                json={"id": config_id, "host": "192.0.2.1", "alias": "Offline Test"},
+            )
+            assert response.status_code == 409
+            assert response.json()["detail"]["error"] == "pairing_required"
+            state = (await client.get("/state")).json()
+            assert config_id not in state["entries"]
+        finally:
+            await client.post(f"/deconfigure/{config_id}")
+
+
+@pytest.mark.anyio
+async def test_discovery_does_not_fabricate_a_device(monkeypatch) -> None:
+    async def discover():
+        return ()
+
+    monkeypatch.setattr(discovery_routes.remote_v2_discovery, "discover", discover)
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+        response = await client.post("/discover", json={})
+    assert response.status_code == 200
+    assert response.json()["devices"] == []
+
+
+@pytest.mark.anyio
+async def test_refresh_fails_for_unknown_configuration() -> None:
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+        response = await client.post(
+            "/command",
+            json={
+                "contract_version": "automation.runtime.command.v1",
+                "command": "refresh",
+                "target": {"device_id": "demo-device", "config_id": "demo-device"},
+                "params": {},
+            },
+        )
+    assert response.status_code == 200
+    assert response.json()["status"] == "failed"
+    assert "Unknown Android TV configuration" in response.json()["error"]
 
 
 @pytest.mark.anyio

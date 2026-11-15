@@ -6,16 +6,9 @@
       "device_id": "android-adb-service",
       "entity_type": "service",
       "capabilities": [
-        "connected",
-        "refresh"
+        "connected"
       ],
-      "available_commands": [
-        {
-          "id": "refresh",
-          "label": "Refresh",
-          "kind": "action"
-        }
-      ],
+      "available_commands": [],
       "dashboard": {
         "allowed_widgets": [
           "tile",
@@ -30,15 +23,7 @@
     "connected": {
       "kind": "sensor",
       "unit": "bool"
-    },
-    "refresh": {
-      "kind": "action"
     }
   },
-  "commands": {
-    "refresh": {
-      "description": "Refresh the device state.",
-      "timeout_ms": 5000
-    }
-  }
+  "commands": {}
 }

@@ -18,6 +18,7 @@ SEMVER_RE = re.compile(
 )
 PYPROJECT_VERSION_RE = re.compile(r'(?m)^(version\s*=\s*")([^"]+)(")$')
 PACKAGE_VERSION_RE = re.compile(r'(?m)^\s*"version"\s*:\s*"([^"]+)"')
+SETTINGS_VERSION_RE = re.compile(r'(?m)^(INTEGRATION_VERSION\s*=\s*")([^"]+)(")$')
 DEFAULT_PREID = "alpha"
 BUMP_CHOICES = (
     "major",
@@ -87,7 +88,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--repo-root", default=None)
     parser.add_argument("--manifest", default="manifest.json")
     parser.add_argument("--pyproject", default="pyproject.toml")
-    parser.add_argument("--package-json", default="package.json")
+    parser.add_argument("--package-json", default="piphi-app.json")
+    parser.add_argument("--settings", default="src/piphi_android_adb_sidecar/settings.py")
     parser.add_argument("--docker-image", default=None)
     parser.add_argument("--no-pin-container-image", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
@@ -112,9 +114,17 @@ def read_version_file(path: Path) -> tuple[str, SemVer] | None:
         if match is None:
             raise ValueError("Unable to find project version in pyproject.toml")
         return text, SemVer.parse(match.group(2))
-    if path.name == "package.json":
+    if path.name == "piphi-app.json":
         payload = json.loads(text)
-        return text, SemVer.parse(str(payload.get("version") or ""))
+        packages = payload.get("packages")
+        if not isinstance(packages, list) or len(packages) != 1:
+            raise ValueError("piphi-app.json must contain exactly one package")
+        return text, SemVer.parse(str(packages[0].get("version") or ""))
+    if path.name == "settings.py":
+        match = SETTINGS_VERSION_RE.search(text)
+        if match is None:
+            raise ValueError("Unable to find INTEGRATION_VERSION in settings.py")
+        return text, SemVer.parse(match.group(2))
     return None
 
 
@@ -125,10 +135,16 @@ def write_version_file(path: Path, text: str, version: str) -> None:
             raise ValueError("Unable to update project version in pyproject.toml")
         path.write_text(updated, encoding="utf-8")
         return
-    if path.name == "package.json":
+    if path.name == "piphi-app.json":
         payload = json.loads(text)
-        payload["version"] = version
+        payload["packages"][0]["version"] = version
         path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+        return
+    if path.name == "settings.py":
+        updated, count = SETTINGS_VERSION_RE.subn(rf'\g<1>{version}\g<3>', text, count=1)
+        if count != 1:
+            raise ValueError("Unable to update INTEGRATION_VERSION in settings.py")
+        path.write_text(updated, encoding="utf-8")
 
 
 def resolve_target_version(current: SemVer, *, bump: str | None, set_version: str | None, preid: str) -> SemVer:
@@ -255,6 +271,7 @@ def main() -> int:
     manifest_path = resolve_path(repo_root, args.manifest)
     pyproject_path = resolve_path(repo_root, args.pyproject)
     package_path = resolve_path(repo_root, args.package_json)
+    settings_path = resolve_path(repo_root, args.settings)
 
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest_version = SemVer.parse(str(manifest.get("version") or "").strip())
@@ -263,6 +280,7 @@ def main() -> int:
         for path, result in [
             (pyproject_path, read_version_file(pyproject_path)),
             (package_path, read_version_file(package_path)),
+            (settings_path, read_version_file(settings_path)),
         ]
         if result is not None
     ]

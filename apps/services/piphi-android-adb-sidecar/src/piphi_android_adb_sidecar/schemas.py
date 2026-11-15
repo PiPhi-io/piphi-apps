@@ -1,12 +1,20 @@
 from __future__ import annotations
 
 from piphi_runtime_kit_python import RuntimeConfig
+from pydantic import Field, field_validator
 
 
 class DeviceConfig(RuntimeConfig):
-    host: str
-    alias: str | None = None
-    api_key: str | None = None
-    base_url: str | None = None
-    poll_interval_seconds: int | None = None
-    service_name: str | None = None
+    host: str = Field(min_length=1, max_length=253)
+    alias: str | None = Field(default=None, max_length=128)
+    service_name: str | None = Field(default=None, max_length=128)
+
+    @field_validator("host")
+    @classmethod
+    def validate_host(cls, value: str) -> str:
+        host = value.strip()
+        if not host or any(character.isspace() for character in host):
+            raise ValueError("host must not be empty or contain whitespace")
+        if "://" in host or "/" in host or "\\" in host:
+            raise ValueError("host must be a hostname or IP address without a URL scheme")
+        return host

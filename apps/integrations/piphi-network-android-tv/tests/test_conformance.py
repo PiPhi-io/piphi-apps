@@ -9,7 +9,6 @@ import pytest
 
 from piphi_network_android_tv.main import app
 
-
 FIXTURES = json.loads((Path(__file__).parent / "fixtures" / "contract-conformance.json").read_text())
 
 
