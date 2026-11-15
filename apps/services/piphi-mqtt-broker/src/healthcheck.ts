@@ -3,19 +3,23 @@ import { randomUUID } from "node:crypto";
 import { connectAsync } from "mqtt";
 
 import { loadBrokerConfig } from "./config.js";
+import { loadIdentityPolicy } from "./identity.js";
 
 async function main(): Promise<void> {
   const config = loadBrokerConfig();
-  const password = config.passwordSecretFile
-    ? (await readFile(config.passwordSecretFile, "utf8")).trimEnd()
-    : config.password;
+  const policy = await loadIdentityPolicy(config);
+  const health = policy.principals.find((principal) => principal.health);
+  if (!health) throw new Error("Health principal is not configured");
+  const password = health.passwordSecretFile === "environment:MQTT_PASSWORD"
+    ? config.password
+    : (await readFile(health.passwordSecretFile, "utf8")).trimEnd();
   const host = process.env.MQTT_HEALTH_HOST?.trim() || "127.0.0.1";
   const protocol = config.tlsEnabled ? "mqtts" : "mqtt";
   const id = randomUUID();
   const topic = `${config.topicPrefix}/_health/${id}`;
   const client = await connectAsync(`${protocol}://${host}:${config.port}`, {
     protocolVersion: 5,
-    username: config.username ?? undefined,
+    username: health.username,
     password: password ?? undefined,
     connectTimeout: 3_000,
     reconnectPeriod: 0,

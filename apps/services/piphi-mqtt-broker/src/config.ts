@@ -9,6 +9,7 @@ export interface BrokerConfig {
   username: string | null;
   password: string | null;
   passwordSecretFile: string | null;
+  authPolicyFile: string | null;
   passwordFile: string;
   aclFile: string;
   configOutputPath: string;
@@ -109,6 +110,7 @@ export function loadBrokerConfig(env: NodeJS.ProcessEnv = process.env): BrokerCo
     username: optional(env.MQTT_USERNAME),
     password: optional(env.MQTT_PASSWORD),
     passwordSecretFile: optional(env.MQTT_PASSWORD_SECRET_FILE),
+    authPolicyFile: optional(env.MQTT_AUTH_POLICY_FILE),
     passwordFile: absolutePath(env.MQTT_PASSWORD_FILE?.trim() || DEFAULTS.passwordFile, "MQTT_PASSWORD_FILE", ["/mosquitto/config/"]),
     aclFile: absolutePath(env.MQTT_ACL_FILE?.trim() || DEFAULTS.aclFile, "MQTT_ACL_FILE", ["/mosquitto/config/"]),
     configOutputPath: absolutePath(env.MQTT_CONFIG_OUTPUT?.trim() || DEFAULTS.configOutputPath, "MQTT_CONFIG_OUTPUT", ["/mosquitto/config/"]),
@@ -130,13 +132,14 @@ export function loadBrokerConfig(env: NodeJS.ProcessEnv = process.env): BrokerCo
 
   if (config.username) safeToken(config.username, "MQTT_USERNAME", /^[A-Za-z0-9._-]{1,128}$/);
   if (config.password && /[\r\n\0]/.test(config.password)) throw new Error("Invalid MQTT_PASSWORD");
+  if (config.authPolicyFile && (config.username || config.password || config.passwordSecretFile)) throw new Error("MQTT_AUTH_POLICY_FILE cannot be combined with legacy MQTT credentials");
   if (config.username && !config.password && !config.passwordSecretFile) throw new Error("MQTT_USERNAME requires MQTT_PASSWORD or MQTT_PASSWORD_SECRET_FILE");
   if (!config.username && (config.password || config.passwordSecretFile)) throw new Error("MQTT_USERNAME is required with a password");
-  if (!config.allowAnonymous && !config.username) throw new Error("MQTT credentials are required when MQTT_ALLOW_ANONYMOUS is false");
+  if (!config.allowAnonymous && !config.username && !config.authPolicyFile) throw new Error("MQTT credentials or MQTT_AUTH_POLICY_FILE are required when MQTT_ALLOW_ANONYMOUS is false");
   if (config.allowAnonymous) throw new Error("Anonymous MQTT is not supported");
   if (!tlsEnabled && !config.allowPlaintext) throw new Error("Plaintext MQTT must be explicitly enabled with MQTT_ALLOW_PLAINTEXT=true");
   if (tlsEnabled && (!config.tlsCertFile || !config.tlsKeyFile)) throw new Error("MQTT_TLS_CERT_FILE and MQTT_TLS_KEY_FILE are required when TLS is enabled");
-  for (const [value, name] of [[config.tlsCaFile, "MQTT_TLS_CA_FILE"], [config.tlsCertFile, "MQTT_TLS_CERT_FILE"], [config.tlsKeyFile, "MQTT_TLS_KEY_FILE"], [config.passwordSecretFile, "MQTT_PASSWORD_SECRET_FILE"]] as const) {
+  for (const [value, name] of [[config.tlsCaFile, "MQTT_TLS_CA_FILE"], [config.tlsCertFile, "MQTT_TLS_CERT_FILE"], [config.tlsKeyFile, "MQTT_TLS_KEY_FILE"], [config.passwordSecretFile, "MQTT_PASSWORD_SECRET_FILE"], [config.authPolicyFile, "MQTT_AUTH_POLICY_FILE"]] as const) {
     if (value) absolutePath(value, name, ["/run/secrets/", "/mosquitto/config/"]);
   }
   if (config.tlsRequireClientCertificate && !config.tlsCaFile) throw new Error("MQTT_TLS_CA_FILE is required for client certificate authentication");

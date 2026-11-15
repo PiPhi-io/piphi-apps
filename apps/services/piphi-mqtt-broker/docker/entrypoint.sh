@@ -11,23 +11,12 @@ cleanup() {
 }
 trap cleanup EXIT HUP INT TERM
 
-if [ -n "${MQTT_USERNAME:-}" ]; then
-  if [ -n "${MQTT_PASSWORD_SECRET_FILE:-}" ]; then
-    password="$(cat "$MQTT_PASSWORD_SECRET_FILE")"
-  else
-    password="${MQTT_PASSWORD:-}"
-  fi
-  [ -n "$password" ] || { echo "MQTT password is empty" >&2; exit 1; }
-  mkdir -p "$(dirname "$password_file")"
-  printf '%s:%s\n' "$MQTT_USERNAME" "$password" > "$password_candidate"
-  unset password
-  mosquitto_passwd -U "$password_candidate"
-  chown mosquitto:mosquitto "$password_candidate"
-  chmod 0640 "$password_candidate"
-  mv -f "$password_candidate" "$password_file"
-fi
-
 MQTT_CONFIG_OUTPUT="${config_file}.candidate" node /app/dist/src/cli.js
+[ -f "$password_candidate" ] || { echo "Password candidate was not generated" >&2; exit 1; }
+mosquitto_passwd -U "$password_candidate"
+chown mosquitto:mosquitto "$password_candidate"
+chmod 0640 "$password_candidate"
+mv -f "$password_candidate" "$password_file"
 
 for path in /mosquitto/config /mosquitto/data /mosquitto/log; do
   mkdir -p "$path"

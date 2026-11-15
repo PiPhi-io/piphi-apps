@@ -9,7 +9,7 @@ RUN npm ci && npm run build && npm prune --omit=dev
 
 FROM node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
 
-ARG APP_VERSION=0.2.0
+ARG APP_VERSION=0.3.0
 LABEL org.opencontainers.image.title="PiPhi MQTT Broker" \
       org.opencontainers.image.description="Managed MQTT broker platform service for PiPhi" \
       org.opencontainers.image.source="https://github.com/PiPhi-io/piphi-apps" \
@@ -23,7 +23,7 @@ COPY --from=build /app/dist ./dist
 COPY --from=build /app/node_modules ./node_modules
 
 RUN apk add --no-cache mosquitto mosquitto-clients \
-    && chmod +x /app/docker/entrypoint.sh \
+    && chmod +x /app/docker/entrypoint.sh /app/docker/credentials-admin.sh \
     && mkdir -p /mosquitto/config /mosquitto/data /mosquitto/log \
     && chown -R mosquitto:mosquitto /mosquitto/config /mosquitto/data /mosquitto/log
 
