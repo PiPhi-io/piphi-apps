@@ -1,141 +1,209 @@
-# PiPhi Modbus vs Home Assistant Modbus: quality and capability comparison
+# PiPhi Modbus and Home Assistant Modbus: capability and quality audit
 
-**Assessment date:** 2026-11-15
-**PiPhi baseline:** released parent `0.9.0` and RTU sidecar `0.7.0`
-**Home Assistant baseline:** `home-assistant/core` `a0f0cf28fea4e1dfea7937305808a3b5414111fd` (2026-11-13) and the current official integration documentation retrieved on 2026-11-13.[HA-CORE][HA-DOC]
+**Research cutoff:** 2026-11-15
+
+**PiPhi source audited:** parent `0.9.0`, RTU sidecar `0.7.0`, their tests, manifests, CI and release metadata in this repository
+
+**Home Assistant source baseline:** `home-assistant/core` commit [`a0f0cf28fea4e1dfea7937305808a3b5414111fd`](https://github.com/home-assistant/core/tree/a0f0cf28fea4e1dfea7937305808a3b5414111fd/homeassistant/components/modbus) (2026-11-13) and official documentation available by the cutoff
+
+**Method:** source and reachable production paths outrank README, manifest and capability-catalog claims. Tests count as evidence for the behavior they execute, not as proof of deployment, field compatibility or a quality tier.
 
 ## Executive conclusion
 
-Home Assistant is the capability baseline: its generic YAML integration implements TCP, UDP, RTU-over-TCP, serial RTU and serial ASCII; four standard data areas; seven entity platforms; broad numeric/string/custom decoding; byte/word swaps; scaling; polling; writes; connection serialization; retries; and operational connection inventory.[HA-DOC][HA-CONST][HA-SCHEMA][HA-HUB][HA-ENTITY][HA-WS]
+PiPhi has a credible **bounded semantic-profile Modbus implementation**, not Home Assistant parity and not a Home Assistant quality tier. Its honest supported slice is:
 
-PiPhi now implements profile-driven TCP, TLS, UDP, RTU-over-TCP, serial RTU and serial ASCII across all four standard data areas, persistent serialized stream sessions, safe contiguous batching, PTY-qualified RTU/ASCII framing, typed values, and named FC05/06/15/16 writes with confirmation and read-back. Extended types include exact 64-bit integers, `float16`/`float32`/`float64`, bounded fixed strings, reviewed enums, read-only bitfields, invalid-vector and precision policies, and number/select entities.[P-TCP][P-STATE][P-README][S-SCHEMA][S-TRANSPORT][S-STATE]
+- FC01/02/03/04 reads and profile-bound FC05/06/15/16 writes;
+- TCP, UDP and RTU-framed TCP; serial RTU and ASCII through the sidecar;
+- a CA-validated, server-authenticated TLS wrapper around Modbus/TCP;
+- units 1–247, the four standard data areas, common fixed-width numbers, fixed strings, enum/bitfield interpretation, scaling and four byte/word layouts;
+- in-memory polling/state, contiguous **network** read batching, bounded serial request serialization, protocol confirmation and read-back; and
+- PiPhi sensor/binary-sensor/switch/number/select models plus profile-composed light/fan/cover/climate-shaped models.
 
-This does **not** mean PiPhi should copy Home Assistant's unrestricted address-based write services. PiPhi's strongest quality direction is its explicit profile/allow-list boundary, local-endpoint restriction, production fail-closed sidecar authentication, bounded queue/backpressure primitive, redacted event model, and explicit exclusion of raw frames, arbitrary addresses, broadcast writes, destructive diagnostics and untrusted profiles.[P-TCP][S-AUTH][S-TRANSPORT][P-CATALOG][S-CATALOG] Those should be preserved and completed while parity is pursued at the safe semantic-profile layer.
+That is useful protocol breadth. It should not be described as “Home Assistant-quality protocol evidence achieved,” “transport parity matched,” or “complete.” The current releases are explicitly `draft`, `unverified` and `unrated` in both manifests.[P-MANIFEST][S-MANIFEST] Startup config recovery is a placeholder; network reconfiguration is not transactional; serial transport errors do not invoke the implemented reconnect method; serial reads are one point per transaction and do not enforce RTU inter-frame timing; diagnostics/state/entity reads are unauthenticated; the sidecar receives the entire `/dev/serial` tree; TLS lacks client-certificate authentication required by the Modbus Security description; and release containers resolve dependencies from ranges instead of the tested lock.[P-LIFECYCLE][P-STATE][S-STATE][S-TRANSPORT][P-APP][S-APP][P-DOCKER][S-DOCKER]
 
-## Scope and scoring rules
+Home Assistant remains the broader user-facing baseline: its generic YAML integration supports TCP, UDP, RTU-over-TCP, serial RTU and serial ASCII, four data areas, seven entity platforms, broad decode/transform options, polling, writes, reload, and connection inventory.[HA-DOC][HA-SCHEMA][HA-HUB][HA-WS] Its generic raw write actions are deliberately broader and less profile-constrained than PiPhi's model.[HA-SERVICE] That breadth is not itself a quality rating: the examined Home Assistant Modbus manifest has no `quality_scale`, and the integration has no `quality_scale.yaml` at the pinned commit.[HA-MANIFEST][HA-CORE]
 
-- **Implemented** means reachable production behavior, not a manifest claim, README statement, schema alone, catalog item, or unit-tested but unwired helper.
-- **Parity target** means a generally useful Home Assistant capability PiPhi should support through bounded profiles.
-- **PiPhi advantage** means a quality property worth retaining even where it intentionally prevents literal API parity.
-- Home Assistant's generic Modbus YAML surface is a useful capability comparator, not a safety ideal. Its `write_register` and `write_coil` actions accept caller-selected unit/address/value on an existing hub; Home Assistant protects service registration with its own platform permissions, but the Modbus layer does not constrain those writes to a device profile.[HA-SERVICE]
-- Modbus itself defines request/reply function codes and the four data areas; semantic types, scale, units, and device-specific writable ranges come from device documentation/profiles rather than the base protocol.[MB-SPEC]
+**Release judgment:** retain the profile-bound write design, but treat the current pair as a strong pre-release implementation. P0 recovery, privacy/authentication, serial timing/device isolation, atomic setup/reconfigure, and reproducible-release work remains before a defensible general release claim.
 
-## Detailed comparison
+## What is being compared
 
-| Area | Home Assistant current behavior | PiPhi parent + RTU sidecar current behavior | Assessment / target |
+The Modbus Application Protocol defines function-code behavior and the four logical data areas; device meaning, scaling, units and safe writable ranges come from device documentation rather than the base protocol.[MB-SPEC] The official serial guide is the current implementation reference for new serial implementations, while the older serial document is explicitly legacy-only.[MB-SOURCES]
+
+Home Assistant's generic Modbus integration is a broad operator-configured adapter. PiPhi is instead a profile-driven bridge with a privileged serial helper. A fair comparison therefore separates:
+
+1. **Protocol breadth** — transports, functions, data areas and codecs.
+2. **Product quality** — setup, reconfigure, recovery, diagnostics, privacy, documentation, tests and release evidence.
+3. **Safety policy** — what callers are intentionally unable to do.
+
+## Evidence table
+
+| Area | Home Assistant first-party baseline | PiPhi source evidence | Audit result |
 |---|---|---|---|
-| **Transports** | YAML hubs support TCP, UDP, RTU-over-TCP, serial RTU and serial ASCII. The newer shared-connection API also models TCP, UDP, TLS and serial parameters for device-specific integrations.[HA-DOC][HA-SCHEMA][HA-CONNECTION] | TCP, certificate-validated TLS, UDP, RTU-over-TCP, managed serial RTU and managed serial ASCII are operational and qualified with protocol simulators/PTYs. Network targets remain local-only; the authenticated non-root sidecar owns explicit `/dev/serial` access.[P-TCP][S-PROJECT] | **Transport parity matched.** TLS requires a mounted CA and hostname validation and never silently downgrades. |
-| **Configuration / profile model** | Generic YAML is per hub and per entity: connection settings plus raw unit, address, register type and decode settings. Device-specific integrations may use their own UI config flows while sharing connections. YAML reload is supported.[HA-DOC][HA-SCHEMA][HA-CONNECTION][HA-SERVICE] | Parent-owned profiles carry ID, version, provenance and hash; declare exact unit/area/address/width/type/order/access; reject overlap and invalid writable targets atomically; and compile to the sidecar contract.[P-SCHEMA][S-SCHEMA][P-LIFECYCLE][S-LIFECYCLE] | **Core model matched with a safety advantage.** Signed catalog distribution, assisted discovery and upgrade UX are platform-level, demand-driven enhancements, not Modbus protocol release gates. |
-| **Point and entity types** | Reads coils, discrete inputs, input registers and holding registers. Platforms are binary sensor, sensor, switch, light, fan, cover and climate, including mode/status mappings and device classes.[HA-CONST][HA-SCHEMA][HA-DOC] | All four areas produce sensor, binary-sensor, switch, number, and select entities. Reviewed profiles also compose point state and named writes into light, fan, cover, and climate entities.[P-MANIFEST][S-MANIFEST] | **Useful entity-platform parity matched.** Broaden qualified profile fixtures and device-class metadata as device demand grows. |
-| **Data types, endianness, scaling** | `int16/32/64`, `uint16/32/64`, `float16/32/64`, string and custom `struct`; byte, word, or word+byte swaps; scale and offset; precision; NaN, clamp and zero-suppression handling.[HA-CONST][HA-SCHEMA][HA-ENTITY] | Supports signed/unsigned 16/32/64-bit integers, float16/32/64, bounded ASCII/UTF-8 strings, reviewed enums, read-only bitfields, four explicit byte/word policies, scaling, offset, units, precision, exact invalid raw vectors and explicit bounded read clamping on every supported transport.[P-TCP][S-SCHEMA] | **Useful safe parity matched.** Non-finite and profile-sentinel reads become unavailable; writes cannot encode sentinels or bypass bounds/precision. Executable custom `struct` formats remain intentionally excluded. |
-| **Polling and batching** | Default per-entity interval is 15 s; `0` disables periodic polling. Requests serialize behind a hub lock and optional inter-message delay. `virtual_count` can read contiguous binary/sensor values in one request, but there is no general planner that coalesces arbitrary adjacent YAML entities.[HA-DOC][HA-HUB][HA-ENTITY][HA-SENSOR] | Stream transports reuse serialized connections and safe contiguous reads; parent-owned groups provide independent cadence/priority, true disabled polling, inter-message delay, bounded jitter/backoff, stale quality and partial-failure isolation. Deterministic property checks prove the planner never reads profile holes.[P-STATE][P-TCP][S-TRANSPORT] | **Matched with richer scheduling controls.** Explicit request-rate budgets are demand-driven hardening for unusually large profiles. |
-| **Writes and actions** | Entity writes cover coils/registers and single/multiple writes. Admin-independent Modbus actions expose arbitrary unit/address/value writes on configured hubs; toggle entities may perform read-back verification.[HA-HUB][HA-SERVICE][HA-ENTITY] | Named profile writes use FC05/06/15/16, enforce immutable type/range/value/address/unit bindings, and require protocol confirmation plus read-back. FC15 steady commands are explicitly idempotent; pulses are non-idempotent, bounded, reset to fixed reviewed values, and never retried.[P-TCP][S-SCHEMA][S-STATE] | **Useful safe parity matched.** Arbitrary writes, raw PDUs, broadcasts and caller-defined pulse values remain excluded. |
-| **Validation and safety** | Strong schema validation catches conflicting fields, type/swap/count errors and platform options. Runtime serializes requests and marks entities unavailable on errors. Generic writes remain broad once a hub exists.[HA-SCHEMA][HA-VALIDATORS][HA-ENTITY][HA-SERVICE] | Parent and sidecar validate units, areas, widths, overlap, finite transforms, enum ranges, bit masks, writable areas, PDU quantities, local targets, framing, CRC, response identity and exceptions before publishing state.[P-TCP][S-SCHEMA][S-TRANSPORT] | **PiPhi advantage.** Keep the profile and local-network boundary while adding transport-specific validation with each new transport. |
-| **Reconnect / error handling** | YAML hubs retry initial connection every 60 s, configure three pymodbus retries, serialize calls, suppress duplicate error logs, close cleanly, and mark entities unavailable on read/write failures. Shared connections are reference-counted, reject incompatible settings, and close on last release/shutdown.[HA-HUB][HA-CONNECTION][HA-ENTITY] | Reads reconnect/retry once; writes are never blindly retried. Values become stale/unavailable without fabrication, failed blocks are isolated, repeated poll failures use bounded jittered exponential backoff, and per-unit health records successes and consecutive errors.[P-TCP][P-STATE][S-STATE][S-README] | **Core correctness matched.** Duplicate-log suppression and broader hotplug/restart matrices remain. |
-| **Diagnostics / observability** | Admin-only WebSocket inventory lists endpoint, connection state, source and unit users; official UI explains that serial “open” does not prove a unit answers. Logs identify device/address failures, and entities expose availability.[HA-WS][HA-DOC][HA-HUB] | Redacted diagnostics include profile identity, point quality, poll latency/outcomes, stale counts, per-unit last success/errors, retries, reconnects, timeout/CRC/error counters, queue depth/capacity/high-water, and event replay gaps. Online/offline/degraded/recovered and stale/recovered events emit once per transition.[P-HEALTH][S-HEALTH][S-TRANSPORT] | **Operational parity matched with a PiPhi observability advantage.** Add request-rate trend reporting only if operator demand justifies it. |
-| **Security / authentication boundary** | Official docs explicitly warn that ordinary Modbus TCP has no client authentication or encryption and must be isolated on a trusted network. The integration manifest is local polling. Admin is required for the connection inventory; HA services operate inside HA's authenticated service boundary.[HA-DOC][HA-MANIFEST][HA-WS] | Every network mode remains local-target-only. TLS requires CA-backed X.509 server identity validation. Every parent-to-sidecar transport route is authenticated, production fails closed without identity, tokens are injected and redacted, the sidecar has no host port, and both containers run non-root.[P-TCP][P-STATE][S-AUTH][S-APP] | **PiPhi advantage implemented.** Mutual TLS/client certificates remain intentionally outside the current generic profile contract. |
-| **Test quality** | The examined core tree has 152 test functions across schema/setup, all seven platforms, decoding, polling, writes/services, deprecations, shared connection lifecycle and WebSocket inventory. Tests include connection sharing/conflicts, shutdown/exception cleanup and reconnect-on-reload behavior.[HA-TESTS] | The two PiPhi packages collect 125 tests, including TCP/UDP/RTU-over-TCP simulators, TLS identity checks, Linux PTY RTU/ASCII, parent-sidecar E2E, authentication, batching, reconnect, polling groups/backoff/transitions, writes/read-back, malformed and randomized frames/plans, realistic payloads and value-policy golden vectors.[P-TEST][S-TEST] | **Home Assistant-quality protocol evidence achieved.** Expand hotplug and attributed fixtures when field compatibility defects or new adapter classes are reported. |
-| **Deployment architecture** | Modbus runs in the HA process. Generic YAML hubs own clients; newer device integrations can share a reference-counted physical connection via a common library. Direct serial access therefore sits in the HA process/container.[HA-HUB][HA-CONNECTION] | Parent and serial sidecar are independently versioned non-root containers. The auto-installed sidecar has internal-only networking, authenticated typed RPC, explicit serial mapping, bounded arbitration, and restart reconciliation.[P-DOCKER][S-DOCKER][S-README] | **PiPhi architectural advantage implemented.** Conditional dependency installation remains a platform-level optimization. |
-| **Compatibility evidence** | Official docs describe USB-RS485 adapters, serial servers and gateways, but the generic integration does not require or publish a certified adapter/device matrix.[HA-DOC][HA-MANIFEST] | Compatibility is established through protocol conformance, attributed device-document fixtures, PTY-backed RTU simulation, malformed-frame recovery, and multi-architecture container tests.[P-TEST][S-TEST] | Follow Home Assistant's generic-integration model: physical adapter/device certification is not a release or rollout gate. Document protocol and profile limits accurately and expand fixtures when compatibility defects are reported. |
+| **Transports** | Generic YAML supports TCP, UDP, RTU-over-TCP, serial RTU and serial ASCII.[HA-DOC][HA-SCHEMA] A separate shared-connection API supports TCP, UDP, TLS and serial parameters for device integrations.[HA-CONNECTION] | Network client implements TCP, UDP, CRC-framed RTU-over-TCP and TLS; the sidecar implements serial RTU and ASCII.[P-TCP][S-TRANSPORT] | **Broad on paper, qualified claim needed.** PiPhi has six selectable paths, but TLS is not full Modbus Security (see below), and serial timing/recovery gaps remain. |
+| **Functions and data areas** | Generic entities use FC01/02/03/04 reads and FC05/06/15/16 writes through pymodbus; all four areas are configurable.[HA-HUB][HA-CONST][HA-DOC] | `FUNCTION_BY_AREA` implements FC01–04; point writes choose FC05, FC06 or FC16 and coil groups use FC15.[P-TCP][S-TRANSPORT] | **Useful core slice matched.** No mask write, read/write multiple registers, file records, device identification, diagnostics or vendor functions. This exclusion is acceptable if stated, not hidden under “generic parity.” |
+| **Protocol limits** | The upstream client API documents up to 2,000 contiguous bits and approximately 125 registers for standard reads, and requires applications to serialize client calls.[PYMODBUS] | Network planner caps bits at 2,000 and registers at 125 and serial/network paths serialize requests.[P-TCP][S-TRANSPORT] | **Mostly sound.** FC16 schema uses 123 registers and FC15 uses 1,968 coils, consistent with bounded request design. Serial reads do not batch adjacent points. |
+| **TLS / security protocol** | The shared HA connection library models TLS for device-specific integrations; generic YAML does not expose TLS.[HA-CONNECTION][HA-DOC] | PiPhi uses Python TLS, a configured CA, hostname verification and port 802, but supplies no client certificate and sends its normal MBAP framing.[P-TCP] | **Call this “server-authenticated TLS-wrapped Modbus/TCP,” not certified Modbus Security.** The Modbus Organization describes Modbus Security as TLS with X.509 authentication of both server and client on port 802.[MB-SOURCES] |
+| **Addresses and profiles** | YAML lets the operator declare hub, unit, address, type and transforms per entity.[HA-DOC][HA-SCHEMA] | Pydantic models bind profile ID/version/provenance, unit, area, address, width, codec and writability; duplicate IDs, overlap and writes to read-only areas are rejected.[P-SCHEMA][S-SCHEMA] | **Good structural boundary, not a trust system.** Provenance is free text, profiles are inline user input, and hashes detect identity/change but there is no signature, trusted issuer or catalog verification. |
+| **Decoding** | Supports signed/unsigned 16/32/64-bit values, float16/32/64, strings, custom `struct`, swaps, scaling, offset, precision and value policies.[HA-DOC][HA-SCHEMA][HA-ENTITY] | Supports corresponding fixed numeric types, strings, four ordering policies, enums, read-only bitfields, scale/offset, invalid vectors, bounds and precision.[P-SCHEMA][P-CODEC][S-SCHEMA] | **Strong safe subset.** Excluding executable/custom structures is reasonable. “Parity” is still too broad because HA exposes more per-platform transforms, device/state classes and semantic mappings. |
+| **Entities** | Seven actual Home Assistant platforms: binary sensor, climate, cover, fan, light, sensor and switch.[HA-CONST][HA-DOC] | PiPhi emits its own point models and generic profile-composed models, including switch/number/select-like points and light/fan/cover/climate composites.[P-MODEL][P-COMPOSITE] | **Not one-for-one platform parity.** The models do not establish HA entity lifecycle behavior, device classes, state classes, translations or complete platform semantics. |
+| **Polling and batching** | Default entity interval is 15 s, zero disables polling, requests serialize behind a hub lock, and `virtual_count` combines contiguous values.[HA-DOC][HA-HUB][HA-ENTITY] | Parent schedules groups with priority, jitter and backoff. Network reads coalesce only exactly contiguous points. Sidecar refresh loops over each point.[P-STATE][P-TCP][S-STATE] | **Good network primitive; incomplete system behavior.** No global/profile rate budget, no scheduler fairness proof, no serial block planner, and due groups run sequentially across every config, so one slow bus can delay unrelated buses. |
+| **Writes** | Generic services accept caller-selected hub, unit, address and value; entity platforms also write configured targets and some verify state.[HA-SERVICE][HA-ENTITY] | PiPhi accepts point/command IDs, re-resolves immutable profile bindings, disallows unit 0 by schema, checks responses and reads back.[P-STATE][P-TCP][S-API][S-STATE] | **PiPhi safety advantage.** Keep named writes, no raw PDU, no broadcast and no caller address/function override. Note that profile authors remain trusted to mark the correct register writable. |
+| **Initial setup** | Generic YAML validates configuration and starts a reconnect task; current HA guidance directs ordinary users to device-specific UI integrations where available.[HA-SCHEMA][HA-HUB][HA-DOC] | Parent network setup performs an immediate snapshot, but serial setup catches sidecar configuration/read failures, stores unavailable state, and still returns an apply response.[P-STATE][P-CONFIG] | **Gap.** Setup does not consistently fail or return an actionable typed error when the device/unit is unreachable. There is no assisted profile selection or safe connection test before acceptance. |
+| **Reconfigure and removal** | YAML reload closes hubs, resets platforms and applies new YAML; shared config-entry connections are reference-counted and release on unload.[HA-SERVICE][HA-CONNECTION] | Parent closes/removes the old network client before trying replacement. Sidecar preserves an old session only when opening the candidate port fails, but accepts a candidate when the port opens even if every unit read fails.[P-STATE][S-STATE] | **Gap.** Make apply transactional end-to-end: validate, connect, prove the intended unit/profile, swap, then retire old resources. Removal does close clients/controllers. |
+| **Restart and recovery** | HA retries initial connection every 60 seconds, uses three pymodbus request retries, closes on stop, marks failed entity reads unavailable and suppresses repeated identical hub errors.[HA-HUB][HA-ENTITY] | Network reads reconnect/retry once. Parent can reapply sidecar config after HTTP-level sidecar failure. `BusController.reconnect()` exists but has no production caller; point I/O errors only mark unavailable.[P-TCP][P-STATE][S-STATE] | **P0 gap.** Serial hot-unplug/replug or descriptor failure is not automatically reopened. “Bounded reconnect” and “hot-unplug recovery” are not supported claims. |
+| **RTU/ASCII framing and timing** | HA delegates serial framing and retries to pinned upstream libraries.[HA-MANIFEST][HA-HUB] | Sidecar validates CRC/LRC, unit, function, exception and response byte counts and uses exclusive pyserial open.[S-TRANSPORT] | **Framing is credible; timing is incomplete.** There is no explicit RTU 3.5-character silent interval or local-echo/RS-485 direction handling, and parent delay is not a transport-wide invariant. The current Modbus serial guide is the authoritative requirement source.[MB-SERIAL] |
+| **Diagnostics and privacy** | HA provides an admin-only WebSocket connection inventory and explains that serial “open” does not prove a unit responds.[HA-WS][HA-DOC] | PiPhi reports profile IDs/hashes, quality, latency, errors, unit health and queue metrics, and redacts selected key names/events.[P-HEALTH][P-STATE][S-STATE][S-TRANSPORT] | **Useful metrics, unsafe exposure boundary.** Parent and sidecar `/diagnostics`, `/state`, `/entities`, `/events` and related reads are not protected by the command/config authentication middleware. Example event POST routes are also unprotected. Entity values and operational metadata may therefore be disclosed to any reachable caller.[P-APP][P-RUNTIME][P-EVENTS][S-APP][S-RUNTIME][S-EVENTS] |
+| **Serial privilege boundary** | HA commonly accesses serial in its own runtime; official docs cover USB adapters, proxies and serial servers.[HA-DOC] | Sidecar runs as UID 10001 and has no host-published port in its manifest, but maps host `/dev/serial` as `rwm`; config accepts any string path visible in that mapping.[S-DOCKER][S-MANIFEST][S-SCHEMA] | **Isolation is directionally good, least privilege is not achieved.** The claim “explicitly configured device mapping only” conflicts with the manifest's whole-tree mapping. |
+| **Configuration persistence** | HA stores YAML/config entries and reconstructs integration state at restart.[HA-DOC][HA-CONNECTION] | Parent startup callback is explicitly a no-op placeholder; registries and active clients are process memory.[P-LIFECYCLE][P-STATE] | **P0 gap unless Core has an independently proven replay guarantee.** This package alone cannot restore existing configs after restart. |
+| **Tests** | HA has first-party schema, service, platform, connection lifecycle and WebSocket tests at the pinned commit.[HA-TESTS] | PiPhi has 54 parent and 35 sidecar test-function definitions before parametrization, including protocol simulators, PTYs, malformed frames, auth, E2E parent↔sidecar and transactional sidecar reconfigure.[P-TESTS][S-TESTS] | **Strong pre-release evidence, not a tier.** There is no coverage measurement/gate, strict type check, serial timing test, true hot-unplug reopen test, authenticated-read test or production deployment test. A local rerun for this audit was blocked before collection by a missing `piphi_runtime_testkit_python` pytest plugin in the active environment; CI configuration, not a fresh green run, is the evidence recorded here. |
+| **CI and release** | HA pins runtime requirements in its manifest and validates core through project CI.[HA-MANIFEST][HA-CORE] | Monorepo CI runs lock check, audit, pytest, validation and container build; release builds multi-arch images with SBOM and provenance attestation.[P-APP-META][S-APP-META][CI][RELEASE-CI] | **Good pipeline design with a reproducibility break.** Dockerfiles copy only `pyproject.toml` and run `pip install .`, so image dependencies are resolved from ranges rather than the `pdm.lock` that CI tests/audits. Both marketplace records remain draft/unverified/unrated.[P-DOCKER][S-DOCKER][P-MANIFEST][S-MANIFEST] |
+| **Documentation** | Official HA docs include setup paths, terminology, complete YAML reference, security warning, connection inventory and issue guidance.[HA-DOC] | PiPhi READMEs summarize architecture and features; generated contract/release docs mostly list routes and generic release steps.[P-README][S-README][P-CONTRACT][S-CONTRACT] | **Gap.** Missing operator-grade field reference, profile authoring guide, removal/reconfigure steps, privacy disclosure, troubleshooting, known limitations, recovery behavior and a tested-device/profile support matrix. |
 
-## Final release classification
+## Honest supported slice
 
-The released `0.9.0` parent and `0.7.0` sidecar meet the useful Home
-Assistant-quality target under PiPhi's safer profile boundary. There is no
-remaining generic Modbus capability that must ship before work moves to another
-app.
+### Supported now by reachable source paths
 
-| Classification | Capabilities |
+| Dimension | Supported slice |
 |---|---|
-| **Implemented** | TCP, certificate-validated TLS, UDP, RTU-over-TCP, serial RTU and serial ASCII; FC01/02/03/04 reads; FC05/06/15/16 named writes; all four data areas; common numeric/string/enum/bitfield types; float16/32/64; value policies; polling groups, batching, backoff and quality; semantic switch/number/select/light/fan/cover/climate entities; authenticated managed serial sidecar; redacted health and release provenance. |
-| **Intentionally excluded** | Arbitrary unit/address writes, raw PDUs or frames, broadcasts, executable/custom struct formats, untrusted profiles, unrestricted serial devices, vendor function passthrough, destructive diagnostics, silent TLS downgrade, and generic mutual/client-certificate secret handling. |
-| **Demand-driven** | Signed catalog distribution and assisted profile upgrade UX; derived rates; duplicate-log suppression; request-rate trend/budget reporting; broader USB hotplug/adapter matrices; additional attributed device fixtures; device-class metadata; and bounded non-destructive uncommon function codes backed by a real profile and fixture. |
-| **Still required for Home Assistant-quality release** | **None.** New field defects remain release-quality work, but no known parity gap blocks declaring the generic integration complete. |
+| Network | Private/link-local/loopback IP literals or syntactically `.local`/`.lan` hostnames; TCP, MBAP-over-UDP, CRC-framed RTU-over-TCP, and server-authenticated TLS-wrapped Modbus/TCP. |
+| Serial | Linux serial RTU or ASCII through pyserial, 1,200–921,600 baud, 7/8 data bits, N/E/O parity, 1/2 stop bits, one in-flight operation per configured session. |
+| Reads | FC01 coils, FC02 discrete inputs, FC03 holding registers, FC04 input registers; units 1–247; network contiguous batching only. |
+| Writes | FC05 single coil, FC06 single holding register, FC15 contiguous multiple coils, FC16 multiple holding registers; profile-bound, response-confirmed and read back. |
+| Values | Bool; signed/unsigned 16/32/64; float16/32/64; bounded fixed ASCII/UTF-8 strings; enums; read-only bit masks; scale, offset, bounds, precision, invalid raw vectors and ABCD/BADC/CDAB/DCBA policies. |
+| State | Last-good value retention with stale/unavailable quality, per-unit counters, polling groups and in-memory events/diagnostics. |
 
-## Prioritized gap matrix
+### Not supported or not proven
 
-Priority means release risk, not implementation order within a sprint.
+- Full Modbus Security conformance or mutual X.509 authentication.[MB-SOURCES]
+- Unit 0/broadcast, arbitrary addresses, raw frames/PDUs, custom/vendor functions, FC08 diagnostics, FC20/21 file records, FC22 mask write, FC23 read/write multiple registers or FC43 device identification.[MB-SPEC]
+- Signed/trusted profile distribution, arbitrary profile authenticity or vendor certification.
+- Serial adjacent-read batching, RTU silent-interval enforcement, automatic serial descriptor reopen/hotplug recovery, cross-config bus sharing or fairness.
+- Durable config/state restoration by these packages, transactional parent network reconfigure, discovery, repairs or assisted profile upgrade.
+- Home Assistant entities, config entries, translations or an HA IQS tier; PiPhi entities are a different runtime contract.
+- A field-validated compatibility promise beyond the small attributed fixture corpus and simulated/PTTY paths.
 
-The original rows below are retained as acceptance history. P0 and P1 core
-criteria are implemented across the releases through `0.9.0`/`0.7.0`.
-Remaining P2 items are either explicitly excluded or demand-driven; they are
-not an active generic Modbus release backlog.
+## Home Assistant Integration Quality Scale assessment
 
-| Priority | Gap / deliverable | Why | Concrete acceptance criteria |
-|---|---|---|---|
-| **P0** | **Truthful RTU transport and parent↔sidecar path** | The sidecar currently reports connection without I/O and does not perform Modbus. | (1) A typed, authenticated request from parent reaches the sidecar and performs FC01/02/03/04 against a PTY/device simulator; (2) one request at a time per bus; (3) valid CRC/LRC and timing enforced; (4) timeout, bad CRC, wrong unit/function and Modbus exception are distinct typed failures; (5) `service_available`, `port_open`, and `unit_responsive` are separate states; (6) no successful transaction means no `connected: true`; (7) hot-unplug and restart recover without process restart; (8) broadcast writes and arbitrary frames are impossible through the API. |
-| **P0** | **Versioned semantic profile contract** | Safe point coverage depends on trusted semantics. | (1) Signed profile artifact has ID/version/hash/provenance; (2) exact unit, area, address, width, type, byte/word order, scale, offset, unit and access mode per point; (3) duplicate IDs, overlapping incompatible ranges, non-finite scale/offset/bounds, out-of-range widths and writable read-only areas fail atomically; (4) parent owns profile selection and sidecar accepts only compiled allow-listed requests; (5) applied profile hash appears in state/diagnostics/audit events; (6) no arbitrary address/PDU escape hatch. |
-| **P0** | **Baseline reads and entities** | One raw holding register is not useful parity. | (1) Coils, discrete inputs, input registers and holding registers work over TCP and RTU; (2) boolean, int16/uint16, int32/uint32 and float32 decode with explicit ABCD/BADC/CDAB/DCBA policies; (3) scaling/offset/unit/bounds and enum mapping are deterministic; (4) sensor and binary-sensor entities carry timestamp, availability and quality; (5) golden vectors cover minimum, maximum, negative, NaN/invalid (where relevant), every endianness and malformed short responses. |
-| **P0** | **Bounded polling and recovery** | Current TCP polling is one connection/point and failure cadence is inconsistent; serial has no poller. | (1) Persistent connection/session per endpoint/bus where supported; (2) all requests serialized per physical link; (3) configurable poll interval with documented floor; (4) bounded queue and per-profile request-rate/quantity limits; (5) bounded retry then exponential backoff with jitter; (6) failed points become stale/unavailable without replacing the last value with fabricated data; (7) one failed block does not suppress unrelated blocks; (8) tests prove recovery after disconnect, timeout, sidecar restart and queue saturation. |
-| **P0** | **Safe semantic writes** | Control is a core capability, but literal HA raw-write parity would violate PiPhi's safety model. | (1) Only named profile actions can write; (2) exact function/unit/address/type and min/max/enum are immutable at invocation; (3) per-action authorization and audit identity; (4) no unit 0/broadcast; (5) write timeout/error is surfaced; (6) required actions read back and compare within configured tolerance/deadline; (7) retry/idempotency policy is explicit per action and never blindly repeats a non-idempotent pulse; (8) tests prove attempts to override address/function/range are rejected before transport. |
-| **P0** | **Complete internal security boundary** | The sidecar will own a privileged serial device. | (1) Every mutating/config/request route is authenticated; state/diagnostics exposure is explicitly classified and either authenticated or network-isolated; (2) production startup fails if token/identity is missing; (3) token rotation works without profile edits and tokens never enter logs/events/diagnostics; (4) sidecar has no host-published port and receives only explicit serial device mappings; (5) tests enumerate all routes and prove unauthorized requests cannot configure, read, write or infer sensitive port paths; (6) container runs non-root with least filesystem/device permissions where the platform permits. |
-| **P1** | **Contiguous block planner and scheduler** | Necessary for scale and bus health; HA only partly batches through virtual counts. | (1) Planner coalesces compatible adjacent points without crossing function/unit, profile maximum gap, protocol quantity limits or unsafe holes; (2) decoder maps partial blocks deterministically; (3) configurable poll groups/priorities; (4) fairness prevents command or slow-unit starvation; (5) request-count reduction is measured against one-point reads; (6) planner property tests prove no out-of-profile address is read. |
-| **P1** | **Operational observability** | Structured, redacted diagnostics can be a PiPhi quality advantage. | State/diagnostics expose profile hash, redacted endpoint/port identity, queue depth/capacity/high-water mark, per-unit last success, point age/quality, poll duration/success/failure, exception/CRC/timeout/reconnect counters and event-buffer dropped/gap status; online/offline/degraded/recovered and queue transitions emit once per transition; no secrets, raw frames or full serial paths appear. |
-| **P1** | **Test depth and release gates** | Helpers passing in isolation does not establish a working integration. | CI runs parent↔sidecar integration tests with TCP simulator and Linux PTY serial simulator; covers all supported functions/types/orders, cancellation, saturation, malformed/truncated frames, exception codes, reconnect/restart and auth route coverage; fuzz/property tests target MBAP/RTU parsers and block planning; coverage is reported for protocol modules; release is blocked on contract, integration and security suites. |
-| **P1** | **Protocol compatibility corpus** | Generic Modbus compatibility depends on deterministic framing and profile interpretation rather than vendor certification. | Retain attributed fixtures for representative meters, relays and HVAC controls; test line settings, timing boundaries, malformed responses, reconnects and supported function/type combinations against TCP and PTY simulators; add regression fixtures for reported compatibility defects. |
-| **P1** | **Composite device entities** | HA users expect semantic controls, not register cards. | At least one reviewed profile maps points/actions into a switch and one setpoint/thermostat-like entity with verified state, limits, units and availability. Composite state transitions and write confirmation are tested against deterministic simulators and attributed fixtures. |
-| **P2** | **Additional data types and transforms** *(implemented by released `0.9.0` / `0.7.0`)* | Useful but should follow device demand. | Int64/uint64/float16/32/64, fixed strings, enums, bitfields, invalid sentinels, bounded clamp and precision are reviewed profile schema with golden vectors and no executable/custom format strings. Derived rates remain demand-driven. |
-| **P2** | **Additional transports** *(implemented by released `0.8.0` / `0.6.0`)* | HA has broader generic reach, but low-use transports should not delay core quality. | RTU-over-TCP, ASCII and UDP are each enabled only with transport-specific framing, timing/reconnect tests and representative protocol fixtures. Modbus Security/TLS validates certificates and identity and does not silently downgrade. |
-| **P2** | **Richer semantic composites and diagnostics** | Climate, fan, light, cover and safe standard diagnostic functions are device-specific. | Each capability is profile-declared, range/state mapped and fixture-tested. Only non-destructive allow-listed diagnostics are exposed; listen-only, counter clearing, communications restart, vendor functions and raw PDUs remain excluded unless a separate privileged, audited engineering product is deliberately designed. |
+The current IQS has 54 rules: 20 Bronze, 10 Silver, 21 Gold and 3 Platinum. A tier requires every rule in that tier and all lower tiers; claims are recorded in `quality_scale.yaml`, checked by hassfest and approved by Home Assistant reviewers.[HA-IQS][HA-IQS-RULES] PiPhi is not a Home Assistant core integration, so it **cannot literally earn an HA tier**. The table below is an analogous gap assessment, not a badge.
 
-## Recommended quality stance
+| IQS level | Analogous PiPhi evidence | Assessment |
+|---|---|---|
+| **Bronze** | UI schema endpoint, stable point IDs, appropriate default polling, action registration at module startup, substantial tests and basic docs.[P-DISCOVERY][P-STATE][P-SCHEMA][P-README] | **Does not meet Bronze equivalence.** No tested UI config flow that proves connectivity before acceptance, no duplicate endpoint/device prevention, inconsistent setup failure, incomplete install/removal docs, no brand evidence, and no rule ledger. Several HA-specific rules are structurally inapplicable. |
+| **Silver** | Deconfigure closes resources; failed values become unavailable/stale; maintainer metadata exists.[P-STATE][S-STATE][P-MANIFEST] | **Does not meet Silver equivalence.** No measured >95% per-module coverage, no production serial reconnect, repeated poll warnings are not transition-suppressed, no credential reauth/rotation user flow, and reconfigure is not consistently transactional. |
+| **Gold** | Rich internal metrics and event transitions; some profile-composed devices.[P-STATE][S-STATE] | **Does not meet Gold equivalence.** No discovery, repairs, translations, device/state classes, stale-device UX, protected downloadable diagnostics, complete supported-device/function docs or robust reconfiguration flow. |
+| **Platinum** | Network path is async; blocking serial I/O is moved to threads.[P-TCP][S-TRANSPORT] | **Does not meet Platinum equivalence.** No strict mypy gate; no shared injected HTTP session (a new `httpx.AsyncClient` is created for every sidecar call); and the serial implementation is a custom synchronous transport rather than a strictly typed async dependency.[P-SIDECAR] |
 
-1. **Match HA's useful coverage, not its raw surface.** Target the four data areas, common types, robust connection handling, efficient polling and semantic entities. Do not target arbitrary unit/address writes, custom executable unpack formats, raw PDUs or broadcasts.
-2. **Make profiles the only semantic authority.** Device manuals and attributed fixtures should produce reviewed profile artifacts; transport code should know framing and bounds, not device meaning.
-3. **Keep the sidecar narrow and privileged.** It should own allow-listed serial devices, exclusive bus arbitration, framing/timing and typed requests. Parent owns profiles, entities, policy and user authorization.
-4. **Treat quality metadata as a deliverable.** Availability must distinguish process, link and unit; every value needs age/quality; every write needs outcome/audit; every release needs simulator evidence and an explicit supported protocol/profile scope.
-5. **Keep capability accounting exact.** Catalogs, manifests and UI expose only paths exercised by the same release's protocol and end-to-end tests; demand-driven and excluded surfaces stay visibly separate.[P-CATALOG][S-CATALOG]
+Home Assistant's generic Modbus component itself is **ungraded at the pinned commit**, so “equal to HA Modbus” must not be translated into any IQS tier.[HA-MANIFEST][HA-CORE]
+
+## Safety invariants to preserve and strengthen
+
+1. **No invocation-time transport override.** Callers select a stable point or named action; they never provide function, unit, address, raw PDU or frame.
+2. **No broadcast writes.** Keep profile unit IDs at 1–247. The official HA terminology also identifies unit 0 as broadcast on serial/gateway connections.[HA-DOC]
+3. **Writes are explicitly profile-authorized.** Read-only areas and points stay non-writable; values remain typed, finite, bounded and precision-checked.
+4. **No blind write retry.** Preserve single-attempt writes, response validation and read-back. A timeout leaves outcome unknown and must be surfaced, not automatically repeated.
+5. **Pulse reset is safety-critical.** Do not run pulse sleep/reset in an HTTP request coroutine without durable recovery. Persist an outstanding reset intent or move bounded pulse execution to a crash-safe controller before marketing pulses as safe.
+6. **One in-flight request per physical link.** Preserve serialization, but key it by actual endpoint/bus across configs, not merely by config object. Upstream pymodbus explicitly requires application-level serialization.[PYMODBUS]
+7. **Fail closed on identity and trust.** Production command/config APIs already require runtime/sidecar identity; extend authorization to every other mutating route and to state, entities, events and diagnostics. Profile hash is not profile trust.
+8. **Validate the resolved destination.** Re-resolve and reject any public/non-local address at connect time, including every DNS result, rather than trusting only an IP literal or `.local`/`.lan` suffix.
+9. **Least serial-device privilege.** Map only the selected stable device path, reject paths outside the allowed mount, and document udev/hotplug behavior.
+10. **Never equate process, socket/port and unit health.** Keep `service_available`, `port_open` and responsive-unit state separate; do not accept a reconfiguration merely because the port opens.
+11. **No raw frames or secrets in diagnostics.** Preserve sanitization and add explicit privacy tests over every externally reachable read route.
+12. **Atomic config replacement.** A new config becomes active only after schema validation, endpoint ownership checks and a successful identity/read probe; otherwise the previous working config remains intact.
+
+## Prioritized concrete next work
+
+### P0 — release blockers
+
+1. **Make restart and reconfigure real.** Implement startup config replay; stage parent clients/controllers before registry swap; prove the intended unit/profile responds; preserve the old config on all failure paths; add process-restart and sidecar-restart tests.
+2. **Repair serial recovery and timing.** Invoke bounded close/reopen after descriptor/transport failure; handle unplug/replug; enforce the serial guide's RTU frame separation across reads and writes; add PTY tests for truncated frames, delayed bytes, stale input, local echo and reopen after descriptor replacement.[MB-SERIAL]
+3. **Close API authorization and privacy gaps.** Apply runtime identity to `/state`, `/entities`, `/events`, `/diagnostics`, `/contract` where appropriate, all sidecar operational reads, and unprotected event/telemetry mutation routes. Define the small set of intentionally public liveness endpoints. Add route-enumeration tests proving unauthorized callers cannot mutate state or infer values, profile IDs, unit health or paths.
+4. **Enforce least-privilege serial mapping.** Replace `/dev/serial` tree mapping with explicit stable device mapping/capability support. Validate canonical paths and ensure one physical bus cannot be configured twice under different IDs.
+5. **Make releases reproducible.** Build images from the locked, audited dependency set (or generated hash-pinned requirements), then test that exact image. Keep SBOM/provenance attestation, publish immutable digest evidence, and change draft/unverified metadata only after qualification.
+6. **Correct public claims immediately.** Rename TLS capability as server-authenticated TLS-wrapped Modbus/TCP unless mutual X.509 and Modbus Security conformance are implemented; remove hotplug, bounded reconnect, explicit-device-only and complete/parity claims from catalogs/docs until tests and production paths support them.
+7. **Make pulse reset crash-safe or remove it.** A process cancellation/restart between set and reset can leave coils asserted. Use a durable deadline/reset journal reconciled at startup, or exclude pulse commands from the release.
+
+### P1 — quality baseline
+
+8. **Add measurable gates.** Enforce per-module coverage above 95% if targeting Silver equivalence, strict type checking, linting and protocol parser/property tests. Ensure a clean checkout can execute tests without ambient pytest plugins.[HA-IQS-RULES]
+9. **Bound the whole scheduler.** Add per-bus/profile request-rate and queue budgets, fair scheduling across configs, queue wait deadlines/cancellation, and serial contiguous block planning that never crosses undeclared holes.
+10. **Harden local-network policy.** Validate resolved IPs at every connection/reconnection, address DNS rebinding, make allowed subnets explicit, and test IPv4/IPv6/link-local/mDNS behavior.
+11. **Finish operator documentation.** Add setup/reconfigure/removal procedures, every field and default, profile authoring/versioning, privacy/data exposure, known limits, security architecture, troubleshooting, supported functions/transports and recovery semantics.
+12. **Turn diagnostics into a product surface.** Provide authenticated, downloadable, consistently redacted diagnostics with endpoint/port pseudonyms, config/release provenance, last-success age and actionable error taxonomy; avoid repeated identical logs.
+
+### P2 — demand-driven breadth
+
+13. Add device/state classes, richer semantic mappings and translations based on reviewed profiles rather than generic claims.
+14. Expand the attributed fixture corpus and publish a tested profile/device/adapter matrix; distinguish simulator, vendor-document fixture and real-hardware evidence.
+15. Add non-destructive uncommon function codes only for a concrete device/profile need. Keep raw PDU, broadcast and destructive diagnostics out of the normal product.
+16. Consider mutual TLS/Modbus Security only with a complete certificate lifecycle, client identity, rotation and conformance plan.[MB-SOURCES]
 
 ## Primary sources
 
-### Standards and official documentation
+### Protocol and upstream
 
-- **[MB-SPEC]** Modbus Organization, [Specifications and Implementation Guides](https://www.modbus.org/modbus-specifications): links the Application Protocol V1.1b3, Serial Line Protocol V1.02, TCP/IP Messaging Guide, and Modbus Security Protocol; describes the Security protocol as TLS plus X.509 authentication on port 802.
-- **[HA-DOC]** Home Assistant, [Modbus integration documentation](https://www.home-assistant.io/integrations/modbus/), retrieved 2026-11-13.
+- **[MB-SOURCES]** Modbus Organization, [Specifications and Implementation Guides](https://www.modbus.org/modbus-specifications) — first-party links to Application Protocol V1.1b3, Serial Line V1.02, TCP/IP messaging and Modbus Security; describes TLS, X.509 server/client authentication and port 802.
+- **[MB-SPEC]** Modbus Organization, [Modbus Application Protocol V1.1b3](https://www.modbus.org/file/secure/modbusprotocolspecification.pdf).
+- **[MB-SERIAL]** Modbus Organization, [Modbus Serial Line Protocol and Implementation Guide V1.02](https://www.modbus.org/file/secure/modbusoverserial.pdf).
+- **[PYMODBUS]** pymodbus project, [official client documentation](https://pymodbus.readthedocs.io/en/latest/source/client.html) — transports/framers, serialization requirement, reconnect/retry behavior, addressing, function APIs and quantity bounds.
 
-### Home Assistant first-party source (commit `a0f0cf28`)
+### Home Assistant first-party
 
-- **[HA-CORE]** [`home-assistant/core` commit a0f0cf28](https://github.com/home-assistant/core/tree/a0f0cf28fea4e1dfea7937305808a3b5414111fd/homeassistant/components/modbus).
-- **[HA-MANIFEST]** [manifest.json](https://github.com/home-assistant/core/blob/a0f0cf28fea4e1dfea7937305808a3b5414111fd/homeassistant/components/modbus/manifest.json).
-- **[HA-CONST]** [const.py](https://github.com/home-assistant/core/blob/a0f0cf28fea4e1dfea7937305808a3b5414111fd/homeassistant/components/modbus/const.py).
-- **[HA-SCHEMA]** [schemas.py](https://github.com/home-assistant/core/blob/a0f0cf28fea4e1dfea7937305808a3b5414111fd/homeassistant/components/modbus/schemas.py).
-- **[HA-VALIDATORS]** [validators.py](https://github.com/home-assistant/core/blob/a0f0cf28fea4e1dfea7937305808a3b5414111fd/homeassistant/components/modbus/validators.py).
-- **[HA-HUB]** [modbus.py](https://github.com/home-assistant/core/blob/a0f0cf28fea4e1dfea7937305808a3b5414111fd/homeassistant/components/modbus/modbus.py).
-- **[HA-CONNECTION]** [connection.py](https://github.com/home-assistant/core/blob/a0f0cf28fea4e1dfea7937305808a3b5414111fd/homeassistant/components/modbus/connection.py).
-- **[HA-ENTITY]** [entity.py](https://github.com/home-assistant/core/blob/a0f0cf28fea4e1dfea7937305808a3b5414111fd/homeassistant/components/modbus/entity.py).
-- **[HA-SERVICE]** [services.py](https://github.com/home-assistant/core/blob/a0f0cf28fea4e1dfea7937305808a3b5414111fd/homeassistant/components/modbus/services.py).
-- **[HA-SENSOR]** [sensor.py](https://github.com/home-assistant/core/blob/a0f0cf28fea4e1dfea7937305808a3b5414111fd/homeassistant/components/modbus/sensor.py).
-- **[HA-WS]** [websocket_api.py](https://github.com/home-assistant/core/blob/a0f0cf28fea4e1dfea7937305808a3b5414111fd/homeassistant/components/modbus/websocket_api.py).
-- **[HA-TESTS]** [Modbus tests](https://github.com/home-assistant/core/tree/a0f0cf28fea4e1dfea7937305808a3b5414111fd/tests/components/modbus), including [shared connection tests](https://github.com/home-assistant/core/blob/a0f0cf28fea4e1dfea7937305808a3b5414111fd/tests/components/modbus/test_connection.py), [service tests](https://github.com/home-assistant/core/blob/a0f0cf28fea4e1dfea7937305808a3b5414111fd/tests/components/modbus/test_services.py), and per-platform tests.
+- **[HA-DOC]** Home Assistant, [Modbus integration documentation](https://www.home-assistant.io/integrations/modbus/).
+- **[HA-CORE]** Home Assistant Core, [Modbus component at `a0f0cf28`](https://github.com/home-assistant/core/tree/a0f0cf28fea4e1dfea7937305808a3b5414111fd/homeassistant/components/modbus).
+- **[HA-MANIFEST]** Home Assistant Core, [`manifest.json`](https://github.com/home-assistant/core/blob/a0f0cf28fea4e1dfea7937305808a3b5414111fd/homeassistant/components/modbus/manifest.json).
+- **[HA-CONST]** Home Assistant Core, [`const.py`](https://github.com/home-assistant/core/blob/a0f0cf28fea4e1dfea7937305808a3b5414111fd/homeassistant/components/modbus/const.py).
+- **[HA-SCHEMA]** Home Assistant Core, [`schemas.py`](https://github.com/home-assistant/core/blob/a0f0cf28fea4e1dfea7937305808a3b5414111fd/homeassistant/components/modbus/schemas.py).
+- **[HA-HUB]** Home Assistant Core, [`modbus.py`](https://github.com/home-assistant/core/blob/a0f0cf28fea4e1dfea7937305808a3b5414111fd/homeassistant/components/modbus/modbus.py).
+- **[HA-CONNECTION]** Home Assistant Core, [`connection.py`](https://github.com/home-assistant/core/blob/a0f0cf28fea4e1dfea7937305808a3b5414111fd/homeassistant/components/modbus/connection.py).
+- **[HA-ENTITY]** Home Assistant Core, [`entity.py`](https://github.com/home-assistant/core/blob/a0f0cf28fea4e1dfea7937305808a3b5414111fd/homeassistant/components/modbus/entity.py).
+- **[HA-SERVICE]** Home Assistant Core, [`services.py`](https://github.com/home-assistant/core/blob/a0f0cf28fea4e1dfea7937305808a3b5414111fd/homeassistant/components/modbus/services.py).
+- **[HA-WS]** Home Assistant Core, [`websocket_api.py`](https://github.com/home-assistant/core/blob/a0f0cf28fea4e1dfea7937305808a3b5414111fd/homeassistant/components/modbus/websocket_api.py).
+- **[HA-TESTS]** Home Assistant Core, [Modbus tests](https://github.com/home-assistant/core/tree/a0f0cf28fea4e1dfea7937305808a3b5414111fd/tests/components/modbus).
+- **[HA-IQS]** Home Assistant developer documentation, [Integration Quality Scale](https://developers.home-assistant.io/docs/core/integration-quality-scale/).
+- **[HA-IQS-RULES]** Home Assistant developer documentation, [all 54 IQS rules](https://developers.home-assistant.io/docs/core/integration-quality-scale/rules/).
 
-### PiPhi repository sources
+### PiPhi repository evidence
 
 Parent integration:
 
-- **[P-README]** [README.md](../README.md)
-- **[P-MANIFEST]** [manifest.json](../manifest.json)
-- **[P-CATALOG]** [capability-catalog.json](../capability-catalog.json)
-- **[P-SCHEMA]** [schemas.py](../src/piphi_network_modbus/schemas.py)
-- **[P-TCP]** [modbus_tcp.py](../src/piphi_network_modbus/modbus_tcp.py)
-- **[P-STATE]** [state.py](../src/piphi_network_modbus/state.py)
-- **[P-LIFECYCLE]** [lifecycle.py](../src/piphi_network_modbus/lifecycle.py)
-- **[P-HEALTH]** [routes/health.py](../src/piphi_network_modbus/routes/health.py)
+- **[P-README]** [README](../README.md)
+- **[P-MANIFEST]** [manifest](../manifest.json)
+- **[P-APP-META]** [CI/release package metadata](../piphi-app.json)
 - **[P-DOCKER]** [Dockerfile](../Dockerfile)
-- **[P-TEST]** [tests/test_modbus_register.py](../tests/test_modbus_register.py) and the parent [`tests`](../tests/) directory.
+- **[P-LIFECYCLE]** [lifecycle](../src/piphi_network_modbus/lifecycle.py)
+- **[P-STATE]** [state, polling, setup and commands](../src/piphi_network_modbus/state.py)
+- **[P-TCP]** [network transports](../src/piphi_network_modbus/modbus_tcp.py)
+- **[P-SCHEMA]** [profile/config schemas](../src/piphi_network_modbus/schemas.py)
+- **[P-CODEC]** [profile codec](../src/piphi_network_modbus/profile_codec.py)
+- **[P-SIDECAR]** [sidecar HTTP client](../src/piphi_network_modbus/sidecar_client.py)
+- **[P-MODEL]** [point entity model](../src/piphi_network_modbus/modbus_model.py)
+- **[P-COMPOSITE]** [composite model](../src/piphi_network_modbus/composite_model.py)
+- **[P-APP]** [application route assembly](../src/piphi_network_modbus/app.py)
+- **[P-RUNTIME]** [state/contract routes](../src/piphi_network_modbus/routes/runtime.py)
+- **[P-EVENTS]** [event routes](../src/piphi_network_modbus/routes/events.py)
+- **[P-CONFIG]** [config routes](../src/piphi_network_modbus/routes/config.py)
+- **[P-HEALTH]** [health/diagnostics routes](../src/piphi_network_modbus/routes/health.py)
+- **[P-DISCOVERY]** [discovery/UI schema routes](../src/piphi_network_modbus/routes/discovery.py)
+- **[P-CONTRACT]** [generated runtime contract](contract.md)
+- **[P-TESTS]** [tests](../tests/)
 
 RTU sidecar:
 
-- **[S-README]** [README.md](../../../services/piphi-modbus-rtu-sidecar/README.md)
-- **[S-MANIFEST]** [manifest.json](../../../services/piphi-modbus-rtu-sidecar/manifest.json)
-- **[S-CATALOG]** [capability-catalog.json](../../../services/piphi-modbus-rtu-sidecar/capability-catalog.json)
-- **[S-PROJECT]** [pyproject.toml](../../../services/piphi-modbus-rtu-sidecar/pyproject.toml)
-- **[S-SCHEMA]** [schemas.py](../../../services/piphi-modbus-rtu-sidecar/src/piphi_modbus_rtu_sidecar/schemas.py)
-- **[S-TRANSPORT]** [transport.py](../../../services/piphi-modbus-rtu-sidecar/src/piphi_modbus_rtu_sidecar/transport.py)
-- **[S-AUTH]** [authorization.py](../../../services/piphi-modbus-rtu-sidecar/src/piphi_modbus_rtu_sidecar/authorization.py)
-- **[S-APP]** [app.py](../../../services/piphi-modbus-rtu-sidecar/src/piphi_modbus_rtu_sidecar/app.py)
-- **[S-STATE]** [state.py](../../../services/piphi-modbus-rtu-sidecar/src/piphi_modbus_rtu_sidecar/state.py)
-- **[S-COMMAND]** [routes/commands.py](../../../services/piphi-modbus-rtu-sidecar/src/piphi_modbus_rtu_sidecar/routes/commands.py)
-- **[S-LIFECYCLE]** [lifecycle.py](../../../services/piphi-modbus-rtu-sidecar/src/piphi_modbus_rtu_sidecar/lifecycle.py)
-- **[S-HEALTH]** [routes/health.py](../../../services/piphi-modbus-rtu-sidecar/src/piphi_modbus_rtu_sidecar/routes/health.py)
+- **[S-README]** [README](../../../services/piphi-modbus-rtu-sidecar/README.md)
+- **[S-MANIFEST]** [manifest](../../../services/piphi-modbus-rtu-sidecar/manifest.json)
+- **[S-APP-META]** [CI/release package metadata](../../../services/piphi-modbus-rtu-sidecar/piphi-app.json)
 - **[S-DOCKER]** [Dockerfile](../../../services/piphi-modbus-rtu-sidecar/Dockerfile)
-- **[S-TEST]** [tests/test_transport_security.py](../../../services/piphi-modbus-rtu-sidecar/tests/test_transport_security.py) and the sidecar [`tests`](../../../services/piphi-modbus-rtu-sidecar/tests/) directory.
+- **[S-STATE]** [controller, setup and recovery state](../../../services/piphi-modbus-rtu-sidecar/src/piphi_modbus_rtu_sidecar/state.py)
+- **[S-TRANSPORT]** [serial transport, queue and sanitization](../../../services/piphi-modbus-rtu-sidecar/src/piphi_modbus_rtu_sidecar/transport.py)
+- **[S-SCHEMA]** [sidecar schemas](../../../services/piphi-modbus-rtu-sidecar/src/piphi_modbus_rtu_sidecar/schemas.py)
+- **[S-API]** [parent-sidecar API](../../../services/piphi-modbus-rtu-sidecar/src/piphi_modbus_rtu_sidecar/routes/sidecar_api.py)
+- **[S-APP]** [sidecar authentication middleware](../../../services/piphi-modbus-rtu-sidecar/src/piphi_modbus_rtu_sidecar/app.py)
+- **[S-RUNTIME]** [sidecar state/contract routes](../../../services/piphi-modbus-rtu-sidecar/src/piphi_modbus_rtu_sidecar/routes/runtime.py)
+- **[S-EVENTS]** [sidecar event routes](../../../services/piphi-modbus-rtu-sidecar/src/piphi_modbus_rtu_sidecar/routes/events.py)
+- **[S-CONTRACT]** [generated runtime contract](../../../services/piphi-modbus-rtu-sidecar/docs/contract.md)
+- **[S-TESTS]** [tests](../../../services/piphi-modbus-rtu-sidecar/tests/)
+
+Repository CI/release:
+
+- **[CI]** [app CI](../../../../.github/workflows/apps-ci.yml) and [reusable app CI](../../../../.github/workflows/reusable-app-ci.yml)
+- **[RELEASE-CI]** [release workflow](../../../../.github/workflows/release-app.yml)
