@@ -8,30 +8,13 @@ import httpx
 import pytest
 
 from piphi_network_passive_ble_monitor.main import app
-from piphi_network_passive_ble_monitor import state
-from piphi_network_passive_ble_monitor.scanner import SensorAdvertisement
 
 
 FIXTURES = json.loads((Path(__file__).parent / "fixtures" / "contract-conformance.json").read_text())
 
 
 @pytest.mark.anyio
-async def test_runtime_conforms_to_shared_contract_fixtures(monkeypatch) -> None:
-    async def fake_scan(*, timeout: float) -> list[SensorAdvertisement]:
-        return [
-            SensorAdvertisement(
-                address="AA:BB:CC:DD:EE:FF",
-                metrics={
-                    "trigger_based": False,
-                    "temperature_c": 22.5,
-                    "humidity_percent": 48.0,
-                    "battery_percent": 83,
-                },
-                rssi=-62,
-            )
-        ]
-
-    monkeypatch.setattr(state, "scan_bthome", fake_scan)
+async def test_runtime_conforms_to_shared_contract_fixtures() -> None:
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
         for fixture in FIXTURES["cases"]:

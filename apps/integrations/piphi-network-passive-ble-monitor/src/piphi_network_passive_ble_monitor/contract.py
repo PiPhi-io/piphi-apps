@@ -19,7 +19,10 @@ ENDPOINTS = {
 REQUIRED_ENDPOINTS = ["health", "entities", "command", "config", "ui_config"]
 
 CAPABILITIES: dict[str, dict[str, Any]] = {
-    "connected": {"kind": "sensor", "unit": "bool"},
+    "receiver_healthy": {"kind": "sensor", "unit": "bool"},
+    "observation_fresh": {"kind": "sensor", "unit": "bool"},
+    "sensor_available": {"kind": "sensor", "unit": "bool"},
+    "measurement_age_seconds": {"kind": "sensor", "unit": "s"},
     "temperature_c": {"kind": "sensor", "unit": "°C"},
     "humidity_percent": {"kind": "sensor", "unit": "%"},
     "battery_percent": {"kind": "sensor", "unit": "%"},
@@ -29,7 +32,7 @@ CAPABILITIES: dict[str, dict[str, Any]] = {
 
 COMMANDS: dict[str, dict[str, Any]] = {
     "refresh": {
-        "description": "Run a bounded Bluetooth scan for this sensor.",
+        "description": "Poll the managed BLE gateway for this sensor.",
         "timeout_ms": 10000
     }
 }
@@ -38,14 +41,23 @@ CONFIG_SCHEMA: dict[str, Any] = {
     "schema": {
         "title": "BTHome Sensor Setup",
         "type": "object",
-        "required": [
-            "host"
-        ],
+        "required": ["gateway_url", "gateway_token", "device_handle"],
         "properties": {
-            "host": {
+            "gateway_url": {
                 "type": "string",
-                "title": "BLE address",
-                "description": "MAC address of an unencrypted BTHome v2 sensor, as seen by this host"
+                "title": "BLE gateway URL",
+                "description": "HTTPS URL for the managed PiPhi BLE gateway v1 API"
+            },
+            "gateway_token": {
+                "type": "string",
+                "format": "password",
+                "title": "Gateway token",
+                "description": "Bearer token; never returned in state or diagnostics"
+            },
+            "device_handle": {
+                "type": "string",
+                "title": "Approved device handle",
+                "description": "Opaque handle selected with explicit consent in the BLE gateway"
             },
             "alias": {
                 "type": "string",
@@ -54,15 +66,25 @@ CONFIG_SCHEMA: dict[str, Any] = {
             "poll_interval_seconds": {
                 "type": "integer",
                 "title": "Scan interval (seconds)",
+                "minimum": 2,
+                "maximum": 300,
+                "default": 10
+            },
+            "stale_after_seconds": {
+                "type": "integer",
+                "title": "Observation stale after (seconds)",
                 "minimum": 30,
-                "maximum": 3600,
-                "default": 60
+                "maximum": 86400,
+                "default": 180
             }
         }
     },
     "uiSchema": {
-        "host": {
-            "placeholder": "AA:BB:CC:DD:EE:FF"
+        "gateway_url": {
+            "placeholder": "https://ble-gateway.local:4210"
+        },
+        "device_handle": {
+            "placeholder": "ble_c7f2a1b9000000000000000000000000"
         },
         "alias": {
             "placeholder": "Living room sensor"
@@ -79,7 +101,10 @@ FALLBACK_ENTITY: dict[str, Any] = {
     "device_id": "configured-bthome-sensor",
     "entity_type": "sensor",
     "capabilities": [
-        "connected",
+        "receiver_healthy",
+        "observation_fresh",
+        "sensor_available",
+        "measurement_age_seconds",
         "temperature_c",
         "humidity_percent",
         "battery_percent",

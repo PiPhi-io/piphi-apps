@@ -3,7 +3,7 @@
   "manifest_version": "1.0",
   "id": "piphi-network-bermuda-presence",
   "name": "Bermuda presence",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Turn supported BLE advertisements into room-level presence observations.",
   "metadata": {
     "generator": "piphi-network-create",
@@ -17,7 +17,7 @@
     "website": "https://piphi.io"
   },
   "license": "Apache-2.0",
-  "image": "docker.io/piphinetwork/piphi-network-bermuda-presence:0.1.0",
+  "image": "ghcr.io/piphi-io/piphi-network-bermuda-presence:0.2.0",
   "platforms": [
     "linux"
   ],
@@ -25,7 +25,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "docker.io/piphinetwork/piphi-network-bermuda-presence:0.1.0",
+        "image": "ghcr.io/piphi-io/piphi-network-bermuda-presence:0.2.0",
         "ports": [
           {
             "container": 4206,
@@ -41,7 +41,7 @@
         }
       },
       "discovery": {
-        "method": "passive"
+        "method": "manual"
       }
     }
   },
@@ -72,9 +72,22 @@
     "endpoint": "/ui-config",
     "required": true,
     "editable_fields": [
-      "host",
+      "gateway_url",
+      "consumer_id",
+      "selected_device_handles",
+      "receivers",
       "alias",
-      "poll_interval_seconds"
+      "poll_interval_seconds",
+      "consider_home_seconds",
+      "stale_seconds",
+      "reference_power_dbm",
+      "attenuation_factor",
+      "smoothing_samples",
+      "area_switch_margin_m",
+      "area_switch_samples"
+    ],
+    "secret_fields": [
+      "api_token"
     ],
     "runtime_fields": [
       "id",
@@ -83,19 +96,27 @@
       "device_id"
     ],
     "identity_fields": [
-      "host"
+      "consumer_id"
     ]
   },
   "identity": {
     "fields": [
-      "host"
+      "consumer_id"
     ]
   },
   "capabilities": {
-    "connected": {
+    "presence": {
       "kind": "sensor",
-      "unit": "bool"
+      "unit": "enum"
     },
+    "area_id": {"kind": "sensor", "unit": "string"},
+    "area_name": {"kind": "sensor", "unit": "string"},
+    "estimated_distance_m": {"kind": "sensor", "unit": "m"},
+    "distance_raw_m": {"kind": "sensor", "unit": "m"},
+    "freshness_seconds": {"kind": "sensor", "unit": "s"},
+    "coverage_degraded": {"kind": "sensor", "unit": "bool"},
+    "topology_revision": {"kind": "sensor", "unit": "count"},
+    "area_switch_reason": {"kind": "sensor", "unit": "string"},
     "refresh": {
       "kind": "action"
     }
@@ -108,12 +129,20 @@
   },
   "entities": [
     {
-      "id": "demo-device",
-      "name": "Demo Device",
-      "device_id": "demo-device",
-      "entity_type": "sensor",
+      "id": "selected-device-template",
+      "name": "Selected BLE device",
+      "device_id": "selected-device-template",
+      "entity_type": "presence_sensor",
       "capabilities": [
-        "connected",
+        "presence",
+        "area_id",
+        "area_name",
+        "estimated_distance_m",
+        "distance_raw_m",
+        "freshness_seconds",
+        "coverage_degraded",
+        "topology_revision",
+        "area_switch_reason",
         "refresh"
       ],
       "available_commands": [
@@ -127,7 +156,7 @@
         "allowed_widgets": [
           "tile",
           "stat",
-          "button"
+            "button"
         ],
         "default_widget": "tile"
       }
@@ -137,7 +166,7 @@
     "experience_packages": [
       {
         "registry_id": "io.piphi.bermuda-presence-status",
-        "version_range": ">=0.1,<1",
+        "version_range": ">=0.2,<1",
         "auto_install": true
       }
     ]
@@ -163,7 +192,7 @@
       {
         "id": "device_access",
         "label": "Bluetooth observation access",
-        "reason": "Uses the explicitly configured host device to communicate with supported hardware.",
+        "reason": "Consumes only explicitly selected opaque handles from the authenticated shared BLE gateway.",
         "required": true
       }
     ],
@@ -194,12 +223,12 @@
       "Bluetooth Low Energy"
     ],
     "discovery_methods": [
-      "BLE advertisements"
+      "Manual gateway selection"
     ],
     "connectivity": "local",
-    "offline_support": "full"
+    "offline_support": "degraded"
   },
   "onboarding": {
-    "mode": "discovery"
+    "mode": "manual"
   }
 }

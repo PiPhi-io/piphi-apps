@@ -1,6 +1,9 @@
 {
   "id": "living-room-bthome",
-  "host": "AA:BB:CC:DD:EE:FF",
+  "gateway_url": "https://ble-gateway.local:4210",
+  "gateway_token": "replace-with-secret",
+  "device_handle": "ble_c7f2a1b9000000000000000000000000",
   "alias": "Living room sensor",
-  "poll_interval_seconds": 60
+  "poll_interval_seconds": 10,
+  "stale_after_seconds": 180
 }

@@ -47,3 +47,17 @@ def test_unknown_object_stops_without_guessing_its_length() -> None:
         "trigger_based": False,
         "battery_percent": 97,
     }
+
+
+def test_packet_id_is_retained_for_consumer_deduplication() -> None:
+    assert decode_bthome(bytes.fromhex("40002A0161"))["packet_id"] == 42
+
+
+def test_malformed_vector_corpus_is_bounded_and_never_throws_unexpected_errors() -> None:
+    vectors = [bytes([length % 256]) * length for length in range(300)]
+    for payload in vectors:
+        try:
+            result = decode_bthome(payload)
+            assert set(result) <= {"trigger_based", "packet_id", "battery_percent", "temperature_c", "humidity_percent"}
+        except UnsupportedAdvertisement:
+            pass

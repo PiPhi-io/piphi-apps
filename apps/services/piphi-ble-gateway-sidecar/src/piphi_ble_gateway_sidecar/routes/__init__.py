@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from .commands import router as command_router
+from .ble import router as ble_router
 from .config import router as config_router
 from .discovery import router as discovery_router
 from .entities import router as entity_router
@@ -10,6 +11,7 @@ from .runtime import router as runtime_router
 from .telemetry import router as telemetry_router
 
 routers = [
+    ble_router,
     health_router,
     discovery_router,
     config_router,

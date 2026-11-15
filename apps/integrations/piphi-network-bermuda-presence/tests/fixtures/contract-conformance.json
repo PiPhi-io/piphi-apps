@@ -46,8 +46,12 @@
       "status": 200,
       "body": {
         "id": "demo-device",
-        "host": "127.0.0.1",
-        "alias": "Demo Device"
+        "gateway_url": "http://127.0.0.1:9",
+        "api_token": "test-token",
+        "consumer_id": "conformance",
+        "selected_device_handles": ["ble_00000000000000000000000000000001"],
+        "receivers": [{"receiver_id": "receiver-1", "area_id": "lab", "area_name": "Lab"}],
+        "alias": "Conformance device"
       },
       "required_any_keys": [
         [

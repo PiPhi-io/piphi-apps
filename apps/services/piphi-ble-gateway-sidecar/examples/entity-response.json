@@ -1,44 +1,25 @@
 {
-  "entities": [
-    {
-      "id": "ble-gateway-service",
-      "name": "BLE Gateway Service",
-      "device_id": "ble-gateway-service",
-      "entity_type": "service",
-      "capabilities": [
-        "connected",
-        "refresh"
-      ],
-      "available_commands": [
-        {
-          "id": "refresh",
-          "label": "Refresh",
-          "kind": "action"
-        }
-      ],
-      "dashboard": {
-        "allowed_widgets": [
-          "tile",
-          "stat",
-          "button"
-        ],
-        "default_widget": "tile"
-      }
-    }
-  ],
+  "entities": [{
+    "id": "ble-gateway-service", "name": "BLE Gateway Service", "device_id": "ble-gateway-service", "entity_type": "service",
+    "capabilities": ["service_available", "receiver_healthy", "scanner_state", "scan_mode", "observations_received_total", "observations_deduplicated_total", "last_observation_age_ms", "reconnects", "queue_depth", "queue_capacity", "queue_high_water", "drops", "coalesces", "refresh"],
+    "available_commands": [{"id": "refresh", "label": "Refresh", "kind": "action"}],
+    "dashboard": {"allowed_widgets": ["tile", "stat", "button"], "default_widget": "tile"}
+  }],
   "capabilities": {
-    "connected": {
-      "kind": "sensor",
-      "unit": "bool"
-    },
-    "refresh": {
-      "kind": "action"
-    }
+    "service_available": {"kind": "sensor", "unit": "bool"},
+    "receiver_healthy": {"kind": "sensor", "unit": "bool"},
+    "scanner_state": {"kind": "sensor", "unit": "string"},
+    "scan_mode": {"kind": "sensor", "unit": "string"},
+    "observations_received_total": {"kind": "sensor", "unit": "count"},
+    "observations_deduplicated_total": {"kind": "sensor", "unit": "count"},
+    "last_observation_age_ms": {"kind": "sensor", "unit": "ms"},
+    "reconnects": {"kind": "sensor", "unit": "count"},
+    "queue_depth": {"kind": "sensor", "unit": "count"},
+    "queue_capacity": {"kind": "sensor", "unit": "count"},
+    "queue_high_water": {"kind": "sensor", "unit": "count"},
+    "drops": {"kind": "sensor", "unit": "count"},
+    "coalesces": {"kind": "sensor", "unit": "count"},
+    "refresh": {"kind": "action"}
   },
-  "commands": {
-    "refresh": {
-      "description": "Refresh the device state.",
-      "timeout_ms": 5000
-    }
-  }
+  "commands": {"refresh": {"description": "Refresh the device state.", "timeout_ms": 5000}}
 }

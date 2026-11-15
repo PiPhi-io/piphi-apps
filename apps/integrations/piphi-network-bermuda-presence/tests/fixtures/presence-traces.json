@@ -1,0 +1,14 @@
+{
+  "schema": "piphi.ble.presence-traces.v1",
+  "cases": [
+    {"id": "approach", "assertion": "a stable materially closer receiver changes area"},
+    {"id": "departure", "assertion": "consider-home expiry emits one left transition"},
+    {"id": "equal_rooms", "assertion": "equal estimates use receiver id ordering and do not flap"},
+    {"id": "occlusion", "assertion": "one implausible jump is velocity bounded"},
+    {"id": "duplicates", "assertion": "equal per-receiver timestamps are rejected"},
+    {"id": "delayed_out_of_order", "assertion": "older per-receiver timestamps are rejected"},
+    {"id": "receiver_outage", "assertion": "unhealthy coverage produces unknown, never false away"},
+    {"id": "restart_replay", "assertion": "stale replay cannot restore home"},
+    {"id": "no_stale_area_resurrection", "assertion": "an expired pair cannot restore an area"}
+  ]
+}

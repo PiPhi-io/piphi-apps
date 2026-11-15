@@ -19,10 +19,19 @@ ENDPOINTS = {
 REQUIRED_ENDPOINTS = ["health", "entities", "command", "config", "ui_config"]
 
 CAPABILITIES: dict[str, dict[str, Any]] = {
-    "connected": {
-        "kind": "sensor",
-        "unit": "bool"
-    },
+    "service_available": {"kind": "sensor", "unit": "bool"},
+    "receiver_healthy": {"kind": "sensor", "unit": "bool"},
+    "scanner_state": {"kind": "sensor", "unit": "string"},
+    "scan_mode": {"kind": "sensor", "unit": "string"},
+    "observations_received_total": {"kind": "sensor", "unit": "count"},
+    "observations_deduplicated_total": {"kind": "sensor", "unit": "count"},
+    "last_observation_age_ms": {"kind": "sensor", "unit": "ms"},
+    "reconnects": {"kind": "sensor", "unit": "count"},
+    "queue_depth": {"kind": "sensor", "unit": "count"},
+    "queue_capacity": {"kind": "sensor", "unit": "count"},
+    "queue_high_water": {"kind": "sensor", "unit": "count"},
+    "drops": {"kind": "sensor", "unit": "count"},
+    "coalesces": {"kind": "sensor", "unit": "count"},
     "refresh": {
         "kind": "action"
     }
@@ -39,14 +48,8 @@ CONFIG_SCHEMA: dict[str, Any] = {
     "schema": {
         "title": "Piphi Ble Gateway Sidecar Setup",
         "type": "object",
-        "required": [
-            "host"
-        ],
+        "required": [],
         "properties": {
-            "host": {
-                "type": "string",
-                "title": "Host"
-            },
             "alias": {
                 "type": "string",
                 "title": "Alias"
@@ -58,9 +61,6 @@ CONFIG_SCHEMA: dict[str, Any] = {
         }
     },
     "uiSchema": {
-        "host": {
-            "placeholder": "192.168.1.50"
-        },
         "alias": {
             "placeholder": "Office Device"
         },
@@ -76,7 +76,19 @@ FALLBACK_ENTITY: dict[str, Any] = {
     "device_id": "ble-gateway-service",
     "entity_type": "service",
     "capabilities": [
-        "connected",
+        "service_available",
+        "receiver_healthy",
+        "scanner_state",
+        "scan_mode",
+        "observations_received_total",
+        "observations_deduplicated_total",
+        "last_observation_age_ms",
+        "reconnects",
+        "queue_depth",
+        "queue_capacity",
+        "queue_high_water",
+        "drops",
+        "coalesces",
         "refresh"
     ],
     "available_commands": [

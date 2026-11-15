@@ -1,6 +1,12 @@
 {
-  "id": "demo-device",
-  "host": "127.0.0.1",
-  "alias": "Demo Device",
-  "poll_interval_seconds": 5
+  "id": "home-presence",
+  "gateway_url": "https://ble-gateway.local:8443",
+  "api_token": "replace-with-mounted-secret",
+  "consumer_id": "bermuda-home",
+  "selected_device_handles": ["ble_00000000000000000000000000000001"],
+  "receivers": [
+    {"receiver_id": "proxy-kitchen", "area_id": "kitchen", "area_name": "Kitchen", "radius_m": 12}
+  ],
+  "consider_home_seconds": 180,
+  "stale_seconds": 30
 }

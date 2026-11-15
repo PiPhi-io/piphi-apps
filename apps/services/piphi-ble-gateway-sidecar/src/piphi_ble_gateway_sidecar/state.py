@@ -14,6 +14,7 @@ from piphi_runtime_kit_python import (
 )
 
 from .contract import CAPABILITIES, COMMANDS
+from .gateway import gateway
 from .schemas import DeviceConfig
 from .settings import INTEGRATION_ID, INTEGRATION_NAME, INTEGRATION_VERSION
 
@@ -40,9 +41,8 @@ def make_entry(config: DeviceConfig) -> dict[str, Any]:
     identity = build_runtime_identity(config, integration_id=INTEGRATION_ID)
     return {
         **identity,
-        "host": config.host,
         "alias": config.alias,
-        "config": config.model_dump(),
+        "config": {"id": config.id, "alias": config.alias},
     }
 
 
@@ -75,8 +75,9 @@ async def apply_config(config: DeviceConfig) -> None:
     registry.update_state(
         config.id,
         {
-            "connected": True,
-            "host": config.host,
+            "service_available": gateway.service_available,
+            "receiver_healthy": gateway.receiver_healthy,
+            "scanner_state": gateway.scanner_state,
             "alias": config.alias,
             "config_id": entry["config_id"],
         },
@@ -85,7 +86,7 @@ async def apply_config(config: DeviceConfig) -> None:
     append_runtime_event(
         "runtime.config.applied",
         entry,
-        {"host": config.host, "alias": config.alias},
+        {"alias": config.alias},
     )
 
 
@@ -96,7 +97,7 @@ async def remove_config(config_id: str) -> bool:
     append_runtime_event(
         "runtime.config.removed",
         entry,
-        {"host": entry.get("host"), "alias": entry.get("alias")},
+        {"alias": entry.get("alias")},
     )
     return True
 

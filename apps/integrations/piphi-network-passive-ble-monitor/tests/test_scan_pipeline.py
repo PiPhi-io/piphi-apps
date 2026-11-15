@@ -1,109 +1,109 @@
 from __future__ import annotations
 
-import sys
-from types import SimpleNamespace
-
 import pytest
+from datetime import datetime, timezone
 
-from piphi_network_passive_ble_monitor import scanner, state
+from piphi_network_passive_ble_monitor import state
 from piphi_network_passive_ble_monitor.bthome import BTHOME_UUID
-from piphi_network_passive_ble_monitor.scanner import SensorAdvertisement
+from piphi_network_passive_ble_monitor.gateway import GatewayError, Observation, ObservationPage
 from piphi_network_passive_ble_monitor.schemas import DeviceConfig
 
 
+def observation(sequence: int, payload: str, *, replayed: bool = False) -> Observation:
+    ingested_at = datetime.now(timezone.utc).isoformat()
+    return Observation(sequence, "ble_00000000000000000000000000000005", "receiver-1", "local", 1000 + sequence, ingested_at, replayed, -62, None, False, "random", (BTHOME_UUID,), {}, {BTHOME_UUID: bytes.fromhex(payload)})
+
+
+class FakeGateway:
+    def __init__(self) -> None:
+        self.pages: list[ObservationPage | Exception] = []
+        self.snapshot_page = ObservationPage((), 0, True)
+        self.registered: list[tuple[str, str]] = []
+        self.closed = False
+
+    async def register(self, consumer_id: str, handle: str) -> None:
+        self.registered.append((consumer_id, handle))
+
+    async def unregister(self, consumer_id: str) -> None:
+        return None
+
+    async def snapshot(self, consumer_id: str, *, after: int = 0) -> ObservationPage:
+        return self.snapshot_page
+
+    async def observations(self, consumer_id: str, *, after: int) -> ObservationPage:
+        item = self.pages.pop(0)
+        if isinstance(item, Exception):
+            raise item
+        return item
+
+    async def close(self) -> None:
+        self.closed = True
+
+
+def config(config_id: str = "ble-test") -> DeviceConfig:
+    return DeviceConfig(id=config_id, gateway_url="https://gateway.test", gateway_token="secret-token", device_handle="ble_00000000000000000000000000000005", poll_interval_seconds=10, stale_after_seconds=30)
+
+
 @pytest.mark.anyio
-async def test_bleak_boundary_filters_non_bthome_and_malformed_advertisements(monkeypatch) -> None:
-    class FakeBleakScanner:
-        @staticmethod
-        async def discover(*, timeout: float, return_adv: bool):
-            assert timeout == 5
-            assert return_adv is True
-            return {
-                "sensor": (
-                    SimpleNamespace(address="aa:bb:cc:dd:ee:ff"),
-                    SimpleNamespace(service_data={BTHOME_UUID: bytes.fromhex("40016102C409")}, rssi=-60),
-                ),
-                "other": (
-                    SimpleNamespace(address="11:22:33:44:55:66"),
-                    SimpleNamespace(service_data={}, rssi=-70),
-                ),
-                "encrypted": (
-                    SimpleNamespace(address="22:33:44:55:66:77"),
-                    SimpleNamespace(service_data={BTHOME_UUID: bytes.fromhex("41")}, rssi=-80),
-                ),
-            }
-
-    monkeypatch.setitem(sys.modules, "bleak", SimpleNamespace(BleakScanner=FakeBleakScanner))
-    assert await scanner.scan_bthome() == [
-        SensorAdvertisement(
-            address="AA:BB:CC:DD:EE:FF",
-            metrics={"trigger_based": False, "battery_percent": 97, "temperature_c": 25.0},
-            rssi=-60,
-        )
-    ]
-
-
-@pytest.mark.anyio
-async def test_configured_sensor_is_live_only_after_scan_and_goes_stale(monkeypatch) -> None:
+async def test_freshness_outage_and_measurement_age_are_independent(monkeypatch) -> None:
+    fake = FakeGateway()
     sent: list[dict] = []
+    monkeypatch.setattr(state, "gateway_client", lambda _config: fake)
     monkeypatch.setattr(state, "schedule_telemetry_delivery", lambda **kwargs: sent.append(kwargs))
-    config = DeviceConfig(id="ble-test", host="AA:BB:CC:DD:EE:FF", poll_interval_seconds=30)
-    await state.apply_config(config)
+    await state.apply_config(config())
     try:
-        assert state.registry.state_snapshots["ble-test"]["state"]["connected"] is False
-        state.process_observations(
-            [
-                SensorAdvertisement(
-                    address="AA:BB:CC:DD:EE:FF",
-                    metrics={
-                        "trigger_based": False,
-                        "temperature_c": 22.5,
-                        "humidity_percent": 48.0,
-                        "battery_percent": 83,
-                    },
-                    rssi=-62,
-                ),
-                SensorAdvertisement(
-                    address="11:22:33:44:55:66",
-                    metrics={"trigger_based": False, "temperature_c": 99},
-                    rssi=-20,
-                ),
-            ],
-            now=100,
-        )
-        assert sent[-1]["metrics"]["temperature_c"] == 22.5
-        assert sent[-1]["metrics"]["humidity_percent"] == 48.0
-        assert sent[-1]["metrics"]["battery_percent"] == 83
-        assert sent[-1]["metrics"]["rssi_dbm"] == -62
-        assert sent[-1]["metrics"]["connected"] is True
-        assert sent[-1]["units"] == {
-            "battery_percent": "%",
-            "temperature_c": "°C",
-            "humidity_percent": "%",
-            "rssi_dbm": "dBm",
-        }
-        assert "trigger_based" not in sent[-1]["metrics"]
-        state.process_observations([], now=191)
-        assert state.registry.state_snapshots["ble-test"]["state"]["connected"] is False
+        fake.pages.append(ObservationPage((observation(1, "400001016102C40903C012"),), 1, True))
+        await state.poll_config("ble-test", now=100)
+        latest = state.registry.state_snapshots["ble-test"]["state"]
+        assert latest["receiver_healthy"] is True
+        assert latest["observation_fresh"] is True
+        assert latest["sensor_available"] is True
+        assert latest["temperature_c"] == 25.0
+        assert latest["last_measurement_at"].endswith("+00:00")
+
+        fake.pages.append(GatewayError("down"))
+        with pytest.raises(GatewayError):
+            await state.poll_config("ble-test", now=110)
+        latest = state.registry.state_snapshots["ble-test"]["state"]
+        assert latest["receiver_healthy"] is False
+        assert latest["observation_fresh"] is True
+        assert latest["sensor_available"] is False
+        assert latest["temperature_c"] == 25.0
+
+        fake.pages.append(ObservationPage((), 1, True))
+        await state.poll_config("ble-test", now=131)
+        latest = state.registry.state_snapshots["ble-test"]["state"]
+        assert latest["observation_fresh"] is False
+        assert latest["sensor_available"] is False
+        assert latest["measurement_age_seconds"] == 31.0
     finally:
         await state.remove_config("ble-test")
 
 
 @pytest.mark.anyio
-async def test_trigger_based_sensor_is_not_marked_offline_between_irregular_packets(monkeypatch) -> None:
+async def test_replay_dedup_malformed_isolation_and_gap_snapshot(monkeypatch) -> None:
+    fake = FakeGateway()
+    monkeypatch.setattr(state, "gateway_client", lambda _config: fake)
     monkeypatch.setattr(state, "schedule_telemetry_delivery", lambda **kwargs: None)
-    await state.apply_config(DeviceConfig(id="trigger-test", host="AA:BB:CC:DD:EE:FF", poll_interval_seconds=30))
+    await state.apply_config(config("replay-test"))
     try:
-        state.process_observations(
-            [SensorAdvertisement("AA:BB:CC:DD:EE:FF", {"trigger_based": True, "battery_percent": 80}, -50)],
-            now=100,
-        )
-        state.process_observations([], now=1000)
-        assert state.registry.state_snapshots["trigger-test"]["state"]["connected"] is True
+        fake.pages.append(ObservationPage((observation(1, "4000070161", replayed=True), observation(2, "4000070161", replayed=True)), 2, True, 1))
+        await state.poll_config("replay-test", now=100)
+        status = state._consumer_state["replay-test"]
+        assert status.duplicate_packets == 1
+        assert status.malformed_observations == 1
+        assert state.registry.state_snapshots["replay-test"]["state"]["observation_fresh"] is False
+
+        fake.pages.append(ObservationPage((observation(5, "4000080162"),), 5, True, gap=True))
+        fake.snapshot_page = ObservationPage((observation(5, "4000080162", replayed=True),), 5, True)
+        await state.poll_config("replay-test", now=200)
+        assert status.gap_resyncs == 1
+        assert state.registry.state_snapshots["replay-test"]["state"]["observation_fresh"] is False
     finally:
-        await state.remove_config("trigger-test")
+        await state.remove_config("replay-test")
 
 
-def test_config_requires_ble_address() -> None:
-    with pytest.raises(ValueError, match="BLE MAC"):
-        DeviceConfig(id="bad", host="127.0.0.1")
+def test_config_requires_opaque_handle_and_secret_is_redacted() -> None:
+    with pytest.raises(ValueError, match="opaque"):
+        DeviceConfig(id="bad", gateway_url="https://gateway.test", gateway_token="secret", device_handle="AA:BB:CC:DD:EE:FF")
+    assert "secret-token" not in repr(config())

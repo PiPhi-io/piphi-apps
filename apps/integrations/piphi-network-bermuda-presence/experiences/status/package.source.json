@@ -3,10 +3,10 @@
   "identity": {
     "publisher_id": "io.piphi",
     "package_id": "bermuda-presence-status",
-    "version": "0.1.1"
+    "version": "0.2.0"
   },
-  "name": "Bermuda Presence Connection",
-  "description": "A compact live connection view for the configured Bermuda Presence runtime.",
+  "name": "Bermuda Presence Coverage",
+  "description": "A compact view of degraded BLE receiver coverage for selected devices.",
   "origin": "integration",
   "owning_integration_id": "piphi-network-bermuda-presence",
   "sdk_version_range": ">=0.6.1,<0.7",
@@ -22,9 +22,9 @@
   ],
   "widgets": [
     {
-      "id": "connection-status",
-      "name": "Bermuda Presence Connection",
-      "description": "Shows whether the configured Bermuda Presence runtime is currently connected.",
+      "id": "coverage-status",
+      "name": "Bermuda Presence Coverage",
+      "description": "Shows whether receiver coverage used for presence is degraded.",
       "runtime": "declarative",
       "presentation": {
         "contract_version": "1",
@@ -53,10 +53,10 @@
           "default_action": "more-info"
         },
         {
-          "id": "connection",
-          "label": "Connection status",
+          "id": "coverage",
+          "label": "Coverage status",
           "kind": "binding",
-          "binding_slot_id": "connected",
+          "binding_slot_id": "coverage_degraded",
           "allowed_actions": [
             "more-info",
             "history",
@@ -67,8 +67,8 @@
       ],
       "binding_slots": [
         {
-          "id": "connected",
-          "label": "Connection",
+          "id": "coverage_degraded",
+          "label": "Coverage degraded",
           "required": true,
           "binding_modes": [
             "read"
@@ -77,7 +77,7 @@
             "boolean"
           ],
           "capability_requirements": [
-            "connected"
+            "coverage_degraded"
           ],
           "compatible_integration_ids": [
             "piphi-network-bermuda-presence"
@@ -95,14 +95,14 @@
         "items": [
           {
             "type": "status",
-            "slot_id": "connected",
-            "label": "Connection",
-            "true_label": "Connected",
-            "false_label": "Offline",
-            "domain": "connectivity",
+            "slot_id": "coverage_degraded",
+            "label": "BLE coverage",
+            "true_label": "Degraded",
+            "false_label": "Healthy",
+            "domain": "diagnostic",
             "action": {
               "type": "details",
-              "label": "View connection details"
+              "label": "View coverage details"
             }
           }
         ]

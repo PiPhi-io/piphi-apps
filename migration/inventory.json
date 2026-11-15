@@ -105,8 +105,8 @@
         {
           "id": "piphi-ble-gateway-sidecar",
           "type": "platform_service",
-          "version": "0.1.1",
-          "ref": "v0.1.1",
+          "version": "0.2.0",
+          "ref": null,
           "manifest_path": "manifest.json"
         }
       ]
@@ -306,7 +306,7 @@
         {
           "id": "piphi-network-bermuda-presence",
           "type": "integration",
-          "version": "0.1.0",
+          "version": "0.2.0",
           "ref": null,
           "manifest_path": "manifest.json"
         }
@@ -561,7 +561,7 @@
         {
           "id": "piphi-network-passive-ble-monitor",
           "type": "integration",
-          "version": "0.1.0",
+          "version": "0.3.0",
           "ref": null,
           "manifest_path": "manifest.json"
         }

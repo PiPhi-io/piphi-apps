@@ -7,7 +7,10 @@
       "device_id": "living-room-bthome",
       "entity_type": "sensor",
       "capabilities": [
-        "connected",
+        "receiver_healthy",
+        "observation_fresh",
+        "sensor_available",
+        "measurement_age_seconds",
         "temperature_c",
         "humidity_percent",
         "battery_percent",
@@ -32,10 +35,13 @@
     }
   ],
   "capabilities": {
-    "connected": {
+    "receiver_healthy": {
       "kind": "sensor",
       "unit": "bool"
     },
+    "observation_fresh": {"kind": "sensor", "unit": "bool"},
+    "sensor_available": {"kind": "sensor", "unit": "bool"},
+    "measurement_age_seconds": {"kind": "sensor", "unit": "s"},
     "temperature_c": {
       "kind": "sensor",
       "unit": "°C"
@@ -58,7 +64,7 @@
   },
   "commands": {
     "refresh": {
-      "description": "Run a bounded Bluetooth scan for this sensor.",
+      "description": "Poll the managed BLE gateway for this sensor.",
       "timeout_ms": 10000
     }
   }

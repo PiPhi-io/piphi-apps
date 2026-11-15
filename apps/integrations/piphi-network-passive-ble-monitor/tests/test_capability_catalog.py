@@ -117,7 +117,7 @@ async def test_config_apply_emits_the_implemented_behavior_event() -> None:
         try:
             response = await client.post(
                 "/config",
-                json={"id": config_id, "host": "AA:BB:CC:DD:EE:FF", "alias": "Coverage Test"},
+                json={"id": config_id, "gateway_url": "https://gateway.test", "gateway_token": "secret", "device_handle": "ble_00000000000000000000000000000002", "alias": "Coverage Test"},
             )
             assert response.status_code == 200
             events = (await client.get("/events")).json()["events"]
@@ -146,3 +146,21 @@ async def test_unimplemented_and_unsafe_commands_fail_closed(command: str) -> No
         )
     assert response.status_code == 400
     assert response.json()["detail"] == f"Unsupported command: {command}"
+
+
+@pytest.mark.anyio
+async def test_secret_and_gateway_url_are_redacted_from_public_routes() -> None:
+    transport = httpx.ASGITransport(app=app)
+    secret = "redaction-canary-token"
+    config_id = "redaction-test"
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+        try:
+            response = await client.post("/config", json={"id": config_id, "gateway_url": "https://private-gateway.example", "gateway_token": secret, "device_handle": "ble_00000000000000000000000000000003"})
+            assert response.status_code == 200
+            public = [response, await client.get("/entities"), await client.get("/state"), await client.get("/events"), await client.get("/diagnostics")]
+            for item in public:
+                assert secret not in item.text
+                assert "private-gateway.example" not in item.text
+                assert "AA:BB:CC" not in item.text
+        finally:
+            await client.post(f"/deconfigure/{config_id}")
