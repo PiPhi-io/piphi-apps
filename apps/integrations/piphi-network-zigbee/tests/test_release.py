@@ -53,10 +53,12 @@ def test_release_updates_all_version_and_image_projections(tmp_path: Path) -> No
 
 
 def test_release_pipeline_enforces_supply_chain_gates() -> None:
-    release = (ROOT / ".github/workflows/release.yml").read_text()
+    release = (ROOT.parents[2] / ".github/workflows/release-app.yml").read_text()
 
-    assert "Validate bumped release contract" in release
+    assert "docker/build-push-action@v6" in release
     assert "provenance: mode=max" in release
     assert "sbom: true" in release
-    assert "SHA256SUMS" in release
-    assert "zigbee-experience-${{ steps.version.outputs.version }}.json" in release
+    assert "actions/attest-build-provenance@v2" in release
+    assert "release-evidence.json" in release
+    assert "registry-proposal.json" in release
+    assert "softprops/action-gh-release@v2" in release
