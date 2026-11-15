@@ -18,6 +18,7 @@ from piphi_runtime_kit_python import (
 )
 
 from .contract import CAPABILITIES, COMMANDS
+from .composite_model import normalize_composites
 from .modbus_tcp import ModbusTCPClient, read_holding_register
 from .modbus_model import entity_response, normalize_snapshot
 from .profile_codec import profile_hash
@@ -45,6 +46,7 @@ automations = AutomationRegistry(
 capabilities = CAPABILITIES
 commands = COMMANDS
 point_models: dict[str, list[dict[str, Any]]] = {}
+composite_models: dict[str, list[dict[str, Any]]] = {}
 sidecar_clients: dict[str, ModbusSidecarClient] = {}
 sidecar_replay: dict[str, dict[str, Any]] = {}
 sidecar_client_factory: Callable[[], ModbusSidecarClient] = ModbusSidecarClient
@@ -258,6 +260,7 @@ async def poll_registers() -> None:
 
 async def remove_config(config_id: str) -> bool:
     point_models.pop(config_id, None)
+    composite_models.pop(config_id, None)
     sidecar_clients.pop(config_id, None)
     sidecar_replay.pop(config_id, None)
     tcp_client = tcp_clients.pop(config_id, None)
@@ -292,6 +295,9 @@ async def sync_tcp_entry(
     )
     models = normalize_snapshot(snapshot, config_id=config_id)
     point_models[config_id] = models
+    composite_models[config_id] = normalize_composites(
+        config.composites, models, config_id=config_id
+    )
     state = {
         "connected": bool(snapshot.get("connected")),
         "transport": "tcp",
@@ -302,6 +308,10 @@ async def sync_tcp_entry(
         "responsive_unit_ids": snapshot.get("responsive_unit_ids", []),
         "request_count": snapshot.get("request_count", 0),
         "points": {model["point_id"]: model["state"] for model in models},
+        "composites": {
+            model["composite_id"]: model["state"]
+            for model in composite_models[config_id]
+        },
         "config_id": config_id,
         "last_error_code": snapshot.get("last_error_code"),
     }
@@ -319,6 +329,10 @@ async def sync_sidecar_entry(
     snapshot = await client.snapshot(config_id)
     models = normalize_snapshot(snapshot, config_id=config_id)
     point_models[config_id] = models
+    config = DeviceConfig.model_validate(entry["config"])
+    composite_models[config_id] = normalize_composites(
+        config.composites, models, config_id=config_id
+    )
     state = {
         "connected": bool(snapshot.get("connected")),
         "transport": "rtu_sidecar",
@@ -331,11 +345,14 @@ async def sync_sidecar_entry(
         "queue_depth": snapshot.get("queue_depth"),
         "queue_capacity": snapshot.get("queue_capacity"),
         "points": {model["point_id"]: model["state"] for model in models},
+        "composites": {
+            model["composite_id"]: model["state"]
+            for model in composite_models[config_id]
+        },
         "config_id": config_id,
         "last_error_code": snapshot.get("last_error_code"),
     }
     registry.update_state(config_id, state, device_id=entry["device_id"])
-    config = DeviceConfig.model_validate(entry["config"])
     entry["next_poll_at"] = time.monotonic() + max(
         5, config.poll_interval_seconds or 15
     )
@@ -343,7 +360,7 @@ async def sync_sidecar_entry(
 
 
 def sidecar_config_payload(config: DeviceConfig) -> dict[str, Any]:
-    payload = config.model_dump(exclude={"api_key", "base_url"})
+    payload = config.model_dump(exclude={"api_key", "base_url", "composites"})
     payload["registers"] = payload.pop("points")
     payload["host"] = "modbus-rtu-sidecar"
     return payload
@@ -395,8 +412,11 @@ async def replay_sidecar_events(
 def all_entities() -> list[dict[str, Any]]:
     return [
         entity_response(model)
-        for config_id in sorted(point_models)
-        for model in point_models[config_id]
+        for config_id in sorted(set(point_models) | set(composite_models))
+        for model in [
+            *point_models.get(config_id, []),
+            *composite_models.get(config_id, []),
+        ]
     ]
 
 
@@ -414,6 +434,25 @@ def find_point_model(config_id: str, device_id: str) -> dict[str, Any]:
     return model
 
 
+def find_composite(config_id: str, device_id: str, config: DeviceConfig):
+    composite_id = device_id.removeprefix(f"{config_id}:")
+    return next(
+        (item for item in config.composites if item.id == composite_id),
+        None,
+    )
+
+
+def composite_command_value(composite, command: str, args: dict[str, Any]):
+    binding = composite.commands.get(command)
+    if binding is None:
+        raise ValueError("unsupported_composite_command")
+    if binding.argument is None:
+        return binding.point_id, binding.value
+    if binding.argument not in args:
+        raise ValueError(f"{binding.argument}_required")
+    return binding.point_id, args[binding.argument]
+
+
 async def execute_sidecar_command(
     *, config_id: str, device_id: str, command: str, args: dict[str, Any]
 ) -> dict[str, Any]:
@@ -421,6 +460,20 @@ async def execute_sidecar_command(
     entry = registry.get(config_id)
     if client is None or entry is None:
         raise ValueError("sidecar_not_configured")
+    config = DeviceConfig.model_validate(entry["config"])
+    composite = find_composite(config_id, device_id, config)
+    if composite is not None:
+        if command == "refresh":
+            result = await client.refresh(config_id)
+        else:
+            point_id, value = composite_command_value(composite, command, args)
+            result = await client.write(config_id, point_id, value)
+        await sync_sidecar_entry(entry, client)
+        return {
+            "ok": True,
+            "composite_id": composite.id,
+            "result": result,
+        }
     model = find_point_model(config_id, device_id)
     if command == "refresh":
         result = await client.refresh(config_id, str(model["point_id"]))
@@ -442,6 +495,26 @@ async def execute_tcp_command(
     if client is None or entry is None:
         raise ValueError("tcp_profile_not_configured")
     config = DeviceConfig.model_validate(entry["config"])
+    composite = find_composite(config_id, device_id, config)
+    if composite is not None:
+        if command == "refresh":
+            await sync_tcp_entry(entry, client)
+            return {"ok": True, "composite_id": composite.id}
+        point_id, requested_value = composite_command_value(composite, command, args)
+        point = next(
+            (candidate for candidate in config.points if candidate.id == point_id),
+            None,
+        )
+        if point is None:
+            raise ValueError("unknown_modbus_point")
+        value = await client.write_point(point, requested_value)
+        await sync_tcp_entry(entry, client)
+        return {
+            "ok": True,
+            "composite_id": composite.id,
+            "point_id": point.id,
+            "value": value,
+        }
     model = find_point_model(config_id, device_id)
     point = next(
         (candidate for candidate in config.points if candidate.id == model["point_id"]),

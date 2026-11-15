@@ -25,10 +25,37 @@ CAPABILITIES: dict[str, dict[str, Any]] = {
     },
     "holding_register_value": {"kind": "sensor", "value_kind": "numeric"},
     "point_value": {"kind": "sensor", "value_kind": "numeric_or_boolean"},
+    "power": {"kind": "sensor", "unit": "bool"},
+    "brightness_percent": {"kind": "sensor", "unit": "%"},
+    "color_temp_percent": {"kind": "sensor", "unit": "%"},
+    "fan_speed_percent": {"kind": "sensor", "unit": "%"},
+    "oscillating": {"kind": "sensor", "unit": "bool"},
+    "position_percent": {"kind": "sensor", "unit": "%"},
+    "movement_state": {"kind": "sensor", "unit": "string"},
+    "temperature_c": {"kind": "sensor", "unit": "C"},
+    "target_temperature_c": {"kind": "sensor", "unit": "C"},
+    "mode": {"kind": "sensor", "unit": "string"},
     "refresh": {
         "kind": "action"
     },
-    "set_value": {"kind": "action"}
+    "set_value": {"kind": "action"},
+    **{
+        command: {"kind": "action"}
+        for command in (
+            "turn_on",
+            "turn_off",
+            "set_brightness",
+            "set_color_temp",
+            "set_mode",
+            "set_fan_speed",
+            "set_oscillate",
+            "open_cover",
+            "close_cover",
+            "stop_cover",
+            "set_cover_position",
+            "set_temperature",
+        )
+    },
 }
 
 COMMANDS: dict[str, dict[str, Any]] = {
@@ -39,7 +66,47 @@ COMMANDS: dict[str, dict[str, Any]] = {
     "set_value": {
         "description": "Set a profile-declared writable point within its bounds.",
         "timeout_ms": 30000
-    }
+    },
+    "turn_on": {"description": "Turn on a profile-composed device.", "timeout_ms": 30000},
+    "turn_off": {"description": "Turn off a profile-composed device.", "timeout_ms": 30000},
+    "set_brightness": {
+        "description": "Set profile-composed light brightness.",
+        "timeout_ms": 30000,
+        "args_schema": {"brightness": {"type": "number", "required": True, "minimum": 0, "maximum": 100, "unit": "%"}},
+    },
+    "set_color_temp": {
+        "description": "Set profile-composed light color temperature.",
+        "timeout_ms": 30000,
+        "args_schema": {"color_temp": {"type": "number", "required": True, "minimum": 0, "maximum": 100, "unit": "%"}},
+    },
+    "set_mode": {
+        "description": "Set a reviewed profile mode.",
+        "timeout_ms": 30000,
+        "args_schema": {"mode": {"type": "string", "required": True}},
+    },
+    "set_fan_speed": {
+        "description": "Set profile-composed fan speed.",
+        "timeout_ms": 30000,
+        "args_schema": {"speed": {"type": "number", "required": True, "minimum": 0, "maximum": 100, "unit": "%"}},
+    },
+    "set_oscillate": {
+        "description": "Set profile-composed fan oscillation.",
+        "timeout_ms": 30000,
+        "args_schema": {"oscillating": {"type": "boolean", "required": True}},
+    },
+    "open_cover": {"description": "Open a profile-composed cover.", "timeout_ms": 30000},
+    "close_cover": {"description": "Close a profile-composed cover.", "timeout_ms": 30000},
+    "stop_cover": {"description": "Stop a profile-composed cover.", "timeout_ms": 30000},
+    "set_cover_position": {
+        "description": "Set profile-composed cover position.",
+        "timeout_ms": 30000,
+        "args_schema": {"position": {"type": "number", "required": True, "minimum": 0, "maximum": 100, "unit": "%"}},
+    },
+    "set_temperature": {
+        "description": "Set profile-composed target temperature.",
+        "timeout_ms": 30000,
+        "args_schema": {"temperature_c": {"type": "number", "required": True, "unit": "C"}},
+    },
 }
 
 CONFIG_SCHEMA: dict[str, Any] = {
@@ -79,20 +146,19 @@ FALLBACK_ENTITY: dict[str, Any] = {
     "name": "Demo Device",
     "device_id": "demo-device",
     "entity_type": "modbus_device",
-    "capabilities": [
-        "connected",
-        "holding_register_value",
-        "point_value",
-        "set_value",
-        "refresh"
-    ],
+    "capabilities": list(CAPABILITIES),
     "available_commands": [
         {
-            "id": "refresh",
-            "label": "Refresh",
-            "kind": "action"
-        },
-        {"id": "set_value", "label": "Set value", "kind": "action"}
+            "id": command_id,
+            "label": command_id.replace("_", " ").title(),
+            "kind": "action",
+            **(
+                {"args_schema": definition["args_schema"]}
+                if definition.get("args_schema")
+                else {}
+            ),
+        }
+        for command_id, definition in COMMANDS.items()
     ],
     "dashboard": {
         "allowed_widgets": [

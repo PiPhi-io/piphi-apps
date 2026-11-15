@@ -108,6 +108,25 @@ def rtu_config(config_id: str = "rtu-parent") -> DeviceConfig:
     )
 
 
+def rtu_composite_config(config_id: str = "rtu-composite") -> DeviceConfig:
+    payload = rtu_config(config_id).model_dump()
+    payload["composites"] = [
+        {
+            "id": "thermostat",
+            "name": "Thermostat",
+            "entity_type": "climate",
+            "state_points": {"target_temperature_c": "temperature"},
+            "commands": {
+                "set_temperature": {
+                    "point_id": "temperature",
+                    "argument": "temperature_c",
+                }
+            },
+        }
+    ]
+    return DeviceConfig.model_validate(payload)
+
+
 def test_parent_rejects_overlapping_profile_points() -> None:
     payload = rtu_config().model_dump()
     payload["points"].append(
@@ -174,6 +193,33 @@ async def test_parent_write_uses_only_resolved_profile_point(
             )
     finally:
         await state.remove_config("write-parent")
+
+
+@pytest.mark.anyio
+async def test_parent_routes_composite_command_through_sidecar_point(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = FakeSidecarClient()
+    monkeypatch.setattr(state, "sidecar_client_factory", lambda: client)
+    await state.apply_config(rtu_composite_config())
+    try:
+        assert "composites" not in client.config
+        entity = next(
+            item
+            for item in state.all_entities()
+            if item["id"] == "rtu-composite:thermostat"
+        )
+        assert entity["entity_type"] == "climate"
+        assert entity["state"]["target_temperature_c"] == 21.5
+        await state.execute_sidecar_command(
+            config_id="rtu-composite",
+            device_id="rtu-composite:thermostat",
+            command="set_temperature",
+            args={"temperature_c": 24.0, "point_id": "caller-override"},
+        )
+        assert ("write", ("rtu-composite", "temperature", 24.0)) in client.calls
+    finally:
+        await state.remove_config("rtu-composite")
 
 
 @pytest.mark.anyio

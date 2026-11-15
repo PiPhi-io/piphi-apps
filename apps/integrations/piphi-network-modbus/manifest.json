@@ -3,7 +3,7 @@
   "manifest_version": "1.0",
   "id": "piphi-network-modbus",
   "name": "Modbus",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Monitor and safely control profile-declared Modbus TCP and RTU points.",
   "metadata": {
     "generator": "piphi-network-create",
@@ -17,7 +17,7 @@
     "website": "https://piphi.io"
   },
   "license": "Apache-2.0",
-  "image": "ghcr.io/piphi-io/piphi-network-modbus:0.4.0",
+  "image": "ghcr.io/piphi-io/piphi-network-modbus:0.5.0",
   "platforms": [
     "linux"
   ],
@@ -25,7 +25,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "ghcr.io/piphi-io/piphi-network-modbus:0.4.0",
+        "image": "ghcr.io/piphi-io/piphi-network-modbus:0.5.0",
         "ports": [
           {
             "container": 4222,
@@ -122,10 +122,32 @@
     },
     "holding_register_value": {"kind": "sensor", "value_kind": "numeric"},
     "point_value": {"kind": "sensor", "value_kind": "numeric_or_boolean"},
+    "power": {"kind": "sensor", "unit": "bool"},
+    "brightness_percent": {"kind": "sensor", "unit": "%"},
+    "color_temp_percent": {"kind": "sensor", "unit": "%"},
+    "fan_speed_percent": {"kind": "sensor", "unit": "%"},
+    "oscillating": {"kind": "sensor", "unit": "bool"},
+    "position_percent": {"kind": "sensor", "unit": "%"},
+    "movement_state": {"kind": "sensor", "unit": "string"},
+    "temperature_c": {"kind": "sensor", "unit": "C"},
+    "target_temperature_c": {"kind": "sensor", "unit": "C"},
+    "mode": {"kind": "sensor", "unit": "string"},
     "refresh": {
       "kind": "action"
     },
-    "set_value": {"kind": "action"}
+    "set_value": {"kind": "action"},
+    "turn_on": {"kind": "action"},
+    "turn_off": {"kind": "action"},
+    "set_brightness": {"kind": "action"},
+    "set_color_temp": {"kind": "action"},
+    "set_mode": {"kind": "action"},
+    "set_fan_speed": {"kind": "action"},
+    "set_oscillate": {"kind": "action"},
+    "open_cover": {"kind": "action"},
+    "close_cover": {"kind": "action"},
+    "stop_cover": {"kind": "action"},
+    "set_cover_position": {"kind": "action"},
+    "set_temperature": {"kind": "action"}
   },
   "commands": {
     "refresh": {
@@ -135,7 +157,19 @@
     "set_value": {
       "description": "Set a profile-declared writable point within its bounds.",
       "timeout_ms": 30000
-    }
+    },
+    "turn_on": {"description": "Turn on a profile-composed device.", "timeout_ms": 30000},
+    "turn_off": {"description": "Turn off a profile-composed device.", "timeout_ms": 30000},
+    "set_brightness": {"description": "Set profile-composed light brightness.", "timeout_ms": 30000, "args_schema": {"brightness": {"type": "number", "required": true, "minimum": 0, "maximum": 100, "unit": "%"}}},
+    "set_color_temp": {"description": "Set profile-composed light color temperature.", "timeout_ms": 30000, "args_schema": {"color_temp": {"type": "number", "required": true, "minimum": 0, "maximum": 100, "unit": "%"}}},
+    "set_mode": {"description": "Set a reviewed profile mode.", "timeout_ms": 30000, "args_schema": {"mode": {"type": "string", "required": true}}},
+    "set_fan_speed": {"description": "Set profile-composed fan speed.", "timeout_ms": 30000, "args_schema": {"speed": {"type": "number", "required": true, "minimum": 0, "maximum": 100, "unit": "%"}}},
+    "set_oscillate": {"description": "Set profile-composed fan oscillation.", "timeout_ms": 30000, "args_schema": {"oscillating": {"type": "boolean", "required": true}}},
+    "open_cover": {"description": "Open a profile-composed cover.", "timeout_ms": 30000},
+    "close_cover": {"description": "Close a profile-composed cover.", "timeout_ms": 30000},
+    "stop_cover": {"description": "Stop a profile-composed cover.", "timeout_ms": 30000},
+    "set_cover_position": {"description": "Set profile-composed cover position.", "timeout_ms": 30000, "args_schema": {"position": {"type": "number", "required": true, "minimum": 0, "maximum": 100, "unit": "%"}}},
+    "set_temperature": {"description": "Set profile-composed target temperature.", "timeout_ms": 30000, "args_schema": {"temperature_c": {"type": "number", "required": true, "unit": "C"}}}
   },
   "entities": [
     {
@@ -147,8 +181,30 @@
         "connected",
         "holding_register_value",
         "point_value",
+        "power",
+        "brightness_percent",
+        "color_temp_percent",
+        "fan_speed_percent",
+        "oscillating",
+        "position_percent",
+        "movement_state",
+        "temperature_c",
+        "target_temperature_c",
+        "mode",
+        "refresh",
         "set_value",
-        "refresh"
+        "turn_on",
+        "turn_off",
+        "set_brightness",
+        "set_color_temp",
+        "set_mode",
+        "set_fan_speed",
+        "set_oscillate",
+        "open_cover",
+        "close_cover",
+        "stop_cover",
+        "set_cover_position",
+        "set_temperature"
       ],
       "available_commands": [
         {
@@ -156,7 +212,19 @@
           "label": "Refresh",
           "kind": "action"
         },
-        {"id": "set_value", "label": "Set value", "kind": "action"}
+        {"id": "set_value", "label": "Set Value", "kind": "action"},
+        {"id": "turn_on", "label": "Turn On", "kind": "action"},
+        {"id": "turn_off", "label": "Turn Off", "kind": "action"},
+        {"id": "set_brightness", "label": "Set Brightness", "kind": "action", "args_schema": {"brightness": {"type": "number", "required": true, "minimum": 0, "maximum": 100, "unit": "%"}}},
+        {"id": "set_color_temp", "label": "Set Color Temp", "kind": "action", "args_schema": {"color_temp": {"type": "number", "required": true, "minimum": 0, "maximum": 100, "unit": "%"}}},
+        {"id": "set_mode", "label": "Set Mode", "kind": "action", "args_schema": {"mode": {"type": "string", "required": true}}},
+        {"id": "set_fan_speed", "label": "Set Fan Speed", "kind": "action", "args_schema": {"speed": {"type": "number", "required": true, "minimum": 0, "maximum": 100, "unit": "%"}}},
+        {"id": "set_oscillate", "label": "Set Oscillate", "kind": "action", "args_schema": {"oscillating": {"type": "boolean", "required": true}}},
+        {"id": "open_cover", "label": "Open Cover", "kind": "action"},
+        {"id": "close_cover", "label": "Close Cover", "kind": "action"},
+        {"id": "stop_cover", "label": "Stop Cover", "kind": "action"},
+        {"id": "set_cover_position", "label": "Set Cover Position", "kind": "action", "args_schema": {"position": {"type": "number", "required": true, "minimum": 0, "maximum": 100, "unit": "%"}}},
+        {"id": "set_temperature", "label": "Set Temperature", "kind": "action", "args_schema": {"temperature_c": {"type": "number", "required": true, "unit": "C"}}}
       ],
       "dashboard": {
         "allowed_widgets": [

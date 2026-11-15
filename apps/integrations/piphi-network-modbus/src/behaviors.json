@@ -128,6 +128,28 @@
         "holding_register_value",
         "point_value",
         "set_value",
+        "power",
+        "brightness_percent",
+        "color_temp_percent",
+        "fan_speed_percent",
+        "oscillating",
+        "position_percent",
+        "movement_state",
+        "temperature_c",
+        "target_temperature_c",
+        "mode",
+        "turn_on",
+        "turn_off",
+        "set_brightness",
+        "set_color_temp",
+        "set_mode",
+        "set_fan_speed",
+        "set_oscillate",
+        "open_cover",
+        "close_cover",
+        "stop_cover",
+        "set_cover_position",
+        "set_temperature",
         "refresh"
       ],
       "targeting": {
@@ -299,6 +321,121 @@
           "targeting": {"fanoutSafe": false, "supportsMultiTarget": false, "scopes": ["selection"]},
           "failure": {"strategy": "stop", "timeoutSeconds": 30, "continueOnPartialFailure": false, "idempotent": true},
           "params": [{"name": "value", "label": "Value", "type": "number", "required": true}],
+          "ui": {"group": "do_this"}
+        },
+        {
+          "id": "turn_on", "label": "Turn on", "description": "Turn on a profile-composed device.",
+          "capability": "action.turn_on", "capabilityRequirements": ["action.turn_on"],
+          "runtime": {"command": "turn_on", "endpoint": "/command", "method": "POST", "timeoutSeconds": 30},
+          "safety": {"riskLevel": "medium", "requiresConfirmation": true, "liveRunAllowed": true},
+          "targeting": {"fanoutSafe": false, "supportsMultiTarget": false, "scopes": ["selection"]},
+          "failure": {"strategy": "stop", "timeoutSeconds": 30, "continueOnPartialFailure": false, "idempotent": false},
+          "ui": {"group": "do_this"}
+        },
+        {
+          "id": "turn_off", "label": "Turn off", "description": "Turn off a profile-composed device.",
+          "capability": "action.turn_off", "capabilityRequirements": ["action.turn_off"],
+          "runtime": {"command": "turn_off", "endpoint": "/command", "method": "POST", "timeoutSeconds": 30},
+          "safety": {"riskLevel": "medium", "requiresConfirmation": true, "liveRunAllowed": true},
+          "targeting": {"fanoutSafe": false, "supportsMultiTarget": false, "scopes": ["selection"]},
+          "failure": {"strategy": "stop", "timeoutSeconds": 30, "continueOnPartialFailure": false, "idempotent": false},
+          "ui": {"group": "do_this"}
+        },
+        {
+          "id": "set_brightness", "label": "Set brightness", "description": "Set a profile-composed light brightness.",
+          "capability": "action.set_brightness", "capabilityRequirements": ["action.set_brightness"],
+          "runtime": {"command": "set_brightness", "endpoint": "/command", "method": "POST", "timeoutSeconds": 30},
+          "safety": {"riskLevel": "medium", "requiresConfirmation": true, "liveRunAllowed": true},
+          "targeting": {"fanoutSafe": false, "supportsMultiTarget": false, "scopes": ["selection"]},
+          "failure": {"strategy": "stop", "timeoutSeconds": 30, "continueOnPartialFailure": false, "idempotent": false},
+          "params": [{"name": "brightness", "label": "Brightness", "type": "number", "required": true, "minimum": 0, "maximum": 100, "unit": "%"}],
+          "ui": {"group": "do_this"}
+        },
+        {
+          "id": "set_color_temp", "label": "Set color temperature", "description": "Set a profile-composed light color temperature.",
+          "capability": "action.set_color_temp", "capabilityRequirements": ["action.set_color_temp"],
+          "runtime": {"command": "set_color_temp", "endpoint": "/command", "method": "POST", "timeoutSeconds": 30},
+          "safety": {"riskLevel": "medium", "requiresConfirmation": true, "liveRunAllowed": true},
+          "targeting": {"fanoutSafe": false, "supportsMultiTarget": false, "scopes": ["selection"]},
+          "failure": {"strategy": "stop", "timeoutSeconds": 30, "continueOnPartialFailure": false, "idempotent": false},
+          "params": [{"name": "color_temp", "label": "Color temperature", "type": "number", "required": true, "minimum": 0, "maximum": 100, "unit": "%"}],
+          "ui": {"group": "do_this"}
+        },
+        {
+          "id": "set_mode", "label": "Set mode", "description": "Set a reviewed profile mode.",
+          "capability": "action.set_mode", "capabilityRequirements": ["action.set_mode"],
+          "runtime": {"command": "set_mode", "endpoint": "/command", "method": "POST", "timeoutSeconds": 30},
+          "safety": {"riskLevel": "medium", "requiresConfirmation": true, "liveRunAllowed": true},
+          "targeting": {"fanoutSafe": false, "supportsMultiTarget": false, "scopes": ["selection"]},
+          "failure": {"strategy": "stop", "timeoutSeconds": 30, "continueOnPartialFailure": false, "idempotent": false},
+          "params": [{"name": "mode", "label": "Mode", "type": "text", "required": true}],
+          "ui": {"group": "do_this"}
+        },
+        {
+          "id": "set_fan_speed", "label": "Set fan speed", "description": "Set a profile-composed fan speed.",
+          "capability": "action.set_fan_speed", "capabilityRequirements": ["action.set_fan_speed"],
+          "runtime": {"command": "set_fan_speed", "endpoint": "/command", "method": "POST", "timeoutSeconds": 30},
+          "safety": {"riskLevel": "medium", "requiresConfirmation": true, "liveRunAllowed": true},
+          "targeting": {"fanoutSafe": false, "supportsMultiTarget": false, "scopes": ["selection"]},
+          "failure": {"strategy": "stop", "timeoutSeconds": 30, "continueOnPartialFailure": false, "idempotent": false},
+          "params": [{"name": "speed", "label": "Fan speed", "type": "number", "required": true, "minimum": 0, "maximum": 100, "unit": "%"}],
+          "ui": {"group": "do_this"}
+        },
+        {
+          "id": "set_oscillate", "label": "Set oscillation", "description": "Set profile-composed fan oscillation.",
+          "capability": "action.set_oscillate", "capabilityRequirements": ["action.set_oscillate"],
+          "runtime": {"command": "set_oscillate", "endpoint": "/command", "method": "POST", "timeoutSeconds": 30},
+          "safety": {"riskLevel": "medium", "requiresConfirmation": true, "liveRunAllowed": true},
+          "targeting": {"fanoutSafe": false, "supportsMultiTarget": false, "scopes": ["selection"]},
+          "failure": {"strategy": "stop", "timeoutSeconds": 30, "continueOnPartialFailure": false, "idempotent": false},
+          "params": [{"name": "oscillating", "label": "Oscillating", "type": "boolean", "required": true}],
+          "ui": {"group": "do_this"}
+        },
+        {
+          "id": "open_cover", "label": "Open cover", "description": "Open a profile-composed cover.",
+          "capability": "action.open_cover", "capabilityRequirements": ["action.open_cover"],
+          "runtime": {"command": "open_cover", "endpoint": "/command", "method": "POST", "timeoutSeconds": 30},
+          "safety": {"riskLevel": "medium", "requiresConfirmation": true, "liveRunAllowed": true},
+          "targeting": {"fanoutSafe": false, "supportsMultiTarget": false, "scopes": ["selection"]},
+          "failure": {"strategy": "stop", "timeoutSeconds": 30, "continueOnPartialFailure": false, "idempotent": false},
+          "ui": {"group": "do_this"}
+        },
+        {
+          "id": "close_cover", "label": "Close cover", "description": "Close a profile-composed cover.",
+          "capability": "action.close_cover", "capabilityRequirements": ["action.close_cover"],
+          "runtime": {"command": "close_cover", "endpoint": "/command", "method": "POST", "timeoutSeconds": 30},
+          "safety": {"riskLevel": "medium", "requiresConfirmation": true, "liveRunAllowed": true},
+          "targeting": {"fanoutSafe": false, "supportsMultiTarget": false, "scopes": ["selection"]},
+          "failure": {"strategy": "stop", "timeoutSeconds": 30, "continueOnPartialFailure": false, "idempotent": false},
+          "ui": {"group": "do_this"}
+        },
+        {
+          "id": "stop_cover", "label": "Stop cover", "description": "Stop a profile-composed cover.",
+          "capability": "action.stop_cover", "capabilityRequirements": ["action.stop_cover"],
+          "runtime": {"command": "stop_cover", "endpoint": "/command", "method": "POST", "timeoutSeconds": 30},
+          "safety": {"riskLevel": "medium", "requiresConfirmation": true, "liveRunAllowed": true},
+          "targeting": {"fanoutSafe": false, "supportsMultiTarget": false, "scopes": ["selection"]},
+          "failure": {"strategy": "stop", "timeoutSeconds": 30, "continueOnPartialFailure": false, "idempotent": false},
+          "ui": {"group": "do_this"}
+        },
+        {
+          "id": "set_cover_position", "label": "Set cover position", "description": "Set a profile-composed cover position.",
+          "capability": "action.set_cover_position", "capabilityRequirements": ["action.set_cover_position"],
+          "runtime": {"command": "set_cover_position", "endpoint": "/command", "method": "POST", "timeoutSeconds": 30},
+          "safety": {"riskLevel": "medium", "requiresConfirmation": true, "liveRunAllowed": true},
+          "targeting": {"fanoutSafe": false, "supportsMultiTarget": false, "scopes": ["selection"]},
+          "failure": {"strategy": "stop", "timeoutSeconds": 30, "continueOnPartialFailure": false, "idempotent": false},
+          "params": [{"name": "position", "label": "Position", "type": "number", "required": true, "minimum": 0, "maximum": 100, "unit": "%"}],
+          "ui": {"group": "do_this"}
+        },
+        {
+          "id": "set_temperature", "label": "Set temperature", "description": "Set a profile-composed target temperature.",
+          "capability": "action.set_temperature", "capabilityRequirements": ["action.set_temperature"],
+          "runtime": {"command": "set_temperature", "endpoint": "/command", "method": "POST", "timeoutSeconds": 30},
+          "safety": {"riskLevel": "medium", "requiresConfirmation": true, "liveRunAllowed": true},
+          "targeting": {"fanoutSafe": false, "supportsMultiTarget": false, "scopes": ["selection"]},
+          "failure": {"strategy": "stop", "timeoutSeconds": 30, "continueOnPartialFailure": false, "idempotent": false},
+          "params": [{"name": "temperature_c", "label": "Temperature", "type": "number", "required": true, "unit": "C"}],
           "ui": {"group": "do_this"}
         }
       ],

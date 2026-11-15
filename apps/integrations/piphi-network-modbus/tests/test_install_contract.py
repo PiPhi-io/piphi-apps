@@ -56,7 +56,7 @@ def test_managed_rtu_sidecar_is_internal_authenticated_and_serial_only() -> None
 
 
 def test_coordinated_patch_versions_and_images_are_consistent() -> None:
-    assert PARENT_MANIFEST["version"] == "0.4.0"
-    assert PARENT_MANIFEST["image"].endswith(":0.4.0")
+    assert PARENT_MANIFEST["version"] == "0.5.0"
+    assert PARENT_MANIFEST["image"].endswith(":0.5.0")
     assert SIDECAR_MANIFEST["version"] == "0.3.0"
     assert SIDECAR_MANIFEST["image"].endswith(":0.3.0")
