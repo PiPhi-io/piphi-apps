@@ -60,5 +60,6 @@ jobs:
       ruby_version: ${{ matrix.ruby_version }}
       php_version: ${{ matrix.php_version }}
       build_container: ${{ matrix.build_container }}
+      windows_python: ${{ matrix.windows_python }}
       dockerfile: ${{ matrix.dockerfile }}
       context: ${{ matrix.context }}

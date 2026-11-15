@@ -1,7 +1,7 @@
 {
   "entities": [{
     "id": "ble-gateway-service", "name": "BLE Gateway Service", "device_id": "ble-gateway-service", "entity_type": "service",
-    "capabilities": ["service_available", "receiver_healthy", "scanner_state", "scan_mode", "observations_received_total", "observations_deduplicated_total", "last_observation_age_ms", "reconnects", "queue_depth", "queue_capacity", "queue_high_water", "drops", "coalesces", "refresh"],
+    "capabilities": ["service_available", "receiver_healthy", "scanner_state", "scan_mode", "observations_received_total", "observations_deduplicated_total", "last_observation_age_ms", "reconnects", "queue_depth", "queue_capacity", "queue_high_water", "drops", "coalesces", "adapter_count", "adapter_powered", "adapter_discovering", "rfkill_soft_blocked", "rfkill_hard_blocked", "refresh"],
     "available_commands": [{"id": "refresh", "label": "Refresh", "kind": "action"}],
     "dashboard": {"allowed_widgets": ["tile", "stat", "button"], "default_widget": "tile"}
   }],
@@ -19,6 +19,11 @@
     "queue_high_water": {"kind": "sensor", "unit": "count"},
     "drops": {"kind": "sensor", "unit": "count"},
     "coalesces": {"kind": "sensor", "unit": "count"},
+    "adapter_count": {"kind": "sensor", "unit": "count"},
+    "adapter_powered": {"kind": "sensor", "unit": "bool"},
+    "adapter_discovering": {"kind": "sensor", "unit": "bool"},
+    "rfkill_soft_blocked": {"kind": "sensor", "unit": "bool"},
+    "rfkill_hard_blocked": {"kind": "sensor", "unit": "bool"},
     "refresh": {"kind": "action"}
   },
   "commands": {"refresh": {"description": "Refresh the device state.", "timeout_ms": 5000}}

@@ -53,6 +53,7 @@ jobs:
       platforms: ${{ steps.plan.outputs.platforms }}
       manifest: ${{ steps.plan.outputs.manifest }}
       output: ${{ steps.plan.outputs.output }}
+      python_wheel: ${{ steps.plan.outputs.python_wheel }}
       python: ${{ steps.plan.outputs.python }}
       node: ${{ steps.plan.outputs.node }}
       go: ${{ steps.plan.outputs.go }}
@@ -113,6 +114,13 @@ jobs:
       - uses: actions/checkout@v4
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
+      - uses: actions/setup-python@v5
+        if: needs.plan.outputs.python_wheel == 'true'
+        with:
+          python-version: ${{ needs.plan.outputs.python_version }}
+      - name: Prepare Python wheel tooling
+        if: needs.plan.outputs.python_wheel == 'true'
+        run: python -m pip install "pdm==2.29.7"
       - name: Log in to GHCR
         if: needs.plan.outputs.ghcr_required == 'true' && inputs.publish
         uses: docker/login-action@v3
@@ -147,8 +155,33 @@ jobs:
           subject-name: ${{ needs.plan.outputs.image }}
           subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true
+      - name: Build platform-neutral Windows Python wheel
+        if: needs.plan.outputs.python_wheel == 'true'
+        working-directory: ${{ needs.plan.outputs.app_path }}
+        run: |
+          rm -rf windows-dist
+          pdm build --no-sdist --dest windows-dist
+          test "$(find windows-dist -maxdepth 1 -name '*-py3-none-any.whl' | wc -l)" -eq 1
+      - name: Smoke-test wheel installation
+        if: needs.plan.outputs.python_wheel == 'true'
+        working-directory: ${{ needs.plan.outputs.app_path }}
+        run: |
+          python -m venv /tmp/piphi-wheel-smoke
+          /tmp/piphi-wheel-smoke/bin/pip install windows-dist/*-py3-none-any.whl
+          /tmp/piphi-wheel-smoke/bin/python -c "import piphi_ble_gateway_sidecar; from piphi_ble_gateway_sidecar.scanner import BleakCallbackScanner"
+      - name: Attest Windows Python wheel
+        if: needs.plan.outputs.python_wheel == 'true' && inputs.publish
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: ${{ needs.plan.outputs.app_path }}/windows-dist/*-py3-none-any.whl
       - name: Write immutable release evidence
         run: |
+          wheel=""
+          wheel_sha256=""
+          if [ '${{ needs.plan.outputs.python_wheel }}' = 'true' ]; then
+            wheel="$(basename "$(find '${{ needs.plan.outputs.app_path }}/windows-dist' -maxdepth 1 -name '*-py3-none-any.whl' -print -quit)")"
+            wheel_sha256="$(sha256sum '${{ needs.plan.outputs.app_path }}/windows-dist/'*-py3-none-any.whl | cut -d' ' -f1)"
+          fi
           jq -n \
             --arg package_id '${{ needs.plan.outputs.package_id }}' \
             --arg version '${{ needs.plan.outputs.version }}' \
@@ -156,7 +189,10 @@ jobs:
             --arg digest '${{ steps.build.outputs.digest }}' \
             --arg source '${{ github.server_url }}/${{ github.repository }}' \
             --arg revision '${{ github.sha }}' \
-            '{schema_version:1, package_id:$package_id, version:$version, image:$image, digest:$digest, source:$source, revision:$revision}' \
+            --arg wheel "$wheel" \
+            --arg wheel_sha256 "$wheel_sha256" \
+            '{schema_version:1, package_id:$package_id, version:$version, image:$image, digest:$digest, source:$source, revision:$revision}
+             + if $wheel == "" then {} else {windows_python_wheel:$wheel, windows_python_wheel_sha256:$wheel_sha256} end' \
             > release-evidence.json
       - name: Prepare registry cutover proposal
         run: >-
@@ -169,7 +205,8 @@ jobs:
           name: ${{ needs.plan.outputs.package_id }}-${{ needs.plan.outputs.version }}-evidence
           path: |
             release-evidence.json
-            registry-proposal.json
+             registry-proposal.json
+            ${{ needs.plan.outputs.app_path }}/windows-dist/*-py3-none-any.whl
       - name: Create namespaced GitHub release
         if: inputs.publish
         uses: softprops/action-gh-release@v2
@@ -181,9 +218,11 @@ jobs:
           files: |
             release-evidence.json
             registry-proposal.json
+            ${{ needs.plan.outputs.app_path }}/windows-dist/*-py3-none-any.whl
           body: |
             Image: `${{ needs.plan.outputs.image }}:${{ needs.plan.outputs.version }}`
             Digest: `${{ steps.build.outputs.digest }}`
+            Windows process artifact: platform-neutral Python wheel (when attached)
 
   verify-external-oci:
     needs: [plan, qualify]

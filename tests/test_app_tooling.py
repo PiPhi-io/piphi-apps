@@ -125,6 +125,26 @@ class AppToolingTests(unittest.TestCase):
             self.assertEqual(plan["tag"], "apps/example/v1.2.3")
             self.assertEqual(plan["image"], "ghcr.io/piphi-io/example")
 
+    def test_windows_python_ci_requires_commands_and_wheel_is_planned(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            path = self.app_fixture(root)
+            metadata_path = path / "piphi-app.json"
+            metadata = json.loads(metadata_path.read_text())
+            metadata["ci"]["windows_python"] = True
+            metadata["packages"][0]["artifact"]["python_wheel"] = True
+            metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
+            with patch.object(app_tooling, "ROOT", root):
+                with self.assertRaisesRegex(app_tooling.AppMetadataError, "windows_commands"):
+                    app_tooling.validate_app(path)
+            metadata["ci"]["windows_commands"] = ["pdm run pytest"]
+            metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
+            with (
+                patch.object(app_tooling, "ROOT", root),
+                patch.object(app_tooling, "APPS_ROOT", root / "apps"),
+            ):
+                self.assertEqual(app_tooling.release_plan("example", "1.2.3")["python_wheel"], "true")
+
 
 if __name__ == "__main__":
     unittest.main()

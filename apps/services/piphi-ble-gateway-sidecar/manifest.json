@@ -3,7 +3,7 @@
   "manifest_version": "1.0",
   "id": "piphi-ble-gateway-sidecar",
   "name": "BLE gateway sidecar",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Provide bounded, privacy-preserving BLE observations through Bleak on Linux BlueZ and Windows WinRT.",
   "metadata": {
     "generator": "piphi-network-create",
@@ -17,7 +17,7 @@
     "website": "https://piphi.io"
   },
   "license": "Apache-2.0",
-  "image": "ghcr.io/piphi-io/piphi-ble-gateway-sidecar:0.2.0",
+  "image": "ghcr.io/piphi-io/piphi-ble-gateway-sidecar:0.3.0",
   "platforms": [
     "linux",
     "windows"
@@ -26,7 +26,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "ghcr.io/piphi-io/piphi-ble-gateway-sidecar:0.2.0",
+        "image": "ghcr.io/piphi-io/piphi-ble-gateway-sidecar:0.3.0",
         "ports": [
           {
             "container": 4210
@@ -124,6 +124,11 @@
     "queue_high_water": {"kind": "sensor", "unit": "count"},
     "drops": {"kind": "sensor", "unit": "count"},
     "coalesces": {"kind": "sensor", "unit": "count"},
+    "adapter_count": {"kind": "sensor", "unit": "count"},
+    "adapter_powered": {"kind": "sensor", "unit": "bool"},
+    "adapter_discovering": {"kind": "sensor", "unit": "bool"},
+    "rfkill_soft_blocked": {"kind": "sensor", "unit": "bool"},
+    "rfkill_hard_blocked": {"kind": "sensor", "unit": "bool"},
     "refresh": {
       "kind": "action"
     }
@@ -154,6 +159,11 @@
         "queue_high_water",
         "drops",
         "coalesces",
+        "adapter_count",
+        "adapter_powered",
+        "adapter_discovering",
+        "rfkill_soft_blocked",
+        "rfkill_hard_blocked",
         "refresh"
       ],
       "available_commands": [

@@ -12,7 +12,8 @@ from datetime import UTC, datetime
 from time import monotonic_ns
 
 from .ble_models import SCHEMA_VERSION, Advertisement, Matcher, ScanMode, bounded_hex_map, utc_now
-from .scanner import BleakCallbackScanner, CapabilityAdapter, NoopCapabilityAdapter, Scanner
+from .scanner import BleakCallbackScanner, CapabilityAdapter, Scanner
+from .bluez import default_capability_adapter
 
 DEFAULT_CAPACITY = 128
 MAX_CAPACITY = 1024
@@ -48,7 +49,7 @@ class Gateway:
         checkpoint_path: str | Path | None = None,
     ) -> None:
         self.scanner = scanner or BleakCallbackScanner(os.getenv("PIPHI_BLE_ADAPTER"))
-        self.capability_adapter = capability_adapter or NoopCapabilityAdapter()
+        self.capability_adapter = capability_adapter or default_capability_adapter(self.scanner.adapter)
         self.receiver_id = receiver_id or os.getenv("PIPHI_BLE_RECEIVER_ID", "local-receiver")
         self.secret_path = Path(secret_path or os.getenv("PIPHI_BLE_HANDLE_KEY_PATH", "./data/ble-handle.key"))
         self.checkpoint_path = Path(checkpoint_path or os.getenv("PIPHI_BLE_CHECKPOINT_PATH", "./data/ble-latest.json"))
@@ -154,6 +155,28 @@ class Gateway:
             await self._safe_stop()
             self.scan_mode = None
         await self._apply_plan()
+
+    async def supervise_once(self) -> bool:
+        """Recover only a supported platform adapter whose scan has degraded."""
+        if not self.service_available or not self.consumers:
+            return False
+        diagnostics = await self.capability_adapter.diagnostics()
+        platform_degraded = diagnostics.get("supported") is True and (
+            diagnostics.get("available") is not True
+            or diagnostics.get("adapter_powered") is False
+            or (self.scanner_state == "scanning" and diagnostics.get("adapter_discovering") is False)
+        )
+        if self.scanner_state != "failed" and not platform_degraded:
+            return False
+        if not await self.capability_adapter.recover():
+            return False
+        await self.restart()
+        return self.scanner_state == "scanning"
+
+    async def supervise(self, interval_seconds: float = 5.0) -> None:
+        while self.service_available:
+            await self.supervise_once()
+            await asyncio.sleep(interval_seconds)
 
     async def _safe_stop(self) -> None:
         try:

@@ -19,13 +19,20 @@
       "pdm run pytest",
       "pdm run python scripts/validate.py"
     ],
-    "build_container": true
+    "build_container": true,
+    "windows_python": true,
+    "windows_commands": [
+      "pdm install --check",
+      "pdm run pytest",
+      "python -c \"import shutil; shutil.rmtree('windows-dist', ignore_errors=True)\"",
+      "pdm build --no-sdist --dest windows-dist"
+    ]
   },
   "packages": [
     {
       "id": "piphi-ble-gateway-sidecar",
       "type": "platform_service",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "manifest": "manifest.json",
       "release": {
         "tag": "apps/{package_id}/v{version}",
@@ -38,7 +45,8 @@
         "platforms": [
           "linux/amd64",
           "linux/arm64"
-        ]
+        ],
+        "python_wheel": true
       },
       "publishing": {
         "mode": "piphi_managed",

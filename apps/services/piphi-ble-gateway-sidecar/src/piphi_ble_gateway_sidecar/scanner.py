@@ -60,12 +60,25 @@ class BleakCallbackScanner:
         if self.adapter != "default":
             kwargs["adapter"] = self.adapter
         self._scanner = BleakScanner(detection_callback=detected, **kwargs)
-        await self._scanner.start()
+        try:
+            await self._scanner.start()
+        except Exception:
+            scanner, self._scanner = self._scanner, None
+            try:
+                await scanner.stop()
+            except Exception:
+                pass
+            raise
 
     async def stop(self) -> None:
         scanner, self._scanner = self._scanner, None
         if scanner is not None:
-            await scanner.stop()
+            try:
+                await scanner.stop()
+            except Exception:
+                # A backend can fail before its watcher is fully initialized.
+                # Cleanup must remain idempotent so a later registration can retry.
+                pass
         tasks, self._tasks = self._tasks, set()
         for task in tasks:
             task.cancel()
@@ -80,7 +93,7 @@ class CapabilityAdapter(Protocol):
 
 class NoopCapabilityAdapter:
     async def diagnostics(self) -> dict:
-        return {"available": False}
+        return {"supported": False, "available": False}
 
     async def recover(self) -> bool:
         return False

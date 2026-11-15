@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from time import monotonic_ns
 
 import pytest
 
 from piphi_ble_gateway_sidecar.ble_models import Advertisement, Matcher
 from piphi_ble_gateway_sidecar.gateway import Gateway
+from piphi_ble_gateway_sidecar.scanner import NoopCapabilityAdapter
 
 
 class FakeScanner:
@@ -73,8 +75,9 @@ async def test_flood_is_bounded_and_slow_consumers_are_isolated(tmp_path: Path) 
     await gateway.start()
     slow = await gateway.register("slow", "s" * 16, Matcher(service_uuids=frozenset({"180f"})), "auto", 3)
     fast = await gateway.register("fast", "f" * 16, Matcher(service_uuids=frozenset({"180f"})), "auto", 10)
+    observed_monotonic_ms = monotonic_ns() // 1_000_000
     for index in range(20):
-        await gateway.ingest(advert(10_000 + index * 2_000, address=f"AA:BB:CC:00:00:{index:02X}"))
+        await gateway.ingest(advert(observed_monotonic_ms, address=f"AA:BB:CC:00:00:{index:02X}"))
     assert len(slow.queue) == 3 and slow.dropped == 17
     assert len(fast.queue) == 10 and fast.dropped == 10
     assert slow.high_water == 3 and fast.high_water == 10
@@ -138,9 +141,9 @@ async def test_restart_is_clean_and_linux_capabilities_are_optional(tmp_path: Pa
 
 @pytest.mark.anyio
 async def test_windows_like_backend_has_no_dbus_requirement(tmp_path: Path) -> None:
-    gateway = make_gateway(tmp_path, FakeScanner())
+    gateway = make_gateway(tmp_path, FakeScanner(), NoopCapabilityAdapter())
     await gateway.start()
     await gateway.register("win", "w" * 16, Matcher(manufacturer_ids=frozenset({76})), "active", 4)
     diagnostics = await gateway.diagnostics()
     assert diagnostics["backend"] == "fake-winrt"
-    assert diagnostics["platform_capabilities"] == {"available": False}
+    assert diagnostics["platform_capabilities"] == {"supported": False, "available": False}

@@ -32,6 +32,11 @@ CAPABILITIES: dict[str, dict[str, Any]] = {
     "queue_high_water": {"kind": "sensor", "unit": "count"},
     "drops": {"kind": "sensor", "unit": "count"},
     "coalesces": {"kind": "sensor", "unit": "count"},
+    "adapter_count": {"kind": "sensor", "unit": "count"},
+    "adapter_powered": {"kind": "sensor", "unit": "bool"},
+    "adapter_discovering": {"kind": "sensor", "unit": "bool"},
+    "rfkill_soft_blocked": {"kind": "sensor", "unit": "bool"},
+    "rfkill_hard_blocked": {"kind": "sensor", "unit": "bool"},
     "refresh": {
         "kind": "action"
     }
@@ -89,6 +94,11 @@ FALLBACK_ENTITY: dict[str, Any] = {
         "queue_high_water",
         "drops",
         "coalesces",
+        "adapter_count",
+        "adapter_powered",
+        "adapter_discovering",
+        "rfkill_soft_blocked",
+        "rfkill_hard_blocked",
         "refresh"
     ],
     "available_commands": [

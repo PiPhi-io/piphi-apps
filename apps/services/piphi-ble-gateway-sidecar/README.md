@@ -12,7 +12,7 @@ or required by the Windows path.
 - Bounded matcher registration and deterministic `active > auto > passive` scan arbitration.
 - Isolated bounded consumer queues with coalescing/drop counters, snapshots, and bounded replay.
 - Deduplication, out-of-order rejection, clean scanner restart, and age-checked marked restart replay.
-- Optional platform-capability seam for future BlueZ diagnostics/recovery without coupling WinRT to D-Bus.
+- Linux-only BlueZ Adapter1/rfkill diagnostics and supervised recovery behind an optional capability adapter; WinRT never imports D-Bus.
 
 Remote receivers, private/rotating identity resolution, GATT, pairing, and destructive host controls are
 not implemented. The capability catalog records those as planned or excluded rather than advertising them.
@@ -36,10 +36,10 @@ stored only as SHA-256 digests in memory.
 
 ## Platforms and packaging
 
-Linux remains the OCI release target. The manifest also declares the repository-supported Windows proxy
-shape, supervising the installed `piphi_ble_gateway_sidecar` Python executable so Bleak selects WinRT.
-This package does not contain a Windows executable/wheel publishing workflow; repository-level release
-automation must install/package the Python project on Windows before that deployment can be distributed.
+Linux remains the OCI release target. The same namespaced release also publishes a
+platform-neutral Python wheel, qualified on `windows-latest`, for the manifest's
+Windows proxy runtime. Installing that wheel provides the supervised
+`piphi_ble_gateway_sidecar` executable and lets Bleak select WinRT without D-Bus.
 
 ## Validate
 
@@ -49,7 +49,7 @@ pdm run pytest
 pdm run python scripts/validate.py
 pdm export --prod --output /tmp/piphi-ble-gateway-sidecar-requirements.txt
 pdm run pip-audit --disable-pip -r /tmp/piphi-ble-gateway-sidecar-requirements.txt
-docker build -t ghcr.io/piphi-io/piphi-ble-gateway-sidecar:0.2.0 .
+docker build -t ghcr.io/piphi-io/piphi-ble-gateway-sidecar:0.3.0 .
 ```
 
 Deterministic fake-D-Bus or virtual-radio soak evidence for BlueZ daemon restart,

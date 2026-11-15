@@ -44,6 +44,7 @@ def main() -> None:
                 "ruby": "ruby" in languages,
                 "php": "php" in languages,
                 "build_container": bool(app["ci"]["build_container"]),
+                "windows_python": bool(app["ci"].get("windows_python", False)),
                 "dockerfile": oci.get("dockerfile", "Dockerfile"),
                 "context": oci.get("context", "."),
                 "python_version": toolchains.get("python", "3.12"),
