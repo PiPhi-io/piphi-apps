@@ -1,0 +1,37 @@
+name: KNX virtual qualification
+
+on:
+  pull_request:
+    paths:
+      - "apps/integrations/piphi-network-knx/**"
+      - ".github/workflows/knx-virtual-qualification.yml"
+  push:
+    branches: [main]
+    paths:
+      - "apps/integrations/piphi-network-knx/**"
+      - ".github/workflows/knx-virtual-qualification.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  knxd:
+    name: knxd UDP/TCP
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install locked development environment
+        working-directory: apps/integrations/piphi-network-knx
+        run: |
+          python -m pip install "pdm==2.29.7"
+          PDM_IGNORE_ACTIVE_VENV=1 pdm install --check -G dev
+      - name: Exercise the bounded client against knxd
+        working-directory: apps/integrations/piphi-network-knx
+        run: ./scripts/run_virtual_knx_qualification.sh
