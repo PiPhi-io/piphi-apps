@@ -3,8 +3,8 @@
   "manifest_version": "1.0",
   "id": "piphi-network-modbus",
   "name": "Modbus",
-  "version": "0.7.0",
-  "description": "Monitor and safely control profile-declared Modbus TCP and RTU points.",
+  "version": "0.8.0",
+  "description": "Monitor and safely control profile-declared Modbus TCP, TLS, UDP, RTU-over-TCP, RTU, and ASCII points.",
   "metadata": {
     "generator": "piphi-network-create",
     "scaffold_version": "0.3.0",
@@ -17,7 +17,7 @@
     "website": "https://piphi.io"
   },
   "license": "Apache-2.0",
-  "image": "ghcr.io/piphi-io/piphi-network-modbus:0.7.0",
+  "image": "ghcr.io/piphi-io/piphi-network-modbus:0.8.0",
   "platforms": [
     "linux"
   ],
@@ -25,7 +25,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "ghcr.io/piphi-io/piphi-network-modbus:0.7.0",
+        "image": "ghcr.io/piphi-io/piphi-network-modbus:0.8.0",
         "ports": [
           {
             "container": 4222,
@@ -52,12 +52,12 @@
       {
         "id": "piphi-modbus-rtu-sidecar",
         "kind": "platform_service",
-        "version_range": ">=0.5.0,<0.6.0",
-        "recommended_version": "0.5.0",
+        "version_range": ">=0.6.0,<0.7.0",
+        "recommended_version": "0.6.0",
         "required": true,
         "shared": true,
         "auto_install": true,
-        "reason": "Owns authenticated serial access, RTU framing, bounded request arbitration, and read/write execution for profile-declared RTU points."
+        "reason": "Owns authenticated serial access, RTU/ASCII framing, bounded request arbitration, and read/write execution for profile-declared serial points."
       }
     ]
   },
@@ -99,6 +99,13 @@
       "poll_jitter_percent",
       "poll_backoff_max_seconds",
       "response_timeout_seconds",
+      "serial_port",
+      "baud_rate",
+      "parity",
+      "stop_bits",
+      "data_bits",
+      "tls_ca_certificate",
+      "tls_server_name",
       "profile_id",
       "profile_version",
       "profile_provenance",
@@ -253,7 +260,7 @@
   "marketplace": {
     "metadata_version": 2,
     "display_name": "Modbus",
-    "summary": "Profile-driven Modbus TCP and RTU monitoring with constrained controls.",
+    "summary": "Profile-driven Modbus network and serial monitoring with constrained controls.",
     "category": "other",
     "regions": [
       "WW"

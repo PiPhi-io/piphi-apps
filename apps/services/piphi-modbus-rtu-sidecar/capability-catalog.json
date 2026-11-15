@@ -26,20 +26,14 @@
       "actions": ["open_allowlisted_port", "close_port", "reconnect_serial_session", "resynchronize_serial_ports"]
     },
     {
-      "id": "rtu-ascii-framing-and-timing", "status": "planned", "scope": ["modbus-rtu", "modbus-ascii"], "source_refs": ["modbus_serial", "modbus_application", "modbus_specs"],
-      "reason": "RTU/ASCII framing must enforce CRC/LRC, maximum frame size, inter-character and inter-frame timing, address/function validation, and malformed-frame isolation.",
-      "state": ["transmission_mode", "inter_character_timeout_us", "inter_frame_delay_us", "response_timeout_ms", "turnaround_delay_ms", "frames_received_total", "frames_sent_total", "frame_crc_error_count", "frame_lrc_error_count", "frame_length_error_count", "frame_timeout_count", "frame_parity_error_count", "frame_overrun_count", "unexpected_response_count", "exception_response_count", "last_frame_at"],
-      "events": ["frame.received", "frame.sent", "frame.crc_failed", "frame.lrc_failed", "frame.malformed", "frame.timed_out", "response.unexpected", "exception.received", "bus.silence_violation"],
-      "conditions": ["frame_error_count_above", "timeout_count_above", "exception_count_above", "bus_is_idle", "last_frame_age_above"],
-      "actions": ["validate_frame", "discard_partial_frame", "reset_frame_decoder"]
+      "id": "rtu-ascii-framing-and-timing", "status": "implemented", "scope": ["modbus-rtu", "modbus-ascii"], "source_refs": ["modbus_serial", "modbus_application", "modbus_specs"],
+      "reason": "RTU validates bounded binary frames, CRC, unit, function and exceptions. ASCII validates colon/CRLF delimiters, bounded even-length hexadecimal payloads, LRC, unit, function and exceptions. Both use configured bounded response timeouts and one in-flight transaction.",
+      "state": [], "events": [], "conditions": [], "actions": []
     },
     {
-      "id": "request-arbitration-and-routing", "status": "planned", "scope": ["parent-configured-units-and-profiles"], "source_refs": ["modbus_application", "pymodbus", "parent_contract"],
-      "reason": "A shared serial bus requires one in-flight transaction, correlation, fair scheduling, per-unit profiles, bounded retries, cancellation, and broadcast-write restrictions.",
-      "state": ["unit_count", "request_queue_depth", "request_queue_capacity", "active_unit_id", "active_function_code", "requests_completed_total", "requests_failed_total", "requests_retried_total", "requests_cancelled_total", "request_latency_ms", "request_rate_per_minute", "unit_timeout_count", "unit_exception_count", "unit_last_seen_at", "scheduler_policy", "backpressure_active"],
-      "events": ["request.queued", "request.started", "request.completed", "request.failed", "request.retried", "request.cancelled", "unit.online", "unit.offline", "queue.saturated", "queue.recovered"],
-      "conditions": ["queue_depth_above", "unit_is_online", "unit_timeout_count_above", "request_rate_above", "request_is_in_flight"],
-      "actions": ["submit_profile_request", "cancel_queued_request", "retry_failed_request", "flush_expired_requests"]
+      "id": "request-arbitration-and-routing", "status": "implemented", "scope": ["parent-configured-units-and-profiles"], "source_refs": ["modbus_application", "pymodbus", "parent_contract"],
+      "reason": "A bounded serialized queue permits one profile-resolved request at a time. Units are 1-247, profile points fix areas and addresses, protocol responses are correlated by unit/function, writes are not retried, and broadcasts/raw frames are impossible through the API.",
+      "state": [], "events": [], "conditions": [], "actions": []
     },
     {
       "id": "health-backpressure-and-restart-recovery", "status": "planned", "scope": ["sidecar-worker", "parent-consumers"], "source_refs": ["parent_contract", "core_vocabulary"],

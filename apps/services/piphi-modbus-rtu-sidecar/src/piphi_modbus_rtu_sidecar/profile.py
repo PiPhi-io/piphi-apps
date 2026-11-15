@@ -28,6 +28,14 @@ def profile_hash(config: DeviceConfig) -> str:
         "id": config.profile_id,
         "version": config.profile_version,
         "provenance": config.profile_provenance,
+        "transport": {
+            "serial_mode": config.serial_mode,
+            "baud_rate": config.baud_rate,
+            "parity": config.parity,
+            "stop_bits": config.stop_bits,
+            "data_bits": config.data_bits,
+            "response_timeout_seconds": config.response_timeout_seconds,
+        },
         "points": [point.model_dump(mode="json") for point in config.registers],
     }
     encoded = json.dumps(document, sort_keys=True, separators=(",", ":")).encode()

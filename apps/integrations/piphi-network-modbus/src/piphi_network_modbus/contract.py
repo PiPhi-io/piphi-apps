@@ -117,7 +117,7 @@ COMMANDS: dict[str, dict[str, Any]] = {
 
 CONFIG_SCHEMA: dict[str, Any] = {
     "schema": {
-        "title": "Modbus TCP register",
+        "title": "Modbus device profile",
         "type": "object",
         "required": ["host", "register_address"],
         "properties": {
@@ -129,6 +129,19 @@ CONFIG_SCHEMA: dict[str, Any] = {
                 "type": "string",
                 "title": "Alias"
             },
+            "transport": {
+                "type": "string",
+                "title": "Transport",
+                "enum": ["tcp", "tls", "udp", "rtu_over_tcp", "rtu_sidecar", "ascii_sidecar"]
+            },
+            "serial_port": {"type": "string", "title": "Managed serial device path"},
+            "baud_rate": {"type": "integer", "title": "Baud rate", "minimum": 1200, "maximum": 921600},
+            "parity": {"type": "string", "title": "Parity", "enum": ["N", "E", "O"]},
+            "stop_bits": {"type": "integer", "title": "Stop bits", "enum": [1, 2]},
+            "data_bits": {"type": "integer", "title": "Data bits", "enum": [7, 8]},
+            "response_timeout_seconds": {"type": "number", "title": "Response timeout (seconds)", "minimum": 0.1, "maximum": 10},
+            "tls_ca_certificate": {"type": "string", "title": "Mounted CA certificate path"},
+            "tls_server_name": {"type": "string", "title": "TLS certificate server name"},
             "register_address": {"type": "integer", "title": "Zero-based holding register address", "minimum": 0, "maximum": 65535},
             "unit_id": {"type": "integer", "title": "Modbus unit ID", "minimum": 1, "maximum": 247},
             "poll_interval_seconds": {"type": "integer", "title": "Default poll interval (seconds; 0 disables polling)", "minimum": 0, "maximum": 86400},
@@ -144,6 +157,11 @@ CONFIG_SCHEMA: dict[str, Any] = {
         "alias": {
             "placeholder": "Meter register"
         },
+        "transport": {"ui:widget": "select"},
+        "serial_port": {"placeholder": "/dev/serial/by-id/..."},
+        "baud_rate": {"placeholder": "9600"},
+        "tls_ca_certificate": {"placeholder": "/run/secrets/modbus-ca.pem"},
+        "tls_server_name": {"placeholder": "meter.local"},
         "register_address": {"placeholder": "0"},
         "unit_id": {"placeholder": "1"},
         "poll_interval_seconds": {"placeholder": "300"},

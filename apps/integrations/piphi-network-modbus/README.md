@@ -1,7 +1,8 @@
 # Piphi Network Modbus
 
-PiPhi Modbus runtime for reviewed semantic profiles over local Modbus TCP and
-the authenticated RTU sidecar. Profiles declare exact units, areas, addresses,
+PiPhi Modbus runtime for reviewed semantic profiles over local Modbus TCP, UDP,
+RTU-over-TCP, certificate-validated TLS, and the authenticated RTU/ASCII
+sidecar. Profiles declare exact units, areas, addresses,
 types, byte/word order, scaling, bounds, reviewed enums, bit masks, and
 writability. The runtime reads
 coils, discrete inputs, input registers, and holding registers; exposes typed
@@ -14,6 +15,13 @@ in one bounded request without crossing unit or data-area boundaries. The
 connection is reused, serialized, and re-established once after a failed read.
 An unsuccessful block marks only its points unavailable. Modbus TCP is
 unencrypted, so use only a trusted local network.
+
+Set `transport` to `udp` for MBAP datagrams or `rtu_over_tcp` for CRC-framed
+RTU messages over a persistent TCP stream. Set it to `tls` for Modbus Security
+framing on port 802; `tls_ca_certificate` is mandatory and hostname validation
+uses `tls_server_name` (or the configured host). TLS never falls back to clear
+TCP. Profile reads retry once after transport failure; writes remain single
+attempt and always require confirmation plus read-back.
 
 Numeric profiles support signed and unsigned 16-, 32-, and 64-bit integers,
 `float32`, and `float64`. Profiles may also define bounded ASCII or UTF-8 fixed
@@ -46,18 +54,20 @@ are never retried automatically.
 The original `register_address` plus optional `unit_id` configuration remains
 supported for compatibility as a read-only unsigned holding-register entity.
 
-## Managed RTU sidecar
+## Managed serial sidecar
 
 Installing this integration also installs the shared
-`piphi-modbus-rtu-sidecar` service in the compatible `0.5.x` line. The service
+`piphi-modbus-rtu-sidecar` service in the compatible `0.6.x` line. The service
 has no host-published port, runs in production authentication mode, and receives
-`/dev/serial` access for explicitly configured RTU ports. The parent reaches it
+`/dev/serial` access for explicitly configured RTU or ASCII ports. The parent reaches it
 only on the internal service network at
 `http://piphi-modbus-rtu-sidecar:4212`.
 
 PiPhi Core injects the internal token used by both containers. Profiles and
-configuration never contain that token. TCP configurations do not send work to
-the sidecar; the shared service remains idle until an RTU profile is applied.
+configuration never contain that token. Network configurations do not send work
+to the sidecar; the shared service remains idle until an RTU or ASCII profile is
+applied. ASCII frames use strict hex decoding, CRLF delimiters, LRC validation,
+and the same bounded profile request surface as RTU.
 
 The bundled declarative Widget SDK card displays the raw register value and
 offers details/history. A Modbus TCP simulator can serve a documented register
@@ -99,9 +109,9 @@ managed RTU gateway boundary. Each candidate is implemented, planned, or
 excluded, and contract tests prevent unsupported register operations from
 being advertised.
 
-Semantic profiles, typed FC01/02/03/04 reads, contiguous TCP batching,
-persistent serialized TCP sessions, bounded reconnect, and constrained
-FC05/06/16 writes are implemented. Arbitrary addresses, raw PDUs, broadcasts,
+Semantic profiles, typed FC01/02/03/04 reads, contiguous batching, TCP/TLS/UDP/
+RTU-over-TCP/serial RTU/serial ASCII framing, bounded reconnect, and constrained
+FC05/06/15/16 writes are implemented. Arbitrary addresses, raw PDUs, broadcasts,
 and untrusted profiles remain excluded.
 
 ## Manifest
@@ -117,6 +127,6 @@ and untrusted profiles remain excluded.
 ## Docker
 
 ```bash
-docker build -t ghcr.io/piphi-io/piphi-network-modbus:0.7.0 .
-docker run --rm -p 4222:4222 ghcr.io/piphi-io/piphi-network-modbus:0.7.0
+docker build -t ghcr.io/piphi-io/piphi-network-modbus:0.8.0 .
+docker run --rm -p 4222:4222 ghcr.io/piphi-io/piphi-network-modbus:0.8.0
 ```

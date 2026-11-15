@@ -104,6 +104,7 @@ class DeviceConfig(RuntimeConfig):
     host: str = "modbus-rtu-sidecar"
     alias: str | None = None
     serial_port: str
+    serial_mode: Literal["rtu", "ascii"] = "rtu"
     baud_rate: int = Field(default=9600, ge=1200, le=921600)
     parity: Literal["N", "E", "O"] = "N"
     stop_bits: Literal[1, 2] = 1

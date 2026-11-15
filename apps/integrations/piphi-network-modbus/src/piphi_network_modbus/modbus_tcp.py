@@ -1,4 +1,4 @@
-"""Persistent, bounded Modbus TCP transport for profile-declared points."""
+"""Bounded Modbus network transports for profile-declared points."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ import asyncio
 import ipaddress
 import math
 import re
+import ssl
 import struct
 import time
 from contextlib import suppress
@@ -33,6 +34,31 @@ MAX_QUANTITY_BY_AREA = {
 }
 
 
+def crc16(data: bytes) -> int:
+    crc = 0xFFFF
+    for byte in data:
+        crc ^= byte
+        for _ in range(8):
+            crc = (crc >> 1) ^ 0xA001 if crc & 1 else crc >> 1
+    return crc
+
+
+def frame_with_crc(payload: bytes) -> bytes:
+    return payload + struct.pack("<H", crc16(payload))
+
+
+def validate_rtu_frame(frame: bytes, *, unit_id: int, function: int) -> bytes:
+    if len(frame) < 5 or crc16(frame[:-2]) != int.from_bytes(frame[-2:], "little"):
+        raise ValueError("invalid_modbus_crc")
+    if frame[0] != unit_id:
+        raise ValueError("unexpected_modbus_unit")
+    if frame[1] == function | 0x80:
+        raise ValueError(f"modbus_exception_{frame[2]}")
+    if frame[1] != function:
+        raise ValueError("unexpected_modbus_function")
+    return frame[2:-2]
+
+
 @dataclass(frozen=True)
 class HoldingRegister:
     address: int
@@ -48,13 +74,13 @@ class ReadBlock:
     points: tuple[PointProfile, ...]
 
 
-def _tcp_endpoint(host: str) -> tuple[str, int]:
+def _tcp_endpoint(host: str, *, default_port: int = 502) -> tuple[str, int]:
     raw = host.strip()
     if not raw or any(char in raw for char in "/?#@\\"):
         raise ValueError("Modbus host must be a local hostname or IP address")
     parsed = urlsplit(f"tcp://{raw}")
     try:
-        port = parsed.port if parsed.port is not None else 502
+        port = parsed.port if parsed.port is not None else default_port
     except ValueError as exc:
         raise ValueError("Invalid Modbus TCP port") from exc
     if not 1 <= port <= 65535:
@@ -112,10 +138,30 @@ def _make_block(points: list[PointProfile]) -> ReadBlock:
 
 class ModbusTCPClient:
     def __init__(
-        self, host: str, *, timeout: float = 1.0, inter_message_delay_ms: int = 0
+        self,
+        host: str,
+        *,
+        timeout: float = 1.0,
+        inter_message_delay_ms: int = 0,
+        transport: str = "tcp",
+        tls_ca_certificate: str | None = None,
+        tls_server_name: str | None = None,
     ) -> None:
-        self.name, self.port = _tcp_endpoint(host)
+        if transport not in {"tcp", "tls", "udp", "rtu_over_tcp"}:
+            raise ValueError("unsupported_modbus_network_transport")
+        self.transport = transport
+        self.name, self.port = _tcp_endpoint(
+            host, default_port=802 if transport == "tls" else 502
+        )
         self.timeout = timeout
+        self.tls_server_name = tls_server_name or self.name
+        self._ssl_context: ssl.SSLContext | None = None
+        if transport == "tls":
+            if not tls_ca_certificate:
+                raise ValueError("tls_ca_certificate_required")
+            self._ssl_context = ssl.create_default_context(cafile=tls_ca_certificate)
+            self._ssl_context.check_hostname = True
+            self._ssl_context.verify_mode = ssl.CERT_REQUIRED
         self._reader: asyncio.StreamReader | None = None
         self._writer: asyncio.StreamWriter | Any | None = None
         self._lock = asyncio.Lock()
@@ -143,12 +189,64 @@ class ModbusTCPClient:
                 await writer.wait_closed()
 
     async def _connect_locked(self) -> None:
+        if self.transport == "udp":
+            return
         if self.connected:
             return
-        self._reader, self._writer = await asyncio.wait_for(
-            asyncio.open_connection(self.name, self.port), self.timeout
+        connection = (
+            asyncio.open_connection(
+                self.name,
+                self.port,
+                ssl=self._ssl_context,
+                server_hostname=self.tls_server_name,
+            )
+            if self._ssl_context
+            else asyncio.open_connection(self.name, self.port)
         )
+        self._reader, self._writer = await asyncio.wait_for(connection, self.timeout)
         self._connection_count += 1
+
+    async def _udp_exchange(self, request: bytes) -> bytes:
+        loop = asyncio.get_running_loop()
+        future: asyncio.Future[bytes] = loop.create_future()
+
+        class Protocol(asyncio.DatagramProtocol):
+            def connection_made(self, transport) -> None:
+                self.transport = transport
+                transport.sendto(request)
+
+            def datagram_received(self, data: bytes, _address) -> None:
+                if not future.done():
+                    future.set_result(data)
+
+            def error_received(self, exc: Exception) -> None:
+                if not future.done():
+                    future.set_exception(exc)
+
+        transport, _ = await loop.create_datagram_endpoint(
+            Protocol, remote_addr=(self.name, self.port)
+        )
+        try:
+            return await asyncio.wait_for(future, self.timeout)
+        finally:
+            transport.close()
+
+    async def _rtu_over_tcp_exchange(
+        self, writer: Any, reader: asyncio.StreamReader, request: bytes
+    ) -> bytes:
+        writer.write(request)
+        self._last_request_at = time.monotonic()
+        await asyncio.wait_for(writer.drain(), self.timeout)
+        header = await asyncio.wait_for(reader.readexactly(3), self.timeout)
+        if header[1] & 0x80:
+            tail_length = 2
+        elif header[1] in {1, 2, 3, 4}:
+            tail_length = header[2] + 2
+        else:
+            tail_length = 5
+        return header + await asyncio.wait_for(
+            reader.readexactly(tail_length), self.timeout
+        )
 
     async def _request_locked(
         self,
@@ -163,7 +261,7 @@ class ModbusTCPClient:
             try:
                 await self._connect_locked()
                 reader, writer = self._reader, self._writer
-                if reader is None or writer is None:
+                if self.transport != "udp" and (reader is None or writer is None):
                     raise ConnectionError("modbus_tcp_not_connected")
                 self._transaction = self._transaction % 0xFFFF + 1
                 transaction = self._transaction
@@ -173,10 +271,29 @@ class ModbusTCPClient:
                 )
                 if remaining_delay > 0:
                     await asyncio.sleep(remaining_delay)
-                writer.write(MBAP.pack(transaction, 0, len(pdu) + 1, unit_id) + pdu)
-                self._last_request_at = time.monotonic()
-                await asyncio.wait_for(writer.drain(), self.timeout)
-                header = await asyncio.wait_for(reader.readexactly(MBAP.size), self.timeout)
+                if self.transport == "rtu_over_tcp":
+                    assert writer is not None and reader is not None
+                    frame = await self._rtu_over_tcp_exchange(
+                        writer, reader, frame_with_crc(bytes([unit_id]) + pdu)
+                    )
+                    return validate_rtu_frame(
+                        frame, unit_id=unit_id, function=function
+                    )
+                request = MBAP.pack(transaction, 0, len(pdu) + 1, unit_id) + pdu
+                if self.transport == "udp":
+                    self._last_request_at = time.monotonic()
+                    datagram = await self._udp_exchange(request)
+                    if len(datagram) < MBAP.size:
+                        raise ValueError("invalid_modbus_udp_response")
+                    header, response = datagram[: MBAP.size], datagram[MBAP.size :]
+                else:
+                    writer.write(request)
+                    self._last_request_at = time.monotonic()
+                    await asyncio.wait_for(writer.drain(), self.timeout)
+                    header = await asyncio.wait_for(
+                        reader.readexactly(MBAP.size), self.timeout
+                    )
+                    response = b""
                 reply_transaction, protocol, length, reply_unit = MBAP.unpack(header)
                 if (
                     reply_transaction != transaction
@@ -185,7 +302,13 @@ class ModbusTCPClient:
                     or not 2 <= length <= 254
                 ):
                     raise ValueError("invalid_modbus_tcp_header")
-                response = await asyncio.wait_for(reader.readexactly(length - 1), self.timeout)
+                if self.transport == "udp":
+                    if len(response) != length - 1:
+                        raise ValueError("invalid_modbus_udp_length")
+                else:
+                    response = await asyncio.wait_for(
+                        reader.readexactly(length - 1), self.timeout
+                    )
                 if len(response) == 2 and response[0] == function | 0x80:
                     raise ValueError(f"modbus_exception_{response[1]}")
                 if not response or response[0] != function:
