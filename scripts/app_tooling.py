@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -132,6 +133,15 @@ def validate_app(path: Path, package_ids: set[str] | None = None) -> int:
         raise AppMetadataError(f"{relative}: ci.commands must be a string array")
     if not isinstance(ci.get("build_container"), bool):
         raise AppMetadataError(f"{relative}: ci.build_container must be boolean")
+    if not isinstance(ci.get("windows_python", False), bool):
+        raise AppMetadataError(f"{relative}: ci.windows_python must be boolean")
+    windows_commands = ci.get("windows_commands", [])
+    if not isinstance(windows_commands, list) or not all(
+        isinstance(command, str) and command for command in windows_commands
+    ):
+        raise AppMetadataError(f"{relative}: ci.windows_commands must be a string array")
+    if ci.get("windows_python") and not windows_commands:
+        raise AppMetadataError(f"{relative}: Windows Python CI requires ci.windows_commands")
 
     packages = data.get("packages")
     if not isinstance(packages, list) or not packages:
@@ -195,6 +205,12 @@ def validate_app(path: Path, package_ids: set[str] | None = None) -> int:
                     raise AppMetadataError(
                         f"{relative}: mirrors currently support the primary registry or ghcr.io"
                     )
+        if artifact.get("python_wheel") and (
+            artifact["kind"] != "oci" or "python" not in languages
+        ):
+            raise AppMetadataError(
+                f"{relative}: python_wheel companion requires a Python OCI package"
+            )
 
         release = package.get("release")
         if not isinstance(release, dict) or release.get("tag") != "apps/{package_id}/v{version}":
@@ -253,8 +269,13 @@ def changed_app_directories(base: str, head: str = "HEAD") -> list[Path]:
 def run_commands(app_path: Path, commands: Iterable[str]) -> None:
     for command in commands:
         print(f"[{app_path.relative_to(ROOT)}] $ {command}", flush=True)
+        invocation = (
+            ["pwsh", "-NoProfile", "-NonInteractive", "-Command", command]
+            if os.name == "nt"
+            else ["bash", "-euo", "pipefail", "-c", command]
+        )
         subprocess.run(
-            ["bash", "-euo", "pipefail", "-c", command],
+            invocation,
             cwd=app_path,
             check=True,
         )
@@ -293,6 +314,7 @@ def release_plan(package_id: str, version: str) -> dict[str, str]:
         "release_commands": json.dumps(package["release"].get("commands", [])),
         "output": artifact.get("output", "dist"),
         "manifest": package["manifest"],
+        "python_wheel": str(bool(artifact.get("python_wheel", False))).lower(),
     }
     languages = set(app["languages"])
     for language in ("python", "node", "go", "rust", "dotnet", "ruby", "php"):

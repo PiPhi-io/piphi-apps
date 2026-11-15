@@ -34,13 +34,13 @@
       "events": [], "conditions": [], "actions": []
     },
     {
-      "id": "optional-linux-adapter-capabilities", "status": "planned", "scope": ["linux-bluez-only"],
+      "id": "optional-linux-adapter-capabilities", "status": "implemented", "scope": ["linux-bluez-only"],
       "source_refs": ["bluez", "audit"],
-      "reason": "The capability adapter seam is implemented, but production D-Bus hotplug, rfkill, owner-change diagnostics, and reset recovery await a least-privilege adapter and virtual-radio qualification.",
-      "state": ["bluez_version", "adapter_powered", "adapter_discovering", "rfkill_blocked", "adapter_error_count"],
-      "events": ["adapter.added", "adapter.removed", "adapter.failed", "adapter.recovered", "bluez.lost", "bluez.recovered"],
-      "conditions": ["adapter_is_available", "adapter_is_powered", "bluez_is_available"],
-      "actions": ["recover_bluez_adapter"]
+      "reason": "A Linux-only, least-privilege D-Bus adapter reports bounded BlueZ Adapter1 and rfkill health, powers only the configured adapter, and supervises scanner restart after adapter or daemon recovery. WinRT never imports D-Bus.",
+      "state": ["adapter_count", "adapter_powered", "adapter_discovering", "rfkill_soft_blocked", "rfkill_hard_blocked"],
+      "events": [],
+      "conditions": [],
+      "actions": []
     },
     {
       "id": "remote-receivers-private-identity-and-gatt", "status": "planned", "scope": ["demand-driven-future-tranches"],

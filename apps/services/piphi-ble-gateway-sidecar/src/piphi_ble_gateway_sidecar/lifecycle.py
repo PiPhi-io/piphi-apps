@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -19,7 +20,10 @@ async def startup_sync(_runtime, _client) -> None:
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     async with runtime_lifespan(runtime, on_startup=startup_sync):
         await gateway.start()
+        supervisor = asyncio.create_task(gateway.supervise(), name="ble-adapter-supervisor")
         try:
             yield
         finally:
+            supervisor.cancel()
+            await asyncio.gather(supervisor, return_exceptions=True)
             await gateway.stop()

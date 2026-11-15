@@ -21,9 +21,9 @@ the `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` repository secrets.
 Current image target:
 
 ```text
-ghcr.io/piphi-io/piphi-ble-gateway-sidecar:0.2.0
+ghcr.io/piphi-io/piphi-ble-gateway-sidecar:0.3.0
 ```
 
-The OCI artifact remains Linux-only. Windows uses the manifest's supervised
-Python proxy process; repository-level automation still needs a Windows
-wheel/executable installation and publishing path before Windows distribution.
+The OCI artifact remains Linux-only. The same release builds, smoke-tests, and
+attaches a `py3-none-any` wheel that is qualified on `windows-latest` for the
+manifest's supervised Windows proxy process.

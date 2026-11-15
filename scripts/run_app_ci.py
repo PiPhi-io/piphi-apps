@@ -12,6 +12,7 @@ from app_tooling import ROOT, load_app, run_commands, validate_app
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("app_path")
+    parser.add_argument("--command-set", default="commands")
     args = parser.parse_args()
     path = (ROOT / args.app_path).resolve()
     if ROOT not in path.parents:
@@ -21,7 +22,10 @@ def main() -> None:
     if app["ci"]["enforcement"] == "legacy-static":
         print(f"{args.app_path}: legacy-static metadata validation only")
         return
-    run_commands(path, app["ci"]["commands"])
+    commands = app["ci"].get(args.command_set)
+    if not isinstance(commands, list):
+        raise ValueError(f"unknown CI command set {args.command_set!r}")
+    run_commands(path, commands)
 
 
 if __name__ == "__main__":

@@ -3,5 +3,6 @@ __pycache__/
 *.pyc
 .env
 dist/
+windows-dist/
 build/
 *.spec
