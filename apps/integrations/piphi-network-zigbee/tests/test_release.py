@@ -30,7 +30,7 @@ def test_release_updates_all_version_and_image_projections(tmp_path: Path) -> No
             "--set-version",
             "9.8.7",
             "--docker-image",
-            "piphinetwork/zigbee-integration",
+            "ghcr.io/piphi-io/zigbee-integration",
         ],
         check=True,
         capture_output=True,
@@ -44,7 +44,7 @@ def test_release_updates_all_version_and_image_projections(tmp_path: Path) -> No
     assert completed.stdout.strip() == "9.8.7"
     assert 'version = "9.8.7"' in (tmp_path / "pyproject.toml").read_text()
     assert manifest["version"] == "9.8.7"
-    assert manifest["image"] == "piphinetwork/zigbee-integration:9.8.7"
+    assert manifest["image"] == "ghcr.io/piphi-io/zigbee-integration:9.8.7"
     assert manifest["runtime"]["linux"]["container"]["image"].endswith(":9.8.7")
     assert experience["identity"]["version"] == "9.8.7"
     assert 'INTEGRATION_VERSION = "9.8.7"' in (
