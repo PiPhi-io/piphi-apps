@@ -2,7 +2,7 @@
 
 A monitoring-first KNX/IP integration built on the pinned `xknx==4.1.1` protocol stack.
 
-Version 0.2.0 deliberately supports a smaller surface than Home Assistant KNX, but applies production safety and lifecycle rules to that surface. It owns one exclusive KNX/IP tunnel per configuration, exposes only explicitly reviewed group addresses, and never accepts a caller-supplied address or raw telegram.
+Version 0.2.1 deliberately supports a smaller surface than Home Assistant KNX, but applies production safety and lifecycle rules to that surface. It owns one exclusive KNX/IP tunnel per configuration, exposes only explicitly reviewed group addresses, and never accepts a caller-supplied address or raw telegram.
 
 ## Supported
 
@@ -17,7 +17,7 @@ Version 0.2.0 deliberately supports a smaller surface than Home Assistant KNX, b
 - Atomic reconfiguration, duplicate endpoint rejection, orderly shutdown, and durable configuration replay
 - Runtime-token authentication for every operational endpoint; only `/health` is public
 
-## Intentionally unsupported in 0.2.0
+## Intentionally unsupported in 0.2.1
 
 - KNX IP Secure, KNX Data Secure, routing, or secure routing
 - ETS `.knxproj` or `.knxkeys` import
