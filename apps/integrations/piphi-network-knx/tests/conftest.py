@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Iterator
 from typing import Any
 
@@ -13,6 +14,8 @@ from piphi_network_knx.state import manager, registry
 class FakeKnxClient:
     instances: list[FakeKnxClient] = []
     fail_next_start = False
+    start_gate: asyncio.Event | None = None
+    start_entered: asyncio.Event | None = None
 
     def __init__(self, config: DeviceConfig, on_value, on_connection) -> None:
         self.config = config
@@ -32,6 +35,10 @@ class FakeKnxClient:
         if self.__class__.fail_next_start:
             self.__class__.fail_next_start = False
             raise ConnectionError("test connection failure")
+        if self.__class__.start_gate is not None:
+            if self.__class__.start_entered is not None:
+                self.__class__.start_entered.set()
+            await self.__class__.start_gate.wait()
         self.is_connected = True
         self.on_connection(True)
 
@@ -64,9 +71,12 @@ def allow_test_requests(monkeypatch: pytest.MonkeyPatch) -> None:
 def fake_knx(monkeypatch: pytest.MonkeyPatch, tmp_path) -> Iterator[type[FakeKnxClient]]:
     FakeKnxClient.instances.clear()
     FakeKnxClient.fail_next_start = False
+    FakeKnxClient.start_gate = None
+    FakeKnxClient.start_entered = None
     monkeypatch.setattr(manager, "client_factory", FakeKnxClient)
     monkeypatch.setattr(manager, "persistence_path", tmp_path / "knx-configs.json")
     yield FakeKnxClient
     manager.sessions.clear()
+    manager._pending_endpoints.clear()
     for config_id in list(registry.ids()):
         registry.remove(config_id)

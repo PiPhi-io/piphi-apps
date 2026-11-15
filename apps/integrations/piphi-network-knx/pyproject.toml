@@ -1,6 +1,6 @@
 [project]
 name = "piphi-network-knx"
-version = "0.2.1"
+version = "0.2.2"
 description = "Bounded, typed KNX/IP integration runtime for PiPhi Network."
 requires-python = ">=3.11"
 dependencies = [
@@ -20,7 +20,7 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
-addopts = "--cov=piphi_network_knx --cov-report=term-missing --cov-fail-under=85"
+addopts = "--cov=piphi_network_knx --cov-report=term-missing --cov-fail-under=95"
 testpaths = ["tests"]
 
 [tool.ruff]

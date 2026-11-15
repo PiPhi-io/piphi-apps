@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -19,7 +19,7 @@ from piphi_runtime_kit_python import (
 )
 
 from .contract import CAPABILITIES, COMMANDS
-from .protocol import KnxClient, XknxClient
+from .protocol import KnxClient, KnxNotSentError, KnxOutcomeUnknownError, XknxClient
 from .schemas import DatapointConfig, DeviceConfig
 from .settings import INTEGRATION_ID, INTEGRATION_NAME, INTEGRATION_VERSION
 
@@ -59,24 +59,27 @@ class KnxSessionManager:
         self.client_factory = client_factory
         self.sessions: dict[str, Session] = {}
         self._lock = asyncio.Lock()
+        self._pending_endpoints: set[tuple[str, int]] = set()
         self.persistence_path = Path(os.getenv("PIPHI_KNX_CONFIG_PATH", "./data/knx-configs.json"))
 
     async def apply(self, config: DeviceConfig, *, persist: bool = True) -> None:
-        duplicate = next(
-            (
-                session
-                for config_id, session in self.sessions.items()
-                if config_id != config.id
-                and session.config.host == config.host
-                and session.config.port == config.port
-            ),
-            None,
-        )
-        if duplicate is not None:
-            raise HTTPException(
-                status_code=409,
-                detail="this KNX/IP endpoint is already owned by another configuration",
+        endpoint = (config.host, config.port)
+        async with self._lock:
+            duplicate = next(
+                (
+                    session
+                    for config_id, session in self.sessions.items()
+                    if config_id != config.id
+                    and (session.config.host, session.config.port) == endpoint
+                ),
+                None,
             )
+            if duplicate is not None or endpoint in self._pending_endpoints:
+                raise HTTPException(
+                    status_code=409,
+                    detail="this KNX/IP endpoint is already owned by another configuration",
+                )
+            self._pending_endpoints.add(endpoint)
         entry = make_entry(config)
         client = self.client_factory(
             config,
@@ -85,8 +88,15 @@ class KnxSessionManager:
         )
         try:
             await client.start()
+        except asyncio.CancelledError:
+            await client.stop()
+            async with self._lock:
+                self._pending_endpoints.discard(endpoint)
+            raise
         except Exception as exc:
             await client.stop()
+            async with self._lock:
+                self._pending_endpoints.discard(endpoint)
             raise HTTPException(
                 status_code=422,
                 detail={"error": "knx_connection_failed", "message": str(exc)},
@@ -94,11 +104,27 @@ class KnxSessionManager:
 
         candidate = Session(config=config, entry=entry, client=client)
         old_session: Session | None
-        async with self._lock:
-            old_session = self.sessions.get(config.id)
-            self.sessions[config.id] = candidate
-            registry.set(config.id, entry)
-            self._publish_state(candidate)
+        try:
+            async with self._lock:
+                old_session = self.sessions.get(config.id)
+                if persist:
+                    prospective = {
+                        config_id: session.config for config_id, session in self.sessions.items()
+                    }
+                    prospective[config.id] = config
+                    self._persist_configs(prospective.values())
+                self.sessions[config.id] = candidate
+                registry.set(config.id, entry)
+                self._publish_state(candidate)
+                self._pending_endpoints.discard(endpoint)
+        except OSError as exc:
+            async with self._lock:
+                self._pending_endpoints.discard(endpoint)
+            await client.stop()
+            raise HTTPException(
+                status_code=500,
+                detail={"error": "config_persistence_failed"},
+            ) from exc
         if old_session is not None:
             await old_session.client.stop()
         append_runtime_event(
@@ -117,19 +143,29 @@ class KnxSessionManager:
                         {"datapoint_id": datapoint.id, "error": type(exc).__name__},
                         severity="warning",
                     )
-        if persist:
-            self._persist()
 
     async def remove(self, config_id: str, *, persist: bool = True) -> bool:
         async with self._lock:
-            session = self.sessions.pop(config_id, None)
+            session = self.sessions.get(config_id)
+            if session is None:
+                return False
+            if persist:
+                remaining = [
+                    item.config
+                    for current_id, item in self.sessions.items()
+                    if current_id != config_id
+                ]
+                try:
+                    self._persist_configs(remaining)
+                except OSError as exc:
+                    raise HTTPException(
+                        status_code=500,
+                        detail={"error": "config_persistence_failed"},
+                    ) from exc
+            self.sessions.pop(config_id)
             entry = registry.remove(config_id)
-        if session is None:
-            return False
         await session.client.stop()
         append_runtime_event("runtime.config.removed", entry or session.entry)
-        if persist:
-            self._persist()
         return True
 
     async def stop_all(self) -> None:
@@ -172,7 +208,18 @@ class KnxSessionManager:
             await session.client.write(datapoint, value)
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
-        except (ConnectionError, RuntimeError, TimeoutError) as exc:
+        except KnxNotSentError as exc:
+            append_runtime_event(
+                "telegram.write_rejected",
+                session.entry,
+                {"datapoint_id": datapoint.id, "outcome": "not_sent"},
+                severity="warning",
+            )
+            raise HTTPException(
+                status_code=429,
+                detail={"error": "write_not_sent", "message": str(exc)},
+            ) from exc
+        except (KnxOutcomeUnknownError, ConnectionError, RuntimeError, TimeoutError) as exc:
             append_runtime_event(
                 "telegram.write_failed",
                 session.entry,
@@ -216,6 +263,7 @@ class KnxSessionManager:
                         ],
                         "state": {
                             "value": session.values.get(datapoint.id),
+                            "available": session.client.connected,
                             "quality": quality,
                             "updated_at": session.updated_at.get(datapoint.id),
                             "dpt": datapoint.dpt,
@@ -238,31 +286,15 @@ class KnxSessionManager:
         return {
             "sessions": [
                 {
-                    "config_id": session.entry["config_id"],
+                    "session_number": index,
                     "connected": session.client.connected,
                     "transport": session.config.transport,
                     "datapoint_count": len(session.config.datapoints),
                     "initialized_datapoints": len(session.values),
                     "writes_enabled": session.config.allow_writes,
                 }
-                for session in self.sessions.values()
+                for index, session in enumerate(self.sessions.values(), start=1)
             ]
-        }
-
-    def health_summary(self) -> dict[str, Any]:
-        datapoints = [
-            (session, datapoint)
-            for session in self.sessions.values()
-            for datapoint in session.config.datapoints
-        ]
-        qualities = [self._quality(session, datapoint) for session, datapoint in datapoints]
-        return {
-            "session_count": len(self.sessions),
-            "connected_session_count": sum(
-                1 for session in self.sessions.values() if session.client.connected
-            ),
-            "uninitialized_datapoint_count": qualities.count("uninitialized"),
-            "stale_datapoint_count": qualities.count("stale"),
         }
 
     def _datapoint(self, session: Session, datapoint_id: str) -> DatapointConfig:
@@ -311,14 +343,12 @@ class KnxSessionManager:
             device_id=session.entry["device_id"],
         )
 
-    def _persist(self) -> None:
+    def _persist_configs(self, configs: Iterable[DeviceConfig]) -> None:
         self.persistence_path.parent.mkdir(parents=True, exist_ok=True)
         temporary = self.persistence_path.with_suffix(".tmp")
         payload = {
             "schema_version": 1,
-            "configs": [
-                session.config.model_dump(mode="json") for session in self.sessions.values()
-            ],
+            "configs": [config.model_dump(mode="json") for config in configs],
         }
         temporary.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
         temporary.chmod(0o600)
@@ -334,7 +364,6 @@ def make_entry(config: DeviceConfig) -> dict[str, Any]:
     return {
         **identity,
         "alias": config.alias,
-        "config": config.model_dump(mode="json", exclude={"host", "local_ip"}),
     }
 
 

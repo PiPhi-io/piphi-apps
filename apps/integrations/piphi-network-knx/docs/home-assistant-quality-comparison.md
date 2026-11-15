@@ -1,6 +1,24 @@
 # PiPhi KNX and Home Assistant KNX: capability and quality audit
 
-> **Historical baseline:** This audit describes version 0.1.0 before remediation. Version 0.2.1 implements the deliberately bounded first protocol slice: pinned xknx transport, automatic/UDP/TCP tunnelling, active discovery, reviewed DPT 1.001/5.001/9.001 mappings, initialization reads, typed allowlisted writes, feedback-driven state, truthful availability, bounded traffic, durable lifecycle, fail-closed auth, privacy-bounded diagnostics, full CI, and a locked non-root container. ETS project import, KNX Secure, routing, broader DPT/entity coverage, and physical gateway qualification remain explicitly unavailable or unverified rather than overclaimed.
+## Current reassessment: 0.2.2
+
+Version 0.2.2 implements the deliberately bounded first protocol slice rather than attempting Home Assistant's full platform breadth. The software evidence supports an HA-inspired production-quality claim **only for the listed slice**, not HA Platinum equivalence and not KNX product certification.
+
+| Quality area | Current evidence | Boundary |
+|---|---|---|
+| Protocol and lifecycle | Exact `xknx==4.1.1`; automatic, UDP and TCP tunnelling; active discovery; connection-derived availability; durable restart restore; transactional reconfigure/removal; concurrent endpoint reservation; orderly stop | Routing, KNX Secure and Data Secure are unavailable |
+| Datapoints and entities | Explicit DPT `1.001`, `5.001` and `9.001`; binary sensor, sensor, switch and light mappings; separate feedback/command addresses; initialization reads; stale/uninitialized/available state | No ETS project import, inferred DPTs or broader entity families |
+| Write safety | Global and per-datapoint opt-in; typed/ranged values; no raw telegram API; bounded adapter queue; serialized/rate-limited transport processing; `not_sent` distinguished from post-start unknown outcome; no blind retry | Actuator state remains feedback-driven; transport send is not actuator confirmation |
+| Configuration integrity | Strict schemas; duplicate mapping and physical-endpoint rejection; candidate connection before swap; persistence before activation/removal; failed connection or disk write preserves the working session | Physical tunnel-slot identity beyond `host:port` is not proven |
+| API and privacy | Runtime-token protection for every operational route; only liveness is public; diagnostics omit hosts, config IDs and group addresses; response-level privacy tests cover health, diagnostics, state, entities and events | Authenticated events retain pseudonymous runtime IDs |
+| Engineering gates | Full monorepo CI, strict mypy, Ruff, locked dependencies, scaffold validation, coverage floor, non-root locked container, multi-architecture release and OCI attestations | Upstream xknx protocol tests are relied on for malformed-frame internals |
+| Qualification | Software tests cover adapter lifecycle, queue saturation/expiry, unknown outcomes, concurrency, rollback, restart, auth, privacy, DPT bounds and contract/catalog synchronization | Physical KNX hardware qualification remains unverified |
+
+The registry must therefore remain `draft`, rollout `0`, quality `unrated`, and qualification `unverified` until physical evidence is recorded. ETS import, KNX Secure, routing and broader DPT/entity support remain explicitly planned or excluded, never implied by compatibility text.
+
+## Historical 0.1.0 baseline
+
+The remainder of this document is the immutable pre-remediation audit of version 0.1.0. Statements using “current” below refer to that historical source snapshot, not 0.2.2.
 
 **Research cutoff:** 2026-11-15
 

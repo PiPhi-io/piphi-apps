@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Protocol
@@ -21,6 +22,14 @@ ValueCallback = Callable[[str, Any], None]
 ConnectionCallback = Callable[[bool], None]
 
 
+class KnxNotSentError(RuntimeError):
+    """The operation was rejected before transmission started."""
+
+
+class KnxOutcomeUnknownError(TimeoutError):
+    """Transmission started but did not finish within the caller's deadline."""
+
+
 class KnxClient(Protocol):
     @property
     def connected(self) -> bool: ...
@@ -38,6 +47,7 @@ class KnxClient(Protocol):
 class _Operation:
     telegram: Telegram
     completed: asyncio.Future[None]
+    started: bool = False
 
 
 _DPT_CLASSES = {
@@ -94,12 +104,15 @@ class XknxClient:
                 local_ip=config.local_ip,
                 auto_reconnect=True,
             ),
-            rate_limit=config.rate_limit,
+            # Outgoing telegrams use the bounded adapter queue below. Rate limiting
+            # is applied there so xknx's unbounded outgoing queues are never used.
+            rate_limit=0,
             telegram_received_cb=self._telegram_received,
             connection_state_changed_cb=self._connection_changed,
         )
         self._queue: asyncio.Queue[_Operation] = asyncio.Queue(maxsize=config.queue_size)
         self._worker: asyncio.Task[None] | None = None
+        self._last_send_started_at = 0.0
 
     @property
     def connected(self) -> bool:
@@ -120,7 +133,7 @@ class XknxClient:
         while not self._queue.empty():
             operation = self._queue.get_nowait()
             if not operation.completed.done():
-                operation.completed.set_exception(ConnectionError("KNX session stopped"))
+                operation.completed.set_exception(KnxNotSentError("KNX session stopped"))
             self._queue.task_done()
         await self._xknx.stop()
 
@@ -137,20 +150,38 @@ class XknxClient:
 
     async def _enqueue(self, telegram: Telegram) -> None:
         if not self.connected:
-            raise ConnectionError("KNX/IP session is disconnected")
+            raise KnxNotSentError("KNX/IP session is disconnected")
         loop = asyncio.get_running_loop()
         completed: asyncio.Future[None] = loop.create_future()
+        operation = _Operation(telegram, completed)
         try:
-            self._queue.put_nowait(_Operation(telegram, completed))
+            self._queue.put_nowait(operation)
         except asyncio.QueueFull as exc:
-            raise RuntimeError("KNX outgoing queue is full") from exc
-        await asyncio.wait_for(completed, self._config.command_timeout_seconds)
+            raise KnxNotSentError("KNX outgoing queue is full") from exc
+        try:
+            await asyncio.wait_for(completed, self._config.command_timeout_seconds)
+        except TimeoutError as exc:
+            if operation.started:
+                raise KnxOutcomeUnknownError(
+                    "KNX transmission outcome is unknown after timeout"
+                ) from exc
+            raise KnxNotSentError("KNX operation expired before transmission") from exc
 
     async def _send_worker(self) -> None:
         while True:
             operation = await self._queue.get()
             try:
-                await self._xknx.telegrams.put(operation.telegram)
+                if operation.completed.cancelled():
+                    continue
+                minimum_interval = 1 / self._config.rate_limit
+                delay = minimum_interval - (time.monotonic() - self._last_send_started_at)
+                if delay > 0:
+                    await asyncio.sleep(delay)
+                if operation.completed.cancelled():
+                    continue
+                operation.started = True
+                self._last_send_started_at = time.monotonic()
+                await self._xknx.telegram_queue.process_telegram_outgoing(operation.telegram)
                 if not operation.completed.done():
                     operation.completed.set_result(None)
             except Exception as exc:  # xknx exposes transport-specific errors

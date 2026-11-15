@@ -13,7 +13,7 @@ router = APIRouter(tags=["health"])
 
 @router.get("/health")
 async def health() -> Any:
-    return starter.health_response(metadata=manager.health_summary())
+    return starter.health_response(metadata={"scope": "liveness"})
 
 
 @router.get("/diagnostics")
