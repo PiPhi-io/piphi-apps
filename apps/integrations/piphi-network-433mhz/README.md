@@ -1,6 +1,7 @@
 # piphi-network-433mhz
 
-PiPhi integration for `rtl_433` compatible sub-GHz devices.
+Experimental, receive-only PiPhi integration for a bounded slice of `rtl_433`
+weather, contact, battery, and signal observations.
 
 This runtime is built on the published Python SDK, `piphi-runtime-kit-python`,
 and is designed to work alongside the shared `rtl_433 Radio Bridge` platform
@@ -13,7 +14,9 @@ service that listens for radio packets and forwards decoded JSON into the runtim
 - lets users configure discovered devices by profile and identity fields
 - exposes PiPhi routes for health, discovery, config, state, events, and commands
 - publishes normalized telemetry back to PiPhi Core
-- optionally subscribes to the shared MQTT packet topic instead of only relying on HTTP ingest
+- optionally subscribes to the shared MQTT packet topic instead of HTTP ingest
+- rejects unstable identities, oversized/deep payloads, and out-of-range known fields
+- suppresses cross-transport/RF-repeat duplicates and marks stale devices unavailable
 
 ## Runtime SDK and testkit
 
@@ -28,16 +31,17 @@ dev/test workflow.
 
 ## Supported starter profiles
 
-The starter profile layer keeps the runtime useful before it becomes deeply
-device-specific.
+Profiles classify the supported field slice; they do not imply that every decoder
+or model understood by upstream `rtl_433` is qualified by PiPhi.
 
 - `weather_basic`
 - `contact_sensor`
 - `leak_sensor`
 - `generic_sensor`
 
-You can expand the profile set over time as you support more `rtl_433` device
-families.
+Unknown scalar fields remain diagnostic and do not become entities. Generic leak
+fields may be shown as state but never emit canonical safety events. See
+`capability-catalog.json` for the machine-readable contract.
 
 ## Project layout
 
@@ -107,6 +111,10 @@ Useful environment variables:
 - `MQTT_HOSTNAME=127.0.0.1`
 - `MQTT_PORT=1883`
 - `MQTT_TOPIC_ROOT=piphi/sources/rtl433`
+- `RTL433_INGEST_TOKEN=<Core-generated shared secret>`
+- `RTL433_MAX_PACKET_BYTES=65536`
+- `RTL433_DEDUP_WINDOW_SECONDS=2`
+- `RTL433_DEVICE_EXPIRY_SECONDS=610`
 
 When MQTT is enabled, the runtime reads the packet envelope's `packet` field
 and then runs the same normalization path used by the HTTP ingest route.
@@ -116,6 +124,7 @@ and then runs the same normalization path used by the HTTP ingest route.
 ```bash
 curl -X POST http://127.0.0.1:8090/ingest/rtl433 \
   -H 'Content-Type: application/json' \
+  -H 'X-PiPhi-Bridge-Token: development-secret' \
   -d '{
     "model": "Nexus-TH",
     "id": 42,
@@ -134,13 +143,14 @@ curl -X POST http://127.0.0.1:8090/ingest/rtl433 \
 
 ## Hardware access notes
 
-For real RTL-SDR use on Linux, the helper usually needs:
+For real RTL-SDR use on Linux, the helper needs:
 
-- `rtl_433` installed inside the helper container
-- host USB access to the SDR dongle
-- `network_mode: "host"`
-- `privileged: true`
-- an explicit USB device mapping such as `/dev/bus/usb`
+- the image-pinned `rtl_433` build included by the helper
+- read/write USB node access through `/dev/bus/usb`
+- host udev/group permissions for the non-root `rtl433` user
+- a receiver serial selector when several adapters are attached
 
-That hardware contract lives on the shared `rtl_433 Radio Bridge` service. This
-integration depends on that service instead of embedding a private sidecar.
+The helper drops all capabilities, uses a read-only filesystem, does not use host
+networking, and does not run as a privileged container. The USB bus mapping remains
+broader than a single dynamic node because libusb discovers RTL-SDR devices by their
+bus path; select one receiver by serial and restrict host udev permissions.

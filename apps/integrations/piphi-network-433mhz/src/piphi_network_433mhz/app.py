@@ -4,10 +4,11 @@ import asyncio
 from collections import OrderedDict
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
-from importlib.metadata import PackageNotFoundError, version as package_version
+import hashlib
 import json
 import os
 from pathlib import Path
+import secrets
 import time
 from typing import Any
 
@@ -88,10 +89,7 @@ def _resolve_discovery_cache_path() -> Path | None:
 
 INTEGRATION_ID = "piphi-network-433mhz"
 INTEGRATION_NAME = "PiPhi Network 433MHz Devices"
-try:
-    INTEGRATION_VERSION = package_version("piphi-network-433mhz")
-except PackageNotFoundError:  # pragma: no cover - source checkout without an installed package
-    INTEGRATION_VERSION = "0.0.0"
+INTEGRATION_VERSION = "0.2.0"
 RTL433_BRIDGE_SERVICE_ID = "piphi.service.rtl433-bridge"
 RTL433_BRIDGE_URL_ENV = "PIPHI_SERVICE_RTL433_BRIDGE_RUNTIME_URL"
 MAX_DISCOVERY_CACHE = 200
@@ -110,6 +108,12 @@ MQTT_QOS = int(os.getenv("MQTT_QOS", "0"))
 MQTT_TOPIC_ROOT = os.getenv("MQTT_TOPIC_ROOT", build_source_topic_root("rtl433"))
 MQTT_PACKET_TOPIC = f"{MQTT_TOPIC_ROOT.rstrip('/')}/packets"
 MQTT_RETRY_DELAY_SECONDS = float(os.getenv("MQTT_RETRY_DELAY_SECONDS", "5"))
+MAX_PACKET_BYTES = max(1024, min(int(os.getenv("RTL433_MAX_PACKET_BYTES", "65536")), 1_048_576))
+DEDUP_WINDOW_SECONDS = max(0.0, min(_env_float("RTL433_DEDUP_WINDOW_SECONDS", 2.0), 60.0))
+DEVICE_EXPIRY_SECONDS = max(30.0, min(_env_float("RTL433_DEVICE_EXPIRY_SECONDS", 610.0), 86_400.0))
+DISCOVERY_EVENT_INTERVAL_SECONDS = max(
+    1.0, min(_env_float("RTL433_DISCOVERY_EVENT_INTERVAL_SECONDS", 60.0), 3600.0)
+)
 
 starter = create_runtime_starter(
     integration_id=INTEGRATION_ID,
@@ -124,6 +128,16 @@ event_client = starter.event_client
 config_sync = starter.config_sync
 recent_seen_devices: OrderedDict[str, dict[str, Any]] = OrderedDict()
 discovery_waiters: set[tuple[asyncio.AbstractEventLoop, asyncio.Event]] = set()
+packet_fingerprints: OrderedDict[str, float] = OrderedDict()
+last_discovery_event_at: dict[str, float] = {}
+ingress_counters = {
+    "accepted": 0,
+    "duplicates": 0,
+    "invalid": 0,
+    "unidentified": 0,
+    "discovery_events_suppressed": 0,
+}
+_last_cache_persist_monotonic = 0.0
 _automation_ledger_path = Path(
     os.getenv(
         "PIPHI_AUTOMATION_LEDGER_PATH",
@@ -140,7 +154,7 @@ async def _clear_discovery_cache_action(
 ) -> dict[str, Any]:
     count = len(recent_seen_devices)
     recent_seen_devices.clear()
-    persist_discovery_cache()
+    persist_discovery_cache(force=True)
     return {
         "status": "ok",
         "command": action_request.command,
@@ -236,6 +250,9 @@ def emit_leak_transition_event(
     profile_id: str,
     source_transport: str,
 ) -> None:
+    # Generic RF fields are not safety-qualified. Canonical leak events remain
+    # disabled until an immutable model/decoder qualification matrix exists.
+    return
     if "leak_detected" not in previous_metrics or "leak_detected" not in current_metrics:
         return
     previous_value = previous_metrics.get("leak_detected")
@@ -289,6 +306,8 @@ async def apply_config(config: Rtl433DeviceConfig) -> None:
             "channel": entry["channel"],
             "alias": entry["alias"],
             "last_packet_at": None,
+            "last_packet_monotonic": None,
+            "available": False,
         },
     )
     append_runtime_event(
@@ -317,8 +336,10 @@ async def remove_config(config_id: str) -> bool:
 
 def remember_discovered_device(packet: dict[str, Any]) -> dict[str, Any]:
     profile_id = infer_profile_id(packet)
-    model = str(packet.get("model") or "Unknown rtl_433 Device")
+    model = str(packet.get("model") or "").strip()
     station_id = extract_station_id(packet)
+    if not model or station_id == "unknown":
+        raise ValueError("A stable rtl_433 model and station identifier are required for discovery.")
     channel = extract_channel(packet)
     device_key = build_device_key(model, station_id, channel)
     metrics = extract_metrics(packet, profile_id)
@@ -347,8 +368,12 @@ def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def persist_discovery_cache() -> None:
+def persist_discovery_cache(*, force: bool = False) -> None:
+    global _last_cache_persist_monotonic
     if not DISCOVERY_CACHE_PATH:
+        return
+    now = time.monotonic()
+    if not force and _last_cache_persist_monotonic and now - _last_cache_persist_monotonic < 1.0:
         return
 
     payload = {
@@ -361,6 +386,7 @@ def persist_discovery_cache() -> None:
         tmp_path = DISCOVERY_CACHE_PATH.with_suffix(f"{DISCOVERY_CACHE_PATH.suffix}.tmp")
         tmp_path.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
         tmp_path.replace(DISCOVERY_CACHE_PATH)
+        _last_cache_persist_monotonic = now
     except OSError as exc:
         print(f"rtl433_discovery_cache_persist_failed path={DISCOVERY_CACHE_PATH} error={exc}")
 
@@ -508,18 +534,22 @@ app = FastAPI(lifespan=lifespan)
 
 @app.get("/health")
 async def health() -> RuntimeHealthResponse:
+    stale_count = refresh_availability()
     return starter.health_response(
         metadata={
             "active_configs": len(registry.ids()),
             "recent_discovery_count": len(recent_seen_devices),
             "supported_profile_count": len(PROFILE_DEFINITIONS),
             "mqtt_source_enabled": MQTT_SOURCE_ENABLED,
+            "stale_config_count": stale_count,
+            "ingress": dict(ingress_counters),
         }
     )
 
 
 @app.get("/diagnostics")
 async def diagnostics() -> RuntimeDiagnosticsResponse:
+    stale_count = refresh_availability()
     return starter.diagnostics_response(
         diagnostics={
             "active_config_ids": registry.ids(),
@@ -527,6 +557,13 @@ async def diagnostics() -> RuntimeDiagnosticsResponse:
             "recent_discovery_count": len(recent_seen_devices),
             "supported_profiles": list_profiles(),
             "mqtt_packet_topic": MQTT_PACKET_TOPIC if MQTT_SOURCE_ENABLED else None,
+            "stale_config_count": stale_count,
+            "ingress": dict(ingress_counters),
+            "packet_limits": {
+                "max_bytes": MAX_PACKET_BYTES,
+                "dedup_window_seconds": DEDUP_WINDOW_SECONDS,
+                "device_expiry_seconds": DEVICE_EXPIRY_SECONDS,
+            },
         }
     )
 
@@ -669,7 +706,13 @@ async def configure_discovery_receiver(inputs: dict[str, Any]) -> None:
 
     try:
         async with httpx.AsyncClient(timeout=8.0) as client:
-            response = await client.post(f"{bridge_url.rstrip('/')}/radio/config", json=settings)
+            headers = {}
+            service_token = resolve_rtl433_bridge_token()
+            if service_token:
+                headers["X-PiPhi-Service-Token"] = service_token
+            response = await client.post(
+                f"{bridge_url.rstrip('/')}/radio/config", json=settings, headers=headers
+            )
             response.raise_for_status()
     except httpx.HTTPStatusError as exc:
         detail = "The radio service rejected those receiver settings."
@@ -701,6 +744,21 @@ def resolve_rtl433_bridge_url() -> str | None:
         return None
     url = str(binding.get("runtime_url") or binding.get("url") or "").strip()
     return url or None
+
+
+def resolve_rtl433_bridge_token() -> str | None:
+    direct_token = str(os.getenv("PIPHI_SERVICE_RTL433_BRIDGE_AUTH_TOKEN") or "").strip()
+    if direct_token:
+        return direct_token
+    try:
+        bindings = json.loads(os.getenv("PIPHI_SERVICE_BINDINGS", "{}"))
+    except json.JSONDecodeError:
+        return None
+    binding = bindings.get(RTL433_BRIDGE_SERVICE_ID) if isinstance(bindings, dict) else None
+    if not isinstance(binding, dict):
+        return None
+    token = str(binding.get("auth_token") or binding.get("token") or "").strip()
+    return token or None
 
 
 def _clean_discovery_input(value: Any) -> str | None:
@@ -786,6 +844,7 @@ async def state(
     refresh: bool = Query(default=False),
     refresh_request_id: str | None = Query(default=None),
 ) -> dict[str, Any]:
+    refresh_availability()
     try:
         state_payload = await starter.state.response(
             refresh=refresh,
@@ -843,8 +902,14 @@ async def command(
 
 @app.post("/ingest/rtl433")
 async def ingest_rtl433(packet: Rtl433Packet, request: Request) -> dict[str, Any]:
+    _authorize_ingest(request)
+    content_length = request.headers.get("content-length")
+    if content_length and content_length.isdecimal() and int(content_length) > MAX_PACKET_BYTES:
+        raise HTTPException(status_code=413, detail="rtl_433 packet exceeds the configured size limit")
     runtime.auth.sync_from_headers(request.headers)
     payload = packet.model_dump(exclude_none=True)
+    if len(json.dumps(payload, separators=(",", ":")).encode("utf-8")) > MAX_PACKET_BYTES:
+        raise HTTPException(status_code=413, detail="rtl_433 packet exceeds the configured size limit")
     return await process_rtl433_packet(payload, source_transport="http")
 
 
@@ -860,7 +925,25 @@ async def process_rtl433_packet(
     *,
     source_transport: str,
 ) -> dict[str, Any]:
-    discovered = remember_discovered_device(payload)
+    if not _bounded_json(payload):
+        ingress_counters["invalid"] += 1
+        raise HTTPException(status_code=422, detail="rtl_433 packet contains unsupported or excessive values")
+    fingerprint = _packet_fingerprint(payload)
+    if _is_duplicate_fingerprint(fingerprint):
+        ingress_counters["duplicates"] += 1
+        return {"status": "duplicate", "transport": source_transport, "matched_configs": 0, "metric_names": []}
+    try:
+        discovered = remember_discovered_device(payload)
+    except ValueError as exc:
+        ingress_counters["unidentified"] += 1
+        return {
+            "status": "ignored",
+            "reason": str(exc),
+            "transport": source_transport,
+            "matched_configs": 0,
+            "metric_names": [],
+        }
+    ingress_counters["accepted"] += 1
 
     matched_configs = 0
     for config_id, entry in registry.entries.items():
@@ -899,6 +982,8 @@ async def process_rtl433_packet(
             config_id,
             {
                 "last_packet_at": now_iso(),
+                "last_packet_monotonic": time.monotonic(),
+                "available": True,
                 "model": discovered["model"],
                 "station_id": discovered["station_id"],
                 "channel": discovered["channel"],
@@ -941,7 +1026,11 @@ async def process_rtl433_packet(
         )
 
     if matched_configs == 0:
-        append_runtime_event(
+        now = time.monotonic()
+        last_event_at = last_discovery_event_at.get(discovered["device_id"])
+        if last_event_at is None or now - last_event_at >= DISCOVERY_EVENT_INTERVAL_SECONDS:
+            last_discovery_event_at[discovered["device_id"]] = now
+            append_runtime_event(
             event_type="rtl433.packet.discovered",
             device={
                 "config_id": discovered["id"],
@@ -956,7 +1045,9 @@ async def process_rtl433_packet(
                 "station_id": discovered["station_id"],
                 "channel": discovered["channel"],
             },
-        )
+            )
+        else:
+            ingress_counters["discovery_events_suppressed"] += 1
 
     return {
         "status": "ok",
@@ -969,3 +1060,73 @@ async def process_rtl433_packet(
             for metric_name in extract_metrics(payload, discovered["profile"]).keys()
         ],
     }
+
+
+def _authorize_ingest(request: Request) -> None:
+    expected_token = str(os.getenv("RTL433_INGEST_TOKEN") or "").strip()
+    production = str(os.getenv("PIPHI_ENV") or os.getenv("ENVIRONMENT") or "").lower() == "production"
+    if not expected_token:
+        if production:
+            raise HTTPException(status_code=503, detail="rtl_433 ingest authentication is not configured")
+        return
+    received_token = str(request.headers.get("X-PiPhi-Bridge-Token") or "").strip()
+    if not received_token or not secrets.compare_digest(received_token, expected_token):
+        raise HTTPException(status_code=401, detail="Invalid rtl_433 bridge authentication")
+
+
+def _packet_fingerprint(payload: dict[str, Any]) -> str:
+    stable_payload = {key: value for key, value in payload.items() if key not in {"time", "received_at"}}
+    canonical = json.dumps(stable_payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _is_duplicate_fingerprint(fingerprint: str) -> bool:
+    if DEDUP_WINDOW_SECONDS <= 0:
+        return False
+    now = time.monotonic()
+    cutoff = now - DEDUP_WINDOW_SECONDS
+    while packet_fingerprints:
+        _, seen_at = next(iter(packet_fingerprints.items()))
+        if seen_at >= cutoff:
+            break
+        packet_fingerprints.popitem(last=False)
+    seen_at = packet_fingerprints.get(fingerprint)
+    packet_fingerprints[fingerprint] = now
+    packet_fingerprints.move_to_end(fingerprint)
+    return seen_at is not None and seen_at >= cutoff
+
+
+def _bounded_json(value: Any, *, depth: int = 0) -> bool:
+    if depth > 5:
+        return False
+    if value is None or isinstance(value, (bool, int, float)):
+        return True
+    if isinstance(value, str):
+        return len(value) <= 2048
+    if isinstance(value, list):
+        return len(value) <= 128 and all(_bounded_json(item, depth=depth + 1) for item in value)
+    if isinstance(value, dict):
+        return len(value) <= 256 and all(
+            isinstance(key, str)
+            and len(key) <= 128
+            and _bounded_json(item, depth=depth + 1)
+            for key, item in value.items()
+        )
+    return False
+
+
+def refresh_availability() -> int:
+    now = time.monotonic()
+    stale_count = 0
+    for config_id in registry.ids():
+        snapshot = registry.state_snapshots.get(config_id)
+        state = snapshot.get("state") if isinstance(snapshot, dict) else None
+        if not isinstance(state, dict):
+            continue
+        last_packet = state.get("last_packet_monotonic")
+        available = isinstance(last_packet, (int, float)) and now - last_packet <= DEVICE_EXPIRY_SECONDS
+        if not available:
+            stale_count += 1
+        if state.get("available") != available:
+            registry.update_state(config_id, {**state, "available": available})
+    return stale_count

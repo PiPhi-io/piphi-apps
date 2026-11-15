@@ -2,13 +2,13 @@
   "manifest_version": "1.0",
   "id": "piphi-network-433mhz",
   "name": "PiPhi Network 433MHz Devices",
-  "version": "0.1.7",
-  "description": "Generic rtl_433-based integration for supported sub-GHz sensors and devices.",
+  "version": "0.2.0",
+  "description": "Experimental receive-only rtl_433 integration for a bounded weather, contact, battery, and signal sensor slice.",
   "maintainer": {
     "name": "PiPhi Network",
     "website": "https://piphi.io"
   },
-  "image": "piphinetwork/piphi-network-433mhz:0.1.7",
+  "image": "ghcr.io/piphi-io/piphi-network-433mhz:0.2.0",
   "platforms": [
     "linux"
   ],
@@ -16,7 +16,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "piphinetwork/piphi-network-433mhz:0.1.7",
+        "image": "ghcr.io/piphi-io/piphi-network-433mhz:0.2.0",
         "ports": [
           {
             "container": 8090,
@@ -26,7 +26,11 @@
         "environment": {
           "LOG_LEVEL": "info",
           "RTL433_DISCOVERY_WAIT_SECONDS": "8",
-          "RTL433_DISCOVERY_CACHE_PATH": "/tmp/piphi-network-433mhz-discovery.json"
+          "RTL433_DISCOVERY_CACHE_PATH": "/tmp/piphi-network-433mhz-discovery.json",
+          "RTL433_MAX_PACKET_BYTES": "65536",
+          "RTL433_DEDUP_WINDOW_SECONDS": "2",
+          "RTL433_DEVICE_EXPIRY_SECONDS": "610",
+          "PIPHI_AUTOMATION_LEDGER_PATH": "/tmp/piphi-network-433mhz-actions.sqlite3"
         },
         "restart_policy": {
           "name": "unless-stopped",
@@ -61,8 +65,8 @@
       {
         "id": "piphi.service.rtl433-bridge",
         "kind": "platform_service",
-        "version_range": ">=0.1.0,<1.0.0",
-        "recommended_version": "0.1.4",
+        "version_range": ">=0.2.0,<0.3.0",
+        "recommended_version": "0.2.0",
         "required": true,
         "shared": true,
         "auto_install": true,
@@ -148,6 +152,14 @@
       "kind": "sensor",
       "unit": "dBm"
     },
+    "signal_snr": {
+      "kind": "sensor",
+      "unit": "dB"
+    },
+    "signal_noise": {
+      "kind": "sensor",
+      "unit": "dB"
+    },
     "clear_discovery_cache": {
       "kind": "action"
     }
@@ -163,25 +175,25 @@
     "event_mappings": [
       {
         "source_event_type": "rtl433.safety.leak.detected",
-        "canonical_event_type": "safety_leak_detected",
-        "status": "implemented",
+        "status": "excluded",
         "device_models": [
           "rtl_433 leak_sensor profile"
         ],
         "required_permissions": [
           "rtl_433 packet receive"
-        ]
+        ],
+        "notes": "Generic RF leak fields are not safety-qualified; canonical delivery is disabled pending model-specific hardware evidence."
       },
       {
         "source_event_type": "rtl433.safety.leak.cleared",
-        "canonical_event_type": "safety_leak_cleared",
-        "status": "implemented",
+        "status": "excluded",
         "device_models": [
           "rtl_433 leak_sensor profile"
         ],
         "required_permissions": [
           "rtl_433 packet receive"
-        ]
+        ],
+        "notes": "Generic RF leak fields are not safety-qualified; canonical delivery is disabled pending model-specific hardware evidence."
       },
       {
         "source_event_type": "rtl433.contact.opened",
@@ -263,6 +275,20 @@
       "capabilities": [
         "signal_rssi"
       ]
+    },
+    {
+      "id": "signal_snr",
+      "name": "Signal-to-noise ratio",
+      "capabilities": [
+        "signal_snr"
+      ]
+    },
+    {
+      "id": "signal_noise",
+      "name": "Signal noise",
+      "capabilities": [
+        "signal_noise"
+      ]
     }
   ],
   "ui": {
@@ -273,6 +299,62 @@
         "auto_install": true
       }
     ]
+  },
+  "marketplace": {
+    "metadata_version": 2,
+    "display_name": "433 MHz sensors (experimental)",
+    "summary": "Receive a bounded set of weather, contact, battery, and radio-signal readings from rtl_433.",
+    "category": "sensors",
+    "device_types": ["weather sensor", "contact sensor", "battery sensor"],
+    "protocols": ["rtl_433", "sub-GHz receive-only radio"],
+    "regions": ["WW"],
+    "languages": ["en"],
+    "discovery_methods": ["local radio reception"],
+    "connectivity": "local",
+    "offline_support": "partial",
+    "publisher": {
+      "name": "PiPhi Network",
+      "website_url": "https://piphi.io",
+      "support_url": "https://github.com/PiPhi-io/piphi-apps/issues",
+      "security_contact": "support@piphi.io"
+    },
+    "access": [
+      {
+        "id": "companion_service",
+        "label": "Background radio service",
+        "reason": "Uses the separately sandboxed rtl_433 bridge to receive decoded packets.",
+        "required": true
+      },
+      {
+        "id": "household_rf_data",
+        "label": "Household radio observations",
+        "reason": "Stores recent identifiers and readings for explicitly accepted local sensors.",
+        "required": true
+      }
+    ],
+    "compatibility": [
+      {
+        "brand": "Multi-vendor",
+        "model": "Explicitly accepted rtl_433 weather/contact sensors with stable identifiers; decoder support does not imply PiPhi qualification",
+        "regions": ["WW"]
+      }
+    ],
+    "documentation_url": "https://github.com/PiPhi-io/piphi-apps/tree/apps/piphi-network-433mhz/v0.2.0/apps/integrations/piphi-network-433mhz",
+    "support_url": "https://github.com/PiPhi-io/piphi-apps/issues",
+    "changelog_url": "https://github.com/PiPhi-io/piphi-apps/releases/tag/apps/piphi-network-433mhz/v0.2.0",
+    "quality_tier": "unrated",
+    "governance": {
+      "schema_version": 1,
+      "publication_status": "beta",
+      "rollout_percent": 10,
+      "lifecycle_status": "active",
+      "qualification": {"status": "unverified"}
+    }
+  },
+  "runtime_contract": {
+    "version": 1,
+    "port_binding": "core_allocated",
+    "port_env": "PORT"
   },
   "onboarding": {
     "mode": "discovery"

@@ -1,7 +1,7 @@
 [project]
 name = "piphi-rtl433-bridge"
-version = "0.1.6"
-description = "Default template for PDM package"
+version = "0.2.0"
+description = "Bounded receive-only rtl_433 bridge for PiPhi Network"
 authors = [
     { name = "PiPhi Network" },
     {name = "KelvinSan", email = "kelvin.sanyaolu@gmail.com"},

@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "release": "0.2.0",
+  "policy": "Decoder output is unsupported unless explicitly classified here; receive-only is invariant.",
+  "capabilities": [
+    {"id": "temperature_c", "status": "implemented", "source_fields": ["temperature_C"], "unit": "°C", "scope": "accepted weather sensors"},
+    {"id": "temperature_f", "status": "implemented", "source_fields": ["temperature_F"], "unit": "°F", "scope": "accepted weather sensors"},
+    {"id": "humidity_percent", "status": "implemented", "source_fields": ["humidity"], "unit": "%", "scope": "accepted weather sensors"},
+    {"id": "wind_speed_kph", "status": "implemented", "source_fields": ["wind_avg_km_h", "wind_speed_km_h", "wind_speed_kph"], "unit": "km/h", "scope": "accepted weather sensors"},
+    {"id": "rain_total_mm", "status": "implemented", "source_fields": ["rain_mm", "rain_total_mm"], "unit": "mm", "scope": "accepted weather sensors; cumulative reading only"},
+    {"id": "pressure_hpa", "status": "implemented", "source_fields": ["pressure_hPa"], "unit": "hPa", "scope": "accepted weather sensors"},
+    {"id": "pressure_pa", "status": "implemented", "source_fields": ["pressure_Pa"], "unit": "Pa", "scope": "accepted weather sensors"},
+    {"id": "battery_ok", "status": "implemented", "source_fields": ["battery_ok"], "unit": "boolean", "scope": "raw decoder low/ok flag; never percentage"},
+    {"id": "battery_mv", "status": "implemented", "source_fields": ["battery_mV"], "unit": "mV", "scope": "accepted sensors"},
+    {"id": "contact_open", "status": "implemented", "source_fields": ["contact_open", "state=open|closed"], "unit": "boolean", "scope": "state only; no security claim"},
+    {"id": "leak_detected", "status": "implemented", "source_fields": ["leak", "water", "moisture"], "unit": "boolean", "scope": "diagnostic state only; canonical safety events excluded"},
+    {"id": "signal_rssi", "status": "implemented", "source_fields": ["rssi"], "unit": "dBm", "scope": "diagnostic"},
+    {"id": "signal_snr", "status": "implemented", "source_fields": ["snr"], "unit": "dB", "scope": "diagnostic"},
+    {"id": "signal_noise", "status": "implemented", "source_fields": ["noise"], "unit": "dB", "scope": "diagnostic"},
+    {"id": "generic_numeric_fields", "status": "excluded", "reason": "Unknown scalar fields have no qualified product semantics."},
+    {"id": "rf_transmit", "status": "excluded", "reason": "rtl_433 stack is receive-only; transmit/replay/control is outside the product and threat model."},
+    {"id": "utility_energy_air_quality_tpms_security", "status": "planned", "reason": "Requires model-specific adapters, fixtures, cadence, identity, and hardware qualification."}
+  ]
+}

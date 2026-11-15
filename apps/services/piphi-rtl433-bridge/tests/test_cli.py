@@ -43,8 +43,8 @@ def test_run_dry_run_prints_resolved_config() -> None:
         [
             "run",
             "--dry-run",
-            "--rtl433-command",
-            "rtl_433 -F json -M time:unix",
+            "--radio-band",
+            "868mhz",
         ],
     )
 
@@ -147,8 +147,8 @@ def test_ping_runtime_disabled_returns_non_zero_exit() -> None:
 
     result = runner.invoke(main, ["ping-runtime", "--no-http-forward-enabled"])
 
-    assert result.exit_code == 1
-    assert "HTTP forwarding is disabled" in result.output
+    assert result.exit_code == 2
+    assert "Exactly one authoritative forwarding transport" in result.output
 
 
 def test_parse_header_pairs_allows_equals_in_value() -> None:
@@ -164,9 +164,8 @@ def test_validate_extra_headers_json_rejects_non_object() -> None:
 
 def test_config_to_dict_omits_sensitive_mqtt_password() -> None:
     config = build_bridge_config(
-        http_forward_enabled=True,
+        http_forward_enabled=False,
         runtime_ingest_url="http://runtime.test/ingest/rtl433",
-        rtl433_command_text="rtl_433 -F json",
         forward_timeout_seconds=1.0,
         retry_delay_seconds=1.0,
         startup_delay_seconds=0.0,
@@ -186,7 +185,6 @@ async def test_ping_runtime_returns_failure_on_transport_error(monkeypatch) -> N
     config = build_bridge_config(
         http_forward_enabled=True,
         runtime_ingest_url="http://runtime.test/ingest/rtl433",
-        rtl433_command_text="rtl_433 -F json",
         forward_timeout_seconds=1.0,
         retry_delay_seconds=1.0,
         startup_delay_seconds=0.0,
@@ -215,7 +213,6 @@ async def test_ping_runtime_success_passes_headers(monkeypatch) -> None:
     config = build_bridge_config(
         http_forward_enabled=True,
         runtime_ingest_url="http://runtime.test/ingest/rtl433",
-        rtl433_command_text="rtl_433 -F json",
         forward_timeout_seconds=1.0,
         retry_delay_seconds=1.0,
         startup_delay_seconds=0.0,

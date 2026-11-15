@@ -3,8 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
+import math
 import os
-import shlex
+import re
 
 
 @dataclass(frozen=True)
@@ -16,7 +17,6 @@ class BridgeConfig:
     rtl_sdr_device: str
     receiver_gain: str
     protocol_ids: tuple[str, ...]
-    raw_rtl433_command: str | None
     rtl433_command: list[str]
     forward_timeout_seconds: float
     retry_delay_seconds: float
@@ -30,13 +30,19 @@ class BridgeConfig:
     mqtt_client_id: str | None
     mqtt_qos: int
     mqtt_topic_root: str
+    max_forward_attempts: int
+    queue_size: int
+    dedup_window_seconds: float
+    max_packet_bytes: int
 
 
 DEFAULT_RUNTIME_INGEST_URL = "http://127.0.0.1:8090/ingest/rtl433"
 DEFAULT_RADIO_BAND = "433mhz"
 DEFAULT_FREQUENCY = "433.92M"
-DEFAULT_RTL433_COMMAND = ""
 DEFAULT_MQTT_TOPIC_ROOT = "piphi/sources/rtl433"
+MAX_PROTOCOL_ID = 398
+FREQUENCY_RE = re.compile(r"^(?:[2-9][0-9]|[1-9][0-9]{2}|1[0-6][0-9]{2}|17[0-5][0-9]|176[0-6])(?:\.[0-9]{1,6})?M$", re.IGNORECASE)
+DEVICE_SERIAL_RE = re.compile(r"^serial=[A-Za-z0-9._:-]{1,64}$")
 RADIO_BAND_PRESETS = {
     "315mhz": "315M",
     "433mhz": DEFAULT_FREQUENCY,
@@ -54,11 +60,15 @@ def load_bridge_config() -> BridgeConfig:
         rtl_sdr_device=os.getenv("RTLSDR_DEVICE", "auto"),
         receiver_gain=os.getenv("RECEIVER_GAIN", "auto"),
         protocol_ids_text=os.getenv("RTL433_PROTOCOLS", ""),
-        rtl433_command_text=os.getenv("RTL433_COMMAND", DEFAULT_RTL433_COMMAND),
         forward_timeout_seconds=float(os.getenv("FORWARD_TIMEOUT_SECONDS", "10")),
         retry_delay_seconds=float(os.getenv("RETRY_DELAY_SECONDS", "5")),
         startup_delay_seconds=float(os.getenv("STARTUP_DELAY_SECONDS", "2")),
         extra_headers_json=os.getenv("BRIDGE_EXTRA_HEADERS_JSON", ""),
+        extra_headers=(
+            {"X-PiPhi-Bridge-Token": os.environ["RTL433_INGEST_TOKEN"]}
+            if os.getenv("RTL433_INGEST_TOKEN")
+            else None
+        ),
         mqtt_enabled=_parse_bool_env("MQTT_ENABLED", False),
         mqtt_hostname=os.getenv("MQTT_HOSTNAME", "127.0.0.1"),
         mqtt_port=int(os.getenv("MQTT_PORT", "1883")),
@@ -67,6 +77,10 @@ def load_bridge_config() -> BridgeConfig:
         mqtt_client_id=os.getenv("MQTT_CLIENT_ID") or None,
         mqtt_qos=int(os.getenv("MQTT_QOS", "0")),
         mqtt_topic_root=os.getenv("MQTT_TOPIC_ROOT", DEFAULT_MQTT_TOPIC_ROOT),
+        max_forward_attempts=int(os.getenv("MAX_FORWARD_ATTEMPTS", "4")),
+        queue_size=int(os.getenv("PACKET_QUEUE_SIZE", "256")),
+        dedup_window_seconds=float(os.getenv("DEDUP_WINDOW_SECONDS", "2")),
+        max_packet_bytes=int(os.getenv("MAX_PACKET_BYTES", "65536")),
     )
 
 
@@ -80,7 +94,6 @@ def build_bridge_config(
     receiver_gain: str = "auto",
     protocol_ids_text: str = "",
     protocol_ids: tuple[str, ...] | list[str] | None = None,
-    rtl433_command_text: str = DEFAULT_RTL433_COMMAND,
     forward_timeout_seconds: float,
     retry_delay_seconds: float,
     startup_delay_seconds: float,
@@ -94,29 +107,42 @@ def build_bridge_config(
     mqtt_client_id: str | None = None,
     mqtt_qos: int = 0,
     mqtt_topic_root: str = DEFAULT_MQTT_TOPIC_ROOT,
+    max_forward_attempts: int = 4,
+    queue_size: int = 256,
+    dedup_window_seconds: float = 2.0,
+    max_packet_bytes: int = 65_536,
 ) -> BridgeConfig:
     merged_headers = parse_extra_headers(extra_headers_json)
     if extra_headers:
         merged_headers.update(extra_headers)
-    normalized_protocol_ids = tuple(protocol_ids or parse_protocol_ids(protocol_ids_text))
+    normalized_protocol_ids = validate_protocol_ids(tuple(protocol_ids or parse_protocol_ids(protocol_ids_text)))
     frequency = resolve_frequency(radio_band=radio_band, custom_frequency=custom_frequency)
-    raw_rtl433_command = rtl433_command_text.strip() or None
+    normalized_device = validate_rtlsdr_device(rtl_sdr_device)
+    normalized_gain = validate_receiver_gain(receiver_gain)
+    if http_forward_enabled == mqtt_enabled:
+        raise ValueError("Exactly one authoritative forwarding transport (HTTP or MQTT) must be enabled.")
+    if not 1 <= max_forward_attempts <= 10:
+        raise ValueError("MAX_FORWARD_ATTEMPTS must be between 1 and 10.")
+    if not 1 <= queue_size <= 4096:
+        raise ValueError("PACKET_QUEUE_SIZE must be between 1 and 4096.")
+    if not 0 <= dedup_window_seconds <= 60:
+        raise ValueError("DEDUP_WINDOW_SECONDS must be between 0 and 60.")
+    if not 1024 <= max_packet_bytes <= 1_048_576:
+        raise ValueError("MAX_PACKET_BYTES must be between 1024 and 1048576.")
     rtl433_command = build_rtl433_command(
         frequency=frequency,
-        rtl_sdr_device=rtl_sdr_device,
-        receiver_gain=receiver_gain,
+        rtl_sdr_device=normalized_device,
+        receiver_gain=normalized_gain,
         protocol_ids=normalized_protocol_ids,
-        raw_rtl433_command=raw_rtl433_command,
     )
     return BridgeConfig(
         http_forward_enabled=http_forward_enabled,
         runtime_ingest_url=runtime_ingest_url,
         radio_band=normalize_radio_band(radio_band),
         frequency=frequency,
-        rtl_sdr_device=normalize_auto_value(rtl_sdr_device),
-        receiver_gain=normalize_auto_value(receiver_gain),
+        rtl_sdr_device=normalized_device,
+        receiver_gain=normalized_gain,
         protocol_ids=normalized_protocol_ids,
-        raw_rtl433_command=raw_rtl433_command,
         rtl433_command=rtl433_command,
         forward_timeout_seconds=forward_timeout_seconds,
         retry_delay_seconds=retry_delay_seconds,
@@ -130,6 +156,10 @@ def build_bridge_config(
         mqtt_client_id=mqtt_client_id,
         mqtt_qos=mqtt_qos,
         mqtt_topic_root=mqtt_topic_root.rstrip("/"),
+        max_forward_attempts=max_forward_attempts,
+        queue_size=queue_size,
+        dedup_window_seconds=dedup_window_seconds,
+        max_packet_bytes=max_packet_bytes,
     )
 
 
@@ -160,9 +190,6 @@ def reconfigure_bridge_config(
             if protocol_ids_text is not None
             else ",".join(config.protocol_ids)
         ),
-        # A discovery-time radio choice is explicit and must not be shadowed by an
-        # older advanced command override.
-        rtl433_command_text="" if frequency is not None else (config.raw_rtl433_command or ""),
         forward_timeout_seconds=config.forward_timeout_seconds,
         retry_delay_seconds=config.retry_delay_seconds,
         startup_delay_seconds=config.startup_delay_seconds,
@@ -175,6 +202,10 @@ def reconfigure_bridge_config(
         mqtt_client_id=config.mqtt_client_id,
         mqtt_qos=config.mqtt_qos,
         mqtt_topic_root=config.mqtt_topic_root,
+        max_forward_attempts=config.max_forward_attempts,
+        queue_size=config.queue_size,
+        dedup_window_seconds=config.dedup_window_seconds,
+        max_packet_bytes=config.max_packet_bytes,
     )
 
 
@@ -229,7 +260,10 @@ def resolve_frequency(*, radio_band: str, custom_frequency: str = "") -> str:
         frequency = str(custom_frequency or "").strip()
         if not frequency:
             raise ValueError("CUSTOM_FREQUENCY is required when RADIO_BAND is custom.")
-        return frequency
+        normalized = frequency.upper()
+        if not FREQUENCY_RE.fullmatch(normalized):
+            raise ValueError("CUSTOM_FREQUENCY must be 20M through 1766M with up to six decimals.")
+        return normalized
     return RADIO_BAND_PRESETS[normalized_band]
 
 
@@ -248,17 +282,54 @@ def parse_protocol_ids(raw_value: str) -> tuple[str, ...]:
     )
 
 
+def validate_protocol_ids(protocol_ids: tuple[str, ...]) -> tuple[str, ...]:
+    if len(protocol_ids) > 64:
+        raise ValueError("At most 64 rtl_433 protocol IDs may be selected.")
+    normalized: list[str] = []
+    for raw_id in protocol_ids:
+        value = str(raw_id).strip()
+        if not value.isascii() or not value.isdecimal():
+            raise ValueError("rtl_433 protocol IDs must be decimal integers.")
+        protocol_id = int(value)
+        if not 1 <= protocol_id <= MAX_PROTOCOL_ID:
+            raise ValueError(f"rtl_433 protocol IDs must be between 1 and {MAX_PROTOCOL_ID}.")
+        canonical = str(protocol_id)
+        if canonical not in normalized:
+            normalized.append(canonical)
+    return tuple(normalized)
+
+
+def validate_rtlsdr_device(value: str | int | float | None) -> str:
+    normalized = normalize_auto_value(value)
+    if normalized.lower() == "auto":
+        return "auto"
+    if normalized.isascii() and normalized.isdecimal() and 0 <= int(normalized) <= 31:
+        return str(int(normalized))
+    if DEVICE_SERIAL_RE.fullmatch(normalized):
+        return normalized
+    raise ValueError("RTLSDR_DEVICE must be auto, an index from 0 to 31, or serial=<receiver-serial>.")
+
+
+def validate_receiver_gain(value: str | int | float | None) -> str:
+    normalized = normalize_auto_value(value)
+    if normalized.lower() == "auto":
+        return "auto"
+    try:
+        gain = float(normalized)
+    except ValueError as exc:
+        raise ValueError("RECEIVER_GAIN must be auto or a number from 0 through 60 dB.") from exc
+    if not math.isfinite(gain) or not 0 <= gain <= 60:
+        raise ValueError("RECEIVER_GAIN must be auto or a number from 0 through 60 dB.")
+    return normalized
+
+
 def build_rtl433_command(
     *,
     frequency: str,
     rtl_sdr_device: str,
     receiver_gain: str,
     protocol_ids: tuple[str, ...],
-    raw_rtl433_command: str | None = None,
 ) -> list[str]:
-    if raw_rtl433_command:
-        return shlex.split(raw_rtl433_command)
-
     command = ["rtl_433", "-F", "json", "-f", frequency]
     device = normalize_auto_value(rtl_sdr_device)
     gain = normalize_auto_value(receiver_gain)

@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import asyncio
+from collections import OrderedDict
 from contextlib import AsyncExitStack
+import hashlib
 import json
 import logging
+import time
 from typing import Any
 
 import aiomqtt
@@ -26,6 +29,12 @@ class Rtl433Bridge:
         self.config = config
         self.forwarded_count = 0
         self.invalid_line_count = 0
+        self.dropped_count = 0
+        self.duplicate_count = 0
+        self.retry_count = 0
+        self.failed_count = 0
+        self.last_forward_at: float | None = None
+        self._fingerprints: OrderedDict[str, float] = OrderedDict()
 
     async def run_forever(self) -> None:
         while True:
@@ -79,15 +88,37 @@ class Rtl433Bridge:
                         identifier=self.config.mqtt_client_id,
                     )
                 )
-            while True:
-                line = await process.stdout.readline()
-                if not line:
-                    break
-                packet = parse_packet_line(line)
-                if packet is None:
-                    self.invalid_line_count += 1
-                    continue
-                await self.forward_packet(http_client, mqtt_client, packet)
+            queue: asyncio.Queue[dict[str, Any] | None] = asyncio.Queue(maxsize=self.config.queue_size)
+
+            async def produce() -> None:
+                while True:
+                    line = await process.stdout.readline()
+                    if not line:
+                        break
+                    packet = parse_packet_line(line, max_packet_bytes=self.config.max_packet_bytes)
+                    if packet is None:
+                        self.invalid_line_count += 1
+                        continue
+                    if self._is_duplicate(packet):
+                        self.duplicate_count += 1
+                        continue
+                    try:
+                        queue.put_nowait(packet)
+                    except asyncio.QueueFull:
+                        self.dropped_count += 1
+                await queue.put(None)
+
+            async def consume() -> None:
+                while True:
+                    packet = await queue.get()
+                    try:
+                        if packet is None:
+                            return
+                        await self.forward_packet(http_client, mqtt_client, packet)
+                    finally:
+                        queue.task_done()
+
+            await asyncio.gather(produce(), consume())
 
     async def _log_stderr(self, process: asyncio.subprocess.Process) -> None:
         assert process.stderr is not None
@@ -105,11 +136,12 @@ class Rtl433Bridge:
         mqtt_client: aiomqtt.Client | None,
         packet: dict[str, Any],
     ) -> None:
-        while True:
+        for attempt in range(1, self.config.max_forward_attempts + 1):
             try:
                 await self._forward_packet_http(http_client, packet)
                 await self._forward_packet_mqtt(mqtt_client, packet)
                 self.forwarded_count += 1
+                self.last_forward_at = time.monotonic()
                 logger.info(
                     "packet_forwarded count=%s model=%s id=%s",
                     self.forwarded_count,
@@ -120,8 +152,32 @@ class Rtl433Bridge:
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
-                logger.warning("packet_forward_failed error=%s retrying_in=%ss", exc, self.config.retry_delay_seconds)
-                await asyncio.sleep(self.config.retry_delay_seconds)
+                if attempt >= self.config.max_forward_attempts:
+                    self.failed_count += 1
+                    self.dropped_count += 1
+                    logger.error("packet_forward_exhausted attempts=%s error=%s", attempt, exc)
+                    return
+                self.retry_count += 1
+                delay = min(self.config.retry_delay_seconds * (2 ** (attempt - 1)), 30.0)
+                logger.warning("packet_forward_failed attempt=%s error=%s retrying_in=%ss", attempt, exc, delay)
+                await asyncio.sleep(delay)
+
+    def _is_duplicate(self, packet: dict[str, Any]) -> bool:
+        if self.config.dedup_window_seconds <= 0:
+            return False
+        now = time.monotonic()
+        cutoff = now - self.config.dedup_window_seconds
+        while self._fingerprints:
+            _, seen_at = next(iter(self._fingerprints.items()))
+            if seen_at >= cutoff:
+                break
+            self._fingerprints.popitem(last=False)
+        canonical = json.dumps(packet, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+        fingerprint = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+        seen_at = self._fingerprints.get(fingerprint)
+        self._fingerprints[fingerprint] = now
+        self._fingerprints.move_to_end(fingerprint)
+        return seen_at is not None and seen_at >= cutoff
 
     async def _forward_packet_http(
         self,
@@ -166,7 +222,9 @@ class Rtl433Bridge:
             )
 
 
-def parse_packet_line(line: bytes | str) -> dict[str, Any] | None:
+def parse_packet_line(line: bytes | str, *, max_packet_bytes: int = 65_536) -> dict[str, Any] | None:
+    if len(line) > max_packet_bytes:
+        return None
     if isinstance(line, bytes):
         text = line.decode("utf-8", errors="replace").strip()
     else:
@@ -179,4 +237,25 @@ def parse_packet_line(line: bytes | str) -> dict[str, Any] | None:
         return None
     if not isinstance(payload, dict):
         return None
+    if not _bounded_json(payload):
+        return None
     return payload
+
+
+def _bounded_json(value: Any, *, depth: int = 0) -> bool:
+    if depth > 5:
+        return False
+    if value is None or isinstance(value, (bool, int, float)):
+        return True
+    if isinstance(value, str):
+        return len(value) <= 2048
+    if isinstance(value, list):
+        return len(value) <= 128 and all(_bounded_json(item, depth=depth + 1) for item in value)
+    if isinstance(value, dict):
+        return len(value) <= 256 and all(
+            isinstance(key, str)
+            and len(key) <= 128
+            and _bounded_json(item, depth=depth + 1)
+            for key, item in value.items()
+        )
+    return False

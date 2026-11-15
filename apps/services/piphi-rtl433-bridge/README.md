@@ -14,6 +14,8 @@ PiPhi still needs a tiny adapter layer that can:
 - forward packets to the runtime endpoint
 - support common receive bands such as 315 MHz, 433.92 MHz, 868 MHz, and 915 MHz
 - retry if the runtime is temporarily unavailable
+- keep draining decoder output through a bounded queue during destination faults
+- deduplicate exact RF repeats and use a finite exponential retry budget
 - keep the main runtime simpler and more beginner-friendly
 
 That is what this bridge does.
@@ -27,8 +29,8 @@ That is what this bridge does.
 The bridge does not publish PiPhi telemetry itself.
 It only forwards decoded packets to the runtime's `/ingest/rtl433` route.
 
-It can also publish the same decoded packets to shared MQTT source topics so
-multiple integrations can subscribe without fighting over the SDR device.
+It can instead publish decoded packets to shared MQTT source topics. HTTP and MQTT
+are mutually exclusive authoritative transports to prevent duplicate delivery.
 
 ## Environment variables
 
@@ -49,8 +51,6 @@ multiple integrations can subscribe without fighting over the SDR device.
   Signal sensitivity. Leave as `auto` for normal use.
 - `RTL433_PROTOCOLS`
   Optional comma-separated rtl_433 protocol IDs. Leave blank for automatic decoding.
-- `RTL433_COMMAND`
-  Advanced override. If set, this raw command is used and the friendly radio options above are ignored.
 - `FORWARD_TIMEOUT_SECONDS`
   Default: `10`
 - `RETRY_DELAY_SECONDS`
@@ -75,6 +75,12 @@ multiple integrations can subscribe without fighting over the SDR device.
   Default: `0`
 - `MQTT_TOPIC_ROOT`
   Default: `piphi/sources/rtl433`
+- `MAX_FORWARD_ATTEMPTS` (default `4`)
+- `PACKET_QUEUE_SIZE` (default `256`)
+- `DEDUP_WINDOW_SECONDS` (default `2`)
+- `MAX_PACKET_BYTES` (default `65536`)
+- `RTL433_INGEST_TOKEN` (shared secret sent as `X-PiPhi-Bridge-Token`)
+- `PIPHI_SERVICE_AUTH_TOKEN` (protects `POST /radio/config`)
 
 ## Local development
 
@@ -96,10 +102,12 @@ Run the local service used by PiPhi discovery:
 uvicorn piphi_rtl433_bridge.service:app --host 127.0.0.1 --port 8091
 ```
 
-The service exposes `GET /health` and `POST /radio/config`. The configuration
+The service exposes `GET /health` and `POST /radio/config`. Health includes bounded
+queue/delivery counters. The configuration
 route accepts `frequency`, `rtlsdr_device`, `receiver_gain`, and
 `rtl433_protocols`, then safely restarts the managed `rtl_433` process. The
-container binds this API to loopback only.
+container exposes this API only on its Core-managed service network and requires
+the platform service token when configured (and always in production).
 
 Print the resolved bridge config without starting anything:
 
@@ -122,13 +130,6 @@ pdm run bridge run \
   --receiver-gain auto \
   --header "X-PiPhi-Bridge=true" \
   --log-level DEBUG
-```
-
-Advanced raw `rtl_433` override:
-
-```bash
-pdm run bridge run \
-  --rtl433-command "rtl_433 -F json -M time:unix -f 433.92M"
 ```
 
 MQTT-only collector mode:
@@ -167,29 +168,21 @@ Run:
 
 ```bash
 docker run --rm \
-  --network host \
-  --privileged \
   --device /dev/bus/usb:/dev/bus/usb \
+  --read-only \
+  --cap-drop ALL \
+  --security-opt no-new-privileges \
   -e RUNTIME_INGEST_URL="http://127.0.0.1:8090/ingest/rtl433" \
   piphi-rtl433-bridge
-```
-
-If you want to inspect the SDR device inside the container while debugging, `usbutils` is included so you can run:
-
-```bash
-docker run --rm \
-  --network host \
-  --privileged \
-  --device /dev/bus/usb:/dev/bus/usb \
-  piphi-rtl433-bridge lsusb
 ```
 
 ## Notes
 
 - This bridge is Linux-first because `rtl_433` sidecar containers fit that path best.
-- The bridge keeps retrying packet delivery if the runtime is temporarily unavailable.
-- If you later add auth between the helper and runtime, use `BRIDGE_EXTRA_HEADERS_JSON`.
-- The image includes `rtl_433`, `rtl-sdr`, `usbutils`, and `tini` so it is better suited for real RTL-SDR helper use.
+- Delivery is bounded to four attempts by default; exhausted packets are dropped and counted so decoder draining cannot block forever.
+- The image builds upstream `rtl_433` revision `f15b67699e902522014e7593d060ad37410eda00` from an archive pinned by SHA-256.
+- Raw command overrides are intentionally unsupported. The process always starts from validated frequency, receiver, gain, and decoder-ID fields.
+- The image runs as a non-root user with `tini`; host udev/group permissions must grant that user access to the mapped receiver nodes.
 
 ## MQTT Topic Contract
 
