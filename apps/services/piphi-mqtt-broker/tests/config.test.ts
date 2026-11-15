@@ -2,38 +2,65 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { loadBrokerConfig } from "../src/config.js";
-import { renderMosquittoConfig } from "../src/mosquitto.js";
+import { renderAcl, renderMosquittoConfig } from "../src/mosquitto.js";
 
-test("loadBrokerConfig applies defaults", () => {
-  const config = loadBrokerConfig({ MQTT_ALLOW_ANONYMOUS: "true" });
+const authenticated = {
+  MQTT_ALLOW_PLAINTEXT: "true",
+  MQTT_USERNAME: "piphi",
+  MQTT_PASSWORD: "secret",
+};
 
+test("loadBrokerConfig applies bounded defaults", () => {
+  const config = loadBrokerConfig(authenticated);
   assert.equal(config.port, 1883);
-  assert.equal(config.allowAnonymous, true);
+  assert.equal(config.allowAnonymous, false);
   assert.equal(config.topicPrefix, "piphi");
+  assert.equal(config.maxConnections, 256);
+  assert.equal(config.maxQueuedBytes, 16_777_216);
+  assert.equal(config.memoryLimit, 268_435_456);
 });
 
 test("loadBrokerConfig gives the Core-assigned PORT precedence", () => {
-  const config = loadBrokerConfig({ PORT: "43127", MQTT_PORT: "1884", MQTT_ALLOW_ANONYMOUS: "true" });
+  const config = loadBrokerConfig({ ...authenticated, PORT: "43127", MQTT_PORT: "1884" });
   assert.equal(config.port, 43127);
-  assert.throws(() => loadBrokerConfig({ PORT: "invalid", MQTT_ALLOW_ANONYMOUS: "true" }), /managed runtime PORT/);
+  assert.throws(() => loadBrokerConfig({ ...authenticated, PORT: "invalid" }), /managed runtime PORT/);
 });
 
-test("renderMosquittoConfig includes password file when credentials exist", () => {
-  const config = loadBrokerConfig({
-    MQTT_ALLOW_ANONYMOUS: "false",
-    MQTT_USERNAME: "piphi",
-    MQTT_PASSWORD: "secret",
-  });
-
+test("renderMosquittoConfig enables ACLs and resource limits", () => {
+  const config = loadBrokerConfig(authenticated);
   const rendered = renderMosquittoConfig(config);
-
   assert.match(rendered, /listener 1883 0.0.0.0/);
   assert.match(rendered, /password_file \/mosquitto\/config\/passwordfile/);
+  assert.match(rendered, /acl_file \/mosquitto\/config\/aclfile/);
+  assert.match(rendered, /max_packet_size 1048576/);
+  assert.match(rendered, /memory_limit 268435456/);
+  assert.equal(renderAcl(config), "user piphi\ntopic readwrite piphi/#\n");
 });
 
-test("loadBrokerConfig requires credentials when anonymous is disabled", () => {
-  assert.throws(
-    () => loadBrokerConfig({ MQTT_ALLOW_ANONYMOUS: "false" }),
-    /MQTT credentials are required/,
-  );
+test("loadBrokerConfig fails closed without authentication or a transport policy", () => {
+  assert.throws(() => loadBrokerConfig({ MQTT_ALLOW_PLAINTEXT: "true" }), /credentials are required/);
+  assert.throws(() => loadBrokerConfig({ MQTT_USERNAME: "piphi", MQTT_PASSWORD: "secret" }), /Plaintext MQTT must be explicitly enabled/);
+  assert.throws(() => loadBrokerConfig({ MQTT_ALLOW_ANONYMOUS: "true", MQTT_ALLOW_PLAINTEXT: "true" }), /Anonymous MQTT is not supported/);
+});
+
+test("loadBrokerConfig rejects directive injection and unsafe paths", () => {
+  assert.throws(() => loadBrokerConfig({ ...authenticated, MQTT_HOST: "0.0.0.0\nallow_anonymous true" }), /Invalid MQTT_HOST/);
+  assert.throws(() => loadBrokerConfig({ ...authenticated, MQTT_TOPIC_PREFIX: "piphi/#" }), /Invalid MQTT_TOPIC_PREFIX/);
+  assert.throws(() => loadBrokerConfig({ ...authenticated, MQTT_CONFIG_OUTPUT: "/tmp/mosquitto.conf" }), /Invalid MQTT_CONFIG_OUTPUT/);
+});
+
+test("TLS requires a certificate and key and renders verified TLS", () => {
+  assert.throws(() => loadBrokerConfig({ MQTT_USERNAME: "piphi", MQTT_PASSWORD: "secret", MQTT_TLS_ENABLED: "true" }), /TLS_CERT_FILE/);
+  const config = loadBrokerConfig({
+    MQTT_USERNAME: "piphi",
+    MQTT_PASSWORD_SECRET_FILE: "/run/secrets/mqtt-password",
+    MQTT_TLS_ENABLED: "true",
+    MQTT_TLS_CERT_FILE: "/run/secrets/server.crt",
+    MQTT_TLS_KEY_FILE: "/run/secrets/server.key",
+    MQTT_TLS_CA_FILE: "/run/secrets/ca.crt",
+  });
+  const rendered = renderMosquittoConfig(config);
+  assert.match(rendered, /certfile \/run\/secrets\/server.crt/);
+  assert.match(rendered, /tls_version tlsv1.2/);
+  assert.doesNotMatch(rendered, /allow_anonymous true/);
 });

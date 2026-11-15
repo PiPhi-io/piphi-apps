@@ -17,7 +17,8 @@
       "npm ci",
       "npm audit --omit=dev --audit-level=high",
       "npm run test",
-      "npm run build"
+      "npm run build",
+      "sh tests/container-smoke.sh"
     ],
     "build_container": true
   },
@@ -25,7 +26,7 @@
     {
       "id": "piphi.service.mqtt-broker",
       "type": "platform_service",
-      "version": "0.1.7",
+      "version": "0.2.0",
       "manifest": "src/manifest.json",
       "release": {
         "tag": "apps/{package_id}/v{version}",
