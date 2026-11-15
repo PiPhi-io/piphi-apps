@@ -3,8 +3,8 @@
   "manifest_version": "1.0",
   "id": "piphi-network-knx",
   "name": "KNX",
-  "version": "0.1.0",
-  "description": "Expose project- and datapoint-negotiated KNX/IP building controls.",
+  "version": "0.2.0",
+  "description": "Connect a KNX/IP tunnel and expose explicitly reviewed, typed datapoints.",
   "metadata": {
     "generator": "piphi-network-create",
     "scaffold_version": "0.3.0",
@@ -17,7 +17,7 @@
     "website": "https://piphi.io"
   },
   "license": "Apache-2.0",
-  "image": "docker.io/piphinetwork/piphi-network-knx:0.1.0",
+  "image": "ghcr.io/piphi-io/piphi-network-knx:0.2.0",
   "platforms": [
     "linux"
   ],
@@ -25,7 +25,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "docker.io/piphinetwork/piphi-network-knx:0.1.0",
+        "image": "ghcr.io/piphi-io/piphi-network-knx:0.2.0",
         "ports": [
           {
             "container": 4223,
@@ -33,15 +33,24 @@
           }
         ],
         "environment": {
-          "LOG_LEVEL": "info"
+          "LOG_LEVEL": "info",
+          "PIPHI_KNX_CONFIG_PATH": "/app/data/knx-configs.json",
+          "PIPHI_AUTOMATION_LEDGER_PATH": "/app/data/automation-actions.sqlite3"
         },
+        "volumes": [
+          {
+            "host": "/var/lib/piphi/knx",
+            "container": "/app/data",
+            "mode": "rw"
+          }
+        ],
         "restart_policy": {
           "name": "unless-stopped",
           "maximum_retry_count": 0
         }
       },
       "discovery": {
-        "method": "passive"
+        "method": "active"
       }
     }
   },
@@ -74,8 +83,15 @@
     "editable_fields": [
       "host",
       "alias",
-      "bridge_address",
-      "protocol"
+      "port",
+      "transport",
+      "local_ip",
+      "rate_limit",
+      "queue_size",
+      "connect_timeout_seconds",
+      "command_timeout_seconds",
+      "allow_writes",
+      "datapoints"
     ],
     "runtime_fields": [
       "id",
@@ -97,30 +113,47 @@
       "kind": "sensor",
       "unit": "bool"
     },
-    "refresh": {
-      "kind": "action"
-    }
+      "datapoint_value": {
+        "kind": "sensor"
+      },
+      "read_datapoint": {
+        "kind": "action"
+      },
+      "write_datapoint": {
+        "kind": "action"
+      }
   },
   "commands": {
-    "refresh": {
-      "description": "Refresh the device state.",
-      "timeout_ms": 5000
+    "read_datapoint": {
+      "description": "Request one configured datapoint's current value.",
+      "timeout_ms": 10000
+    },
+    "write_datapoint": {
+      "description": "Write one explicitly allowlisted, typed datapoint.",
+      "timeout_ms": 10000
     }
   },
   "entities": [
     {
-      "id": "demo-device",
-      "name": "Demo Device",
-      "device_id": "demo-device",
-      "entity_type": "knx_device",
+      "id": "configured-datapoint",
+      "name": "Configured KNX datapoint",
+      "device_id": "configured-knx-interface",
+      "entity_type": "knx_datapoint",
       "capabilities": [
         "connected",
-        "refresh"
+        "datapoint_value",
+        "read_datapoint",
+        "write_datapoint"
       ],
       "available_commands": [
         {
-          "id": "refresh",
-          "label": "Refresh",
+          "id": "read_datapoint",
+          "label": "Read datapoint",
+          "kind": "action"
+        },
+        {
+          "id": "write_datapoint",
+          "label": "Write datapoint",
           "kind": "action"
         }
       ],
@@ -146,8 +179,8 @@
   "marketplace": {
     "metadata_version": 2,
     "display_name": "KNX",
-    "summary": "Expose project- and datapoint-negotiated KNX/IP building controls.",
-    "category": "other",
+    "summary": "Connect an exclusive KNX/IP tunnel and expose reviewed datapoints with safe typed reads and writes.",
+    "category": "building_automation",
     "regions": [
       "WW"
     ],
@@ -171,7 +204,7 @@
     "compatibility": [
       {
         "brand": "KNX Association",
-        "model": "KNX/IP projects and datapoints represented in the imported project"
+        "model": "KNXnet/IP tunnelling interfaces using configured DPT 1.001, 5.001, or 9.001 datapoints"
       }
     ],
     "documentation_url": "https://github.com/PiPhi-io/piphi-network-knx",
@@ -190,19 +223,17 @@
     "device_types": [
       "building control",
       "light",
-      "climate system",
-      "cover",
       "sensor"
     ],
     "protocols": [
       "KNX/IP"
     ],
     "discovery_methods": [
-      "project import",
+      "KNX/IP search",
       "manual"
     ],
     "connectivity": "local",
-    "offline_support": "full"
+    "offline_support": "none"
   },
   "onboarding": {
     "mode": "manual"

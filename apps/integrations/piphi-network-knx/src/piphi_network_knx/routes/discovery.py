@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from fastapi import APIRouter
+from typing import Any
+
+from fastapi import APIRouter, HTTPException
 from piphi_runtime_kit_python import (
     IntegrationDiscoveryRequest,
     build_discovery_response,
@@ -8,25 +10,21 @@ from piphi_runtime_kit_python import (
 )
 
 from ..contract import CONFIG_SCHEMA
+from ..protocol import discover_gateways
 
 router = APIRouter(tags=["discovery"])
 
 
 @router.post("/discover")
-async def discover(payload: IntegrationDiscoveryRequest | None = None):
+async def discover(payload: IntegrationDiscoveryRequest | None = None) -> Any:
     inputs = normalize_discovery_inputs(payload.inputs if payload else None)
-    return build_discovery_response(
-        [
-            {
-                "id": "demo-device",
-                "device_id": "demo-device",
-                "host": inputs.get("host", "127.0.0.1"),
-                "alias": "Demo Device",
-            }
-        ]
-    )
+    try:
+        gateways = await discover_gateways(inputs.get("local_ip"))
+    except (OSError, ValueError) as exc:
+        raise HTTPException(status_code=503, detail="KNX/IP discovery failed") from exc
+    return build_discovery_response(gateways)
 
 
 @router.get("/ui-config")
-async def ui_config():
+async def ui_config() -> dict[str, Any]:
     return CONFIG_SCHEMA

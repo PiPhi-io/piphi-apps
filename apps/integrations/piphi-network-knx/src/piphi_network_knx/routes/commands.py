@@ -11,27 +11,32 @@ router = APIRouter(tags=["commands"])
 
 
 @router.post("/command")
-async def command(payload: dict[str, Any], request: Request):
+async def command(payload: dict[str, Any], request: Request) -> dict[str, Any]:
     command_name = str(payload.get("command") or payload.get("capability_id") or "").strip()
     if not command_name:
         raise HTTPException(status_code=400, detail="Missing command")
     if command_name not in commands:
         raise HTTPException(status_code=400, detail=f"Unsupported command: {command_name}")
 
-    target = payload.get("target") if isinstance(payload.get("target"), dict) else {}
-    device_id = str(payload.get("device_id") or target.get("device_id") or "demo-device")
-    config_id = str(payload.get("config_id") or target.get("config_id") or device_id)
+    target_raw = payload.get("target")
+    target: dict[str, Any] = target_raw if isinstance(target_raw, dict) else {}
+    device_id = str(payload.get("device_id") or target.get("device_id") or "")
+    config_id = str(payload.get("config_id") or target.get("config_id") or "")
+    if not config_id:
+        raise HTTPException(status_code=400, detail="Missing config_id")
     requirements = payload.get("capability_requirements")
     requested_capabilities = [
         str(item).strip()
-        for item in ([payload.get("capability")] + (requirements if isinstance(requirements, list) else []))
+        for item in (
+            [payload.get("capability")] + (requirements if isinstance(requirements, list) else [])
+        )
         if str(item or "").strip()
     ]
     unsupported_capability = next(
         (
             capability
             for capability in requested_capabilities
-            if capability not in {"device.refresh", f"action.{command_name}"}
+            if capability not in {command_name, f"action.{command_name}"}
         ),
         None,
     )

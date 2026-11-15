@@ -1,44 +1,33 @@
 {
   "entities": [
     {
-      "id": "demo-device",
-      "name": "Demo Device",
-      "device_id": "demo-device",
-      "entity_type": "knx_device",
-      "capabilities": [
-        "connected",
-        "refresh"
-      ],
+      "id": "knx-main-building:office_light",
+      "name": "Office light",
+      "config_id": "main-building",
+      "device_id": "knx-main-building",
+      "entity_type": "light",
+      "capabilities": ["connected", "datapoint_value", "read_datapoint", "write_datapoint"],
       "available_commands": [
-        {
-          "id": "refresh",
-          "label": "Refresh",
-          "kind": "action"
-        }
+        {"id": "read_datapoint", "label": "Read Datapoint", "kind": "action"},
+        {"id": "write_datapoint", "label": "Write Datapoint", "kind": "action"}
       ],
-      "dashboard": {
-        "allowed_widgets": [
-          "tile",
-          "stat",
-          "button"
-        ],
-        "default_widget": "tile"
+      "state": {
+        "value": true,
+        "quality": "fresh",
+        "updated_at": "2026-11-15T12:00:00+00:00",
+        "dpt": "1.001",
+        "unit": null
       }
     }
   ],
   "capabilities": {
-    "connected": {
-      "kind": "sensor",
-      "unit": "bool"
-    },
-    "refresh": {
-      "kind": "action"
-    }
+    "connected": {"kind": "sensor", "unit": "bool"},
+    "datapoint_value": {"kind": "sensor"},
+    "read_datapoint": {"kind": "action"},
+    "write_datapoint": {"kind": "action"}
   },
   "commands": {
-    "refresh": {
-      "description": "Refresh the device state.",
-      "timeout_ms": 5000
-    }
+    "read_datapoint": {"description": "Request one configured datapoint's current value.", "timeout_ms": 10000},
+    "write_datapoint": {"description": "Write one explicitly allowlisted, typed datapoint.", "timeout_ms": 10000}
   }
 }
