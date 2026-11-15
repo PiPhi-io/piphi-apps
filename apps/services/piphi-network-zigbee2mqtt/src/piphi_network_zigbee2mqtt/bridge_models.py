@@ -138,6 +138,7 @@ class ConfigWriteResult(BaseModel):
 
 class NetworkBackupRequest(BaseModel):
     data_path: str
+    adapter_family: str = Field(default="unknown", min_length=1, max_length=64)
 
 
 class NetworkBackupResponse(BaseModel):
@@ -145,6 +146,36 @@ class NetworkBackupResponse(BaseModel):
     backup_sha256: str
     files: list[str]
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class NetworkRestoreRequest(BaseModel):
+    data_path: str
+    backup_path: str
+    backup_sha256: str
+    adapter_family: str = Field(min_length=1, max_length=64)
+    coordinator_identity: str = Field(min_length=1, max_length=256)
+    coordinator_port: str
+    confirm_restore: bool = False
+
+
+class NetworkRestoreResponse(BaseModel):
+    restored: bool
+    files: list[str]
+    rollback_backup: NetworkBackupResponse
+    message: str
+
+
+class CoordinatorProbeRequest(BaseModel):
+    port: str
+
+
+class CoordinatorProbeResponse(BaseModel):
+    available: bool
+    in_use: bool
+    method: str
+    exclusive_verified: bool
+    holders: list[str] = Field(default_factory=list)
+    message: str | None = None
 
 
 class BridgeSnapshot(BaseModel):

@@ -6,10 +6,12 @@ from ..adapter_detector import discover_adapters
 from ..bridge_models import (
     ApplyBridgeRequest,
     ApplyBridgeResponse,
+    CoordinatorProbeRequest,
     DeviceListRequest,
     MqttCheckRequest,
     NetworkBackupRequest,
     NetworkMapRequest,
+    NetworkRestoreRequest,
     PermitJoinRequest,
     PrerequisiteCheckRequest,
     SupervisorLogsRequest,
@@ -26,7 +28,8 @@ from ..coordinator_claims import (
     claim_store,
     stable_coordinator_identity,
 )
-from ..network_backup import create_network_backup, verify_network_backup
+from ..coordinator_probe import probe_coordinator
+from ..network_backup import create_network_backup, restore_network_backup, verify_network_backup
 from ..state import sidecar_store
 from ..supervisor import check_prerequisites, supervise, supervisor_logs
 from ..zigbee2mqtt_mqtt import (
@@ -48,12 +51,59 @@ async def adapters():
     return {"adapters": discover_adapters()}
 
 
+@router.post("/coordinator/probe")
+async def coordinator_probe(payload: CoordinatorProbeRequest):
+    try:
+        return probe_coordinator(payload.port)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @router.post("/network-backup")
 async def network_backup(payload: NetworkBackupRequest):
     try:
-        return create_network_backup(payload.data_path)
+        return create_network_backup(payload.data_path, adapter_family=payload.adapter_family)
     except (OSError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/network-restore")
+async def network_restore(payload: NetworkRestoreRequest):
+    if not payload.confirm_restore:
+        raise HTTPException(status_code=400, detail="Network restore requires explicit confirmation.")
+    probe = probe_coordinator(payload.coordinator_port)
+    if not probe.available:
+        raise HTTPException(
+            status_code=409,
+            detail=probe.message or "Coordinator must be stopped before restore.",
+        )
+    identity = stable_coordinator_identity(payload.coordinator_identity)
+    owner_id = claim_owner_id()
+    already_owned = (
+        sidecar_store.coordinator_identity == identity
+        and sidecar_store.coordinator_owner_id == owner_id
+    )
+    try:
+        claim_store.claim(identity, owner_id)
+        result = restore_network_backup(
+            data_path=payload.data_path,
+            backup_path=payload.backup_path,
+            expected_sha256=payload.backup_sha256,
+            adapter_family=payload.adapter_family,
+        )
+        sidecar_store.current_config = None
+        sidecar_store.current_render = None
+        sidecar_store.config_path = None
+        sidecar_store.config_hash = None
+        sidecar_store.last_error = None
+        return result
+    except CoordinatorClaimConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except (OSError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    finally:
+        if not already_owned:
+            claim_store.release(identity, owner_id)
 
 
 @router.post("/devices")
@@ -318,6 +368,13 @@ def _require_safe_network_change(payload: WriteConfigRequest) -> None:
 def _claim_coordinator(payload: WriteBridgeRequest) -> tuple[str, str]:
     coordinator_identity = stable_coordinator_identity(payload.coordinator_identity)
     owner_id = claim_owner_id()
+    if sidecar_store.coordinator_identity != coordinator_identity:
+        probe = probe_coordinator(payload.config.serial.port)
+        if not probe.available:
+            raise HTTPException(
+                status_code=409,
+                detail=probe.message or "Coordinator is unavailable or already in use.",
+            )
     try:
         claim_store.claim(coordinator_identity, owner_id)
     except CoordinatorClaimConflict as exc:
