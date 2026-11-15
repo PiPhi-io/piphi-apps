@@ -125,7 +125,10 @@ CONFIG_SCHEMA: dict[str, Any] = {
             },
             "register_address": {"type": "integer", "title": "Zero-based holding register address", "minimum": 0, "maximum": 65535},
             "unit_id": {"type": "integer", "title": "Modbus unit ID", "minimum": 1, "maximum": 247},
-            "poll_interval_seconds": {"type": "integer", "title": "Poll interval (seconds)", "minimum": 60}
+            "poll_interval_seconds": {"type": "integer", "title": "Default poll interval (seconds; 0 disables polling)", "minimum": 0, "maximum": 86400},
+            "inter_message_delay_ms": {"type": "integer", "title": "Inter-message delay (milliseconds)", "minimum": 0, "maximum": 5000},
+            "poll_jitter_percent": {"type": "number", "title": "Poll jitter (%)", "minimum": 0, "maximum": 50},
+            "poll_backoff_max_seconds": {"type": "integer", "title": "Maximum failure backoff (seconds)", "minimum": 1, "maximum": 86400}
         }
     },
     "uiSchema": {
@@ -137,7 +140,10 @@ CONFIG_SCHEMA: dict[str, Any] = {
         },
         "register_address": {"placeholder": "0"},
         "unit_id": {"placeholder": "1"},
-        "poll_interval_seconds": {"placeholder": "300"}
+        "poll_interval_seconds": {"placeholder": "300"},
+        "inter_message_delay_ms": {"placeholder": "0"},
+        "poll_jitter_percent": {"placeholder": "10"},
+        "poll_backoff_max_seconds": {"placeholder": "300"}
     }
 }
 

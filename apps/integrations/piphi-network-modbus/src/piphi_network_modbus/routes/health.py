@@ -4,7 +4,7 @@ from fastapi import APIRouter
 
 from ..contract import ENDPOINTS, REQUIRED_ENDPOINTS
 from ..settings import PROJECT_KIND
-from ..state import registry, starter
+from ..state import polling_diagnostics, registry, starter
 
 router = APIRouter(tags=["health"])
 
@@ -20,6 +20,7 @@ async def diagnostics():
         diagnostics={
             "active_config_ids": registry.ids(),
             "recent_event_count": len(registry.recent_events),
+            "modbus": polling_diagnostics(),
             "kind": PROJECT_KIND,
             "contract": {
                 "endpoints": ENDPOINTS,

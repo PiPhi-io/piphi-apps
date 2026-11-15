@@ -78,6 +78,10 @@ async def test_authenticated_snapshot_refresh_and_constrained_write(
             assert snapshot["connected"] is True
             assert snapshot["profile_id"] == "acme.meter"
             assert snapshot["points"][0]["value"] == pytest.approx(21.5)
+            assert snapshot["request_success_count"] == 1
+            assert snapshot["request_failure_count"] == 0
+            assert snapshot["unit_health"][0]["last_success_at"]
+            assert snapshot["poll_duration_ms"] >= 0
             assert "never-exposed" not in str(snapshot)
 
             written = await client.post(
@@ -111,6 +115,25 @@ async def test_authenticated_snapshot_refresh_and_constrained_write(
             )
             assert rejected.status_code == 400
             assert "above_maximum" in rejected.text
+
+            async def timeout_read(_point):
+                raise TimeoutError("modbus_response_timeout")
+
+            monkeypatch.setattr(controller.session, "read", timeout_read)
+            refreshed = await client.post(
+                "/v1/modbus/refresh",
+                headers=headers,
+                json={"config_id": "api-test", "point_id": "temperature"},
+            )
+            assert refreshed.status_code == 200
+            failed_snapshot = (
+                await client.get(
+                    "/v1/modbus/snapshot?config_id=api-test", headers=headers
+                )
+            ).json()
+            assert failed_snapshot["timeout_count"] == 1
+            assert failed_snapshot["request_failure_count"] == 1
+            assert failed_snapshot["unit_health"][0]["consecutive_error_count"] == 1
         finally:
             await client.post("/deconfigure/api-test", headers=headers)
 

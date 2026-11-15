@@ -29,13 +29,21 @@ argument such as brightness, position, mode, fan speed, or temperature. Runtime
 callers cannot override the point, unit, address, function, or confirmation
 policy.
 
+Polling can be split into reviewed point groups with independent intervals and
+priorities. An interval of `0` disables periodic reads while keeping manual
+refresh available. The scheduler adds bounded jitter and exponential failure
+backoff; TCP and grouped RTU reads support an explicit inter-message delay.
+Diagnostics report poll latency and outcomes, stale-point counts, retries,
+timeouts, reconnects, queue high-water marks, and per-unit last-success health
+without exposing raw frames, credentials, or serial paths.
+
 The original `register_address` plus optional `unit_id` configuration remains
 supported for compatibility as a read-only unsigned holding-register entity.
 
 ## Managed RTU sidecar
 
 Installing this integration also installs the shared
-`piphi-modbus-rtu-sidecar` service in the compatible `0.3.x` line. The service
+`piphi-modbus-rtu-sidecar` service in the compatible `0.4.x` line. The service
 has no host-published port, runs in production authentication mode, and receives
 `/dev/serial` access for explicitly configured RTU ports. The parent reaches it
 only on the internal service network at
@@ -103,6 +111,6 @@ and untrusted profiles remain excluded.
 ## Docker
 
 ```bash
-docker build -t ghcr.io/piphi-io/piphi-network-modbus:0.5.0 .
-docker run --rm -p 4222:4222 ghcr.io/piphi-io/piphi-network-modbus:0.5.0
+docker build -t ghcr.io/piphi-io/piphi-network-modbus:0.6.0 .
+docker run --rm -p 4222:4222 ghcr.io/piphi-io/piphi-network-modbus:0.6.0
 ```

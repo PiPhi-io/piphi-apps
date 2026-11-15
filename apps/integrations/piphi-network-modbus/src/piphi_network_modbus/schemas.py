@@ -246,13 +246,31 @@ class CompositeProfile(BaseModel):
         return self
 
 
+class PollGroupProfile(BaseModel):
+    id: str = Field(pattern=r"^[a-z][a-z0-9_]{0,63}$")
+    point_ids: list[str] = Field(min_length=1, max_length=256)
+    interval_seconds: int = Field(default=15, ge=0, le=86400)
+    priority: int = Field(default=0, ge=-100, le=100)
+
+    @field_validator("point_ids")
+    @classmethod
+    def unique_point_ids(cls, value: list[str]) -> list[str]:
+        if len(value) != len(set(value)):
+            raise ValueError("poll group point ids must be unique")
+        return value
+
+
 class DeviceConfig(RuntimeConfig):
     host: str
     transport: Literal["tcp", "rtu_sidecar"] = "tcp"
     alias: str | None = None
     api_key: str | None = None
     base_url: str | None = None
-    poll_interval_seconds: int | None = None
+    poll_interval_seconds: int | None = Field(default=None, ge=0, le=86400)
+    poll_groups: list[PollGroupProfile] = Field(default_factory=list, max_length=32)
+    inter_message_delay_ms: int = Field(default=0, ge=0, le=5000)
+    poll_jitter_percent: float = Field(default=10.0, ge=0, le=50, allow_inf_nan=False)
+    poll_backoff_max_seconds: int = Field(default=300, ge=1, le=86400)
     service_name: str | None = None
     register_address: int | None = None
     unit_id: int | None = None
@@ -295,6 +313,22 @@ class DeviceConfig(RuntimeConfig):
             if not self.serial_port or not self.points:
                 raise ValueError("rtu_sidecar requires serial_port and points")
         point_by_id = {point.id: point for point in self.points}
+        group_ids = [group.id for group in self.poll_groups]
+        if len(group_ids) != len(set(group_ids)):
+            raise ValueError("poll group ids must be unique")
+        grouped_points: set[str] = set()
+        for group in self.poll_groups:
+            unknown = set(group.point_ids) - set(point_by_id)
+            if unknown:
+                raise ValueError(
+                    f"poll group {group.id} references unknown points: {sorted(unknown)}"
+                )
+            duplicate = grouped_points & set(group.point_ids)
+            if duplicate:
+                raise ValueError(
+                    f"points may belong to only one poll group: {sorted(duplicate)}"
+                )
+            grouped_points.update(group.point_ids)
         composite_ids = [composite.id for composite in self.composites]
         if len(composite_ids) != len(set(composite_ids)):
             raise ValueError("composite ids must be unique")
