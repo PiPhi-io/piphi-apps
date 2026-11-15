@@ -1,28 +1,50 @@
 #!/bin/sh
 set -eu
 
-node /app/dist/src/cli.js
+umask 027
+config_file="${MQTT_CONFIG_OUTPUT:-/mosquitto/config/mosquitto.conf}"
+password_file="${MQTT_PASSWORD_FILE:-/mosquitto/config/passwordfile}"
+password_candidate="${password_file}.candidate"
 
-if [ -n "${MQTT_USERNAME:-}" ] && [ -n "${MQTT_PASSWORD:-}" ]; then
-  password_file="${MQTT_PASSWORD_FILE:-/mosquitto/config/passwordfile}"
-  mkdir -p "$(dirname "$password_file")"
-  mosquitto_passwd -b -c "$password_file" "$MQTT_USERNAME" "$MQTT_PASSWORD"
+cleanup() {
+  rm -f "$password_candidate" "${config_file}.candidate"
+}
+trap cleanup EXIT HUP INT TERM
 
-  if id mosquitto >/dev/null 2>&1; then
-    chown mosquitto:mosquitto "$password_file"
-    chmod 0640 "$password_file"
+if [ -n "${MQTT_USERNAME:-}" ]; then
+  if [ -n "${MQTT_PASSWORD_SECRET_FILE:-}" ]; then
+    password="$(cat "$MQTT_PASSWORD_SECRET_FILE")"
   else
-    chmod 0644 "$password_file"
+    password="${MQTT_PASSWORD:-}"
   fi
+  [ -n "$password" ] || { echo "MQTT password is empty" >&2; exit 1; }
+  mkdir -p "$(dirname "$password_file")"
+  printf '%s:%s\n' "$MQTT_USERNAME" "$password" > "$password_candidate"
+  unset password
+  mosquitto_passwd -U "$password_candidate"
+  chown mosquitto:mosquitto "$password_candidate"
+  chmod 0640 "$password_candidate"
+  mv -f "$password_candidate" "$password_file"
 fi
 
-if id mosquitto >/dev/null 2>&1; then
-  for path in /mosquitto/config /mosquitto/data /mosquitto/log; do
-    mkdir -p "$path"
-    chown -R mosquitto:mosquitto "$path" 2>/dev/null || {
-      echo "warning: unable to update ownership for $path" >&2
-    }
-  done
-fi
+MQTT_CONFIG_OUTPUT="${config_file}.candidate" node /app/dist/src/cli.js
 
-exec mosquitto -c "${MQTT_CONFIG_OUTPUT:-/mosquitto/config/mosquitto.conf}"
+for path in /mosquitto/config /mosquitto/data /mosquitto/log; do
+  mkdir -p "$path"
+  chown -R mosquitto:mosquitto "$path" 2>/dev/null || {
+    echo "warning: unable to update ownership for $path" >&2
+  }
+done
+
+mosquitto -c "${config_file}.candidate" &
+validation_pid=$!
+sleep 1
+if ! kill -0 "$validation_pid" 2>/dev/null; then
+  wait "$validation_pid"
+  exit 1
+fi
+kill -TERM "$validation_pid"
+wait "$validation_pid"
+mv -f "${config_file}.candidate" "$config_file"
+trap - EXIT HUP INT TERM
+exec mosquitto -c "$config_file"

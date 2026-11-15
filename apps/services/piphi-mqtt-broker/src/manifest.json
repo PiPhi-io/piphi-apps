@@ -4,7 +4,7 @@
   "id": "piphi.service.mqtt-broker",
   "name": "MQTT Broker",
   "description": "Shared MQTT broker for PiPhi integrations and helpers.",
-  "version": "0.1.7",
+  "version": "0.2.0",
   "platforms": [
     "linux"
   ],
@@ -12,10 +12,13 @@
     "linux": {
       "type": "container",
       "health": {
-        "type": "none"
+        "type": "container"
       },
       "container": {
-        "image": "ghcr.io/piphi-io/mqtt-broker:0.1.7",
+        "image": "ghcr.io/piphi-io/mqtt-broker:0.2.0",
+        "environment": {
+          "MQTT_ALLOW_PLAINTEXT": "true"
+        },
         "ports": [
           {
             "container": 1883
@@ -52,18 +55,22 @@
           "type": "integer",
           "title": "MQTT Port",
           "x-env": "MQTT_PORT",
-          "default": 1883
+          "default": 1883,
+          "minimum": 1,
+          "maximum": 65535
         },
-        "allow_anonymous": {
+        "allow_plaintext": {
           "type": "boolean",
-          "title": "Allow Anonymous Clients",
-          "x-env": "MQTT_ALLOW_ANONYMOUS",
-          "default": false
+          "title": "Allow Plaintext on the Private Service Network",
+          "description": "Enable only when network isolation is enforced by PiPhi Core.",
+          "x-env": "MQTT_ALLOW_PLAINTEXT",
+          "default": true
         },
         "username": {
           "type": "string",
           "title": "Broker Username",
-          "x-env": "MQTT_USERNAME"
+          "x-env": "MQTT_USERNAME",
+          "pattern": "^[A-Za-z0-9._-]{1,128}$"
         },
         "password": {
           "type": "string",
@@ -75,7 +82,29 @@
           "type": "string",
           "title": "Topic Prefix",
           "x-env": "MQTT_TOPIC_PREFIX",
-          "default": "piphi"
+          "default": "piphi",
+          "pattern": "^[A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]+)*$"
+        },
+        "tls_enabled": {
+          "type": "boolean",
+          "title": "Enable TLS",
+          "x-env": "MQTT_TLS_ENABLED",
+          "default": false
+        },
+        "tls_ca_file": {
+          "type": "string",
+          "title": "TLS CA File",
+          "x-env": "MQTT_TLS_CA_FILE"
+        },
+        "tls_cert_file": {
+          "type": "string",
+          "title": "TLS Certificate File",
+          "x-env": "MQTT_TLS_CERT_FILE"
+        },
+        "tls_key_file": {
+          "type": "string",
+          "title": "TLS Private Key File",
+          "x-env": "MQTT_TLS_KEY_FILE"
         }
       }
     }
