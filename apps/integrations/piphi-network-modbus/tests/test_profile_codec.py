@@ -43,6 +43,45 @@ def test_signed_64_and_float64_round_trip() -> None:
     assert decode_point(floating, encode_point(floating, 1.5)) == 1.5
 
 
+def test_float16_precision_invalid_sentinel_and_clamp_policies() -> None:
+    half = point(data_type="float16")
+    assert encode_point(half, 1.5) == [0x3E00]
+    assert decode_point(half, [0x3E00]) == 1.5
+
+    rounded = point(data_type="float32", precision=2)
+    assert decode_point(rounded, [0x3F9E, 0x064B]) == 1.23
+    with pytest.raises(ValueError, match="exceeds_precision"):
+        encode_point(rounded, 1.234)
+
+    sentinel = point(data_type="uint16", invalid_raw_values=[[0xFFFF]])
+    with pytest.raises(ValueError, match="invalid_profile_raw_value"):
+        decode_point(sentinel, [0xFFFF])
+    with pytest.raises(ValueError, match="encodes_invalid"):
+        encode_point(sentinel, 0xFFFF)
+
+    clamped = point(
+        data_type="int16",
+        minimum=-10,
+        maximum=10,
+        out_of_range_policy="clamp",
+    )
+    assert decode_point(clamped, [20]) == 10
+    assert decode_point(clamped, [0xFFEC]) == -10
+    with pytest.raises(ValueError, match="above_maximum"):
+        encode_point(clamped, 20)
+
+
+def test_value_policy_schema_validation_fails_closed() -> None:
+    with pytest.raises(ValidationError, match="match the point width"):
+        point(data_type="uint32", invalid_raw_values=[[0xFFFF]])
+    with pytest.raises(ValidationError, match="unique"):
+        point(invalid_raw_values=[[1], [1]])
+    with pytest.raises(ValidationError, match="bounded plain numeric"):
+        point(out_of_range_policy="clamp")
+    with pytest.raises(ValidationError, match="plain numeric"):
+        point(data_type="string", string_length=4, precision=2)
+
+
 @pytest.mark.parametrize(
     ("byte_order", "words"),
     [

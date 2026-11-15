@@ -31,9 +31,12 @@ auto-installs the compatible sidecar release and never stores this token in a
 device profile.
 
 Profile values support booleans, signed and unsigned 16-, 32-, and 64-bit
-integers, `float32`, `float64`, bounded fixed strings, reviewed enum labels, and
+integers, `float16`, `float32`, `float64`, bounded fixed strings, reviewed enum labels, and
 read-only bitfields. Multi-register values use explicit `ABCD`, `BADC`, `CDAB`,
 or `DCBA` byte/word policies; no executable unpack format is accepted.
+Exact invalid raw vectors, bounded read clamping, and decimal precision are
+profile-owned. Invalid/non-finite reads become unavailable, and writes cannot
+encode an invalid sentinel or bypass range and precision constraints.
 
 ## Run locally
 
@@ -75,9 +78,9 @@ The runtime listens on port `4212` by default and exposes the common PiPhi runti
 ## Docker
 
 ```bash
-docker build -t ghcr.io/piphi-io/piphi-modbus-rtu-sidecar:0.6.0 .
+docker build -t ghcr.io/piphi-io/piphi-modbus-rtu-sidecar:0.7.0 .
 docker run --rm --device /dev/serial:/dev/serial \
   -e PIPHI_ENV=production \
   -e PIPHI_MODBUS_SIDECAR_TOKEN=replace-with-a-local-test-token \
-  -p 4212:4212 ghcr.io/piphi-io/piphi-modbus-rtu-sidecar:0.6.0
+  -p 4212:4212 ghcr.io/piphi-io/piphi-modbus-rtu-sidecar:0.7.0
 ```

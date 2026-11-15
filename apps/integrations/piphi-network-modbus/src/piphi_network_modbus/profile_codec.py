@@ -11,7 +11,7 @@ from .schemas import PointProfile
 
 INTEGER_TYPES = {"uint16", "int16", "uint32", "int32", "uint64", "int64"}
 SIGNED_TYPES = {"int16", "int32", "int64"}
-FLOAT_FORMATS = {"float32": ">f", "float64": ">d"}
+FLOAT_FORMATS = {"float16": ">e", "float32": ">f", "float64": ">d"}
 
 
 def _ordered_bytes(raw: bytes, byte_order: str) -> bytes:
@@ -49,6 +49,8 @@ def decode_point(point: PointProfile, values: list[int | bool]) -> bool | int | 
         return values[0]
     if len(values) != point.width or any(type(value) is not int for value in values):
         raise ValueError("invalid_point_width")
+    if values in point.invalid_raw_values:
+        raise ValueError("invalid_profile_raw_value")
     raw = b"".join(int(value).to_bytes(2, "big") for value in values)
     raw = _ordered_bytes(raw, point.byte_order)
     if point.data_type == "string":
@@ -74,9 +76,15 @@ def decode_point(point: PointProfile, values: list[int | bool]) -> bool | int | 
         else float(decoded) * point.scale + point.offset
     )
     if point.minimum is not None and result < point.minimum:
-        raise ValueError("point_value_below_minimum")
+        if point.out_of_range_policy == "clamp":
+            result = point.minimum
+        else:
+            raise ValueError("point_value_below_minimum")
     if point.maximum is not None and result > point.maximum:
-        raise ValueError("point_value_above_maximum")
+        if point.out_of_range_policy == "clamp":
+            result = point.maximum
+        else:
+            raise ValueError("point_value_above_maximum")
     if point.enum_values is not None:
         label = next(
             (label for label, mapped in point.enum_values.items() if mapped == result),
@@ -85,7 +93,7 @@ def decode_point(point: PointProfile, values: list[int | bool]) -> bool | int | 
         if label is None:
             raise ValueError("unknown_enum_value")
         return label
-    return result
+    return round(result, point.precision) if point.precision is not None else result
 
 
 def encode_point(point: PointProfile, value: Any) -> list[int | bool]:
@@ -106,16 +114,21 @@ def encode_point(point: PointProfile, value: Any) -> list[int | bool]:
             raise ValueError("string_value_too_long")
         raw = encoded.ljust(point.width * 2, b"\0")
         raw = _ordered_bytes(raw, point.byte_order)
-        return [
+        words = [
             int.from_bytes(raw[index : index + 2], "big")
             for index in range(0, len(raw), 2)
         ]
+        if words in point.invalid_raw_values:
+            raise ValueError("point_value_encodes_invalid_raw_value")
+        return words
     if point.enum_values is not None:
         if not isinstance(value, str) or value not in point.enum_values:
             raise ValueError("unknown_enum_label")
         value = point.enum_values[value]
     if type(value) not in {int, float} or not math.isfinite(float(value)):
         raise ValueError("finite_numeric_value_required")
+    if point.precision is not None and round(float(value), point.precision) != float(value):
+        raise ValueError("point_value_exceeds_precision")
     if point.minimum is not None and value < point.minimum:
         raise ValueError("point_value_below_minimum")
     if point.maximum is not None and value > point.maximum:
@@ -143,10 +156,13 @@ def encode_point(point: PointProfile, value: Any) -> list[int | bool]:
     except (OverflowError, struct.error) as exc:
         raise ValueError("point_value_not_representable") from exc
     raw = _ordered_bytes(raw, point.byte_order)
-    return [
+    words = [
         int.from_bytes(raw[index : index + 2], "big")
         for index in range(0, len(raw), 2)
     ]
+    if words in point.invalid_raw_values:
+        raise ValueError("point_value_encodes_invalid_raw_value")
+    return words
 
 
 def point_metadata(point: PointProfile) -> dict[str, Any]:
@@ -167,4 +183,7 @@ def point_metadata(point: PointProfile) -> dict[str, Any]:
         "writable": point.writable,
         "minimum": point.minimum,
         "maximum": point.maximum,
+        "precision": point.precision,
+        "out_of_range_policy": point.out_of_range_policy,
+        "invalid_raw_values": point.invalid_raw_values,
     }

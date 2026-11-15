@@ -403,7 +403,13 @@ class ModbusTCPClient:
                 for point in block.points:
                     offset = point.address - block.address
                     raw = values[offset : offset + point.width]
-                    decoded = decode_point(point, raw)
+                    try:
+                        decoded = decode_point(point, raw)
+                    except ValueError as exc:
+                        point_error = str(exc) or type(exc).__name__
+                        results[point.id]["error_code"] = point_error
+                        last_error = point_error
+                        continue
                     results[point.id].update(
                         value=decoded,
                         quality="good",

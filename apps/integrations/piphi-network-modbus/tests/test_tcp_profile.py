@@ -186,6 +186,43 @@ async def test_tcp_profile_batches_reads_and_reuses_connection() -> None:
 
 
 @pytest.mark.anyio
+async def test_invalid_profile_value_isolated_within_contiguous_block() -> None:
+    device = ModbusTCPDevice()
+    device.registers.update({30: 0xFFFF, 31: 42})
+    await device.start()
+    client = ModbusTCPClient(f"127.0.0.1:{device.port}")
+    points = [
+        PointProfile(
+            id="invalid",
+            name="Invalid",
+            unit_id=1,
+            address=30,
+            data_type="uint16",
+            invalid_raw_values=[[0xFFFF]],
+        ),
+        PointProfile(
+            id="valid",
+            name="Valid",
+            unit_id=1,
+            address=31,
+            data_type="uint16",
+        ),
+    ]
+    try:
+        snapshot = await client.snapshot(points)
+        values = {item["id"]: item for item in snapshot["points"]}
+        assert values["invalid"]["quality"] == "unavailable"
+        assert values["invalid"]["error_code"] == "invalid_profile_raw_value"
+        assert values["valid"]["quality"] == "good"
+        assert values["valid"]["value"] == 42
+        assert snapshot["request_success_count"] == 1
+        assert snapshot["request_failure_count"] == 0
+    finally:
+        await client.close()
+        await device.close()
+
+
+@pytest.mark.anyio
 async def test_tcp_profile_enforces_inter_message_delay(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

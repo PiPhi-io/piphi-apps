@@ -85,6 +85,31 @@ def test_extended_numeric_types_round_trip(
     assert decode_point(profile, encode_point(profile, value)) == value
 
 
+def test_float16_and_bounded_value_policies() -> None:
+    half = point(data_type="float16", writable=True)
+    assert encode_point(half, 1.5) == [0x3E00]
+    assert decode_point(half, [0x3E00]) == 1.5
+
+    profile = point(
+        data_type="int16",
+        writable=True,
+        precision=1,
+        minimum=-5,
+        maximum=5,
+        out_of_range_policy="clamp",
+        invalid_raw_values=[[0x7FFF]],
+    )
+    assert decode_point(profile, [70]) == 5
+    assert decode_point(profile, [0xFFBA]) == -5
+    with pytest.raises(ValueError, match="invalid_profile_raw_value"):
+        decode_point(profile, [0x7FFF])
+    sentinel = point(
+        data_type="uint16", writable=True, invalid_raw_values=[[0xFFFF]]
+    )
+    with pytest.raises(ValueError, match="encodes_invalid"):
+        encode_point(sentinel, 0xFFFF)
+
+
 @pytest.mark.parametrize("byte_order", ["ABCD", "BADC", "CDAB", "DCBA"])
 def test_fixed_strings_round_trip_for_every_order(byte_order: str) -> None:
     profile = point(
