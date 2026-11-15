@@ -3,7 +3,7 @@
   "manifest_version": "1.0",
   "id": "piphi-network-modbus",
   "name": "Modbus",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Monitor and safely control profile-declared Modbus TCP and RTU points.",
   "metadata": {
     "generator": "piphi-network-create",
@@ -17,7 +17,7 @@
     "website": "https://piphi.io"
   },
   "license": "Apache-2.0",
-  "image": "ghcr.io/piphi-io/piphi-network-modbus:0.5.0",
+  "image": "ghcr.io/piphi-io/piphi-network-modbus:0.6.0",
   "platforms": [
     "linux"
   ],
@@ -25,7 +25,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "ghcr.io/piphi-io/piphi-network-modbus:0.5.0",
+        "image": "ghcr.io/piphi-io/piphi-network-modbus:0.6.0",
         "ports": [
           {
             "container": 4222,
@@ -52,8 +52,8 @@
       {
         "id": "piphi-modbus-rtu-sidecar",
         "kind": "platform_service",
-        "version_range": ">=0.3.0,<0.4.0",
-        "recommended_version": "0.3.0",
+        "version_range": ">=0.4.0,<0.5.0",
+        "recommended_version": "0.4.0",
         "required": true,
         "shared": true,
         "auto_install": true,
@@ -94,6 +94,10 @@
       "register_address",
       "unit_id",
       "poll_interval_seconds",
+      "poll_groups",
+      "inter_message_delay_ms",
+      "poll_jitter_percent",
+      "poll_backoff_max_seconds",
       "response_timeout_seconds",
       "profile_id",
       "profile_version",

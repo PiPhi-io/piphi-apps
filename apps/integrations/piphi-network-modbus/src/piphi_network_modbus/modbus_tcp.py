@@ -7,6 +7,7 @@ import ipaddress
 import math
 import re
 import struct
+import time
 from contextlib import suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -110,7 +111,9 @@ def _make_block(points: list[PointProfile]) -> ReadBlock:
 
 
 class ModbusTCPClient:
-    def __init__(self, host: str, *, timeout: float = 1.0) -> None:
+    def __init__(
+        self, host: str, *, timeout: float = 1.0, inter_message_delay_ms: int = 0
+    ) -> None:
         self.name, self.port = _tcp_endpoint(host)
         self.timeout = timeout
         self._reader: asyncio.StreamReader | None = None
@@ -118,6 +121,13 @@ class ModbusTCPClient:
         self._lock = asyncio.Lock()
         self._transaction = 0
         self._point_cache: dict[str, tuple[bool | int | float | str, str]] = {}
+        self._inter_message_delay = inter_message_delay_ms / 1000
+        self._last_request_at = 0.0
+        self._connection_count = 0
+        self._retry_count = 0
+        self._timeout_count = 0
+        self._error_count = 0
+        self._unit_health: dict[int, dict[str, Any]] = {}
 
     @property
     def connected(self) -> bool:
@@ -138,6 +148,7 @@ class ModbusTCPClient:
         self._reader, self._writer = await asyncio.wait_for(
             asyncio.open_connection(self.name, self.port), self.timeout
         )
+        self._connection_count += 1
 
     async def _request_locked(
         self,
@@ -157,7 +168,13 @@ class ModbusTCPClient:
                 self._transaction = self._transaction % 0xFFFF + 1
                 transaction = self._transaction
                 pdu = bytes([function]) + payload
+                remaining_delay = self._inter_message_delay - (
+                    time.monotonic() - self._last_request_at
+                )
+                if remaining_delay > 0:
+                    await asyncio.sleep(remaining_delay)
                 writer.write(MBAP.pack(transaction, 0, len(pdu) + 1, unit_id) + pdu)
+                self._last_request_at = time.monotonic()
                 await asyncio.wait_for(writer.drain(), self.timeout)
                 header = await asyncio.wait_for(reader.readexactly(MBAP.size), self.timeout)
                 reply_transaction, protocol, length, reply_unit = MBAP.unpack(header)
@@ -174,11 +191,17 @@ class ModbusTCPClient:
                 if not response or response[0] != function:
                     raise ValueError("unexpected_modbus_function")
                 return response[1:]
-            except (TimeoutError, OSError, EOFError, asyncio.IncompleteReadError):
+            except (TimeoutError, OSError, EOFError, asyncio.IncompleteReadError) as exc:
+                if isinstance(exc, TimeoutError):
+                    self._timeout_count += 1
+                else:
+                    self._error_count += 1
                 await self.close()
                 if attempt + 1 >= attempts:
                     raise
+                self._retry_count += 1
             except ValueError:
+                self._error_count += 1
                 await self.close()
                 raise
         raise AssertionError("unreachable")
@@ -213,6 +236,7 @@ class ModbusTCPClient:
         ]
 
     async def snapshot(self, points: list[PointProfile]) -> dict[str, Any]:
+        started_at = time.monotonic()
         results: dict[str, dict[str, Any]] = {
             point.id: {
                 **point_metadata(point),
@@ -225,7 +249,31 @@ class ModbusTCPClient:
         }
         responsive: set[int] = set()
         last_error: str | None = None
-        for block in plan_read_blocks(points):
+        blocks = plan_read_blocks(points)
+        success_count = 0
+        failure_count = 0
+        poll_unit_health: dict[int, dict[str, Any]] = {}
+        for block in blocks:
+            unit_health = self._unit_health.setdefault(
+                block.unit_id,
+                {
+                    "unit_id": block.unit_id,
+                    "success_count": 0,
+                    "failure_count": 0,
+                    "consecutive_error_count": 0,
+                    "last_success_at": None,
+                    "last_error_code": None,
+                },
+            )
+            poll_health = poll_unit_health.setdefault(
+                block.unit_id,
+                {
+                    "success_count": 0,
+                    "failure_count": 0,
+                    "last_success_at": None,
+                    "last_error_code": None,
+                },
+            )
             try:
                 values = await self.read_block(block)
                 timestamp = datetime.now(UTC).isoformat()
@@ -240,15 +288,51 @@ class ModbusTCPClient:
                     )
                     self._point_cache[point.id] = (decoded, timestamp)
                 responsive.add(block.unit_id)
+                success_count += 1
+                unit_health.update(
+                    success_count=int(unit_health["success_count"]) + 1,
+                    last_success_at=timestamp,
+                )
+                poll_health["success_count"] += 1
+                poll_health["last_success_at"] = timestamp
             except (TimeoutError, OSError, EOFError, ValueError) as exc:
                 last_error = str(exc) or type(exc).__name__
+                failure_count += 1
+                unit_health.update(
+                    failure_count=int(unit_health["failure_count"]) + 1,
+                )
+                poll_health["failure_count"] += 1
+                poll_health["last_error_code"] = last_error
                 for point in block.points:
                     results[point.id]["error_code"] = last_error
+        for unit_id, poll_health in poll_unit_health.items():
+            unit_health = self._unit_health[unit_id]
+            if poll_health["failure_count"]:
+                unit_health.update(
+                    consecutive_error_count=int(unit_health["consecutive_error_count"])
+                    + 1,
+                    last_error_code=poll_health["last_error_code"],
+                )
+            else:
+                unit_health.update(
+                    consecutive_error_count=0,
+                    last_error_code=None,
+                )
         return {
             "connected": bool(responsive),
             "responsive_unit_ids": sorted(responsive),
             "points": [results[point.id] for point in points],
-            "request_count": len(plan_read_blocks(points)),
+            "request_count": len(blocks),
+            "request_success_count": success_count,
+            "request_failure_count": failure_count,
+            "poll_duration_ms": round((time.monotonic() - started_at) * 1000, 3),
+            "retry_count": self._retry_count,
+            "timeout_count": self._timeout_count,
+            "error_count": self._error_count,
+            "reconnect_count": max(0, self._connection_count - 1),
+            "unit_health": [
+                dict(self._unit_health[unit_id]) for unit_id in sorted(self._unit_health)
+            ],
             "last_error_code": last_error,
         }
 

@@ -4,16 +4,19 @@ Managed serial transport for PiPhi Modbus integrations using RTU or ASCII.
 
 ## Ownership boundary
 
-The sidecar owns allow-listed serial ports, exclusive bus access, RTU/ASCII
-framing, CRC/LRC and timing validation, one-in-flight request arbitration,
+The sidecar owns allow-listed serial ports, exclusive bus access, RTU framing,
+CRC and response validation, one-in-flight request arbitration,
 bounded queues, backpressure, reconnect, and restart reconciliation. Parent
 integrations own register profiles, decoded device state, entities, telemetry,
 and behaviors. The sidecar does not interpret arbitrary registers.
 
 The machine-readable `capability-catalog.json` covers line settings, framing,
 timing, request routing, queueing, recovery, and deliberately excluded raw or
-unrestricted operations. Only `connected` and `refresh` are implemented in this
-starter.
+unrestricted operations. Profile-declared reads and writes, confirmed read-back,
+sanitized event replay, and bounded recovery are implemented. Snapshots include
+queue depth/capacity/high-water mark, poll duration, reconnect, timeout, CRC and
+transport-error counters, plus per-unit last-success and consecutive-error
+health; serial paths, credentials, and raw frames remain redacted.
 
 Managed deployment is internal-only and maps `/dev/serial` into the container.
 The service runs with production authentication enabled and accepts only the
@@ -66,9 +69,9 @@ The runtime listens on port `4212` by default and exposes the common PiPhi runti
 ## Docker
 
 ```bash
-docker build -t ghcr.io/piphi-io/piphi-modbus-rtu-sidecar:0.3.0 .
+docker build -t ghcr.io/piphi-io/piphi-modbus-rtu-sidecar:0.4.0 .
 docker run --rm --device /dev/serial:/dev/serial \
   -e PIPHI_ENV=production \
   -e PIPHI_MODBUS_SIDECAR_TOKEN=replace-with-a-local-test-token \
-  -p 4212:4212 ghcr.io/piphi-io/piphi-modbus-rtu-sidecar:0.3.0
+  -p 4212:4212 ghcr.io/piphi-io/piphi-modbus-rtu-sidecar:0.4.0
 ```

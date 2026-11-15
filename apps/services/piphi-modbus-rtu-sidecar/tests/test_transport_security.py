@@ -54,6 +54,7 @@ async def test_queue_serializes_requests_and_rejects_saturation() -> None:
     release.set()
     assert await task == "done"
     assert queue.pending == 0
+    assert queue.high_water_mark == 1
 
 
 def test_replay_reports_drops_and_cursor_gaps() -> None:

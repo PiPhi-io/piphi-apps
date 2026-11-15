@@ -165,9 +165,41 @@ async def test_tcp_profile_batches_reads_and_reuses_connection() -> None:
             "relay": False,
         }
         assert snapshot["request_count"] == 3
+        assert snapshot["request_success_count"] == 3
+        assert snapshot["request_failure_count"] == 0
+        assert snapshot["poll_duration_ms"] >= 0
+        assert [unit["unit_id"] for unit in snapshot["unit_health"]] == [1, 2]
         await client.snapshot(profile_points())
         assert device.connections == 1
         assert len(device.requests) == 6
+    finally:
+        await client.close()
+        await device.close()
+
+
+@pytest.mark.anyio
+async def test_tcp_profile_enforces_inter_message_delay(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    device = ModbusTCPDevice()
+    await device.start()
+    client = ModbusTCPClient(
+        f"127.0.0.1:{device.port}", inter_message_delay_ms=25
+    )
+    delays: list[float] = []
+    original_sleep = asyncio.sleep
+
+    async def record_sleep(delay: float) -> None:
+        delays.append(delay)
+        await original_sleep(0)
+
+    monkeypatch.setattr(
+        "piphi_network_modbus.modbus_tcp.asyncio.sleep", record_sleep
+    )
+    try:
+        await client.snapshot(profile_points())
+        assert len(delays) == 2
+        assert all(0 < delay <= 0.025 for delay in delays)
     finally:
         await client.close()
         await device.close()
@@ -184,6 +216,8 @@ async def test_tcp_profile_read_reconnects_once_after_disconnect() -> None:
         assert snapshot["connected"] is True
         assert snapshot["points"][0]["value"] == 7
         assert device.connections == 2
+        assert snapshot["retry_count"] == 1
+        assert snapshot["reconnect_count"] == 1
     finally:
         await client.close()
         await device.close()
@@ -206,6 +240,10 @@ async def test_tcp_profile_partial_failure_preserves_stale_values() -> None:
         assert points["setpoint"]["quality"] == "good"
         assert second["connected"] is True
         assert second["last_error_code"] == "modbus_exception_4"
+        assert second["request_success_count"] == 2
+        assert second["request_failure_count"] == 1
+        unit_one = next(item for item in second["unit_health"] if item["unit_id"] == 1)
+        assert unit_one["failure_count"] == 1
     finally:
         await client.close()
         await device.close()

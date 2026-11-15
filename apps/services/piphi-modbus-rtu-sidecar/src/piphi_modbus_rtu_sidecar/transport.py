@@ -45,12 +45,14 @@ class BoundedQueue:
             raise ValueError("queue capacity must be between 1 and 1000")
         self.capacity = capacity
         self.pending = 0
+        self.high_water_mark = 0
         self._lock = asyncio.Lock()
 
     async def submit(self, operation: Callable[[], Awaitable[T]]) -> T:
         if self.pending >= self.capacity:
             raise RuntimeError("command_queue_saturated")
         self.pending += 1
+        self.high_water_mark = max(self.high_water_mark, self.pending)
         try:
             async with self._lock:
                 return await operation()

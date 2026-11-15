@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import time
 from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
@@ -139,6 +140,13 @@ class BusController:
         self.values: dict[str, dict[str, Any]] = {}
         self.last_error_code: str | None = None
         self.reconnect_count = 0
+        self.request_success_count = 0
+        self.request_failure_count = 0
+        self.timeout_count = 0
+        self.crc_error_count = 0
+        self.transport_error_count = 0
+        self.last_poll_duration_ms = 0.0
+        self.unit_health: dict[int, dict[str, Any]] = {}
         self._profile_hash = profile_hash(config)
 
     async def open(self) -> bool:
@@ -164,22 +172,44 @@ class BusController:
         return await self.open()
 
     async def refresh_all(self) -> dict[str, dict[str, Any]]:
+        started_at = time.monotonic()
         for profile in self.config.registers:
             await self.refresh_point(profile.id)
+        self.last_poll_duration_ms = round((time.monotonic() - started_at) * 1000, 3)
         return self.values
 
     async def refresh_point(self, point_id: str) -> dict[str, Any]:
+        started_at = time.monotonic()
         profile = self.point(point_id)
         previous = self.values.get(point_id, {}).get("value")
+        health = self.unit_health.setdefault(
+            profile.unit_id,
+            {
+                "unit_id": profile.unit_id,
+                "success_count": 0,
+                "failure_count": 0,
+                "consecutive_error_count": 0,
+                "last_success_at": None,
+                "last_error_code": None,
+            },
+        )
         try:
             words = await self.session.read(profile)
             value = decode_point(profile, words)
+            timestamp = datetime.now(UTC).isoformat()
             record = {
                 "value": value,
                 "quality": "good",
-                "updated_at": datetime.now(UTC).isoformat(),
+                "updated_at": timestamp,
                 "error_code": None,
             }
+            self.request_success_count += 1
+            health.update(
+                success_count=int(health["success_count"]) + 1,
+                consecutive_error_count=0,
+                last_success_at=timestamp,
+                last_error_code=None,
+            )
             self.last_error_code = None
             if previous != value:
                 self.events.append(
@@ -188,6 +218,18 @@ class BusController:
                 )
         except (ConnectionError, OSError, TimeoutError, ValueError) as exc:
             self.last_error_code = str(exc) or type(exc).__name__
+            self.request_failure_count += 1
+            if isinstance(exc, TimeoutError):
+                self.timeout_count += 1
+            elif self.last_error_code == "invalid_modbus_crc":
+                self.crc_error_count += 1
+            else:
+                self.transport_error_count += 1
+            health.update(
+                failure_count=int(health["failure_count"]) + 1,
+                consecutive_error_count=int(health["consecutive_error_count"]) + 1,
+                last_error_code=self.last_error_code,
+            )
             record = {
                 **self.values.get(point_id, {}),
                 "quality": "unavailable",
@@ -198,6 +240,7 @@ class BusController:
                 {"point_id": point_id, "error_code": self.last_error_code},
             )
         self.values[point_id] = record
+        self.last_poll_duration_ms = round((time.monotonic() - started_at) * 1000, 3)
         self._publish_state()
         return record
 
@@ -233,7 +276,17 @@ class BusController:
             "profile_hash": self._profile_hash,
             "queue_depth": self.session.queue.pending,
             "queue_capacity": self.session.queue.capacity,
+            "queue_high_water_mark": self.session.queue.high_water_mark,
             "reconnect_count": self.reconnect_count,
+            "request_success_count": self.request_success_count,
+            "request_failure_count": self.request_failure_count,
+            "timeout_count": self.timeout_count,
+            "crc_error_count": self.crc_error_count,
+            "transport_error_count": self.transport_error_count,
+            "poll_duration_ms": self.last_poll_duration_ms,
+            "unit_health": [
+                dict(self.unit_health[unit_id]) for unit_id in sorted(self.unit_health)
+            ],
             "last_error_code": self.last_error_code,
             "points": self.values,
             "config_id": self.entry["config_id"],

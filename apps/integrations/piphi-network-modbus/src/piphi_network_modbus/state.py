@@ -3,8 +3,10 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import random
 import time
 from collections.abc import Callable
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import HTTPException
@@ -52,6 +54,59 @@ sidecar_replay: dict[str, dict[str, Any]] = {}
 sidecar_client_factory: Callable[[], ModbusSidecarClient] = ModbusSidecarClient
 tcp_clients: dict[str, ModbusTCPClient] = {}
 tcp_client_factory: Callable[..., ModbusTCPClient] = ModbusTCPClient
+
+
+def configured_poll_groups(config: DeviceConfig) -> list[dict[str, Any]]:
+    assigned = {
+        point_id for group in config.poll_groups for point_id in group.point_ids
+    }
+    groups = [
+        {
+            "id": group.id,
+            "point_ids": list(group.point_ids),
+            "interval_seconds": group.interval_seconds,
+            "priority": group.priority,
+        }
+        for group in config.poll_groups
+    ]
+    remaining = [point.id for point in config.points if point.id not in assigned]
+    if remaining or not config.points:
+        groups.append(
+            {
+                "id": "default",
+                "point_ids": remaining,
+                "interval_seconds": (
+                    config.poll_interval_seconds
+                    if config.poll_interval_seconds is not None
+                    else (15 if config.points else 300)
+                ),
+                "priority": 0,
+            }
+        )
+    return groups
+
+
+def _jittered_delay(config: DeviceConfig, delay: float) -> float:
+    spread = delay * config.poll_jitter_percent / 100
+    return max(0.1, delay + random.uniform(-spread, spread))
+
+
+def initialize_poll_schedule(
+    entry: dict[str, Any], config: DeviceConfig, *, now: float | None = None
+) -> None:
+    current = time.monotonic() if now is None else now
+    entry["poll_schedule"] = {
+        group["id"]: {
+            **group,
+            "next_poll_at": (
+                None
+                if group["interval_seconds"] == 0
+                else current + _jittered_delay(config, group["interval_seconds"])
+            ),
+            "consecutive_failures": 0,
+        }
+        for group in configured_poll_groups(config)
+    }
 
 
 def make_entry(config: DeviceConfig) -> dict[str, Any]:
@@ -126,10 +181,13 @@ async def apply_config(config: DeviceConfig) -> None:
             entry,
             {"transport": "rtu_sidecar", "alias": config.alias},
         )
+        initialize_poll_schedule(entry, config)
         return
     if config.points:
         client = tcp_client_factory(
-            config.host, timeout=config.response_timeout_seconds
+            config.host,
+            timeout=config.response_timeout_seconds,
+            inter_message_delay_ms=config.inter_message_delay_ms,
         )
         tcp_clients[config_id] = client
         await sync_tcp_entry(entry, client)
@@ -138,6 +196,7 @@ async def apply_config(config: DeviceConfig) -> None:
             entry,
             {"transport": "tcp", "profile_id": config.profile_id, "alias": config.alias},
         )
+        initialize_poll_schedule(entry, config)
         return
     registry.update_state(
         config_id,
@@ -156,6 +215,7 @@ async def apply_config(config: DeviceConfig) -> None:
         entry,
         {"host": config.host, "alias": config.alias},
     )
+    initialize_poll_schedule(entry, config)
 
 
 async def refresh_entry(entry: dict[str, Any]) -> dict[str, Any]:
@@ -200,7 +260,9 @@ async def refresh_entry(entry: dict[str, Any]) -> dict[str, Any]:
         client = tcp_clients.get(config_id)
         if client is None:
             client = tcp_client_factory(
-                config.host, timeout=config.response_timeout_seconds
+                config.host,
+                timeout=config.response_timeout_seconds,
+                inter_message_delay_ms=config.inter_message_delay_ms,
             )
             tcp_clients[config_id] = client
         return await sync_tcp_entry(entry, client)
@@ -225,9 +287,6 @@ async def refresh_entry(entry: dict[str, Any]) -> dict[str, Any]:
         return state
     metrics = {"connected": True, "holding_register_value": reading.value}
     registry.update_state(entry["config_id"], metrics, device_id=entry["device_id"])
-    entry["next_poll_at"] = time.monotonic() + max(
-        60, config.poll_interval_seconds or 300
-    )
     task = schedule_telemetry_delivery(
         process_state=runtime.process_state,
         telemetry_client=telemetry,
@@ -249,13 +308,103 @@ async def refresh_entry(entry: dict[str, Any]) -> dict[str, Any]:
 
 async def poll_registers() -> None:
     while True:
-        await asyncio.sleep(5)
-        now = time.monotonic()
-        for entry in list(registry.entries.values()):
-            if entry.get("next_poll_at", 0) > now:
-                continue
-            entry["next_poll_at"] = now + 300
-            await refresh_entry(entry)
+        await asyncio.sleep(1)
+        await poll_due_groups()
+
+
+async def poll_due_groups(*, now: float | None = None) -> None:
+    current = time.monotonic() if now is None else now
+    due: list[tuple[int, dict[str, Any], dict[str, Any]]] = []
+    for entry in list(registry.entries.values()):
+        config = DeviceConfig.model_validate(entry["config"])
+        if "poll_schedule" not in entry:
+            initialize_poll_schedule(entry, config, now=current)
+        for group in entry["poll_schedule"].values():
+            next_poll_at = group.get("next_poll_at")
+            if next_poll_at is not None and next_poll_at <= current:
+                due.append((-int(group["priority"]), entry, group))
+    for _, entry, group in sorted(
+        due, key=lambda item: (item[0], str(item[1]["config_id"]), item[2]["id"])
+    ):
+        await poll_group(entry, group, now=current)
+
+
+async def poll_group(
+    entry: dict[str, Any], group: dict[str, Any], *, now: float | None = None
+) -> dict[str, Any]:
+    config = DeviceConfig.model_validate(entry["config"])
+    config_id = str(entry["config_id"])
+    current = time.monotonic() if now is None else now
+    try:
+        if config.transport == "rtu_sidecar":
+            client = sidecar_clients.get(config_id)
+            if client is None:
+                raise ValueError("sidecar_not_configured")
+            point_ids = list(group["point_ids"])
+            if point_ids and len(point_ids) != len(config.points):
+                for index, point_id in enumerate(point_ids):
+                    if index and config.inter_message_delay_ms:
+                        await asyncio.sleep(config.inter_message_delay_ms / 1000)
+                    await client.refresh(config_id, point_id)
+            else:
+                await client.refresh(config_id)
+            state = await sync_sidecar_entry(
+                entry,
+                client,
+                polled_point_ids=set(point_ids) if point_ids else None,
+            )
+        elif config.points:
+            client = tcp_clients.get(config_id)
+            if client is None:
+                raise ValueError("tcp_profile_not_configured")
+            selected_ids = set(group["point_ids"])
+            selected = [point for point in config.points if point.id in selected_ids]
+            state = await sync_tcp_entry(entry, client, points=selected)
+        else:
+            state = await refresh_entry(entry)
+    except (SidecarError, TimeoutError, OSError, ValueError) as exc:
+        logger.warning(
+            "modbus_poll_group_failed config_id=%s group_id=%s error=%s",
+            config_id,
+            group["id"],
+            type(exc).__name__,
+        )
+        models = point_models.get(config_id, [])
+        selected_ids = set(group["point_ids"])
+        for model in models:
+            if not selected_ids or model["point_id"] in selected_ids:
+                model["state"]["quality"] = (
+                    "stale"
+                    if model["state"].get("point_value") is not None
+                    else "unavailable"
+                )
+                model["state"]["error_code"] = type(exc).__name__
+        quality_counts = _quality_counts(models)
+        state = {
+            "connected": quality_counts["good"] > 0,
+            "transport": config.transport,
+            "last_error_code": type(exc).__name__,
+        }
+        _record_poll_result(
+            entry,
+            state,
+            request_success_count=0,
+            request_failure_count=max(1, len(selected_ids)),
+            duration_ms=0,
+            quality_counts=quality_counts,
+        )
+        registry.update_state(config_id, state, device_id=entry["device_id"])
+    failed = state.get("poll_outcome") == "failed"
+    group["consecutive_failures"] = (
+        int(group.get("consecutive_failures", 0)) + 1 if failed else 0
+    )
+    base = max(1, int(group["interval_seconds"]))
+    delay = min(
+        config.poll_backoff_max_seconds,
+        base * (2 ** int(group["consecutive_failures"])),
+    )
+    group["next_poll_at"] = current + _jittered_delay(config, delay)
+    return state
 
 
 async def remove_config(config_id: str) -> bool:
@@ -277,12 +426,120 @@ async def remove_config(config_id: str) -> bool:
     return True
 
 
+def _quality_counts(models: list[dict[str, Any]]) -> dict[str, int]:
+    counts = {"good": 0, "stale": 0, "unavailable": 0}
+    for model in models:
+        quality = str(model.get("state", {}).get("quality") or "unavailable")
+        counts[quality if quality in counts else "unavailable"] += 1
+    return counts
+
+
+def _record_poll_result(
+    entry: dict[str, Any],
+    state: dict[str, Any],
+    *,
+    request_success_count: int,
+    request_failure_count: int,
+    duration_ms: float,
+    quality_counts: dict[str, int],
+) -> None:
+    if request_success_count and request_failure_count:
+        outcome = "partial"
+    elif request_success_count:
+        outcome = "success"
+    else:
+        outcome = "failed"
+    metrics = entry.setdefault(
+        "poll_metrics",
+        {
+            "poll_success_count": 0,
+            "poll_partial_failure_count": 0,
+            "poll_failure_count": 0,
+            "consecutive_failure_count": 0,
+        },
+    )
+    counter = {
+        "success": "poll_success_count",
+        "partial": "poll_partial_failure_count",
+        "failed": "poll_failure_count",
+    }[outcome]
+    metrics[counter] = int(metrics[counter]) + 1
+    metrics["consecutive_failure_count"] = (
+        int(metrics["consecutive_failure_count"]) + 1
+        if outcome == "failed"
+        else 0
+    )
+    metrics.update(
+        last_poll_at=datetime.now(UTC).isoformat(),
+        last_poll_duration_ms=round(duration_ms, 3),
+        last_poll_outcome=outcome,
+    )
+    stale_count = quality_counts["stale"] + quality_counts["unavailable"]
+    state.update(
+        **metrics,
+        poll_outcome=outcome,
+        stale_point_count=stale_count,
+        point_quality_counts=quality_counts,
+        quality=(
+            "unavailable"
+            if not state.get("connected")
+            else "degraded"
+            if outcome != "success" or stale_count
+            else "good"
+        ),
+    )
+    health = (
+        "offline"
+        if not state.get("connected")
+        else "degraded"
+        if state["quality"] == "degraded"
+        else "healthy"
+    )
+    previous_health = entry.get("poll_health")
+    previous_stale = int(entry.get("stale_point_count", 0))
+    if previous_health is None:
+        append_runtime_event(
+            "device.online" if health != "offline" else "device.offline",
+            entry,
+            {"transport": state.get("transport")},
+        )
+        if health == "degraded":
+            append_runtime_event(
+                "transport.degraded", entry, {"poll_outcome": outcome}
+            )
+    elif health != previous_health:
+        if health == "offline":
+            append_runtime_event("device.offline", entry, {"poll_outcome": outcome})
+        elif previous_health == "offline":
+            append_runtime_event("device.online", entry, {"poll_outcome": outcome})
+        if health == "degraded":
+            append_runtime_event(
+                "transport.degraded", entry, {"poll_outcome": outcome}
+            )
+        elif health == "healthy" and previous_health != "healthy":
+            append_runtime_event(
+                "transport.recovered", entry, {"poll_outcome": outcome}
+            )
+    if stale_count and not previous_stale:
+        append_runtime_event(
+            "points.stale", entry, {"stale_point_count": stale_count}
+        )
+    elif not stale_count and previous_stale:
+        append_runtime_event("points.recovered", entry, {})
+    entry["poll_health"] = health
+    entry["stale_point_count"] = stale_count
+
+
 async def sync_tcp_entry(
-    entry: dict[str, Any], client: ModbusTCPClient
+    entry: dict[str, Any],
+    client: ModbusTCPClient,
+    *,
+    points: list[Any] | None = None,
 ) -> dict[str, Any]:
     config_id = str(entry["config_id"])
     config = DeviceConfig.model_validate(entry["config"])
-    snapshot = await client.snapshot(config.points)
+    selected_points = config.points if points is None else points
+    snapshot = await client.snapshot(selected_points)
     snapshot.update(
         profile_id=config.profile_id,
         profile_version=config.profile_version,
@@ -293,20 +550,47 @@ async def sync_tcp_entry(
             points=config.points,
         ),
     )
-    models = normalize_snapshot(snapshot, config_id=config_id)
+    refreshed_models = normalize_snapshot(snapshot, config_id=config_id)
+    if points is None or config_id not in point_models:
+        models = refreshed_models
+    else:
+        refreshed_by_id = {
+            str(model["point_id"]): model for model in refreshed_models
+        }
+        models = [
+            refreshed_by_id.get(str(model["point_id"]), model)
+            for model in point_models[config_id]
+        ]
     point_models[config_id] = models
     composite_models[config_id] = normalize_composites(
         config.composites, models, config_id=config_id
     )
+    quality_counts = _quality_counts(models)
+    unit_health = snapshot.get("unit_health", [])
     state = {
-        "connected": bool(snapshot.get("connected")),
+        "connected": quality_counts["good"] > 0,
         "transport": "tcp",
         "quality": "good" if snapshot.get("connected") else "unavailable",
         "profile_id": snapshot["profile_id"],
         "profile_version": snapshot["profile_version"],
         "profile_hash": snapshot["profile_hash"],
-        "responsive_unit_ids": snapshot.get("responsive_unit_ids", []),
+        "responsive_unit_ids": [
+            item["unit_id"]
+            for item in unit_health
+            if item.get("last_success_at")
+            and int(item.get("consecutive_error_count") or 0) == 0
+        ],
         "request_count": snapshot.get("request_count", 0),
+        "unit_health": unit_health,
+        "poll_duration_ms": snapshot.get("poll_duration_ms", 0),
+        "retry_count": snapshot.get("retry_count", 0),
+        "timeout_count": snapshot.get("timeout_count", 0),
+        "transport_error_count": snapshot.get("error_count", 0),
+        "reconnect_count": snapshot.get("reconnect_count", 0),
+        "poll_group_count": len(configured_poll_groups(config)),
+        "polling_enabled": any(
+            group["interval_seconds"] > 0 for group in configured_poll_groups(config)
+        ),
         "points": {model["point_id"]: model["state"] for model in models},
         "composites": {
             model["composite_id"]: model["state"]
@@ -315,15 +599,23 @@ async def sync_tcp_entry(
         "config_id": config_id,
         "last_error_code": snapshot.get("last_error_code"),
     }
-    registry.update_state(config_id, state, device_id=entry["device_id"])
-    entry["next_poll_at"] = time.monotonic() + max(
-        5, config.poll_interval_seconds or 15
+    _record_poll_result(
+        entry,
+        state,
+        request_success_count=int(snapshot.get("request_success_count") or 0),
+        request_failure_count=int(snapshot.get("request_failure_count") or 0),
+        duration_ms=float(snapshot.get("poll_duration_ms") or 0),
+        quality_counts=quality_counts,
     )
+    registry.update_state(config_id, state, device_id=entry["device_id"])
     return state
 
 
 async def sync_sidecar_entry(
-    entry: dict[str, Any], client: ModbusSidecarClient
+    entry: dict[str, Any],
+    client: ModbusSidecarClient,
+    *,
+    polled_point_ids: set[str] | None = None,
 ) -> dict[str, Any]:
     config_id = str(entry["config_id"])
     snapshot = await client.snapshot(config_id)
@@ -333,6 +625,13 @@ async def sync_sidecar_entry(
     composite_models[config_id] = normalize_composites(
         config.composites, models, config_id=config_id
     )
+    quality_counts = _quality_counts(models)
+    polled_models = (
+        models
+        if polled_point_ids is None
+        else [model for model in models if model["point_id"] in polled_point_ids]
+    )
+    polled_quality_counts = _quality_counts(polled_models)
     state = {
         "connected": bool(snapshot.get("connected")),
         "transport": "rtu_sidecar",
@@ -344,6 +643,16 @@ async def sync_sidecar_entry(
         "responsive_unit_ids": snapshot.get("responsive_unit_ids", []),
         "queue_depth": snapshot.get("queue_depth"),
         "queue_capacity": snapshot.get("queue_capacity"),
+        "queue_high_water_mark": snapshot.get("queue_high_water_mark"),
+        "unit_health": snapshot.get("unit_health", []),
+        "reconnect_count": snapshot.get("reconnect_count", 0),
+        "timeout_count": snapshot.get("timeout_count", 0),
+        "crc_error_count": snapshot.get("crc_error_count", 0),
+        "transport_error_count": snapshot.get("transport_error_count", 0),
+        "poll_group_count": len(configured_poll_groups(config)),
+        "polling_enabled": any(
+            group["interval_seconds"] > 0 for group in configured_poll_groups(config)
+        ),
         "points": {model["point_id"]: model["state"] for model in models},
         "composites": {
             model["composite_id"]: model["state"]
@@ -352,15 +661,33 @@ async def sync_sidecar_entry(
         "config_id": config_id,
         "last_error_code": snapshot.get("last_error_code"),
     }
-    registry.update_state(config_id, state, device_id=entry["device_id"])
-    entry["next_poll_at"] = time.monotonic() + max(
-        5, config.poll_interval_seconds or 15
+    _record_poll_result(
+        entry,
+        state,
+        request_success_count=polled_quality_counts["good"],
+        request_failure_count=(
+            polled_quality_counts["stale"] + polled_quality_counts["unavailable"]
+        ),
+        duration_ms=float(snapshot.get("poll_duration_ms") or 0),
+        quality_counts=quality_counts,
     )
+    registry.update_state(config_id, state, device_id=entry["device_id"])
     return state
 
 
 def sidecar_config_payload(config: DeviceConfig) -> dict[str, Any]:
-    payload = config.model_dump(exclude={"api_key", "base_url", "composites"})
+    payload = config.model_dump(
+        exclude={
+            "api_key",
+            "base_url",
+            "composites",
+            "poll_groups",
+            "poll_interval_seconds",
+            "inter_message_delay_ms",
+            "poll_jitter_percent",
+            "poll_backoff_max_seconds",
+        }
+    )
     payload["registers"] = payload.pop("points")
     payload["host"] = "modbus-rtu-sidecar"
     return payload
@@ -418,6 +745,41 @@ def all_entities() -> list[dict[str, Any]]:
             *composite_models.get(config_id, []),
         ]
     ]
+
+
+def polling_diagnostics() -> dict[str, Any]:
+    now = time.monotonic()
+    diagnostics: dict[str, Any] = {}
+    for config_id in registry.ids():
+        entry = registry.get(config_id)
+        if entry is None:
+            continue
+        config = DeviceConfig.model_validate(entry["config"])
+        schedule = entry.get("poll_schedule", {})
+        diagnostics[config_id] = {
+            "transport": config.transport,
+            "profile_id": config.profile_id,
+            "poll_health": entry.get("poll_health", "unknown"),
+            "metrics": dict(entry.get("poll_metrics", {})),
+            "stale_point_count": int(entry.get("stale_point_count", 0)),
+            "groups": [
+                {
+                    "id": group["id"],
+                    "point_count": len(group["point_ids"]),
+                    "interval_seconds": group["interval_seconds"],
+                    "priority": group["priority"],
+                    "enabled": group["next_poll_at"] is not None,
+                    "next_poll_in_seconds": (
+                        None
+                        if group["next_poll_at"] is None
+                        else round(max(0, group["next_poll_at"] - now), 3)
+                    ),
+                    "consecutive_failures": group["consecutive_failures"],
+                }
+                for group in sorted(schedule.values(), key=lambda item: item["id"])
+            ],
+        }
+    return diagnostics
 
 
 def find_point_model(config_id: str, device_id: str) -> dict[str, Any]:
