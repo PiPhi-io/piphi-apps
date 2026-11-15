@@ -21,6 +21,7 @@ class PointProfile(BaseModel):
         "int32",
         "uint64",
         "int64",
+        "float16",
         "float32",
         "float64",
         "string",
@@ -36,6 +37,9 @@ class PointProfile(BaseModel):
     writable: bool = False
     minimum: float | None = Field(default=None, allow_inf_nan=False)
     maximum: float | None = Field(default=None, allow_inf_nan=False)
+    precision: int | None = Field(default=None, ge=0, le=9)
+    out_of_range_policy: Literal["unavailable", "clamp"] = "unavailable"
+    invalid_raw_values: list[list[int]] = Field(default_factory=list, max_length=32)
 
     @property
     def width(self) -> int:
@@ -94,6 +98,30 @@ class PointProfile(BaseModel):
                 raise ValueError("bit_mask does not support transforms or enum_values")
             if self.writable:
                 raise ValueError("bit_mask points are read-only")
+        if self.precision is not None and (
+            self.data_type in {"bool", "string"}
+            or self.enum_values is not None
+            or self.bit_mask is not None
+        ):
+            raise ValueError("precision requires a plain numeric point")
+        if self.out_of_range_policy == "clamp" and (
+            (self.minimum is None and self.maximum is None)
+            or self.data_type in {"bool", "string"}
+            or self.enum_values is not None
+            or self.bit_mask is not None
+        ):
+            raise ValueError("clamp policy requires a bounded plain numeric point")
+        invalid_values = [tuple(value) for value in self.invalid_raw_values]
+        if len(invalid_values) != len(set(invalid_values)):
+            raise ValueError("invalid raw values must be unique")
+        if any(
+            len(value) != self.width
+            or any(type(word) is not int or not 0 <= word <= 65535 for word in value)
+            for value in self.invalid_raw_values
+        ):
+            raise ValueError("invalid raw values must match the point width")
+        if self.data_type == "bool" and self.invalid_raw_values:
+            raise ValueError("invalid raw values require a register point")
         if self.writable and self.width > 123:
             raise ValueError("writable point exceeds FC16 quantity limit")
         return self
