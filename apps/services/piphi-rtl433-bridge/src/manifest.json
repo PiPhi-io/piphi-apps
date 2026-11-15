@@ -4,8 +4,8 @@
   "id": "piphi.service.rtl433-bridge",
   "name": "rtl_433 Radio Bridge",
   "description": "Shared rtl_433 radio bridge for receiving sub-GHz sensor packets through PiPhi Core.",
-  "version": "0.1.6",
-  "image": "piphinetwork/rtl433-bridge:0.1.6",
+  "version": "0.2.0",
+  "image": "ghcr.io/piphi-io/rtl433-bridge:0.2.0",
   "platforms": [
     "linux"
   ],
@@ -13,21 +13,22 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "piphinetwork/rtl433-bridge:0.1.6",
-        "network_mode": "host",
+        "image": "ghcr.io/piphi-io/rtl433-bridge:0.2.0",
         "ports": [
           {
             "container": 8091
           }
         ],
-        "privileged": true,
         "devices": [
           {
             "host": "/dev/bus/usb",
             "container": "/dev/bus/usb",
-            "permissions": "rwm"
+            "permissions": "rw"
           }
         ],
+        "read_only": true,
+        "cap_drop": ["ALL"],
+        "security_opt": ["no-new-privileges:true"],
         "environment": {
           "RUNTIME_INGEST_URL": "http://127.0.0.1:8090/ingest/rtl433",
           "HTTP_FORWARD_ENABLED": "true",
@@ -36,7 +37,11 @@
           "RTLSDR_DEVICE": "auto",
           "RECEIVER_GAIN": "auto",
           "RTL433_PROTOCOLS": "",
-          "MQTT_ENABLED": "false"
+          "MQTT_ENABLED": "false",
+          "MAX_FORWARD_ATTEMPTS": "4",
+          "PACKET_QUEUE_SIZE": "256",
+          "DEDUP_WINDOW_SECONDS": "2",
+          "MAX_PACKET_BYTES": "65536"
         },
         "restart_policy": {
           "name": "unless-stopped",
@@ -71,37 +76,35 @@
           "type": "string",
           "title": "Custom frequency",
           "description": "Only needed when Radio band is Custom. Use rtl_433 format such as 344.975M.",
-          "default": ""
+          "default": "",
+          "pattern": "^(?:[2-9][0-9]|[1-9][0-9]{2}|1[0-6][0-9]{2}|17[0-5][0-9]|176[0-6])(?:\\.[0-9]{1,6})?M$"
         },
         "rtlsdr_device": {
           "type": "string",
           "title": "USB receiver",
           "description": "Leave as auto unless you have more than one SDR receiver plugged in.",
-          "default": "auto"
+          "default": "auto",
+          "pattern": "^(?:auto|[0-9]|[12][0-9]|3[01]|serial=[A-Za-z0-9._:-]{1,64})$"
         },
         "receiver_gain": {
           "type": "string",
           "title": "Signal sensitivity",
           "description": "Leave as auto for normal use. Increase only if reception is weak or unreliable.",
-          "default": "auto"
+          "default": "auto",
+          "pattern": "^(?:auto|(?:[0-9]|[1-5][0-9]|60)(?:\\.[0-9]+)?)$"
         },
         "rtl433_protocols": {
           "type": "string",
           "title": "Device type filter",
           "description": "Optional. Leave blank to let rtl_433 identify supported devices automatically. Advanced users may enter comma-separated rtl_433 protocol IDs.",
-          "default": ""
+          "default": "",
+          "pattern": "^(?:[1-9][0-9]{0,2})(?:\\s*[,;]\\s*(?:[1-9][0-9]{0,2}))*$|^$"
         },
         "mqtt_enabled": {
           "type": "boolean",
           "title": "Share packets with MQTT",
           "description": "Optional. Enable this only if another app should also receive decoded radio packets.",
           "default": false
-        },
-        "rtl433_command": {
-          "type": "string",
-          "title": "Advanced command override",
-          "description": "Optional developer setting. If set, PiPhi uses this raw rtl_433 command and ignores the friendly radio options above.",
-          "default": ""
         }
       }
     },
@@ -164,19 +167,6 @@
             "placeholder": "Leave blank for automatic decoding"
           }
         }
-      },
-      "rtl433_command": {
-        "ui:components": {
-          "textWidget": "textareaWidget"
-        },
-        "ui:options": {
-          "textarea": {
-            "rows": 3
-          },
-          "flowbite3Textarea": {
-            "rows": 3
-          }
-        }
       }
     }
   },
@@ -203,6 +193,63 @@
     "env": {
       "RTL433_BRIDGE_ENABLED": "true",
       "RTL433_BRIDGE_RUNTIME_INGEST_URL": "http://127.0.0.1:8090/ingest/rtl433"
+    }
+  },
+  "marketplace": {
+    "metadata_version": 2,
+    "display_name": "433 MHz radio bridge (experimental)",
+    "summary": "Receive rtl_433 packets through one explicitly mapped RTL-SDR receiver.",
+    "category": "networking",
+    "device_types": ["platform service", "RTL-SDR receiver"],
+    "protocols": ["rtl_433", "sub-GHz receive-only radio"],
+    "regions": ["WW"],
+    "languages": ["en"],
+    "discovery_methods": ["local radio reception"],
+    "connectivity": "local",
+    "offline_support": "partial",
+    "publisher": {
+      "name": "PiPhi Network",
+      "website_url": "https://piphi.io",
+      "support_url": "https://github.com/PiPhi-io/piphi-apps/issues",
+      "security_contact": "support@piphi.io"
+    },
+    "access": [
+      {
+        "id": "companion_service",
+        "label": "Background radio service",
+        "reason": "Keeps a bounded receive-only rtl_433 decoder running for the parent integration.",
+        "required": true
+      },
+      {
+        "id": "usb_device",
+        "label": "Selected receiver access",
+        "reason": "Reads RTL-SDR USB nodes without privileged-container or host-network access; select the receiver by serial when several adapters are present.",
+        "required": true
+      },
+      {
+        "id": "direct_hardware",
+        "label": "Direct radio hardware access",
+        "reason": "Receives radio samples from the selected local RTL-SDR adapter.",
+        "required": true
+      }
+    ],
+    "compatibility": [
+      {
+        "brand": "RTL-SDR",
+        "model": "RTL-SDR-compatible USB receivers with host udev/group permissions",
+        "regions": ["WW"]
+      }
+    ],
+    "documentation_url": "https://github.com/PiPhi-io/piphi-apps/tree/apps/piphi.service.rtl433-bridge/v0.2.0/apps/services/piphi-rtl433-bridge",
+    "support_url": "https://github.com/PiPhi-io/piphi-apps/issues",
+    "changelog_url": "https://github.com/PiPhi-io/piphi-apps/releases/tag/apps/piphi.service.rtl433-bridge/v0.2.0",
+    "quality_tier": "unrated",
+    "governance": {
+      "schema_version": 1,
+      "publication_status": "beta",
+      "rollout_percent": 10,
+      "lifecycle_status": "active",
+      "qualification": {"status": "unverified"}
     }
   },
   "onboarding": {

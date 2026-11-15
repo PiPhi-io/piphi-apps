@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import asynccontextmanager, suppress
+import os
+import secrets
 from typing import Callable
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel, ConfigDict
 
 from .bridge import Rtl433Bridge
@@ -30,6 +32,7 @@ class BridgeSupervisor:
         self.config = config
         self._bridge_factory = bridge_factory
         self._task: asyncio.Task[None] | None = None
+        self._bridge: Rtl433Bridge | None = None
         self._lock = asyncio.Lock()
 
     async def start(self) -> None:
@@ -59,8 +62,8 @@ class BridgeSupervisor:
     def _start_unlocked(self) -> None:
         if self._task is not None and not self._task.done():
             return
-        bridge = self._bridge_factory(self.config)
-        self._task = asyncio.create_task(bridge.run_forever())
+        self._bridge = self._bridge_factory(self.config)
+        self._task = asyncio.create_task(self._bridge.run_forever())
 
     async def _stop_unlocked(self) -> None:
         if self._task is None:
@@ -69,6 +72,22 @@ class BridgeSupervisor:
         with suppress(asyncio.CancelledError):
             await self._task
         self._task = None
+        self._bridge = None
+
+    def health(self) -> dict[str, object]:
+        running = self._task is not None and not self._task.done()
+        bridge = self._bridge
+        return {
+            "status": "ok" if running else "degraded",
+            "process_supervisor_running": running,
+            "forwarded_count": bridge.forwarded_count if bridge else 0,
+            "invalid_line_count": bridge.invalid_line_count if bridge else 0,
+            "dropped_count": bridge.dropped_count if bridge else 0,
+            "duplicate_count": bridge.duplicate_count if bridge else 0,
+            "retry_count": bridge.retry_count if bridge else 0,
+            "failed_count": bridge.failed_count if bridge else 0,
+            **_public_config(self.config),
+        }
 
 
 def _clean_optional(value: str | None) -> str | None:
@@ -95,16 +114,31 @@ app = FastAPI(title="PiPhi rtl_433 Radio Bridge", lifespan=lifespan)
 
 @app.get("/health")
 async def health() -> dict[str, object]:
-    return {"status": "ok", **_public_config(supervisor.config)}
+    return supervisor.health()
 
 
 @app.post("/radio/config")
-async def configure_radio(payload: RadioConfigurationRequest) -> dict[str, object]:
+async def configure_radio(
+    payload: RadioConfigurationRequest,
+    x_piphi_service_token: str | None = Header(default=None),
+) -> dict[str, object]:
+    _authorize_service_request(x_piphi_service_token)
     try:
         config = await supervisor.configure(payload)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {"status": "listening", **_public_config(config)}
+
+
+def _authorize_service_request(received_token: str | None) -> None:
+    expected_token = str(os.getenv("PIPHI_SERVICE_AUTH_TOKEN") or "").strip()
+    production = str(os.getenv("PIPHI_ENV") or os.getenv("ENVIRONMENT") or "").lower() == "production"
+    if not expected_token:
+        if production:
+            raise HTTPException(status_code=503, detail="Radio service authentication is not configured")
+        return
+    if not received_token or not secrets.compare_digest(received_token, expected_token):
+        raise HTTPException(status_code=401, detail="Invalid radio service authentication")
 
 
 def _public_config(config: BridgeConfig) -> dict[str, object]:
@@ -131,7 +165,7 @@ def runtime_port() -> int:
 def main() -> None:
     import uvicorn
 
-    uvicorn.run(app, host="127.0.0.1", port=runtime_port())
+    uvicorn.run(app, host="0.0.0.0", port=runtime_port())
 
 
 if __name__ == "__main__":

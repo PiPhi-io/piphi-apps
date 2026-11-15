@@ -78,7 +78,6 @@ def make_config(**overrides):
     defaults = {
         "http_forward_enabled": True,
         "runtime_ingest_url": "http://runtime.test/ingest/rtl433",
-        "rtl433_command_text": "rtl_433 -F json",
         "forward_timeout_seconds": 10.0,
         "retry_delay_seconds": 0.01,
         "startup_delay_seconds": 0.0,
@@ -116,6 +115,11 @@ def test_parse_packet_line_rejects_blank_lines() -> None:
     assert parse_packet_line(b"\n") is None
 
 
+def test_parse_packet_line_rejects_oversized_and_deep_payloads() -> None:
+    assert parse_packet_line('{"model":"' + ("x" * 100) + '"}', max_packet_bytes=32) is None
+    assert parse_packet_line('{"a":{"b":{"c":{"d":{"e":{"f":{"g":1}}}}}}}') is None
+
+
 def test_forward_packet_http_posts_payload_and_headers() -> None:
     config = make_config()
     bridge = Rtl433Bridge(config)
@@ -145,14 +149,14 @@ def test_forward_packet_http_requires_client_when_enabled() -> None:
 
 
 def test_forward_packet_http_noops_when_disabled() -> None:
-    config = make_config(http_forward_enabled=False)
+    config = make_config(http_forward_enabled=False, mqtt_enabled=True)
     bridge = Rtl433Bridge(config)
 
     asyncio.run(bridge._forward_packet_http(None, {"model": "Nexus-TH"}))
 
 
 def test_forward_packet_mqtt_publishes_base_and_model_topics() -> None:
-    config = make_config(mqtt_enabled=True)
+    config = make_config(http_forward_enabled=False, mqtt_enabled=True)
     bridge = Rtl433Bridge(config)
     client = DummyMqttClient()
 
@@ -167,7 +171,7 @@ def test_forward_packet_mqtt_publishes_base_and_model_topics() -> None:
 
 
 def test_forward_packet_mqtt_skips_model_topic_when_model_missing() -> None:
-    config = make_config(mqtt_enabled=True)
+    config = make_config(http_forward_enabled=False, mqtt_enabled=True)
     bridge = Rtl433Bridge(config)
     client = DummyMqttClient()
 
@@ -177,7 +181,7 @@ def test_forward_packet_mqtt_skips_model_topic_when_model_missing() -> None:
 
 
 def test_forward_packet_mqtt_requires_client_when_enabled() -> None:
-    config = make_config(mqtt_enabled=True)
+    config = make_config(http_forward_enabled=False, mqtt_enabled=True)
     bridge = Rtl433Bridge(config)
 
     with pytest.raises(RuntimeError, match="no MQTT client"):
@@ -209,27 +213,30 @@ def test_forward_packet_retries_then_succeeds(monkeypatch) -> None:
     assert bridge.forwarded_count == 1
 
 
-def test_forward_packet_uses_both_http_and_mqtt_when_enabled() -> None:
-    config = make_config(mqtt_enabled=True)
+def test_forward_packet_exhausts_bounded_retry_budget(monkeypatch) -> None:
+    config = make_config(max_forward_attempts=3)
     bridge = Rtl433Bridge(config)
-    http_client = DummyHttpClient()
-    mqtt_client = DummyMqttClient()
+    client = DummyHttpClient([DummyResponse(should_raise=True) for _ in range(3)])
 
-    asyncio.run(
-        bridge.forward_packet(
-            http_client,
-            mqtt_client,
-            {"model": "Nexus TH", "id": 42},
-        )
-    )
+    async def fake_sleep(_delay: float) -> None:
+        return None
 
-    assert len(http_client.calls) == 1
-    assert len(mqtt_client.calls) == 2
-    assert bridge.forwarded_count == 1
+    monkeypatch.setattr("piphi_rtl433_bridge.bridge.asyncio.sleep", fake_sleep)
+    asyncio.run(bridge.forward_packet(client, None, {"model": "Nexus-TH"}))
+
+    assert len(client.calls) == 3
+    assert bridge.retry_count == 2
+    assert bridge.failed_count == 1
+    assert bridge.dropped_count == 1
+
+
+def test_config_rejects_simultaneous_http_and_mqtt() -> None:
+    with pytest.raises(ValueError, match="Exactly one"):
+        make_config(mqtt_enabled=True)
 
 
 def test_forward_stdout_counts_invalid_lines_and_forwards_valid_packets(monkeypatch) -> None:
-    config = make_config(http_forward_enabled=False, mqtt_enabled=False)
+    config = make_config()
     bridge = Rtl433Bridge(config)
     process = DummyProcess(
         stdout_lines=[

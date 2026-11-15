@@ -9,25 +9,27 @@ from piphi_rtl433_bridge.config import (
     parse_protocol_ids,
     reconfigure_bridge_config,
     resolve_frequency,
+    validate_receiver_gain,
+    validate_rtlsdr_device,
 )
+import pytest
 
 
-def test_load_bridge_config_parses_command_and_headers(monkeypatch) -> None:
+def test_load_bridge_config_builds_validated_command_and_headers(monkeypatch) -> None:
     monkeypatch.setenv("HTTP_FORWARD_ENABLED", "true")
-    monkeypatch.setenv("RTL433_COMMAND", "rtl_433 -F json -M time:unix")
     monkeypatch.setenv("RUNTIME_INGEST_URL", "http://runtime.test/ingest/rtl433")
     monkeypatch.setenv("BRIDGE_EXTRA_HEADERS_JSON", '{"X-Test": "true"}')
-    monkeypatch.setenv("MQTT_ENABLED", "true")
+    monkeypatch.setenv("MQTT_ENABLED", "false")
     monkeypatch.setenv("MQTT_HOSTNAME", "mqtt.test")
     monkeypatch.setenv("MQTT_PORT", "1884")
 
     config = load_bridge_config()
 
     assert config.http_forward_enabled is True
-    assert config.rtl433_command == ["rtl_433", "-F", "json", "-M", "time:unix"]
+    assert config.rtl433_command == ["rtl_433", "-F", "json", "-f", "433.92M"]
     assert config.runtime_ingest_url == "http://runtime.test/ingest/rtl433"
     assert config.extra_headers == {"X-Test": "true"}
-    assert config.mqtt_enabled is True
+    assert config.mqtt_enabled is False
     assert config.mqtt_hostname == "mqtt.test"
     assert config.mqtt_port == 1884
 
@@ -74,7 +76,6 @@ def test_build_bridge_config_uses_explicit_values() -> None:
     config = build_bridge_config(
         http_forward_enabled=False,
         runtime_ingest_url="http://runtime.example/ingest/rtl433",
-        rtl433_command_text="rtl_433 -F json -M time:iso",
         forward_timeout_seconds=12.0,
         retry_delay_seconds=4.0,
         startup_delay_seconds=1.5,
@@ -90,7 +91,7 @@ def test_build_bridge_config_uses_explicit_values() -> None:
 
     assert config.http_forward_enabled is False
     assert config.runtime_ingest_url == "http://runtime.example/ingest/rtl433"
-    assert config.rtl433_command == ["rtl_433", "-F", "json", "-M", "time:iso"]
+    assert config.rtl433_command == ["rtl_433", "-F", "json", "-f", "433.92M"]
     assert config.extra_headers == {"X-PiPhi": "bridge", "X-Env": "override"}
     assert config.mqtt_enabled is True
     assert config.mqtt_hostname == "mqtt.example"
@@ -136,19 +137,18 @@ def test_parse_frequency_selection_treats_raw_frequency_as_custom() -> None:
     assert parse_frequency_selection("344.975M") == ("custom", "344.975M")
 
 
-def test_raw_rtl433_command_override_wins_over_friendly_fields() -> None:
+def test_command_is_always_built_from_validated_friendly_fields() -> None:
     config = build_bridge_config(
         http_forward_enabled=True,
         runtime_ingest_url="http://runtime.example/ingest/rtl433",
         radio_band="915mhz",
-        rtl433_command_text="rtl_433 -F json -M time:iso",
         forward_timeout_seconds=10.0,
         retry_delay_seconds=5.0,
         startup_delay_seconds=1.0,
     )
 
     assert config.frequency == "915M"
-    assert config.rtl433_command == ["rtl_433", "-F", "json", "-M", "time:iso"]
+    assert config.rtl433_command == ["rtl_433", "-F", "json", "-f", "915M"]
 
 
 def test_custom_frequency_requires_value() -> None:
@@ -212,9 +212,8 @@ def test_build_model_packets_topic_sanitizes_slashes_and_spaces() -> None:
 
 def test_build_bridge_config_trims_trailing_slash_from_topic_root() -> None:
     config = build_bridge_config(
-        http_forward_enabled=True,
+        http_forward_enabled=False,
         runtime_ingest_url="http://runtime.example/ingest/rtl433",
-        rtl433_command_text="rtl_433 -F json",
         forward_timeout_seconds=10.0,
         retry_delay_seconds=5.0,
         startup_delay_seconds=1.0,
@@ -229,10 +228,12 @@ def test_load_bridge_config_defaults_false_boolean_values(monkeypatch) -> None:
     monkeypatch.setenv("HTTP_FORWARD_ENABLED", "off")
     monkeypatch.setenv("MQTT_ENABLED", "no")
 
-    config = load_bridge_config()
-
-    assert config.http_forward_enabled is False
-    assert config.mqtt_enabled is False
+    try:
+        load_bridge_config()
+    except ValueError as exc:
+        assert "Exactly one authoritative forwarding transport" in str(exc)
+    else:
+        raise AssertionError("Expected a disabled transport configuration to be rejected")
 
 
 def test_build_packet_envelope_uses_none_when_identity_fields_missing() -> None:
@@ -240,3 +241,43 @@ def test_build_packet_envelope_uses_none_when_identity_fields_missing() -> None:
 
     assert envelope["device_hint"]["id"] is None
     assert envelope["device_hint"]["channel"] is None
+
+
+@pytest.mark.parametrize("frequency", ["19.9M", "1767M", "433.92;rm", "not-a-frequency"])
+def test_custom_frequency_rejects_unsafe_or_out_of_range_values(frequency: str) -> None:
+    with pytest.raises(ValueError, match="CUSTOM_FREQUENCY"):
+        resolve_frequency(radio_band="custom", custom_frequency=frequency)
+
+
+@pytest.mark.parametrize("selector", ["/dev/bus/usb", "rtl_tcp=host:1234", "32", "serial=x y"])
+def test_receiver_selector_is_narrowly_validated(selector: str) -> None:
+    with pytest.raises(ValueError, match="RTLSDR_DEVICE"):
+        validate_rtlsdr_device(selector)
+
+
+@pytest.mark.parametrize("gain", ["-1", "61", "nan", "very-high"])
+def test_receiver_gain_is_bounded(gain: str) -> None:
+    with pytest.raises(ValueError, match="RECEIVER_GAIN"):
+        validate_receiver_gain(gain)
+
+
+def test_protocol_ids_are_numeric_bounded_and_deduplicated() -> None:
+    config = build_bridge_config(
+        http_forward_enabled=True,
+        runtime_ingest_url="http://runtime.test/ingest/rtl433",
+        protocol_ids_text="1, 398, 1",
+        forward_timeout_seconds=1,
+        retry_delay_seconds=1,
+        startup_delay_seconds=0,
+    )
+    assert config.protocol_ids == ("1", "398")
+
+    with pytest.raises(ValueError, match="between 1 and 398"):
+        build_bridge_config(
+            http_forward_enabled=True,
+            runtime_ingest_url="http://runtime.test/ingest/rtl433",
+            protocol_ids_text="399",
+            forward_timeout_seconds=1,
+            retry_delay_seconds=1,
+            startup_delay_seconds=0,
+        )

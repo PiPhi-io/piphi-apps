@@ -26,8 +26,8 @@ PROFILE_DEFINITIONS: dict[str, ProfileDefinition] = {
         id="generic_sensor",
         name="Generic Sensor",
         description="Basic rtl_433 sensor profile for battery and signal-oriented devices.",
-        capabilities=("battery_ok", "signal_rssi"),
-        metric_units={"signal_rssi": "dBm"},
+        capabilities=("battery_ok", "signal_rssi", "signal_snr", "signal_noise"),
+        metric_units={"signal_rssi": "dBm", "signal_snr": "dB", "signal_noise": "dB"},
     ),
     "weather_basic": ProfileDefinition(
         id="weather_basic",
@@ -40,6 +40,8 @@ PROFILE_DEFINITIONS: dict[str, ProfileDefinition] = {
             "wind_speed_kph",
             "rain_total_mm",
             "signal_rssi",
+            "signal_snr",
+            "signal_noise",
         ),
         metric_units={
             "temperature_c": "C",
@@ -47,21 +49,23 @@ PROFILE_DEFINITIONS: dict[str, ProfileDefinition] = {
             "wind_speed_kph": "km/h",
             "rain_total_mm": "mm",
             "signal_rssi": "dBm",
+            "signal_snr": "dB",
+            "signal_noise": "dB",
         },
     ),
     "contact_sensor": ProfileDefinition(
         id="contact_sensor",
         name="Contact Sensor",
         description="Open and closed contact devices such as doors or windows.",
-        capabilities=("contact_open", "battery_ok", "signal_rssi"),
-        metric_units={"signal_rssi": "dBm"},
+        capabilities=("contact_open", "battery_ok", "signal_rssi", "signal_snr", "signal_noise"),
+        metric_units={"signal_rssi": "dBm", "signal_snr": "dB", "signal_noise": "dB"},
     ),
     "leak_sensor": ProfileDefinition(
         id="leak_sensor",
         name="Leak Sensor",
         description="Water and moisture detection devices.",
-        capabilities=("leak_detected", "battery_ok", "signal_rssi"),
-        metric_units={"signal_rssi": "dBm"},
+        capabilities=("leak_detected", "battery_ok", "signal_rssi", "signal_snr", "signal_noise"),
+        metric_units={"signal_rssi": "dBm", "signal_snr": "dB", "signal_noise": "dB"},
     ),
 }
 
@@ -93,7 +97,8 @@ CANONICAL_METRIC_KEYS = {
     "rain_mm": "rain_total_mm",
     "rain_total_mm": "rain_total_mm",
     "rssi": "signal_rssi",
-    "snr": "signal_rssi",
+    "snr": "signal_snr",
+    "noise": "signal_noise",
     "pressure_hPa": "pressure_hpa",
     "pressure_Pa": "pressure_pa",
     "battery_mV": "battery_mv",
@@ -108,6 +113,8 @@ KNOWN_METRIC_UNITS = {
     "rain_total_mm": "mm",
     "rain_rate_mm_h": "mm/h",
     "signal_rssi": "dBm",
+    "signal_snr": "dB",
+    "signal_noise": "dB",
     "pressure_hpa": "hPa",
     "pressure_pa": "Pa",
     "battery_mv": "mV",
@@ -151,20 +158,26 @@ def extract_metrics(packet: Mapping[str, Any], profile_id: str = "auto") -> dict
     metrics: dict[str, Any] = {}
     consumed_keys: set[str] = set()
 
-    _copy_if_present(metrics, packet, "temperature_C", "temperature_c", consumed_keys)
-    _copy_if_present(metrics, packet, "temperature_F", "temperature_f", consumed_keys)
-    _copy_if_present(metrics, packet, "humidity", "humidity_percent", consumed_keys)
-    _copy_first_present(
+    _copy_number_in_range(metrics, packet, "temperature_C", "temperature_c", -100, 100, consumed_keys)
+    _copy_number_in_range(metrics, packet, "temperature_F", "temperature_f", -148, 212, consumed_keys)
+    _copy_number_in_range(metrics, packet, "humidity", "humidity_percent", 0, 100, consumed_keys)
+    _copy_first_number_in_range(
         metrics,
         packet,
         ("wind_avg_km_h", "wind_speed_km_h", "wind_speed_kph"),
         "wind_speed_kph",
+        0,
+        500,
         consumed_keys,
     )
-    _copy_first_present(metrics, packet, ("rain_mm", "rain_total_mm"), "rain_total_mm", consumed_keys)
+    _copy_first_number_in_range(
+        metrics, packet, ("rain_mm", "rain_total_mm"), "rain_total_mm", 0, 1_000_000, consumed_keys
+    )
 
     if "contact_open" in packet:
-        metrics["contact_open"] = _as_bool(packet.get("contact_open"))
+        parsed = _strict_bool(packet.get("contact_open"))
+        if parsed is not None:
+            metrics["contact_open"] = parsed
         consumed_keys.add("contact_open")
     elif "state" in packet and str(packet.get("state", "")).lower() in {"open", "closed"}:
         metrics["contact_open"] = str(packet.get("state", "")).lower() == "open"
@@ -172,22 +185,23 @@ def extract_metrics(packet: Mapping[str, Any], profile_id: str = "auto") -> dict
 
     for leak_key in ("leak", "water", "moisture"):
         if leak_key in packet:
-            metrics["leak_detected"] = _as_bool(packet.get(leak_key))
+            parsed = _strict_bool(packet.get(leak_key))
+            if parsed is not None:
+                metrics["leak_detected"] = parsed
             consumed_keys.add(leak_key)
             break
 
-    _copy_if_present(metrics, packet, "battery_ok", "battery_ok", consumed_keys)
-    _copy_first_present(metrics, packet, ("rssi", "snr"), "signal_rssi", consumed_keys)
-
-    for packet_key, value in packet.items():
-        if packet_key in consumed_keys:
-            continue
-        metric_key = normalize_metric_key(packet_key)
-        if not metric_key or metric_key in metrics:
-            continue
-        metric_value = _safe_metric_value(value)
-        if metric_value is not None:
-            metrics[metric_key] = metric_value
+    if "battery_ok" in packet:
+        parsed_battery = _strict_bool(packet.get("battery_ok"))
+        if parsed_battery is not None:
+            metrics["battery_ok"] = parsed_battery
+        consumed_keys.add("battery_ok")
+    _copy_number_in_range(metrics, packet, "rssi", "signal_rssi", -200, 100, consumed_keys)
+    _copy_number_in_range(metrics, packet, "snr", "signal_snr", -100, 100, consumed_keys)
+    _copy_number_in_range(metrics, packet, "noise", "signal_noise", -200, 100, consumed_keys)
+    _copy_number_in_range(metrics, packet, "pressure_hPa", "pressure_hpa", 100, 1200, consumed_keys)
+    _copy_number_in_range(metrics, packet, "pressure_Pa", "pressure_pa", 10_000, 120_000, consumed_keys)
+    _copy_number_in_range(metrics, packet, "battery_mV", "battery_mv", 0, 20_000, consumed_keys)
 
     return metrics
 
@@ -254,12 +268,55 @@ def _copy_first_present(
             return
 
 
-def _as_bool(value: Any) -> bool:
+def _strict_bool(value: Any) -> bool | None:
     if isinstance(value, bool):
         return value
     if isinstance(value, (int, float)):
-        return value != 0
-    return str(value).strip().lower() in {"1", "true", "yes", "open", "wet"}
+        if value in (0, 1):
+            return bool(value)
+        return None
+    normalized = str(value).strip().lower()
+    if normalized in {"1", "true", "yes", "open", "wet"}:
+        return True
+    if normalized in {"0", "false", "no", "closed", "dry"}:
+        return False
+    return None
+
+
+def _copy_number_in_range(
+    metrics: dict[str, Any],
+    packet: Mapping[str, Any],
+    packet_key: str,
+    metric_key: str,
+    minimum: float,
+    maximum: float,
+    consumed_keys: set[str],
+) -> None:
+    if packet_key not in packet:
+        return
+    consumed_keys.add(packet_key)
+    value = packet.get(packet_key)
+    if isinstance(value, (int, float)) and not isinstance(value, bool) and minimum <= value <= maximum:
+        metrics[metric_key] = value
+
+
+def _copy_first_number_in_range(
+    metrics: dict[str, Any],
+    packet: Mapping[str, Any],
+    packet_keys: tuple[str, ...],
+    metric_key: str,
+    minimum: float,
+    maximum: float,
+    consumed_keys: set[str],
+) -> None:
+    for packet_key in packet_keys:
+        if packet_key not in packet:
+            continue
+        consumed_keys.add(packet_key)
+        value = packet.get(packet_key)
+        if isinstance(value, (int, float)) and not isinstance(value, bool) and minimum <= value <= maximum:
+            metrics[metric_key] = value
+            return
 
 
 def normalize_metric_key(packet_key: str) -> str | None:

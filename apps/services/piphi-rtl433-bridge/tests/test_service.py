@@ -1,7 +1,13 @@
 import asyncio
+import pytest
+from fastapi import HTTPException
 
 from piphi_rtl433_bridge.config import load_bridge_config
-from piphi_rtl433_bridge.service import BridgeSupervisor, RadioConfigurationRequest
+from piphi_rtl433_bridge.service import (
+    BridgeSupervisor,
+    RadioConfigurationRequest,
+    _authorize_service_request,
+)
 
 
 def test_supervisor_restarts_bridge_with_discovery_settings() -> None:
@@ -33,3 +39,14 @@ def test_supervisor_restarts_bridge_with_discovery_settings() -> None:
         await supervisor.stop()
 
     asyncio.run(run())
+
+
+def test_radio_reconfiguration_authentication_is_constant_time_boundary(monkeypatch) -> None:
+    monkeypatch.setenv("PIPHI_SERVICE_AUTH_TOKEN", "service-secret")
+    with pytest.raises(HTTPException) as missing:
+        _authorize_service_request(None)
+    with pytest.raises(HTTPException) as invalid:
+        _authorize_service_request("wrong")
+    assert missing.value.status_code == 401
+    assert invalid.value.status_code == 401
+    assert _authorize_service_request("service-secret") is None

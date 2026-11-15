@@ -1,7 +1,7 @@
 [project]
 name = "piphi-network-433mhz"
-version = "0.1.7"
-description = "Default template for PDM package"
+version = "0.2.0"
+description = "Receive-only PiPhi integration for a bounded rtl_433 sensor slice"
 authors = [
     { name = "PiPhi Network" },
     {name = "KelvinSan", email = "kelvin.sanyaolu@gmail.com"},

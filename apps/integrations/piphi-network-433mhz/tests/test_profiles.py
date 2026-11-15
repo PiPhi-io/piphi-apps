@@ -99,3 +99,34 @@ def test_build_entities_and_metric_units_follow_profile_definition() -> None:
 
 def test_format_capability_name_title_cases_words() -> None:
     assert format_capability_name("rain_total_mm") == "Rain Total Mm"
+
+
+def test_signal_metrics_preserve_rssi_snr_and_noise_semantics() -> None:
+    metrics = extract_metrics(
+        {"model": "Weather", "id": 1, "rssi": -72, "snr": 8.5, "noise": -91},
+        "generic_sensor",
+    )
+
+    assert metrics == {"signal_rssi": -72, "signal_snr": 8.5, "signal_noise": -91}
+    assert metric_units("generic_sensor", list(metrics)) == {
+        "signal_rssi": "dBm",
+        "signal_snr": "dB",
+        "signal_noise": "dB",
+    }
+
+
+def test_unknown_and_out_of_range_fields_are_not_product_metrics() -> None:
+    metrics = extract_metrics(
+        {
+            "model": "Unqualified",
+            "id": 9,
+            "temperature_C": 800,
+            "humidity": -1,
+            "battery_ok": 7,
+            "tamper": 1,
+            "energy_kWh": 12.5,
+        },
+        "generic_sensor",
+    )
+
+    assert metrics == {}

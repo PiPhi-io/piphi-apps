@@ -20,6 +20,10 @@ app_module = importlib.import_module("piphi_network_433mhz.app")
 def reset_runtime_state() -> None:
     recent_seen_devices.clear()
     app_module.discovery_waiters.clear()
+    app_module.packet_fingerprints.clear()
+    app_module.last_discovery_event_at.clear()
+    for counter in app_module.ingress_counters:
+        app_module.ingress_counters[counter] = 0
     registry.entries.clear()
     registry.state_snapshots.clear()
     registry.recent_events.clear()
@@ -215,6 +219,7 @@ def test_discovery_cache_round_trip(tmp_path, monkeypatch) -> None:
             "humidity": 51,
         }
     )
+    app_module.persist_discovery_cache(force=True)
     recent_seen_devices.clear()
     app_module.load_discovery_cache()
 
@@ -314,7 +319,7 @@ def test_ingest_matching_config_updates_state_and_emits_event(monkeypatch) -> No
     assert "rtl433.packet.matched" in event_types
 
 
-def test_leak_packets_emit_only_real_transitions_to_core(monkeypatch) -> None:
+def test_generic_leak_packets_never_emit_canonical_safety_events(monkeypatch) -> None:
     reset_runtime_state()
     client = TestClient(app)
     event_deliveries: list[dict] = []
@@ -370,32 +375,17 @@ def test_leak_packets_emit_only_real_transitions_to_core(monkeypatch) -> None:
     ingest(1)
     ingest(0)
 
-    assert [delivery["event_type"] for delivery in event_deliveries] == [
-        "rtl433.safety.leak.detected",
-        "rtl433.safety.leak.cleared",
-    ]
-    assert all(delivery["severity"] == "warning" for delivery in event_deliveries)
-    assert all(
-        delivery["device"]["device_id"] == "Generic-Leak::8::na"
-        for delivery in event_deliveries
-    )
-    assert event_deliveries[0]["payload"] == {
-        "capability": "leak_detected",
-        "previous_value": False,
-        "current_value": True,
-        "profile": "leak_sensor",
-        "transport": "http",
-    }
+    assert event_deliveries == []
 
     event_types = [
         event["event_type"]
         for event in client.get("/events").json()["events"]
     ]
-    assert event_types.count("rtl433.safety.leak.detected") == 1
-    assert event_types.count("rtl433.safety.leak.cleared") == 1
+    assert "rtl433.safety.leak.detected" not in event_types
+    assert "rtl433.safety.leak.cleared" not in event_types
 
 
-def test_leak_transition_delivers_authenticated_event_to_mock_core(
+def test_generic_leak_transition_does_not_deliver_safety_event_to_mock_core(
     mock_core,
     monkeypatch,
 ) -> None:
@@ -431,19 +421,8 @@ def test_leak_transition_delivers_authenticated_event_to_mock_core(
             headers=headers,
         ).status_code == 200
 
-        wait_for(lambda: len(mock_core.event_requests) >= 1)
-        event_request = mock_core.assert_event_sent(
-            device_id="Generic-Leak::18::na",
-            config_id="cfg-leak-core-1",
-            event_type="rtl433.safety.leak.detected",
-        )
-        event_headers = {
-            key.lower(): value for key, value in event_request.headers.items()
-        }
-        assert event_headers["x-container-id"] == "runtime-leak-123"
-        assert event_headers["x-piphi-integration-token"] == "secret-token"
-        assert event_request.json_body["severity"] == "warning"
-        assert event_request.json_body["data"]["current_value"] is True
+        time.sleep(0.05)
+        assert mock_core.event_requests == []
 
 
 def test_manifest_declares_fail_closed_security_coverage() -> None:
@@ -456,19 +435,17 @@ def test_manifest_declares_fail_closed_security_coverage() -> None:
     assert len({mapping["source_event_type"] for mapping in mappings}) == len(mappings)
     assert all(mapping["device_models"] for mapping in mappings)
     assert all(mapping["required_permissions"] for mapping in mappings)
-    assert {
-        mapping["source_event_type"]: mapping["canonical_event_type"]
-        for mapping in mappings
-        if mapping["status"] == "implemented"
-    } == {
-        "rtl433.safety.leak.detected": "safety_leak_detected",
-        "rtl433.safety.leak.cleared": "safety_leak_cleared",
-    }
+    assert not any(mapping["status"] == "implemented" for mapping in mappings)
     assert {
         mapping["source_event_type"]
         for mapping in mappings
         if mapping["status"] == "excluded"
-    } == {"rtl433.contact.opened", "rtl433.packet.matched"}
+    } == {
+        "rtl433.safety.leak.detected",
+        "rtl433.safety.leak.cleared",
+        "rtl433.contact.opened",
+        "rtl433.packet.matched",
+    }
 
 
 def test_ingest_generic_config_uses_inferred_weather_metrics(monkeypatch) -> None:
@@ -661,7 +638,7 @@ def test_command_clear_cache_replay_does_not_repeat_cache_mutation() -> None:
         "/ingest/rtl433",
         json={"model": "Nexus-TH", "id": 42, "temperature_C": 23.1},
     )
-    headers = {"X-PiPhi-Idempotency-Key": "rtl433-clear-cache-idempotency-1"}
+    headers = {"X-PiPhi-Idempotency-Key": "rtl433-clear-cache-idempotency-0.2.0"}
 
     first = client.post(
         "/command",
@@ -809,6 +786,70 @@ def test_events_limit_returns_only_requested_count() -> None:
 
     assert response.status_code == 200
     assert len(response.json()["events"]) == 2
+
+
+def test_cross_transport_duplicate_is_idempotent(monkeypatch) -> None:
+    reset_runtime_state()
+    monkeypatch.setattr(app_module, "persist_discovery_cache", lambda: None)
+    packet = {"model": "Nexus-TH", "id": 42, "temperature_C": 23.1}
+
+    first = asyncio.run(app_module.process_rtl433_packet(packet, source_transport="http"))
+    duplicate = asyncio.run(app_module.process_rtl433_packet(packet, source_transport="mqtt"))
+
+    assert first["status"] == "ok"
+    assert duplicate == {
+        "status": "duplicate",
+        "transport": "mqtt",
+        "matched_configs": 0,
+        "metric_names": [],
+    }
+    assert app_module.ingress_counters["duplicates"] == 1
+    assert len(registry.recent_events) == 1
+
+
+def test_ingest_requires_configured_bridge_token(monkeypatch) -> None:
+    reset_runtime_state()
+    monkeypatch.setenv("RTL433_INGEST_TOKEN", "bridge-secret")
+    client = TestClient(app)
+    packet = {"model": "Nexus-TH", "id": 42, "temperature_C": 23.1}
+
+    assert client.post("/ingest/rtl433", json=packet).status_code == 401
+    assert client.post(
+        "/ingest/rtl433",
+        json=packet,
+        headers={"X-PiPhi-Bridge-Token": "bridge-secret"},
+    ).status_code == 200
+
+
+def test_packet_without_stable_identity_stays_undiscoverable() -> None:
+    reset_runtime_state()
+    response = TestClient(app).post(
+        "/ingest/rtl433",
+        json={"model": "Anonymous", "temperature_C": 22.0},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "ignored"
+    assert recent_seen_devices == {}
+    assert registry.recent_events == []
+
+
+def test_stale_device_is_marked_unavailable(monkeypatch) -> None:
+    reset_runtime_state()
+    client = TestClient(app)
+    client.post(
+        "/config",
+        json={"id": "cfg-1", "profile": "weather_basic", "model": "Nexus-TH", "station_id": "42"},
+    )
+    client.post("/ingest/rtl433", json={"model": "Nexus-TH", "id": 42, "temperature_C": 22.0})
+    snapshot = registry.state_snapshots["cfg-1"]["state"]
+    assert snapshot["available"] is True
+    snapshot["last_packet_monotonic"] = time.monotonic() - 1000
+    monkeypatch.setattr(app_module, "DEVICE_EXPIRY_SECONDS", 30.0)
+
+    state_payload = client.get("/state").json()
+
+    assert state_payload["state_snapshots"]["cfg-1"]["state"]["available"] is False
 
 
 def test_config_sync_removes_missing_configs_from_snapshot() -> None:
