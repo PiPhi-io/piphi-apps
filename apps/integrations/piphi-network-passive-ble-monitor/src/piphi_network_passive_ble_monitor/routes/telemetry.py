@@ -17,7 +17,7 @@ async def telemetry_example(request: Request):
     try:
         await refresh_config(str(entry["config_id"]))
     except Exception as exc:
-        raise HTTPException(status_code=503, detail="BLE scanner unavailable") from exc
+        raise HTTPException(status_code=503, detail="BLE gateway unavailable") from exc
     return {"status": "queued"}
 
 
@@ -28,5 +28,5 @@ async def telemetry_for_device(config_id: str, request: Request):
     try:
         await refresh_config(config_id)
     except Exception as exc:
-        raise HTTPException(status_code=503, detail="BLE scanner unavailable") from exc
+        raise HTTPException(status_code=503, detail="BLE gateway unavailable") from exc
     return {"status": "queued"}

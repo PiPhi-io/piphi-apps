@@ -46,7 +46,9 @@
       "status": 200,
       "body": {
         "id": "demo-device",
-        "host": "AA:BB:CC:DD:EE:FF",
+        "gateway_url": "https://gateway.test",
+        "gateway_token": "fixture-secret",
+        "device_handle": "ble_00000000000000000000000000000001",
         "alias": "Demo Device"
       },
       "required_any_keys": [

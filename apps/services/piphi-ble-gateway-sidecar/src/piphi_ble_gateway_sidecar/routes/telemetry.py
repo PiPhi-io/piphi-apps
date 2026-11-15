@@ -4,6 +4,7 @@ from fastapi import APIRouter, Request
 from piphi_runtime_kit_python import schedule_telemetry_delivery
 from piphi_runtime_kit_python.fastapi import sync_runtime_auth_from_fastapi_payload
 
+from ..gateway import gateway
 from ..state import get_entry_or_404, registry, runtime, telemetry
 
 router = APIRouter(tags=["telemetry"])
@@ -22,7 +23,7 @@ async def telemetry_example(request: Request):
         config_id=str(entry["config_id"]),
         device_id=str(entry["device_id"]),
         container_id=entry.get("container_id"),
-        metrics={"connected": True},
+        metrics={"service_available": gateway.service_available, "receiver_healthy": gateway.receiver_healthy},
         units={},
     )
     return {"status": "queued"}
@@ -39,7 +40,7 @@ async def telemetry_for_device(config_id: str, request: Request):
         config_id=str(entry["config_id"]),
         device_id=str(entry["device_id"]),
         container_id=entry.get("container_id"),
-        metrics={"connected": True},
+        metrics={"service_available": gateway.service_available, "receiver_healthy": gateway.receiver_healthy},
         units={},
     )
     return {"status": "queued"}

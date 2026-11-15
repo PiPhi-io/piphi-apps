@@ -16,7 +16,7 @@ async def entities() -> dict[str, Any]:
     runtime_entities = [
         {
             "id": entry["device_id"],
-            "name": entry.get("alias") or f"BTHome sensor {entry['host'][-5:]}",
+            "name": entry.get("alias") or "BTHome sensor",
             "config_id": entry["config_id"],
             "device_id": entry["device_id"],
             "entity_type": FALLBACK_ENTITY["entity_type"],

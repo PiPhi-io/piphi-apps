@@ -3,8 +3,8 @@
   "manifest_version": "1.0",
   "id": "piphi-ble-gateway-sidecar",
   "name": "BLE gateway sidecar",
-  "version": "0.1.1",
-  "description": "Provide managed Bluetooth Low Energy observation transport for PiPhi integrations.",
+  "version": "0.2.0",
+  "description": "Provide bounded, privacy-preserving BLE observations through Bleak on Linux BlueZ and Windows WinRT.",
   "metadata": {
     "generator": "piphi-network-create",
     "scaffold_version": "0.3.0",
@@ -17,15 +17,16 @@
     "website": "https://piphi.io"
   },
   "license": "Apache-2.0",
-  "image": "docker.io/piphinetwork/piphi-ble-gateway-sidecar:0.1.1",
+  "image": "ghcr.io/piphi-io/piphi-ble-gateway-sidecar:0.2.0",
   "platforms": [
-    "linux"
+    "linux",
+    "windows"
   ],
   "runtime": {
     "linux": {
       "type": "container",
       "container": {
-        "image": "docker.io/piphinetwork/piphi-ble-gateway-sidecar:0.1.1",
+        "image": "ghcr.io/piphi-io/piphi-ble-gateway-sidecar:0.2.0",
         "ports": [
           {
             "container": 4210
@@ -37,6 +38,20 @@
         "restart_policy": {
           "name": "unless-stopped",
           "maximum_retry_count": 0
+        }
+      },
+      "discovery": {
+        "method": "passive"
+      }
+    },
+    "windows": {
+      "type": "proxy",
+      "proxy": {
+        "port": 4210,
+        "process": {
+          "kind": "python_executable",
+          "command": "piphi_ble_gateway_sidecar",
+          "supervisor": "chief"
         }
       },
       "discovery": {
@@ -64,6 +79,9 @@
       "ui_config": "/ui-config",
       "events": "/events",
       "command": "/command"
+      ,"ble_consumers": "/v1/ble/consumers/{consumer_id}"
+      ,"ble_observations": "/v1/ble/observations/{consumer_id}"
+      ,"ble_snapshot": "/v1/ble/snapshot/{consumer_id}"
     }
   },
   "config": {
@@ -71,7 +89,6 @@
     "endpoint": "/ui-config",
     "required": true,
     "editable_fields": [
-      "host",
       "alias",
       "service_name"
     ],
@@ -82,19 +99,31 @@
       "device_id"
     ],
     "identity_fields": [
-      "host"
+      "id"
     ]
   },
   "identity": {
     "fields": [
-      "host"
+      "id"
     ]
   },
   "capabilities": {
-    "connected": {
+    "service_available": {
       "kind": "sensor",
       "unit": "bool"
     },
+    "receiver_healthy": {"kind": "sensor", "unit": "bool"},
+    "scanner_state": {"kind": "sensor", "unit": "string"},
+    "scan_mode": {"kind": "sensor", "unit": "string"},
+    "observations_received_total": {"kind": "sensor", "unit": "count"},
+    "observations_deduplicated_total": {"kind": "sensor", "unit": "count"},
+    "last_observation_age_ms": {"kind": "sensor", "unit": "ms"},
+    "reconnects": {"kind": "sensor", "unit": "count"},
+    "queue_depth": {"kind": "sensor", "unit": "count"},
+    "queue_capacity": {"kind": "sensor", "unit": "count"},
+    "queue_high_water": {"kind": "sensor", "unit": "count"},
+    "drops": {"kind": "sensor", "unit": "count"},
+    "coalesces": {"kind": "sensor", "unit": "count"},
     "refresh": {
       "kind": "action"
     }
@@ -112,7 +141,19 @@
       "device_id": "ble-gateway-service",
       "entity_type": "service",
       "capabilities": [
-        "connected",
+        "service_available",
+        "receiver_healthy",
+        "scanner_state",
+        "scan_mode",
+        "observations_received_total",
+        "observations_deduplicated_total",
+        "last_observation_age_ms",
+        "reconnects",
+        "queue_depth",
+        "queue_capacity",
+        "queue_high_water",
+        "drops",
+        "coalesces",
         "refresh"
       ],
       "available_commands": [
@@ -135,7 +176,7 @@
   "marketplace": {
     "metadata_version": 2,
     "display_name": "BLE gateway sidecar",
-    "summary": "Provide managed Bluetooth Low Energy observation transport for PiPhi integrations.",
+    "summary": "Cross-platform Bleak gateway for bounded, private BLE observations.",
     "category": "sensors",
     "regions": [
       "WW"
@@ -153,7 +194,7 @@
       {
         "id": "device_access",
         "label": "Bluetooth adapter access",
-        "reason": "Uses the explicitly configured host device to communicate with supported hardware.",
+        "reason": "Uses a local Bluetooth radio through Bleak (BlueZ on Linux or WinRT on Windows).",
         "required": true
       },
       {

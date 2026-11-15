@@ -1,67 +1,18 @@
 {
   "entities": [
     {
-      "id": "demo-device",
-      "name": "Demo Device",
-      "device_id": "demo-device",
-      "entity_type": "sensor",
-      "capabilities": [
-        "connected",
-        "temperature_c",
-        "refresh",
-        "humidity_percent",
-        "identify"
-      ],
-      "available_commands": [
-        {
-          "id": "refresh",
-          "label": "Refresh",
-          "kind": "action"
-        },
-        {
-          "id": "identify",
-          "label": "Identify",
-          "kind": "action"
-        }
-      ],
-      "dashboard": {
-        "allowed_widgets": [
-          "tile",
-          "stat",
-          "button"
-        ],
-        "default_widget": "tile"
-      }
+      "id": "home-presence:ble:0123456789abcdef",
+      "name": "Tracked phone",
+      "entity_type": "presence_sensor",
+      "presence": "home",
+      "area_id": "kitchen",
+      "area_name": "Kitchen",
+      "estimated_distance_m": 2.4,
+      "distance_raw_m": 2.7,
+      "freshness_seconds": 1.2,
+      "coverage_degraded": false,
+      "topology_revision": 4,
+      "area_switch_reason": "same_area_nearest"
     }
-  ],
-  "capabilities": {
-    "connected": {
-      "kind": "sensor",
-      "unit": "bool"
-    },
-    "temperature_c": {
-      "kind": "sensor",
-      "unit": "C"
-    },
-    "refresh": {
-      "kind": "action"
-    },
-    "humidity_percent": {
-      "kind": "sensor",
-      "unit": "%"
-    },
-    "identify": {
-      "kind": "action"
-    }
-  },
-  "commands": {
-    "refresh": {
-      "description": "Refresh the device state.",
-      "timeout_ms": 5000
-    },
-    "identify": {
-      "description": "Ask the device to identify itself.",
-      "timeout_ms": 5000
-    }
-  }
+  ]
 }

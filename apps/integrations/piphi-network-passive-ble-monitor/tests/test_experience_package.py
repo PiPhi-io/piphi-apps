@@ -13,7 +13,7 @@ def test_experience_matches_the_runtime_contract() -> None:
     assert PACKAGE["identity"] == {
         "publisher_id": "io.piphi",
         "package_id": "passive-ble-monitor-status",
-        "version": "0.2.3",
+        "version": "0.3.0",
     }
     assert PACKAGE["owning_integration_id"] == MANIFEST["id"]
 
@@ -29,7 +29,7 @@ def test_experience_matches_the_runtime_contract() -> None:
         "battery_percent",
         "rssi_dbm",
     }
-    assert "connected" in MANIFEST["capabilities"]
+    assert "sensor_available" in MANIFEST["capabilities"]
     assert all(slot["binding_modes"] == ["read"] for slot in widget["binding_slots"])
     assert {item["slot_id"] for item in widget["recipe"]["items"]} == {
         slot["id"] for slot in widget["binding_slots"]

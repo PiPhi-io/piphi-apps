@@ -21,5 +21,9 @@ the `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` repository secrets.
 Current image target:
 
 ```text
-docker.io/piphinetwork/piphi-ble-gateway-sidecar:0.1.1
+ghcr.io/piphi-io/piphi-ble-gateway-sidecar:0.2.0
 ```
+
+The OCI artifact remains Linux-only. Windows uses the manifest's supervised
+Python proxy process; repository-level automation still needs a Windows
+wheel/executable installation and publishing path before Windows distribution.

@@ -62,5 +62,5 @@ async def command(payload: dict[str, Any], request: Request):
         try:
             response["state"] = await refresh_config(config_id)
         except Exception as exc:
-            raise HTTPException(status_code=503, detail="BLE scanner unavailable") from exc
+            raise HTTPException(status_code=503, detail="BLE gateway unavailable") from exc
     return response

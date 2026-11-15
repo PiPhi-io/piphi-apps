@@ -30,7 +30,7 @@ async def configure(payload: DeviceConfig, request: Request):
     return build_config_apply_response(
         config_id=payload.config_id or payload.id,
         container_id=payload.container_id,
-        metadata={"host": payload.host, "alias": payload.alias},
+        metadata={"gateway_url": payload.gateway_url, "alias": payload.alias},
     )
 
 

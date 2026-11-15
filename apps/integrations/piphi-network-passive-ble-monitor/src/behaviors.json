@@ -124,7 +124,10 @@
       "deviceClass": "sensor_device",
       "entityType": "sensor",
       "capabilities": [
-        "connected",
+        "receiver_healthy",
+        "observation_fresh",
+        "sensor_available",
+        "measurement_age_seconds",
         "temperature_c",
         "humidity_percent",
         "battery_percent",

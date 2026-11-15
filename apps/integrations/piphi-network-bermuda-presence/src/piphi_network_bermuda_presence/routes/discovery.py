@@ -14,17 +14,9 @@ router = APIRouter(tags=["discovery"])
 
 @router.post("/discover")
 async def discover(payload: IntegrationDiscoveryRequest | None = None):
-    inputs = normalize_discovery_inputs(payload.inputs if payload else None)
-    return build_discovery_response(
-        [
-            {
-                "id": "demo-device",
-                "device_id": "demo-device",
-                "host": inputs.get("host", "127.0.0.1"),
-                "alias": "Demo Device",
-            }
-        ]
-    )
+    normalize_discovery_inputs(payload.inputs if payload else None)
+    # Ambient BLE observations are intentionally never offered as entities.
+    return build_discovery_response([])
 
 
 @router.get("/ui-config")

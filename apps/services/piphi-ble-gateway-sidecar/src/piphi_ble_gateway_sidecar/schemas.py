@@ -4,7 +4,7 @@ from piphi_runtime_kit_python import RuntimeConfig
 
 
 class DeviceConfig(RuntimeConfig):
-    host: str
+    host: str = "local"
     alias: str | None = None
     api_key: str | None = None
     base_url: str | None = None

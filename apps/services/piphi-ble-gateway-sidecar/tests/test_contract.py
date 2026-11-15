@@ -23,6 +23,9 @@ def test_runtime_implements_contract_routes() -> None:
         "/telemetry/example",
         "/telemetry/device/{config_id}/example",
         "/command",
+        "/v1/ble/consumers/{consumer_id}",
+        "/v1/ble/observations/{consumer_id}",
+        "/v1/ble/snapshot/{consumer_id}",
     ]:
         assert path in routes
 

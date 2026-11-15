@@ -124,7 +124,15 @@
       "deviceClass": "sensor_device",
       "entityType": "sensor",
       "capabilities": [
-        "connected",
+        "presence",
+        "area_id",
+        "area_name",
+        "estimated_distance_m",
+        "distance_raw_m",
+        "freshness_seconds",
+        "coverage_degraded",
+        "topology_revision",
+        "area_switch_reason",
         "refresh"
       ],
       "targeting": {
@@ -184,6 +192,20 @@
           "ui": {
             "group": "when"
           }
+        },
+        {
+          "id": "presence_arrived",
+          "label": "Presence arrived",
+          "description": "Start when a selected device becomes present.",
+          "capability": "presence",
+          "runtime": {"event": "presence.arrived", "source": "integration"}
+        },
+        {
+          "id": "presence_left",
+          "label": "Presence left",
+          "description": "Start when a selected device exceeds consider-home while coverage is healthy.",
+          "capability": "presence",
+          "runtime": {"event": "presence.left", "source": "integration"}
         }
       ],
       "intents": [

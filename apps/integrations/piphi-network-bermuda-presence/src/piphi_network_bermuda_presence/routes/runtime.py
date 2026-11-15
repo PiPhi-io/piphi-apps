@@ -13,7 +13,7 @@ from ..settings import (
     PROJECT_KIND,
     PROJECT_PRESET,
 )
-from ..state import registry, starter
+from ..state import coordinators, registry, starter
 
 router = APIRouter(tags=["runtime"])
 
@@ -33,6 +33,7 @@ async def state(
     payload["summary"] = {
         "active_config_count": len(registry.ids()),
         "recent_event_count": len(registry.recent_events),
+        "tracking": [state for coordinator in coordinators.values() for state in coordinator.entity_states()],
     }
     return payload
 

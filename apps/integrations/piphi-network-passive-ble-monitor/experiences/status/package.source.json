@@ -3,7 +3,7 @@
   "identity": {
     "publisher_id": "io.piphi",
     "package_id": "passive-ble-monitor-status",
-    "version": "0.2.3"
+    "version": "0.3.0"
   },
   "name": "Passive BLE Sensor Overview",
   "description": "A compact live overview of a configured BTHome sensor's useful measurements.",

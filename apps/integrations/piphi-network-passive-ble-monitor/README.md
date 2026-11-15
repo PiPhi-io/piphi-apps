@@ -1,75 +1,58 @@
-# Piphi Network Passive Ble Monitor
+# PiPhi Network Passive BLE Monitor
 
-Draft PiPhi integration runtime. It contains a read-only BTHome v2 decoder and
-Bleak scan pipeline for configured BLE addresses. An actual advertisement is
-required before the sensor becomes connected; configuration alone never
-fabricates measurements. Encrypted advertisements and unrecognized object IDs
-are not decoded.
+Read-only BTHome v2 integration for the authenticated PiPhi BLE gateway v1 API. The integration never owns an adapter, imports Bleak/BlueZ, receives a raw address or name, or exposes an ambient device inventory. A user must explicitly configure an opaque gateway `device_handle`.
 
-The runtime advertises the BTHome v2 fields it already decodes and validates:
-temperature, humidity, battery level, and RSSI. Its bundled dashboard experience
-renders those readings in one compact overview; connection remains available to
-Core for runtime health and error handling.
+## Supported slice
 
-The Core container does not yet have an approved BlueZ access path. Mounting
-the host system D-Bus socket would expose more host IPC than BLE alone, so the
-manifest intentionally does not request it. Run this code on a trusted Linux
-host with BlueZ for development, or use deterministic scan fixtures in tests;
-do not promote this draft as a Core-deployable BLE receiver until the host
-access decision and live-device checks are complete.
+- Unencrypted BTHome v2 battery, temperature, and humidity objects
+- RSSI supplied by `piphi.ble.observation.v1`
+- Packet-ID deduplication and malformed-packet isolation
+- Ordered cursors, bounded pages/backoff, snapshot resync, and replay-safe restart behavior
+- Separate `receiver_healthy`, `observation_fresh`, and `sensor_available` state
+- Last good measurements retained with `last_measurement_at` and `measurement_age_seconds`
 
-## Run locally
+Encrypted advertisements, arbitrary vendor formats, active BLE sessions, GATT, and raw payload diagnostics are deliberately excluded.
 
-```bash
-pdm install -G dev
-pdm run uvicorn piphi_network_passive_ble_monitor.main:app --reload --port 4204
-pdm run pytest
-pdm run python scripts/validate.py
+## Configuration
+
+```json
+{
+  "id": "living-room-bthome",
+  "gateway_url": "https://ble-gateway.local:4210",
+  "gateway_token": "secret bearer token",
+  "device_handle": "ble_c7f2a1b9000000000000000000000000",
+  "alias": "Living room sensor",
+  "poll_interval_seconds": 10,
+  "stale_after_seconds": 180
+}
 ```
 
-The runtime listens on port `4204` by default and exposes the common PiPhi runtime route contract:
+The configured token is a per-consumer capability credential used for registration,
+reads, snapshots, and deletion; it grants no gateway-wide administration. It is
+never returned in entities, telemetry, events, health, or diagnostics. Registration
+requests only the configured handle and BTHome service UUID.
 
-- `GET /health`
-- `GET /diagnostics`
-- `POST /discover`
-- `POST /config`
-- `POST /config/sync`
-- `POST /deconfigure`
-- `POST /deconfigure/{config_id}`
-- `GET /state`
-- `GET /contract`
-- `GET /entities`
-- `GET /events`
-- `POST /events/device/{config_id}/example`
-- `POST /telemetry/example`
-- `POST /telemetry/device/{config_id}/example`
-- `POST /command`
+## Runtime and portability
 
-## Capability coverage
+The HTTP consumer is pure async Python/httpx and has no OS-specific imports, so source execution is platform-neutral. The manifest remains Linux-only because this repository currently publishes only Linux OCI images (`linux/amd64` and `linux/arm64`); it has no native Windows runtime artifact. Windows can be declared once root release metadata can build and qualify one. The gateway may run elsewhere on the network.
 
-`capability-catalog.json` inventories the reviewed upstream state, events,
-conditions, and actions. Every entry is classified as implemented, planned, or
-excluded with its source, scope, and rationale. Contract tests enforce that
-only implemented entries appear in the manifest, entities, commands, and
-behavior contract.
-
-Additional device-specific capabilities remain planned until advertisement
-decoding, normalization, and executable tests exist. This integration does not
-take ownership of the host adapter.
-
-## Manifest
-
-`manifest.json` is a starter manifest. Before publishing, update:
-
-- `image`
-- `version`
-- capabilities and commands
-- config fields and identity fields
-- entity metadata
-
-## Docker
+## Validation
 
 ```bash
-docker build -t docker.io/piphinetwork/piphi-network-passive-ble-monitor:0.2.0 .
-docker run --rm -p 4204:4204 docker.io/piphinetwork/piphi-network-passive-ble-monitor:0.2.0
+PDM_IGNORE_ACTIVE_VENV=1 pdm install -G dev
+PDM_IGNORE_ACTIVE_VENV=1 pdm run pytest
+PDM_IGNORE_ACTIVE_VENV=1 pdm run python scripts/validate.py
+docker build -t ghcr.io/piphi-io/piphi-network-passive-ble-monitor:0.3.0 .
 ```
+
+`piphi-app.json` opts this package into full CI, dependency audit, tests, package validation, and portable Linux image builds. `capability-catalog.json` is the machine-readable capability inventory.
+
+## Gateway v1 assumptions
+
+- Bearer authentication is required for every request; the same per-consumer capability token authorizes registration and reads without granting gateway administration.
+- Pages use `{observations, cursor, gap, receiver_healthy}`; snapshots additionally report receiver topology/health metadata.
+- Sequence numbers are monotonic. HTTP 409 or `gap: true` triggers snapshot resync; numeric jumps alone do not, because sequences may be gateway-global.
+- Snapshot observations are marked `replayed`; this consumer also treats the entire snapshot as non-live.
+- Hex maps are bounded to 32 entries and 255 bytes per value.
+- Matcher categories must be conjunctive: the device-handle and BTHome UUID scopes together define the authorized stream. The consumer still drops any non-matching handle and non-BTHome service data defensively.
+- Poll and snapshot pages must report `receiver_healthy`; absence is treated as unhealthy rather than guessed healthy.

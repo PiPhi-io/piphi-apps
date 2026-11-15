@@ -8,7 +8,6 @@ import pytest
 
 from piphi_network_bermuda_presence.main import app
 
-
 ROOT = Path(__file__).parents[1]
 CATALOG = json.loads((ROOT / "capability-catalog.json").read_text())
 MANIFEST = json.loads((ROOT / "manifest.json").read_text())
@@ -117,7 +116,15 @@ async def test_config_apply_emits_the_implemented_behavior_event() -> None:
         try:
             response = await client.post(
                 "/config",
-                json={"id": config_id, "host": "127.0.0.1", "alias": "Coverage Test"},
+                json={
+                    "id": config_id,
+                    "gateway_url": "http://127.0.0.1:9",
+                    "api_token": "test-token",
+                    "consumer_id": config_id,
+                    "selected_device_handles": ["ble_00000000000000000000000000000001"],
+                    "receivers": [{"receiver_id": "r1", "area_id": "lab", "area_name": "Lab"}],
+                    "alias": "Coverage Test",
+                },
             )
             assert response.status_code == 200
             events = (await client.get("/events")).json()["events"]

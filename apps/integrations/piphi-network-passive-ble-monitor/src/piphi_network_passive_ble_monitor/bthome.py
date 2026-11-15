@@ -48,9 +48,8 @@ def decode_bthome(payload: bytes) -> dict[str, Any]:
             raise UnsupportedAdvertisement("truncated object")
         value = int.from_bytes(payload[offset : offset + width], "little", signed=signed)
         offset += width
-        if name != "packet_id":
-            result[name] = round(value * scale, 2)
-    if len(result) == 1:
+        result[name] = round(value * scale, 2)
+    if not any(name in result for name in ("battery_percent", "temperature_c", "humidity_percent")):
         raise UnsupportedAdvertisement("no supported measurements")
     if not 0 <= result.get("battery_percent", 50) <= 100:
         raise UnsupportedAdvertisement("invalid battery")
