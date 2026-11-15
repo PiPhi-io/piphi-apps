@@ -4,7 +4,6 @@ from fastapi import APIRouter
 from piphi_runtime_kit_python import (
     IntegrationDiscoveryRequest,
     build_discovery_response,
-    normalize_discovery_inputs,
 )
 
 from ..contract import CONFIG_SCHEMA
@@ -14,17 +13,9 @@ router = APIRouter(tags=["discovery"])
 
 @router.post("/discover")
 async def discover(payload: IntegrationDiscoveryRequest | None = None):
-    inputs = normalize_discovery_inputs(payload.inputs if payload else None)
-    return build_discovery_response(
-        [
-            {
-                "id": "android-adb-service",
-                "device_id": "android-adb-service",
-                "host": inputs.get("host", "127.0.0.1"),
-                "alias": "Android ADB Service",
-            }
-        ]
-    )
+    # The sidecar must not invent devices before an authenticated ADB transport
+    # can return a stable target identity.
+    return build_discovery_response([])
 
 
 @router.get("/ui-config")

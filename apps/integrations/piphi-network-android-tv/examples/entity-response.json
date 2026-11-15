@@ -1,43 +1,60 @@
 {
-  "entities": [
-    {
-      "id": "demo-device",
-      "name": "Demo Device",
-      "device_id": "demo-device",
-      "entity_type": "television",
-      "capabilities": [
-        "connected",
-        "refresh"
-      ],
-      "available_commands": [
-        {
-          "id": "refresh",
-          "label": "Refresh",
-          "kind": "action"
-        }
-      ],
-      "dashboard": {
-        "allowed_widgets": [
-          "tile",
-          "stat",
-          "button"
-        ],
-        "default_widget": "tile"
-      }
-    }
-  ],
+  "entities": [],
   "capabilities": {
     "connected": {
       "kind": "sensor",
       "unit": "bool"
     },
+    "authenticated": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "reauth_required": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "power_on": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "current_app_id": {
+      "kind": "sensor",
+      "unit": "string"
+    },
+    "volume_level_percent": {
+      "kind": "sensor",
+      "unit": "%"
+    },
+    "muted": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "manufacturer": {
+      "kind": "sensor",
+      "unit": "string"
+    },
+    "model": {
+      "kind": "sensor",
+      "unit": "string"
+    },
+    "software_version": {
+      "kind": "sensor",
+      "unit": "string"
+    },
     "refresh": {
+      "kind": "action"
+    },
+    "send_key": {
       "kind": "action"
     }
   },
   "commands": {
     "refresh": {
       "description": "Refresh the device state.",
+      "timeout_ms": 5000
+    },
+    "send_key": {
+      "description": "Send one allow-listed short key press.",
       "timeout_ms": 5000
     }
   }

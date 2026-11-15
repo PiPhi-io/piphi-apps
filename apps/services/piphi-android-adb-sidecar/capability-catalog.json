@@ -13,8 +13,13 @@
   "groups": [
     {
       "id": "runtime-foundation", "status": "implemented", "scope": ["sidecar-service"], "source_refs": ["core_vocabulary"],
-      "reason": "The scaffold implements configuration presence, connectivity state, refresh dispatch, and sanitized runtime events.",
-      "state": ["connected"], "events": ["runtime.config.applied", "runtime.config.removed", "runtime.command.received"], "conditions": [], "actions": ["refresh"]
+      "reason": "The scaffold implements configuration presence, an explicitly unavailable connectivity state, and sanitized configuration events. It exposes no device operation until an authenticated ADB transport exists.",
+      "state": ["connected"], "events": ["runtime.config.applied", "runtime.config.removed"], "conditions": [], "actions": []
+    },
+    {
+      "id": "parent-contract-envelope", "status": "implemented", "scope": ["parent-to-sidecar-messages"], "source_refs": ["parent_contract", "core_vocabulary"],
+      "reason": "Version 1 validates one opaque target, conservative key/property operations, strict payload and resource bounds, duplicate/extra-field rejection, and a closed public error enum. It intentionally performs no ADB I/O and advertises no runtime action.",
+      "state": [], "events": [], "conditions": [], "actions": []
     },
     {
       "id": "adb-server-lifecycle", "status": "planned", "scope": ["managed-platform-tools-adb-server"], "source_refs": ["android_adb", "adb_protocol", "adb_source"],

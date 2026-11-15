@@ -43,21 +43,14 @@
       "id": "config",
       "method": "POST",
       "path": "/config",
-      "status": 200,
+      "status": 409,
       "body": {
         "id": "demo-device",
         "host": "127.0.0.1",
         "alias": "Demo Device"
       },
-      "required_any_keys": [
-        [
-          "config_id",
-          "configId"
-        ],
-        [
-          "status",
-          "ok"
-        ]
+      "required_keys": [
+        "detail"
       ]
     },
     {
@@ -96,7 +89,8 @@
         ],
         [
           "command",
-          "event"
+          "event",
+          "error"
         ]
       ]
     }

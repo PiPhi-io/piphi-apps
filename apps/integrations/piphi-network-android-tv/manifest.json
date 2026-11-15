@@ -3,8 +3,8 @@
   "manifest_version": "1.0",
   "id": "piphi-network-android-tv",
   "name": "Android TV",
-  "version": "0.1.0",
-  "description": "Monitor and control Android TV, Google TV, and Fire TV devices through managed ADB.",
+  "version": "0.2.0-rc.1",
+  "description": "Control paired Android TV and Google TV devices with Remote Protocol v2.",
   "metadata": {
     "generator": "piphi-network-create",
     "scaffold_version": "0.3.0",
@@ -17,7 +17,7 @@
     "website": "https://piphi.io"
   },
   "license": "Apache-2.0",
-  "image": "docker.io/piphinetwork/piphi-network-android-tv:0.1.0",
+  "image": "ghcr.io/piphi-io/piphi-network-android-tv:0.2.0-rc.1",
   "platforms": [
     "linux"
   ],
@@ -25,7 +25,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "docker.io/piphinetwork/piphi-network-android-tv:0.1.0",
+        "image": "ghcr.io/piphi-io/piphi-network-android-tv:0.2.0-rc.1",
         "ports": [
           {
             "container": 4220,
@@ -33,12 +33,20 @@
           }
         ],
         "environment": {
-          "LOG_LEVEL": "info"
+          "LOG_LEVEL": "info",
+          "PIPHI_ANDROID_TV_CREDENTIAL_DIR": "/app/data/android-tv-credentials"
         },
         "restart_policy": {
           "name": "unless-stopped",
           "maximum_retry_count": 0
-        }
+        },
+        "volumes": [
+          {
+            "host": "/var/lib/piphi/android-tv",
+            "container": "/app/data",
+            "mode": "rw"
+          }
+        ]
       },
       "discovery": {
         "method": "passive"
@@ -57,6 +65,9 @@
       "health": "/health",
       "diagnostics": "/diagnostics",
       "discover": "/discover",
+      "pairing_start": "/pairing/start",
+      "pairing_finish": "/pairing/{session_id}/finish",
+      "forget_credentials": "/pairing/credentials/{config_id}",
       "entities": "/entities",
       "state": "/state",
       "config": "/config",
@@ -73,9 +84,7 @@
     "required": true,
     "editable_fields": [
       "host",
-      "alias",
-      "bridge_address",
-      "protocol"
+      "alias"
     ],
     "runtime_fields": [
       "id",
@@ -97,7 +106,46 @@
       "kind": "sensor",
       "unit": "bool"
     },
+    "authenticated": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "reauth_required": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "power_on": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "current_app_id": {
+      "kind": "sensor",
+      "unit": "string"
+    },
+    "volume_level_percent": {
+      "kind": "sensor",
+      "unit": "%"
+    },
+    "muted": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "manufacturer": {
+      "kind": "sensor",
+      "unit": "string"
+    },
+    "model": {
+      "kind": "sensor",
+      "unit": "string"
+    },
+    "software_version": {
+      "kind": "sensor",
+      "unit": "string"
+    },
     "refresh": {
+      "kind": "action"
+    },
+    "send_key": {
       "kind": "action"
     }
   },
@@ -105,35 +153,13 @@
     "refresh": {
       "description": "Refresh the device state.",
       "timeout_ms": 5000
+    },
+    "send_key": {
+      "description": "Send one allow-listed short key press.",
+      "timeout_ms": 5000
     }
   },
-  "entities": [
-    {
-      "id": "demo-device",
-      "name": "Demo Device",
-      "device_id": "demo-device",
-      "entity_type": "television",
-      "capabilities": [
-        "connected",
-        "refresh"
-      ],
-      "available_commands": [
-        {
-          "id": "refresh",
-          "label": "Refresh",
-          "kind": "action"
-        }
-      ],
-      "dashboard": {
-        "allowed_widgets": [
-          "tile",
-          "stat",
-          "button"
-        ],
-        "default_widget": "tile"
-      }
-    }
-  ],
+  "entities": [],
   "ui": {
     "experience_packages": [
       {
@@ -146,7 +172,7 @@
   "marketplace": {
     "metadata_version": 2,
     "display_name": "Android TV",
-    "summary": "Monitor and control Android TV, Google TV, and Fire TV devices through managed ADB.",
+    "summary": "Pair and control Android TV and Google TV using Remote Protocol v2.",
     "category": "media",
     "regions": [
       "WW"
@@ -170,8 +196,8 @@
     ],
     "compatibility": [
       {
-        "brand": "Google and Amazon",
-        "model": "Android TV, Google TV, and Fire TV devices with ADB enabled"
+        "brand": "Google Android TV",
+        "model": "Android TV and Google TV devices with Android TV Remote Service"
       }
     ],
     "documentation_url": "https://github.com/PiPhi-io/piphi-network-android-tv",
@@ -192,14 +218,14 @@
       "streaming device"
     ],
     "protocols": [
-      "ADB"
+      "Android TV Remote Protocol v2"
     ],
     "discovery_methods": [
-      "managed ADB discovery",
+      "Remote v2 mDNS candidates",
       "manual"
     ],
     "connectivity": "local",
-    "offline_support": "full"
+    "offline_support": "none"
   },
   "onboarding": {
     "mode": "discovery"

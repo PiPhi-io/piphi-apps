@@ -75,7 +75,7 @@
       "id": "command",
       "method": "POST",
       "path": "/command",
-      "status": 200,
+      "status": 400,
       "body": {
         "contract_version": "automation.runtime.command.v1",
         "command": "refresh",
@@ -89,15 +89,8 @@
           "device.refresh"
         ]
       },
-      "required_any_keys": [
-        [
-          "ok",
-          "status"
-        ],
-        [
-          "command",
-          "event"
-        ]
+      "required_keys": [
+        "detail"
       ]
     }
   ]

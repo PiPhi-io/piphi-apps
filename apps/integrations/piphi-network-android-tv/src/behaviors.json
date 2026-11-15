@@ -125,7 +125,17 @@
       "entityType": "television",
       "capabilities": [
         "connected",
-        "refresh"
+        "authenticated",
+        "reauth_required",
+        "power_on",
+        "current_app_id",
+        "volume_level_percent",
+        "muted",
+        "manufacturer",
+        "model",
+        "software_version",
+        "refresh",
+        "send_key"
       ],
       "targeting": {
         "scopes": [
@@ -284,6 +294,70 @@
           "ui": {
             "group": "do_this"
           }
+        },
+        {
+          "id": "send_key",
+          "label": "Send key",
+          "description": "Send one allow-listed short key press to the selected television.",
+          "capability": "device.send_key",
+          "capabilityRequirements": [
+            "device.send_key"
+          ],
+          "runtime": {
+            "command": "send_key",
+            "endpoint": "/command",
+            "method": "POST",
+            "timeoutSeconds": 5
+          },
+          "safety": {
+            "riskLevel": "medium",
+            "requiresConfirmation": false,
+            "liveRunAllowed": true
+          },
+          "targeting": {
+            "fanoutSafe": false,
+            "supportsMultiTarget": false,
+            "scopes": [
+              "config",
+              "selection"
+            ]
+          },
+          "failure": {
+            "strategy": "stop",
+            "retry": {
+              "maxAttempts": 0,
+              "delaySeconds": 0,
+              "backoff": "fixed"
+            },
+            "timeoutSeconds": 5,
+            "continueOnPartialFailure": false,
+            "idempotent": false
+          },
+          "ui": {
+            "group": "do_this"
+          },
+          "params": [
+            {
+              "name": "key",
+              "label": "Key",
+              "type": "select",
+              "required": true,
+              "options": [
+                "DPAD_UP",
+                "DPAD_DOWN",
+                "DPAD_LEFT",
+                "DPAD_RIGHT",
+                "DPAD_CENTER",
+                "BACK",
+                "HOME",
+                "MEDIA_PLAY_PAUSE",
+                "VOLUME_UP",
+                "VOLUME_DOWN",
+                "VOLUME_MUTE",
+                "POWER"
+              ]
+            }
+          ]
         }
       ],
       "stop": [

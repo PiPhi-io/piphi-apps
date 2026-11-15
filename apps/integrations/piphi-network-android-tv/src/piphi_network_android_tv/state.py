@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from typing import Any
 
 from fastapi import HTTPException
-
 from piphi_runtime_kit_python import (
     AutomationRegistry,
     SQLiteAutomationIdempotencyStore,
@@ -14,8 +14,16 @@ from piphi_runtime_kit_python import (
 )
 
 from .contract import CAPABILITIES, COMMANDS
+from .device_sessions import DeviceSessionManager
+from .remote_v2_adapter import AndroidTVRemoteV2Adapter
+from .remote_v2_pairing import RemoteV2CredentialStore, RemoteV2PairingManager
+from .runtime_service import AndroidTVRuntimeService
 from .schemas import DeviceConfig
 from .settings import INTEGRATION_ID, INTEGRATION_NAME, INTEGRATION_VERSION
+
+# Upstream certificate generation respects the process umask. Set it before
+# creating runtime stores so newly written credentials are never world-readable.
+os.umask(0o077)
 
 starter = create_runtime_starter(
     integration_id=INTEGRATION_ID,
@@ -34,6 +42,30 @@ automations = AutomationRegistry(
 
 capabilities = CAPABILITIES
 commands = COMMANDS
+
+credential_store = RemoteV2CredentialStore(
+    Path(os.getenv("PIPHI_ANDROID_TV_CREDENTIAL_DIR", "./data/android-tv-credentials"))
+)
+pairing_manager = RemoteV2PairingManager(credential_store)
+
+
+def _receive_snapshot(config_id: str, snapshot) -> None:
+    android_tv_service.receive_snapshot(config_id, snapshot)
+
+
+session_manager = DeviceSessionManager(AndroidTVRemoteV2Adapter, _receive_snapshot)
+
+
+def _credential_paths(config_id: str) -> tuple[Path, Path]:
+    paths = credential_store.paths_for(config_id, create=True)
+    return paths.certfile, paths.keyfile
+
+
+android_tv_service = AndroidTVRuntimeService(
+    registry=registry,
+    sessions=session_manager,
+    credentials=_credential_paths,
+)
 
 
 def make_entry(config: DeviceConfig) -> dict[str, Any]:
@@ -71,39 +103,31 @@ def get_entry_or_404(config_id: str) -> dict[str, Any]:
 
 async def apply_config(config: DeviceConfig) -> None:
     entry = make_entry(config)
-    registry.set(config.id, entry)
-    registry.update_state(
-        config.id,
-        {
-            "connected": True,
-            "host": config.host,
-            "alias": config.alias,
-            "config_id": entry["config_id"],
-        },
-        device_id=entry["device_id"],
-    )
+    await android_tv_service.configure(config, entry)
+    configured = registry.get(str(entry["config_id"])) or entry
     append_runtime_event(
         "runtime.config.applied",
-        entry,
-        {"host": config.host, "alias": config.alias},
+        configured,
+        {"alias": config.alias},
     )
 
 
 async def remove_config(config_id: str) -> bool:
-    entry = registry.remove(config_id)
+    entry = registry.get(config_id)
     if entry is None:
         return False
+    await android_tv_service.remove(config_id)
     append_runtime_event(
         "runtime.config.removed",
         entry,
-        {"host": entry.get("host"), "alias": entry.get("alias")},
+        {"alias": entry.get("alias")},
     )
     return True
 
 
 def _register_automation_actions() -> None:
     for command_name, command_definition in commands.items():
-        def handler(request, *, _command_name=command_name):
+        async def handler(request, *, _command_name=command_name):
             target = getattr(request, "target", None)
             target = target if isinstance(target, dict) else {}
             device_id = str(request.device_id or target.get("device_id") or "demo-device")
@@ -112,6 +136,16 @@ def _register_automation_actions() -> None:
                 "device_id": device_id,
                 "config_id": config_id,
             }
+            if _command_name == "refresh":
+                result = await android_tv_service.refresh(config_id)
+            elif _command_name == "send_key":
+                key = request.args.get("key") if isinstance(request.args, dict) else None
+                if not isinstance(key, str) or not key.strip():
+                    raise HTTPException(status_code=400, detail="send_key requires a key")
+                await android_tv_service.send_key(config_id, key)
+                result = {"accepted": True, "key": key.strip().upper()}
+            else:
+                raise HTTPException(status_code=400, detail="Unsupported command")
             event = append_runtime_event(
                 "runtime.command.received",
                 entry,
@@ -130,6 +164,7 @@ def _register_automation_actions() -> None:
                 "config_id": config_id,
                 "target": target,
                 "params": request.args,
+                "result": result,
             }
 
         automations.action(
@@ -139,3 +174,11 @@ def _register_automation_actions() -> None:
 
 
 _register_automation_actions()
+
+
+async def _refresh_all_state() -> None:
+    for config_id in registry.ids():
+        await android_tv_service.refresh(config_id)
+
+
+starter.state.provide(_refresh_all_state, source=INTEGRATION_ID)

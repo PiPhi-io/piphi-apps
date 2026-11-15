@@ -25,5 +25,5 @@ async def entities() -> dict[str, Any]:
             "dashboard": FALLBACK_ENTITY["dashboard"],
         }
         for entry in entries
-    ] or [FALLBACK_ENTITY]
+    ]
     return {"entities": runtime_entities, "capabilities": capabilities, "commands": commands}

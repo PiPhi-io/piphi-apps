@@ -1,14 +1,12 @@
 {
   "contract_version": "automation.runtime.command.v1",
-  "command": "refresh",
+  "command": "send_key",
   "target": {
-    "config_id": "demo-device",
-    "device_id": "demo-device",
-    "entity_id": null
+    "config_id": "living-room"
   },
-  "params": {},
-  "capability": "device.refresh",
+  "params": {"key": "HOME"},
+  "capability": "device.send_key",
   "capability_requirements": [
-    "device.refresh"
+    "device.send_key"
   ]
 }

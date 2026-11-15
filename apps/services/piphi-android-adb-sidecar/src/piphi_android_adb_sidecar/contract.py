@@ -22,18 +22,10 @@ CAPABILITIES: dict[str, dict[str, Any]] = {
     "connected": {
         "kind": "sensor",
         "unit": "bool"
-    },
-    "refresh": {
-        "kind": "action"
     }
 }
 
-COMMANDS: dict[str, dict[str, Any]] = {
-    "refresh": {
-        "description": "Refresh the device state.",
-        "timeout_ms": 5000
-    }
-}
+COMMANDS: dict[str, dict[str, Any]] = {}
 
 CONFIG_SCHEMA: dict[str, Any] = {
     "schema": {
@@ -76,16 +68,9 @@ FALLBACK_ENTITY: dict[str, Any] = {
     "device_id": "android-adb-service",
     "entity_type": "service",
     "capabilities": [
-        "connected",
-        "refresh"
+        "connected"
     ],
-    "available_commands": [
-        {
-            "id": "refresh",
-            "label": "Refresh",
-            "kind": "action"
-        }
-    ],
+    "available_commands": [],
     "dashboard": {
         "allowed_widgets": [
             "tile",

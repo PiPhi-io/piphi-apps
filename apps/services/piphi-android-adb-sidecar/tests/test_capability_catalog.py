@@ -8,7 +8,6 @@ import pytest
 
 from piphi_android_adb_sidecar.main import app
 
-
 ROOT = Path(__file__).parents[1]
 CATALOG = json.loads((ROOT / "capability-catalog.json").read_text())
 MANIFEST = json.loads((ROOT / "manifest.json").read_text())
@@ -62,7 +61,35 @@ async def test_config_apply_emits_runtime_event() -> None:
 
 
 @pytest.mark.anyio
-@pytest.mark.parametrize("command", ["restart_worker", "execute_arbitrary_shell", "install_arbitrary_apk"])
+async def test_config_does_not_claim_adb_connectivity() -> None:
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+        try:
+            response = await client.post(
+                "/config",
+                json={"id": "offline-test", "host": "192.0.2.1", "alias": "ADB"},
+            )
+            assert response.status_code == 200
+            state = (await client.get("/state")).json()
+            assert state["entries"]["offline-test"]["latest_state"]["connected"] is False
+            assert "192.0.2.1" not in str(state)
+            assert "192.0.2.1" not in str((await client.get("/events")).json())
+            assert "192.0.2.1" not in str((await client.get("/diagnostics")).json())
+        finally:
+            await client.post("/deconfigure/offline-test")
+
+
+@pytest.mark.anyio
+async def test_discovery_does_not_fabricate_an_adb_target() -> None:
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+        response = await client.post("/discover", json={})
+    assert response.status_code == 200
+    assert response.json()["devices"] == []
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("command", ["refresh", "restart_worker", "execute_arbitrary_shell", "install_arbitrary_apk"])
 async def test_unimplemented_and_unsafe_commands_fail_closed(command: str) -> None:
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
