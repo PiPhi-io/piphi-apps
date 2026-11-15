@@ -254,6 +254,23 @@ class BusController:
         self.events.append("point.write_succeeded", {"point_id": point_id, "value": value})
         return confirmed
 
+    async def write_coils(
+        self, point_ids: list[str], values: list[bool]
+    ) -> dict[str, Any]:
+        points = [self.point(point_id) for point_id in point_ids]
+        await self.session.write_coils(points, values)
+        confirmed = [await self.refresh_point(point_id) for point_id in point_ids]
+        confirmed_values = [record.get("value") for record in confirmed]
+        if confirmed_values != values or any(
+            record.get("quality") != "good" for record in confirmed
+        ):
+            raise ValueError("write_readback_mismatch")
+        self.events.append(
+            "coil_group.write_succeeded",
+            {"point_ids": point_ids, "values": values},
+        )
+        return {"point_ids": point_ids, "values": confirmed_values}
+
     def point(self, point_id: str):
         profile = next((item for item in self.config.registers if item.id == point_id), None)
         if profile is None:

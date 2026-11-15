@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, StrictBool, field_validator, model_validator
 from piphi_runtime_kit_python import RuntimeConfig
 
 
@@ -260,6 +260,37 @@ class PollGroupProfile(BaseModel):
         return value
 
 
+class CoilCommandProfile(BaseModel):
+    id: str = Field(pattern=r"^[a-z][a-z0-9_]{0,63}$")
+    name: str = Field(min_length=1, max_length=100)
+    point_ids: list[str] = Field(min_length=2, max_length=1968)
+    values: list[StrictBool] = Field(min_length=2, max_length=1968)
+    idempotency: Literal["idempotent", "non_idempotent"]
+    pulse_seconds: float | None = Field(default=None, ge=0.05, le=60, allow_inf_nan=False)
+    reset_values: list[StrictBool] | None = Field(
+        default=None, min_length=2, max_length=1968
+    )
+
+    @model_validator(mode="after")
+    def valid_policy(self):
+        if len(self.point_ids) != len(set(self.point_ids)):
+            raise ValueError("coil command point ids must be unique")
+        if len(self.point_ids) != len(self.values):
+            raise ValueError("coil command values must match point ids")
+        if self.pulse_seconds is None:
+            if self.idempotency != "idempotent" or self.reset_values is not None:
+                raise ValueError("steady coil commands must be idempotent")
+        elif (
+            self.idempotency != "non_idempotent"
+            or self.reset_values is None
+            or len(self.reset_values) != len(self.point_ids)
+        ):
+            raise ValueError(
+                "pulse coil commands require non_idempotent policy and matching reset values"
+            )
+        return self
+
+
 class DeviceConfig(RuntimeConfig):
     host: str
     transport: Literal["tcp", "rtu_sidecar"] = "tcp"
@@ -285,6 +316,7 @@ class DeviceConfig(RuntimeConfig):
     profile_provenance: str = Field(default="user-reviewed", min_length=1, max_length=200)
     points: list[PointProfile] = Field(default_factory=list, max_length=256)
     composites: list[CompositeProfile] = Field(default_factory=list, max_length=64)
+    coil_commands: list[CoilCommandProfile] = Field(default_factory=list, max_length=64)
 
     @field_validator("points")
     @classmethod
@@ -313,6 +345,23 @@ class DeviceConfig(RuntimeConfig):
             if not self.serial_port or not self.points:
                 raise ValueError("rtu_sidecar requires serial_port and points")
         point_by_id = {point.id: point for point in self.points}
+        coil_command_ids = [command.id for command in self.coil_commands]
+        if len(coil_command_ids) != len(set(coil_command_ids)):
+            raise ValueError("coil command ids must be unique")
+        for command in self.coil_commands:
+            missing = set(command.point_ids) - set(point_by_id)
+            if missing:
+                raise ValueError(
+                    f"coil command {command.id} references unknown points: {sorted(missing)}"
+                )
+            points = [point_by_id[point_id] for point_id in command.point_ids]
+            if any(point.area != "coil" or not point.writable for point in points):
+                raise ValueError("coil commands require writable coil points")
+            if len({point.unit_id for point in points}) != 1:
+                raise ValueError("coil command points must use one unit")
+            addresses = [point.address for point in points]
+            if addresses != list(range(addresses[0], addresses[0] + len(addresses))):
+                raise ValueError("coil command points must be ordered and contiguous")
         group_ids = [group.id for group in self.poll_groups]
         if len(group_ids) != len(set(group_ids)):
             raise ValueError("poll group ids must be unique")

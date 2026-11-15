@@ -37,13 +37,19 @@ Diagnostics report poll latency and outcomes, stale-point counts, retries,
 timeouts, reconnects, queue high-water marks, and per-unit last-success health
 without exposing raw frames, credentials, or serial paths.
 
+Profiles may also declare named FC15 commands over ordered contiguous writable
+coils. The unit, addresses, values and read-back policy are immutable at
+invocation. Steady commands must declare an idempotent policy. Pulses must
+declare a non-idempotent policy, bounded duration and fixed reset values; they
+are never retried automatically.
+
 The original `register_address` plus optional `unit_id` configuration remains
 supported for compatibility as a read-only unsigned holding-register entity.
 
 ## Managed RTU sidecar
 
 Installing this integration also installs the shared
-`piphi-modbus-rtu-sidecar` service in the compatible `0.4.x` line. The service
+`piphi-modbus-rtu-sidecar` service in the compatible `0.5.x` line. The service
 has no host-published port, runs in production authentication mode, and receives
 `/dev/serial` access for explicitly configured RTU ports. The parent reaches it
 only on the internal service network at
@@ -111,6 +117,6 @@ and untrusted profiles remain excluded.
 ## Docker
 
 ```bash
-docker build -t ghcr.io/piphi-io/piphi-network-modbus:0.6.0 .
-docker run --rm -p 4222:4222 ghcr.io/piphi-io/piphi-network-modbus:0.6.0
+docker build -t ghcr.io/piphi-io/piphi-network-modbus:0.7.0 .
+docker run --rm -p 4222:4222 ghcr.io/piphi-io/piphi-network-modbus:0.7.0
 ```

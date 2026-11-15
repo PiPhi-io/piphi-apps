@@ -79,6 +79,14 @@ class ModbusTCPDevice:
             address, encoded = struct.unpack(">HH", payload)
             self.coils[address] = encoded == 0xFF00
             return bytes([function]) + payload
+        if function == 15:
+            address, quantity, byte_count = struct.unpack(">HHB", payload[:5])
+            assert byte_count == (quantity + 7) // 8
+            for offset in range(quantity):
+                self.coils[address + offset] = bool(
+                    payload[5 + offset // 8] & (1 << (offset % 8))
+                )
+            return bytes([function]) + struct.pack(">HH", address, quantity)
         if function == 6:
             address, value = struct.unpack(">HH", payload)
             self.registers[address] = value
@@ -373,3 +381,76 @@ async def test_parent_tcp_profile_creates_entities_and_routes_named_write(
     finally:
         await state.remove_config("tcp-profile")
         await device.close()
+
+
+@pytest.mark.anyio
+async def test_profile_declared_fc15_steady_and_pulse_commands(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    device = ModbusTCPDevice()
+    device.coils.update({0: False, 1: False, 2: False})
+    await device.start()
+    config = DeviceConfig.model_validate(
+        {
+            "id": "coil-commands",
+            "host": f"127.0.0.1:{device.port}",
+            "points": [
+                {"id": f"relay_{index}", "name": f"Relay {index}", "unit_id": 1, "area": "coil", "address": index, "data_type": "bool", "writable": True}
+                for index in range(3)
+            ],
+            "coil_commands": [
+                {"id": "scene_on", "name": "Scene on", "point_ids": ["relay_0", "relay_1", "relay_2"], "values": [True, False, True], "idempotency": "idempotent"},
+                {"id": "pulse", "name": "Pulse", "point_ids": ["relay_0", "relay_1", "relay_2"], "values": [True, True, True], "reset_values": [False, False, False], "pulse_seconds": 0.05, "idempotency": "non_idempotent"},
+            ],
+        }
+    )
+    monkeypatch.setattr(state, "schedule_telemetry_delivery", lambda **_kwargs: None)
+    delays: list[float] = []
+
+    async def no_wait(delay: float) -> None:
+        delays.append(delay)
+
+    monkeypatch.setattr(state.asyncio, "sleep", no_wait)
+    try:
+        await state.apply_config(config)
+        result = await state.execute_tcp_command(
+            config_id=config.id,
+            device_id=config.id,
+            command="run_coil_command",
+            args={"command_id": "scene_on", "values": [False], "address": 999},
+        )
+        assert result["values"] == [True, False, True]
+        assert [device.coils[index] for index in range(3)] == [True, False, True]
+
+        result = await state.execute_tcp_command(
+            config_id=config.id,
+            device_id=config.id,
+            command="run_coil_command",
+            args={"command_id": "pulse"},
+        )
+        assert result["values"] == [False, False, False]
+        assert delays == [0.05]
+        assert [request[1] for request in device.requests].count(15) == 3
+    finally:
+        await state.remove_config(config.id)
+        await device.close()
+
+
+def test_coil_command_policy_validation_fails_closed() -> None:
+    base = {
+        "id": "invalid-coils",
+        "host": "127.0.0.1",
+        "points": [
+            {"id": "a", "name": "A", "unit_id": 1, "area": "coil", "address": 0, "data_type": "bool", "writable": True},
+            {"id": "b", "name": "B", "unit_id": 1, "area": "coil", "address": 2, "data_type": "bool", "writable": True},
+        ],
+        "coil_commands": [{"id": "bad", "name": "Bad", "point_ids": ["a", "b"], "values": [True, True], "idempotency": "idempotent"}],
+    }
+    with pytest.raises(ValueError, match="ordered and contiguous"):
+        DeviceConfig.model_validate(base)
+    base["points"][1]["address"] = 1
+    base["coil_commands"][0].update(
+        pulse_seconds=1, reset_values=[False, False]
+    )
+    with pytest.raises(ValueError, match="non_idempotent"):
+        DeviceConfig.model_validate(base)

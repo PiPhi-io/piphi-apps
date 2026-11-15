@@ -3,7 +3,7 @@
   "manifest_version": "1.0",
   "id": "piphi-network-modbus",
   "name": "Modbus",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Monitor and safely control profile-declared Modbus TCP and RTU points.",
   "metadata": {
     "generator": "piphi-network-create",
@@ -17,7 +17,7 @@
     "website": "https://piphi.io"
   },
   "license": "Apache-2.0",
-  "image": "ghcr.io/piphi-io/piphi-network-modbus:0.6.0",
+  "image": "ghcr.io/piphi-io/piphi-network-modbus:0.7.0",
   "platforms": [
     "linux"
   ],
@@ -25,7 +25,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "ghcr.io/piphi-io/piphi-network-modbus:0.6.0",
+        "image": "ghcr.io/piphi-io/piphi-network-modbus:0.7.0",
         "ports": [
           {
             "container": 4222,
@@ -52,8 +52,8 @@
       {
         "id": "piphi-modbus-rtu-sidecar",
         "kind": "platform_service",
-        "version_range": ">=0.4.0,<0.5.0",
-        "recommended_version": "0.4.0",
+        "version_range": ">=0.5.0,<0.6.0",
+        "recommended_version": "0.5.0",
         "required": true,
         "shared": true,
         "auto_install": true,
@@ -102,7 +102,8 @@
       "profile_id",
       "profile_version",
       "profile_provenance",
-      "points"
+      "points",
+      "coil_commands"
     ],
     "runtime_fields": [
       "id",
@@ -140,6 +141,7 @@
       "kind": "action"
     },
     "set_value": {"kind": "action"},
+    "run_coil_command": {"kind": "action"},
     "turn_on": {"kind": "action"},
     "turn_off": {"kind": "action"},
     "set_brightness": {"kind": "action"},
@@ -162,6 +164,7 @@
       "description": "Set a profile-declared writable point within its bounds.",
       "timeout_ms": 30000
     },
+    "run_coil_command": {"description": "Run a reviewed profile-declared multiple-coil command.", "timeout_ms": 90000, "args_schema": {"command_id": {"type": "string", "required": true}}},
     "turn_on": {"description": "Turn on a profile-composed device.", "timeout_ms": 30000},
     "turn_off": {"description": "Turn off a profile-composed device.", "timeout_ms": 30000},
     "set_brightness": {"description": "Set profile-composed light brightness.", "timeout_ms": 30000, "args_schema": {"brightness": {"type": "number", "required": true, "minimum": 0, "maximum": 100, "unit": "%"}}},
@@ -197,6 +200,7 @@
         "mode",
         "refresh",
         "set_value",
+        "run_coil_command",
         "turn_on",
         "turn_off",
         "set_brightness",
@@ -217,6 +221,7 @@
           "kind": "action"
         },
         {"id": "set_value", "label": "Set Value", "kind": "action"},
+        {"id": "run_coil_command", "label": "Run Coil Command", "kind": "action", "args_schema": {"command_id": {"type": "string", "required": true}}},
         {"id": "turn_on", "label": "Turn On", "kind": "action"},
         {"id": "turn_off", "label": "Turn Off", "kind": "action"},
         {"id": "set_brightness", "label": "Set Brightness", "kind": "action", "args_schema": {"brightness": {"type": "number", "required": true, "minimum": 0, "maximum": 100, "unit": "%"}}},

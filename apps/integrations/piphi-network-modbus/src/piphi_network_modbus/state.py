@@ -548,6 +548,14 @@ async def sync_tcp_entry(
             profile_version=config.profile_version,
             profile_provenance=config.profile_provenance,
             points=config.points,
+            semantic_bindings={
+                "composites": [
+                    item.model_dump(mode="json") for item in config.composites
+                ],
+                "coil_commands": [
+                    item.model_dump(mode="json") for item in config.coil_commands
+                ],
+            },
         ),
     )
     refreshed_models = normalize_snapshot(snapshot, config_id=config_id)
@@ -638,7 +646,21 @@ async def sync_sidecar_entry(
         "quality": "good" if snapshot.get("connected") else "unavailable",
         "profile_id": snapshot.get("profile_id"),
         "profile_version": snapshot.get("profile_version"),
-        "profile_hash": snapshot.get("profile_hash"),
+        "profile_hash": profile_hash(
+            profile_id=config.profile_id,
+            profile_version=config.profile_version,
+            profile_provenance=config.profile_provenance,
+            points=config.points,
+            semantic_bindings={
+                "composites": [
+                    item.model_dump(mode="json") for item in config.composites
+                ],
+                "coil_commands": [
+                    item.model_dump(mode="json") for item in config.coil_commands
+                ],
+            },
+        ),
+        "transport_profile_hash": snapshot.get("profile_hash"),
         "port_open": snapshot.get("port_open"),
         "responsive_unit_ids": snapshot.get("responsive_unit_ids", []),
         "queue_depth": snapshot.get("queue_depth"),
@@ -681,6 +703,7 @@ def sidecar_config_payload(config: DeviceConfig) -> dict[str, Any]:
             "api_key",
             "base_url",
             "composites",
+            "coil_commands",
             "poll_groups",
             "poll_interval_seconds",
             "inter_message_delay_ms",
@@ -815,6 +838,20 @@ def composite_command_value(composite, command: str, args: dict[str, Any]):
     return binding.point_id, args[binding.argument]
 
 
+def resolve_coil_command(config: DeviceConfig, args: dict[str, Any]):
+    command_id = str(args.get("command_id") or "").strip()
+    if not command_id:
+        raise ValueError("command_id_required")
+    command = next(
+        (candidate for candidate in config.coil_commands if candidate.id == command_id),
+        None,
+    )
+    if command is None:
+        raise ValueError("unknown_coil_command")
+    point_by_id = {point.id: point for point in config.points}
+    return command, [point_by_id[point_id] for point_id in command.point_ids]
+
+
 async def execute_sidecar_command(
     *, config_id: str, device_id: str, command: str, args: dict[str, Any]
 ) -> dict[str, Any]:
@@ -823,6 +860,29 @@ async def execute_sidecar_command(
     if client is None or entry is None:
         raise ValueError("sidecar_not_configured")
     config = DeviceConfig.model_validate(entry["config"])
+    if command == "run_coil_command":
+        binding, _ = resolve_coil_command(config, args)
+        result = await client.write_coils(
+            config_id, binding.point_ids, binding.values
+        )
+        if binding.pulse_seconds is not None:
+            try:
+                await asyncio.sleep(binding.pulse_seconds)
+            finally:
+                result = await client.write_coils(
+                    config_id, binding.point_ids, binding.reset_values or []
+                )
+        await sync_sidecar_entry(entry, client)
+        append_runtime_event(
+            "modbus.coil_command.executed",
+            entry,
+            {
+                "command_id": binding.id,
+                "idempotency": binding.idempotency,
+                "pulse": binding.pulse_seconds is not None,
+            },
+        )
+        return {"ok": True, "command_id": binding.id, "result": result}
     composite = find_composite(config_id, device_id, config)
     if composite is not None:
         if command == "refresh":
@@ -857,6 +917,25 @@ async def execute_tcp_command(
     if client is None or entry is None:
         raise ValueError("tcp_profile_not_configured")
     config = DeviceConfig.model_validate(entry["config"])
+    if command == "run_coil_command":
+        binding, points = resolve_coil_command(config, args)
+        values = await client.write_coils(points, binding.values)
+        if binding.pulse_seconds is not None:
+            try:
+                await asyncio.sleep(binding.pulse_seconds)
+            finally:
+                values = await client.write_coils(points, binding.reset_values or [])
+        await sync_tcp_entry(entry, client)
+        append_runtime_event(
+            "modbus.coil_command.executed",
+            entry,
+            {
+                "command_id": binding.id,
+                "idempotency": binding.idempotency,
+                "pulse": binding.pulse_seconds is not None,
+            },
+        )
+        return {"ok": True, "command_id": binding.id, "values": values}
     composite = find_composite(config_id, device_id, config)
     if composite is not None:
         if command == "refresh":

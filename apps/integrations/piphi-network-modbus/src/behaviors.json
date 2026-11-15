@@ -128,6 +128,7 @@
         "holding_register_value",
         "point_value",
         "set_value",
+        "run_coil_command",
         "power",
         "brightness_percent",
         "color_temp_percent",
@@ -321,6 +322,16 @@
           "targeting": {"fanoutSafe": false, "supportsMultiTarget": false, "scopes": ["selection"]},
           "failure": {"strategy": "stop", "timeoutSeconds": 30, "continueOnPartialFailure": false, "idempotent": true},
           "params": [{"name": "value", "label": "Value", "type": "number", "required": true}],
+          "ui": {"group": "do_this"}
+        },
+        {
+          "id": "run_coil_command", "label": "Run coil command", "description": "Run a reviewed profile-declared multiple-coil command.",
+          "capability": "action.run_coil_command", "capabilityRequirements": ["action.run_coil_command"],
+          "runtime": {"command": "run_coil_command", "endpoint": "/command", "method": "POST", "timeoutSeconds": 90},
+          "safety": {"riskLevel": "high", "requiresConfirmation": true, "liveRunAllowed": true},
+          "targeting": {"fanoutSafe": false, "supportsMultiTarget": false, "scopes": ["selection"]},
+          "failure": {"strategy": "stop", "timeoutSeconds": 90, "continueOnPartialFailure": false, "idempotent": false},
+          "params": [{"name": "command_id", "label": "Reviewed command", "type": "text", "required": true}],
           "ui": {"group": "do_this"}
         },
         {

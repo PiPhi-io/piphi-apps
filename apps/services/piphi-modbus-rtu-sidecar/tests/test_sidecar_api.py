@@ -23,10 +23,16 @@ class FakeSession:
         self.opened = False
 
     async def read(self, point) -> list[int | bool]:
-        return self.values[(point.unit_id, point.address)]
+        return self.values.get(
+            (point.unit_id, point.address), [False] if point.area == "coil" else [0]
+        )
 
     async def write(self, point, values: list[int | bool]) -> None:
         self.values[(point.unit_id, point.address)] = values
+
+    async def write_coils(self, points, values: list[bool]) -> None:
+        for point, value in zip(points, values, strict=True):
+            self.values[(point.unit_id, point.address)] = [value]
 
 
 def config_payload(config_id: str = "api-test") -> dict[str, Any]:
@@ -52,6 +58,23 @@ def config_payload(config_id: str = "api-test") -> dict[str, Any]:
             }
         ],
     }
+
+
+def coil_config_payload() -> dict[str, Any]:
+    payload = config_payload("coil-api")
+    payload["registers"] = [
+        {
+            "id": f"relay_{index}",
+            "name": f"Relay {index}",
+            "unit_id": 1,
+            "area": "coil",
+            "address": index,
+            "data_type": "bool",
+            "writable": True,
+        }
+        for index in range(3)
+    ]
+    return payload
 
 
 @pytest.mark.anyio
@@ -136,6 +159,46 @@ async def test_authenticated_snapshot_refresh_and_constrained_write(
             assert failed_snapshot["unit_health"][0]["consecutive_error_count"] == 1
         finally:
             await client.post("/deconfigure/api-test", headers=headers)
+
+
+@pytest.mark.anyio
+async def test_authenticated_fc15_binding_rejects_transport_overrides(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(state, "session_factory", FakeSession)
+    monkeypatch.setenv("PIPHI_MODBUS_SIDECAR_TOKEN", "internal")
+    headers = {"Authorization": "Bearer internal"}
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://sidecar") as client:
+        try:
+            configured = await client.post(
+                "/config", json=coil_config_payload(), headers=headers
+            )
+            assert configured.status_code == 200
+            written = await client.post(
+                "/v1/modbus/write-coils",
+                headers=headers,
+                json={
+                    "config_id": "coil-api",
+                    "point_ids": ["relay_0", "relay_1", "relay_2"],
+                    "values": [True, False, True],
+                },
+            )
+            assert written.status_code == 200
+            assert written.json()["values"] == [True, False, True]
+            rejected = await client.post(
+                "/v1/modbus/write-coils",
+                headers=headers,
+                json={
+                    "config_id": "coil-api",
+                    "point_ids": ["relay_0", "relay_1"],
+                    "values": [True, True],
+                    "address": 500,
+                },
+            )
+            assert rejected.status_code == 400
+        finally:
+            await client.post("/deconfigure/coil-api", headers=headers)
 
 
 @pytest.mark.anyio

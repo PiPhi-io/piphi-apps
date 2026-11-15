@@ -18,6 +18,12 @@ queue depth/capacity/high-water mark, poll duration, reconnect, timeout, CRC and
 transport-error counters, plus per-unit last-success and consecutive-error
 health; serial paths, credentials, and raw frames remain redacted.
 
+The authenticated parent may issue FC15 only as an ordered list of stable
+profile point IDs and boolean values. The sidecar re-resolves every point,
+requires one unit and a contiguous writable coil range, confirms the protocol
+response, and reads every coil back. Addresses, units, function overrides, raw
+frames, broadcasts, and sidecar-owned pulse timing are not exposed.
+
 Managed deployment is internal-only and maps `/dev/serial` into the container.
 The service runs with production authentication enabled and accepts only the
 shared internal token injected by PiPhi Core. The parent Modbus integration
@@ -69,9 +75,9 @@ The runtime listens on port `4212` by default and exposes the common PiPhi runti
 ## Docker
 
 ```bash
-docker build -t ghcr.io/piphi-io/piphi-modbus-rtu-sidecar:0.4.0 .
+docker build -t ghcr.io/piphi-io/piphi-modbus-rtu-sidecar:0.5.0 .
 docker run --rm --device /dev/serial:/dev/serial \
   -e PIPHI_ENV=production \
   -e PIPHI_MODBUS_SIDECAR_TOKEN=replace-with-a-local-test-token \
-  -p 4212:4212 ghcr.io/piphi-io/piphi-modbus-rtu-sidecar:0.4.0
+  -p 4212:4212 ghcr.io/piphi-io/piphi-modbus-rtu-sidecar:0.5.0
 ```
