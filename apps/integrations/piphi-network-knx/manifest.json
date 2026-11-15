@@ -3,7 +3,7 @@
   "manifest_version": "1.0",
   "id": "piphi-network-knx",
   "name": "KNX",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Connect a KNX/IP tunnel and expose explicitly reviewed, typed datapoints.",
   "metadata": {
     "generator": "piphi-network-create",
@@ -17,7 +17,7 @@
     "website": "https://piphi.io"
   },
   "license": "Apache-2.0",
-  "image": "ghcr.io/piphi-io/piphi-network-knx:0.2.0",
+  "image": "ghcr.io/piphi-io/piphi-network-knx:0.2.1",
   "platforms": [
     "linux"
   ],
@@ -25,7 +25,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "ghcr.io/piphi-io/piphi-network-knx:0.2.0",
+        "image": "ghcr.io/piphi-io/piphi-network-knx:0.2.1",
         "ports": [
           {
             "container": 4223,
@@ -180,7 +180,7 @@
     "metadata_version": 2,
     "display_name": "KNX",
     "summary": "Connect an exclusive KNX/IP tunnel and expose reviewed datapoints with safe typed reads and writes.",
-    "category": "building_automation",
+    "category": "other",
     "regions": [
       "WW"
     ],
