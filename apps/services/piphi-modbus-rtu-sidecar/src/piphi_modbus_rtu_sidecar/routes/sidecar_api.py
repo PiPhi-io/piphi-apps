@@ -51,3 +51,24 @@ async def write(payload: dict[str, Any]) -> dict[str, Any]:
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"ok": True, "point_id": point_id, **result}
+
+
+@router.post("/write-coils")
+async def write_coils(payload: dict[str, Any]) -> dict[str, Any]:
+    controller = get_controller(str(payload.get("config_id") or "") or None)
+    forbidden = {"address", "unit_id", "function", "raw", "pdu"} & payload.keys()
+    if forbidden:
+        raise HTTPException(status_code=400, detail="transport_overrides_are_not_allowed")
+    point_ids = payload.get("point_ids")
+    values = payload.get("values")
+    if not isinstance(point_ids, list) or not all(
+        isinstance(point_id, str) and point_id for point_id in point_ids
+    ):
+        raise HTTPException(status_code=400, detail="point_ids_required")
+    if not isinstance(values, list) or not all(type(value) is bool for value in values):
+        raise HTTPException(status_code=400, detail="boolean_values_required")
+    try:
+        result = await controller.write_coils(point_ids, values)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True, **result}

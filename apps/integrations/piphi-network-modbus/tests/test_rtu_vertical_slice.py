@@ -80,6 +80,12 @@ class FakeSidecarClient:
         self.value = float(value)
         return {"ok": True, "value": self.value}
 
+    async def write_coils(
+        self, config_id: str, point_ids: list[str], values: list[bool]
+    ) -> dict[str, Any]:
+        self.calls.append(("write_coils", (config_id, point_ids, values)))
+        return {"ok": True, "point_ids": point_ids, "values": values}
+
 
 def rtu_config(config_id: str = "rtu-parent") -> DeviceConfig:
     return DeviceConfig.model_validate(
@@ -220,6 +226,37 @@ async def test_parent_routes_composite_command_through_sidecar_point(
         assert ("write", ("rtu-composite", "temperature", 24.0)) in client.calls
     finally:
         await state.remove_config("rtu-composite")
+
+
+@pytest.mark.anyio
+async def test_parent_routes_profile_coil_command_without_transport_overrides(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = FakeSidecarClient()
+    monkeypatch.setattr(state, "sidecar_client_factory", lambda: client)
+    payload = rtu_config("rtu-coils").model_dump()
+    payload["points"] = [
+        {"id": f"relay_{index}", "name": f"Relay {index}", "unit_id": 1, "area": "coil", "address": index, "data_type": "bool", "writable": True}
+        for index in range(2)
+    ]
+    payload["coil_commands"] = [
+        {"id": "both_on", "name": "Both on", "point_ids": ["relay_0", "relay_1"], "values": [True, True], "idempotency": "idempotent"}
+    ]
+    await state.apply_config(DeviceConfig.model_validate(payload))
+    try:
+        await state.execute_sidecar_command(
+            config_id="rtu-coils",
+            device_id="rtu-coils",
+            command="run_coil_command",
+            args={"command_id": "both_on", "address": 999, "values": [False]},
+        )
+        assert (
+            "write_coils",
+            ("rtu-coils", ["relay_0", "relay_1"], [True, True]),
+        ) in client.calls
+        assert "coil_commands" not in client.config
+    finally:
+        await state.remove_config("rtu-coils")
 
 
 @pytest.mark.anyio

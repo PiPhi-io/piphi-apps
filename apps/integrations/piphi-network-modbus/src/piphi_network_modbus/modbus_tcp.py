@@ -388,6 +388,51 @@ class ModbusTCPClient:
             raise ValueError("modbus_write_readback_mismatch")
         return decoded
 
+    async def write_coils(
+        self, points: list[PointProfile], values: list[bool]
+    ) -> list[bool]:
+        if not 2 <= len(points) <= 1968 or len(points) != len(values):
+            raise ValueError("invalid_coil_command_quantity")
+        if any(
+            point.area != "coil" or not point.writable or type(value) is not bool
+            for point, value in zip(points, values, strict=True)
+        ):
+            raise ValueError("invalid_coil_command_binding")
+        first = points[0]
+        if any(
+            point.unit_id != first.unit_id or point.address != first.address + index
+            for index, point in enumerate(points)
+        ):
+            raise ValueError("coil_command_points_not_contiguous")
+        packed = bytearray((len(values) + 7) // 8)
+        for index, value in enumerate(values):
+            if value:
+                packed[index // 8] |= 1 << (index % 8)
+        async with self._lock:
+            response = await self._request_locked(
+                first.unit_id,
+                15,
+                struct.pack(">HHB", first.address, len(values), len(packed))
+                + bytes(packed),
+                retry_read=False,
+            )
+            expected = struct.pack(">HH", first.address, len(values))
+            if response != expected:
+                raise ValueError("modbus_write_confirmation_mismatch")
+            readback = await self._read_block_locked(
+                ReadBlock(
+                    first.unit_id,
+                    "coil",
+                    first.address,
+                    len(points),
+                    tuple(points),
+                )
+            )
+        confirmed = [bool(value) for value in readback]
+        if confirmed != values:
+            raise ValueError("modbus_write_readback_mismatch")
+        return confirmed
+
 
 async def read_holding_register(
     host: str,

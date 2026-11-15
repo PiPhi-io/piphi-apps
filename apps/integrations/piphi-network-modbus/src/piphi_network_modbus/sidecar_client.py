@@ -65,6 +65,15 @@ class ModbusSidecarClient:
             json={"config_id": config_id, "point_id": point_id, "value": value},
         )
 
+    async def write_coils(
+        self, config_id: str, point_ids: list[str], values: list[bool]
+    ) -> dict[str, Any]:
+        return await self._request(
+            "POST",
+            "/v1/modbus/write-coils",
+            json={"config_id": config_id, "point_ids": point_ids, "values": values},
+        )
+
     async def _request(self, method: str, path: str, **kwargs: Any) -> Any:
         headers = dict(kwargs.pop("headers", {}))
         if self.token:

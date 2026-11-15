@@ -197,6 +197,43 @@ class SerialRTUSession:
 
         await self.queue.submit(operation)
 
+    async def write_coils(
+        self, points: list[RegisterProfile], values: list[bool]
+    ) -> None:
+        async def operation() -> None:
+            await asyncio.to_thread(self._write_coils_sync, points, values)
+
+        await self.queue.submit(operation)
+
+    def _write_coils_sync(
+        self, points: list[RegisterProfile], values: list[bool]
+    ) -> None:
+        if not 2 <= len(points) <= 1968 or len(points) != len(values):
+            raise ValueError("invalid_coil_command_quantity")
+        first = points[0]
+        if any(
+            point.area != "coil"
+            or not point.writable
+            or point.unit_id != first.unit_id
+            or point.address != first.address + index
+            or type(values[index]) is not bool
+            for index, point in enumerate(points)
+        ):
+            raise ValueError("invalid_coil_command_binding")
+        packed = bytearray((len(values) + 7) // 8)
+        for index, value in enumerate(values):
+            if value:
+                packed[index // 8] |= 1 << (index % 8)
+        request_pdu = (
+            struct.pack(">BHHB", 15, first.address, len(values), len(packed))
+            + bytes(packed)
+        )
+        response = self._exchange_sync(
+            frame_with_crc(bytes([first.unit_id]) + request_pdu), first.unit_id, 15
+        )
+        if response != struct.pack(">HH", first.address, len(values)):
+            raise ValueError("modbus_write_confirmation_mismatch")
+
     def _write_sync(self, point: RegisterProfile, values: list[int | bool]) -> None:
         if point.unit_id == 0 or not point.writable:
             raise ValueError("write_not_allowed")

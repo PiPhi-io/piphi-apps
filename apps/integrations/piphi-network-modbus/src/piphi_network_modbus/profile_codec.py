@@ -24,13 +24,19 @@ def _ordered_bytes(raw: bytes, byte_order: str) -> bytes:
 
 
 def profile_hash(
-    *, profile_id: str, profile_version: str, profile_provenance: str, points: list[PointProfile]
+    *,
+    profile_id: str,
+    profile_version: str,
+    profile_provenance: str,
+    points: list[PointProfile],
+    semantic_bindings: dict[str, Any] | None = None,
 ) -> str:
     document = {
         "id": profile_id,
         "version": profile_version,
         "provenance": profile_provenance,
         "points": [point.model_dump(mode="json") for point in points],
+        "semantic_bindings": semantic_bindings or {},
     }
     encoded = json.dumps(document, sort_keys=True, separators=(",", ":")).encode()
     return hashlib.sha256(encoded).hexdigest()

@@ -153,3 +153,40 @@ async def test_real_pty_rtu_read_and_write() -> None:
         await session.close()
         os.close(master_fd)
         os.close(slave_fd)
+
+
+@pytest.mark.anyio
+async def test_real_pty_fc15_multiple_coil_write() -> None:
+    master_fd, slave_fd = pty.openpty()
+    tty.setraw(master_fd)
+    slave_name = os.ttyname(slave_fd)
+    points = [
+        point(
+            id=f"relay_{index}",
+            name=f"Relay {index}",
+            area="coil",
+            address=index,
+            data_type="bool",
+            writable=True,
+        )
+        for index in range(3)
+    ]
+    session = SerialRTUSession(
+        DeviceConfig(id="coil-bus", serial_port=slave_name, registers=points)
+    )
+    await session.open()
+
+    async def simulator() -> None:
+        request = await asyncio.to_thread(os.read, master_fd, 256)
+        assert request[:7] == bytes([7, 15, 0, 0, 0, 3, 1])
+        assert request[7] == 0b00000101
+        os.write(master_fd, frame_with_crc(bytes.fromhex("070F00000003")))
+
+    task = asyncio.create_task(simulator())
+    try:
+        await session.write_coils(points, [True, False, True])
+        await task
+    finally:
+        await session.close()
+        os.close(master_fd)
+        os.close(slave_fd)

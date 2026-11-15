@@ -39,6 +39,7 @@ CAPABILITIES: dict[str, dict[str, Any]] = {
         "kind": "action"
     },
     "set_value": {"kind": "action"},
+    "run_coil_command": {"kind": "action"},
     **{
         command: {"kind": "action"}
         for command in (
@@ -66,6 +67,11 @@ COMMANDS: dict[str, dict[str, Any]] = {
     "set_value": {
         "description": "Set a profile-declared writable point within its bounds.",
         "timeout_ms": 30000
+    },
+    "run_coil_command": {
+        "description": "Run a reviewed profile-declared multiple-coil command.",
+        "timeout_ms": 90000,
+        "args_schema": {"command_id": {"type": "string", "required": True}},
     },
     "turn_on": {"description": "Turn on a profile-composed device.", "timeout_ms": 30000},
     "turn_off": {"description": "Turn off a profile-composed device.", "timeout_ms": 30000},
