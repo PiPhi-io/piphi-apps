@@ -21,7 +21,7 @@ the `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` repository secrets.
 Current image target:
 
 ```text
-ghcr.io/piphi-io/piphi-ble-gateway-sidecar:0.3.0
+ghcr.io/piphi-io/piphi-ble-gateway-sidecar:0.3.1
 ```
 
 The OCI artifact remains Linux-only. The same release builds, smoke-tests, and

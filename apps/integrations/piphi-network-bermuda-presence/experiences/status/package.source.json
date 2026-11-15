@@ -3,7 +3,7 @@
   "identity": {
     "publisher_id": "io.piphi",
     "package_id": "bermuda-presence-status",
-    "version": "0.2.0"
+    "version": "0.2.1"
   },
   "name": "Bermuda Presence Coverage",
   "description": "A compact view of degraded BLE receiver coverage for selected devices.",

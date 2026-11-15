@@ -7,13 +7,18 @@ from typing import Any
 import httpx
 import pytest
 
+from piphi_network_bermuda_presence.coordinator import PresenceCoordinator
 from piphi_network_bermuda_presence.main import app
 
 FIXTURES = json.loads((Path(__file__).parent / "fixtures" / "contract-conformance.json").read_text())
 
 
 @pytest.mark.anyio
-async def test_runtime_conforms_to_shared_contract_fixtures() -> None:
+async def test_runtime_conforms_to_shared_contract_fixtures(monkeypatch) -> None:
+    async def connected_start(coordinator: PresenceCoordinator) -> None:
+        coordinator.gateway_available = True
+
+    monkeypatch.setattr(PresenceCoordinator, "start", connected_start)
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
         try:

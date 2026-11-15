@@ -50,6 +50,7 @@ class ConsumerState:
 
 _clients: dict[str, GatewayClient] = {}
 _consumer_state: dict[str, ConsumerState] = {}
+_config_lock = asyncio.Lock()
 _poll_lock = asyncio.Lock()
 
 
@@ -88,25 +89,42 @@ def get_entry_or_404(config_id: str) -> dict[str, Any]:
     return entry
 
 
+def _reject_duplicate_target(entry: dict[str, Any]) -> None:
+    for existing_id in registry.ids():
+        existing = registry.get(existing_id)
+        if existing is None or existing_id == entry["config_id"]:
+            continue
+        if (
+            str(existing.get("gateway_url", "")).rstrip("/") == str(entry["gateway_url"]).rstrip("/")
+            and existing.get("device_handle") == entry["device_handle"]
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail=f"BLE device is already configured by config_id={existing_id}",
+            )
+
+
 async def apply_config(config: DeviceConfig) -> None:
     entry = make_entry(config)
     config_id = entry["config_id"]
-    candidate = gateway_client(config)
-    try:
-        await candidate.register(entry["gateway_consumer_id"], config.device_handle)
-        snapshot = await candidate.snapshot(entry["gateway_consumer_id"])
-    except Exception:
-        await candidate.close()
-        raise
-    old_client = _clients.get(config_id)
-    _clients[config_id] = candidate
-    _consumer_state[config_id] = ConsumerState()
-    registry.set(config_id, entry)
-    registry.update_state(config_id, _initial_public_state(), device_id=entry["device_id"])
-    await _apply_page(config_id, snapshot, snapshot=True)
-    if old_client is not None:
-        await old_client.close()
-    append_runtime_event("runtime.config.applied", entry, {"device_handle": config.device_handle})
+    async with _config_lock:
+        _reject_duplicate_target(entry)
+        candidate = gateway_client(config)
+        try:
+            await candidate.register(entry["gateway_consumer_id"], config.device_handle)
+            snapshot = await candidate.snapshot(entry["gateway_consumer_id"])
+        except Exception:
+            await candidate.close()
+            raise
+        old_client = _clients.get(config_id)
+        _clients[config_id] = candidate
+        _consumer_state[config_id] = ConsumerState()
+        registry.set(config_id, entry)
+        registry.update_state(config_id, _initial_public_state(), device_id=entry["device_id"])
+        await _apply_page(config_id, snapshot, snapshot=True)
+        if old_client is not None:
+            await old_client.close()
+        append_runtime_event("runtime.config.applied", entry, {"device_handle": config.device_handle})
 
 
 async def remove_config(config_id: str) -> bool:

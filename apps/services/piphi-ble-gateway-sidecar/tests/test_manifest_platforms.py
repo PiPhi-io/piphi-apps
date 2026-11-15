@@ -28,6 +28,6 @@ def test_manifest_declares_linux_oci_and_windows_native_python_proxy() -> None:
 def test_versions_and_images_are_consistent() -> None:
     manifest = json.loads((ROOT / "manifest.json").read_text())
     app = json.loads((ROOT / "piphi-app.json").read_text())
-    assert manifest["version"] == app["packages"][0]["version"] == "0.3.0"
+    assert manifest["version"] == app["packages"][0]["version"] == "0.3.1"
     assert manifest["image"] == manifest["runtime"]["linux"]["container"]["image"]
-    assert manifest["image"].endswith(":0.3.0")
+    assert manifest["image"].endswith(":0.3.1")

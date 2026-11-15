@@ -3,7 +3,7 @@
   "manifest_version": "1.0",
   "id": "piphi-network-bermuda-presence",
   "name": "Bermuda presence",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Turn supported BLE advertisements into room-level presence observations.",
   "metadata": {
     "generator": "piphi-network-create",
@@ -17,7 +17,7 @@
     "website": "https://piphi.io"
   },
   "license": "Apache-2.0",
-  "image": "ghcr.io/piphi-io/piphi-network-bermuda-presence:0.2.0",
+  "image": "ghcr.io/piphi-io/piphi-network-bermuda-presence:0.2.1",
   "platforms": [
     "linux"
   ],
@@ -25,7 +25,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "ghcr.io/piphi-io/piphi-network-bermuda-presence:0.2.0",
+        "image": "ghcr.io/piphi-io/piphi-network-bermuda-presence:0.2.1",
         "ports": [
           {
             "container": 4206,
@@ -205,7 +205,7 @@
     "documentation_url": "https://github.com/PiPhi-io/piphi-network-bermuda-presence",
     "support_url": "https://github.com/PiPhi-io/piphi-network-bermuda-presence/issues",
     "changelog_url": "https://github.com/PiPhi-io/piphi-network-bermuda-presence/releases",
-    "quality_tier": "unrated",
+    "quality_tier": "bronze",
     "governance": {
       "schema_version": 1,
       "publication_status": "draft",

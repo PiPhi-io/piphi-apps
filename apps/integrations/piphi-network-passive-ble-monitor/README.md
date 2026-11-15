@@ -32,6 +32,41 @@ reads, snapshots, and deletion; it grants no gateway-wide administration. It is
 never returned in entities, telemetry, events, health, or diagnostics. Registration
 requests only the configured handle and BTHome service UUID.
 
+Configuration is committed only after gateway registration and a bounded
+snapshot succeed. Reusing the same stable configuration ID updates that entry
+rather than creating a duplicate.
+
+## Installation and removal
+
+Install the OCI package through PiPhi, ensure the managed BLE gateway is healthy,
+then use `/ui-config` to enter the gateway URL, per-consumer token, opaque device
+handle, polling interval, and stale timeout. Setup verifies registration before
+the entry is stored.
+
+Remove the configuration through PiPhi before uninstalling the image. Removal
+unregisters the gateway consumer, stops polling, closes the HTTP client, and
+removes runtime state. If the gateway is temporarily unavailable, local cleanup
+still completes and the failed remote deletion is logged without exposing the
+token.
+
+## Automation
+
+The integration exposes the idempotent `refresh` action and the `state_matches`
+condition. `runtime.config.applied` is the only public behavior event in the
+current slice; no measurement-change trigger is advertised. Refresh failures are
+reported as action failures rather than fabricated sensor updates.
+
+## Troubleshooting and limitations
+
+- `receiver_healthy=false` means the gateway path is degraded;
+  `sensor_available=false` means no fresh usable measurement is available.
+- Cursor gaps trigger a bounded snapshot resync. Replay warms state but never
+  counts as a live observation.
+- Verify that the configured handle is opaque, the token is scoped to this
+  consumer, and the advertiser includes unencrypted BTHome v2 service data.
+- Only battery, temperature, humidity, and RSSI are currently supported.
+  Encrypted BTHome and vendor-specific formats are intentionally unsupported.
+
 ## Runtime and portability
 
 The HTTP consumer is pure async Python/httpx and has no OS-specific imports, so source execution is platform-neutral. The manifest remains Linux-only because this repository currently publishes only Linux OCI images (`linux/amd64` and `linux/arm64`); it has no native Windows runtime artifact. Windows can be declared once root release metadata can build and qualify one. The gateway may run elsewhere on the network.
@@ -42,7 +77,7 @@ The HTTP consumer is pure async Python/httpx and has no OS-specific imports, so 
 PDM_IGNORE_ACTIVE_VENV=1 pdm install -G dev
 PDM_IGNORE_ACTIVE_VENV=1 pdm run pytest
 PDM_IGNORE_ACTIVE_VENV=1 pdm run python scripts/validate.py
-docker build -t ghcr.io/piphi-io/piphi-network-passive-ble-monitor:0.3.0 .
+docker build -t ghcr.io/piphi-io/piphi-network-passive-ble-monitor:0.3.1 .
 ```
 
 `piphi-app.json` opts this package into full CI, dependency audit, tests, package validation, and portable Linux image builds. `capability-catalog.json` is the machine-readable capability inventory.

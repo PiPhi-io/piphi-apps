@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "standard": "Home Assistant Integration Quality Scale",
+  "standard_url": "https://developers.home-assistant.io/docs/core/integration-quality-scale/rules/",
+  "reviewed_at": "2026-11-15",
+  "target_tier": "bronze",
+  "rules": {
+    "action-setup": {"status": "done", "evidence": ["src/piphi_network_bermuda_presence/state.py", "tests/test_contract.py"]},
+    "appropriate-polling": {"status": "done", "evidence": ["src/piphi_network_bermuda_presence/coordinator.py", "src/piphi_network_bermuda_presence/schemas.py", "tests/test_presence_engine.py"]},
+    "brands": {"status": "exempt", "comment": "This is a PiPhi marketplace integration, not a Home Assistant Core integration; publisher, support, compatibility, and documentation metadata are present in manifest.json."},
+    "common-modules": {"status": "done", "evidence": ["src/piphi_network_bermuda_presence/gateway.py", "src/piphi_network_bermuda_presence/coordinator.py", "src/piphi_network_bermuda_presence/inference.py"]},
+    "config-flow": {"status": "done", "evidence": ["src/piphi_network_bermuda_presence/schemas.py", "src/piphi_network_bermuda_presence/routes/config.py"]},
+    "config-flow-test-coverage": {"status": "done", "evidence": ["tests/test_config_privacy.py", "tests/test_gateway_client.py", "tests/test_contract.py"]},
+    "dependency-transparency": {"status": "done", "evidence": ["pyproject.toml", "pdm.lock", "piphi-app.json"]},
+    "docs-actions": {"status": "done", "evidence": ["README.md#automation"]},
+    "docs-conditions": {"status": "done", "evidence": ["README.md#automation"]},
+    "docs-high-level-description": {"status": "done", "evidence": ["README.md"]},
+    "docs-installation-instructions": {"status": "done", "evidence": ["README.md#installation-and-removal"]},
+    "docs-removal-instructions": {"status": "done", "evidence": ["README.md#installation-and-removal"]},
+    "docs-triggers": {"status": "done", "evidence": ["README.md#automation"]},
+    "entity-event-setup": {"status": "done", "evidence": ["src/piphi_network_bermuda_presence/lifecycle.py", "src/piphi_network_bermuda_presence/coordinator.py"]},
+    "entity-unique-id": {"status": "done", "evidence": ["src/piphi_network_bermuda_presence/coordinator.py", "tests/test_presence_engine.py"]},
+    "has-entity-name": {"status": "done", "evidence": ["src/piphi_network_bermuda_presence/coordinator.py", "examples/entity-response.json"]},
+    "runtime-data": {"status": "done", "evidence": ["src/piphi_network_bermuda_presence/state.py"]},
+    "test-before-configure": {"status": "done", "evidence": ["src/piphi_network_bermuda_presence/state.py", "tests/test_config_privacy.py"]},
+    "test-before-setup": {"status": "done", "evidence": ["src/piphi_network_bermuda_presence/lifecycle.py", "tests/test_coordinator_recovery.py"]},
+    "unique-config-entry": {"status": "done", "evidence": ["src/piphi_network_bermuda_presence/state.py", "tests/test_config_privacy.py"]}
+  }
+}

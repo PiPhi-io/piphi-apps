@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "standard": "Home Assistant Integration Quality Scale",
+  "standard_url": "https://developers.home-assistant.io/docs/core/integration-quality-scale/rules/",
+  "reviewed_at": "2026-11-15",
+  "target_tier": "bronze",
+  "rules": {
+    "action-setup": {"status": "done", "evidence": ["src/piphi_network_passive_ble_monitor/state.py", "tests/test_contract.py"]},
+    "appropriate-polling": {"status": "done", "evidence": ["src/piphi_network_passive_ble_monitor/lifecycle.py", "src/piphi_network_passive_ble_monitor/schemas.py", "tests/test_scan_pipeline.py"]},
+    "brands": {"status": "exempt", "comment": "This is a PiPhi marketplace integration, not a Home Assistant Core integration; publisher, support, compatibility, and documentation metadata are present in manifest.json."},
+    "common-modules": {"status": "done", "evidence": ["src/piphi_network_passive_ble_monitor/gateway.py", "src/piphi_network_passive_ble_monitor/bthome.py", "src/piphi_network_passive_ble_monitor/state.py"]},
+    "config-flow": {"status": "done", "evidence": ["src/piphi_network_passive_ble_monitor/schemas.py", "src/piphi_network_passive_ble_monitor/routes/config.py"]},
+    "config-flow-test-coverage": {"status": "done", "evidence": ["tests/test_runtime_testkit.py", "tests/test_gateway.py", "tests/test_contract.py"]},
+    "dependency-transparency": {"status": "done", "evidence": ["pyproject.toml", "pdm.lock", "piphi-app.json"]},
+    "docs-actions": {"status": "done", "evidence": ["README.md#automation"]},
+    "docs-conditions": {"status": "done", "evidence": ["README.md#automation"]},
+    "docs-high-level-description": {"status": "done", "evidence": ["README.md"]},
+    "docs-installation-instructions": {"status": "done", "evidence": ["README.md#installation-and-removal"]},
+    "docs-removal-instructions": {"status": "done", "evidence": ["README.md#installation-and-removal"]},
+    "docs-triggers": {"status": "done", "evidence": ["README.md#automation"]},
+    "entity-event-setup": {"status": "done", "evidence": ["src/piphi_network_passive_ble_monitor/lifecycle.py", "src/piphi_network_passive_ble_monitor/state.py"]},
+    "entity-unique-id": {"status": "done", "evidence": ["src/piphi_network_passive_ble_monitor/state.py", "tests/test_experience_package.py"]},
+    "has-entity-name": {"status": "done", "evidence": ["src/piphi_network_passive_ble_monitor/state.py", "examples/entity-response.json"]},
+    "runtime-data": {"status": "done", "evidence": ["src/piphi_network_passive_ble_monitor/state.py"]},
+    "test-before-configure": {"status": "done", "evidence": ["src/piphi_network_passive_ble_monitor/state.py", "tests/test_gateway.py"]},
+    "test-before-setup": {"status": "done", "evidence": ["src/piphi_network_passive_ble_monitor/lifecycle.py", "tests/test_scan_pipeline.py"]},
+    "unique-config-entry": {"status": "done", "evidence": ["src/piphi_network_passive_ble_monitor/state.py", "tests/test_scan_pipeline.py", "tests/test_runtime_testkit.py"]}
+  }
+}

@@ -41,3 +41,10 @@ must be published independently and submitted with immutable, signed evidence.
 
 New registry listings remain drafts with zero rollout until artifact and
 marketplace review are complete.
+
+## Quality tiers
+
+Marketplace quality claims follow [the PiPhi integration quality scale](integration-quality-scale.md).
+Keep new or unaudited packages at `unrated`. A Bronze-or-higher claim requires a
+package-local `quality-scale.yaml`, concrete evidence for every applicable rule,
+and a CI test that keeps the checklist synchronized with the manifest.

@@ -13,7 +13,7 @@ def test_experience_matches_the_runtime_contract() -> None:
     assert PACKAGE["identity"] == {
         "publisher_id": "io.piphi",
         "package_id": "passive-ble-monitor-status",
-        "version": "0.3.0",
+        "version": "0.3.1",
     }
     assert PACKAGE["owning_integration_id"] == MANIFEST["id"]
 
