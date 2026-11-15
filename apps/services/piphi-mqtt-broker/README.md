@@ -1,16 +1,16 @@
 # PiPhi MQTT Broker
 
 `piphi-mqtt-broker` packages Mosquitto as a bounded PiPhi `platform_service`.
-Version 0.2.0 adds an enforced topic ACL, TLS support, authenticated MQTT 5
-readiness checks, resource limits, secret-file credentials, hardened config
-validation, and container-level security/recovery smoke tests.
+Version 0.3.0 adds managed workload identities, explicit per-principal ACLs,
+audited credential reload/revocation, and automated restore qualification to the
+TLS, quota, health, and config hardening introduced in 0.2.0.
 
 ## Security boundary
 
-This service provides one trust domain and one broker principal. The principal
-can only read and write beneath `MQTT_TOPIC_PREFIX/#`; all other application and
-`$SYS` topics are denied by omission. It is not a multi-tenant broker. Deploy a
-separate instance per trust domain until managed per-workload identities ship.
+Production deployments use `MQTT_AUTH_POLICY_FILE` to assign every workload a
+distinct principal and explicit read/write filters beneath
+`MQTT_TOPIC_PREFIX/`. Filters outside the configured prefix and access to
+`$SYS`/`$CONTROL` fail validation. No principal receives `#` by default.
 
 Anonymous access is disabled by default. Plain MQTT is also disabled by default
 in the image and must be explicitly enabled with `MQTT_ALLOW_PLAINTEXT=true` on
@@ -19,21 +19,54 @@ trust boundary.
 
 ## Credential handling
 
-Prefer a read-only secret file instead of `MQTT_PASSWORD`:
+Mount a policy and one read-only password secret per principal:
+
+```json
+{
+  "schema_version": 1,
+  "principals": [
+    {
+      "username": "zigbee2mqtt",
+      "password_secret_file": "/run/secrets/zigbee2mqtt-password",
+      "read": ["piphi/zigbee2mqtt/#"],
+      "write": ["piphi/zigbee2mqtt/#"],
+      "health": false
+    },
+    {
+      "username": "health",
+      "password_secret_file": "/run/secrets/health-password",
+      "read": ["piphi/_health/#"],
+      "write": ["piphi/_health/#"],
+      "health": true
+    }
+  ]
+}
+```
 
 ```bash
 docker run --rm \
-  -e MQTT_USERNAME=piphi \
-  -e MQTT_PASSWORD_SECRET_FILE=/run/secrets/mqtt-password \
+  -e MQTT_AUTH_POLICY_FILE=/run/secrets/mqtt-policy.json \
   -e MQTT_ALLOW_PLAINTEXT=true \
-  -v ./mqtt-password:/run/secrets/mqtt-password:ro \
-  ghcr.io/piphi-io/mqtt-broker:0.2.0
+  -v ./secrets:/run/secrets:ro \
+  ghcr.io/piphi-io/mqtt-broker:0.3.0
 ```
 
 The entrypoint hashes the password through a mode-0600 temporary file, installs
 the password database atomically, and never places the password in a process
 argument or generated broker config. `MQTT_PASSWORD` remains a compatibility
-fallback and should not be used in production.
+fallback for single-principal upgrades and should not be used for shared
+production infrastructure.
+
+After atomically replacing policy/secret mounts, reload credentials and ACLs:
+
+```bash
+docker exec mqtt-broker /app/docker/credentials-admin.sh
+```
+
+Use `--disconnect-existing` for revocation. This terminates the broker so the
+orchestrator restarts it and all existing sessions must reauthenticate. Each
+operation appends a payload-free record to
+`/mosquitto/log/security-audit.jsonl`.
 
 ## TLS profile
 
@@ -46,13 +79,13 @@ docker run --rm -p 8883:1883 \
   -e MQTT_TLS_CERT_FILE=/run/secrets/server.crt \
   -e MQTT_TLS_KEY_FILE=/run/secrets/server.key \
   -v ./secrets:/run/secrets:ro \
-  ghcr.io/piphi-io/mqtt-broker:0.2.0
+  ghcr.io/piphi-io/mqtt-broker:0.3.0
 ```
 
 Set `MQTT_TLS_REQUIRE_CLIENT_CERTIFICATE=true` for mTLS. Certificates and keys
 must be mounted under `/run/secrets/` or `/mosquitto/config/`. Restart the
-container after rotating credentials or certificates so existing sessions are
-terminated and readiness is requalified.
+container after rotating certificates so existing sessions are terminated and
+readiness is requalified.
 
 ## Enforced defaults
 
@@ -80,9 +113,10 @@ Back up `/mosquitto/config` and `/mosquitto/data` together after a clean stop.
 Keep mounted TLS/password secret sources in the same encrypted backup set. To
 restore, stop the broker, restore all three sets from the same snapshot, verify
 ownership (`mosquitto:mosquitto`, files no broader than `0640`), and start the
-same image version before upgrading. The container smoke suite verifies retained
-data across a controlled restart; power-loss, disk-full, corruption, and
-cross-version restore remain operator qualification items.
+same image version before upgrading. The container suite restores retained data
+into a fresh broker container and requalifies current authorization. Power-loss,
+disk-full, corruption, encrypted-backup integration, and cross-version restore
+remain operator qualification items.
 
 ## Development and release
 

@@ -3,11 +3,6 @@ import { dirname } from "node:path";
 
 import type { BrokerConfig } from "./config.js";
 
-export function renderAcl(config: BrokerConfig): string {
-  if (!config.username) return "";
-  return [`user ${config.username}`, `topic readwrite ${config.topicPrefix}/#`, ""].join("\n");
-}
-
 export function renderMosquittoConfig(config: BrokerConfig): string {
   const lines = [
     `listener ${config.port} ${config.host}`,
@@ -28,7 +23,7 @@ export function renderMosquittoConfig(config: BrokerConfig): string {
     `max_queued_bytes ${config.maxQueuedBytes}`,
     `memory_limit ${config.memoryLimit}`,
   ];
-  if (config.username) lines.push(`password_file ${config.passwordFile}`, `acl_file ${config.aclFile}`);
+  if (config.username || config.authPolicyFile) lines.push(`password_file ${config.passwordFile}`, `acl_file ${config.aclFile}`);
   if (config.tlsEnabled) {
     lines.push(`certfile ${config.tlsCertFile}`, `keyfile ${config.tlsKeyFile}`, "tls_version tlsv1.2");
     if (config.tlsCaFile) lines.push(`cafile ${config.tlsCaFile}`);
@@ -48,5 +43,4 @@ async function atomicWrite(path: string, contents: string, mode: number): Promis
 
 export async function writeMosquittoConfig(config: BrokerConfig): Promise<void> {
   await atomicWrite(config.configOutputPath, renderMosquittoConfig(config), 0o640);
-  if (config.username) await atomicWrite(config.aclFile, renderAcl(config), 0o640);
 }

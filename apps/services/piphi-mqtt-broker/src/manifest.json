@@ -4,7 +4,7 @@
   "id": "piphi.service.mqtt-broker",
   "name": "MQTT Broker",
   "description": "Shared MQTT broker for PiPhi integrations and helpers.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "platforms": [
     "linux"
   ],
@@ -15,7 +15,7 @@
         "type": "container"
       },
       "container": {
-        "image": "ghcr.io/piphi-io/mqtt-broker:0.2.0",
+        "image": "ghcr.io/piphi-io/mqtt-broker:0.3.0",
         "environment": {
           "MQTT_ALLOW_PLAINTEXT": "true"
         },
@@ -77,6 +77,12 @@
           "title": "Broker Password",
           "format": "password",
           "x-env": "MQTT_PASSWORD"
+        },
+        "auth_policy_file": {
+          "type": "string",
+          "title": "Workload Identity Policy File",
+          "description": "Mounted JSON policy defining distinct principals, secret files, and least-privilege topic filters.",
+          "x-env": "MQTT_AUTH_POLICY_FILE"
         },
         "topic_prefix": {
           "type": "string",

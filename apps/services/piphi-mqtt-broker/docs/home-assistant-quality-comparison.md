@@ -5,6 +5,13 @@
 **Audited package:** `piphi.service.mqtt-broker` 0.1.7
 **Scope:** shared platform infrastructure. This is **not** an assessment of a Home Assistant entity integration and does not award a Home Assistant Integration Quality Scale (IQS) tier.
 
+> **Remediation note:** This document is the immutable 0.1.7 baseline. Releases
+> 0.2.0 and 0.3.0 address its ACL, TLS, quota, health, workload identity,
+> credential reload/revocation, and controlled restore findings. See
+> [0.2.0 remediation](0.2.0-remediation.md) and
+> [0.3.0 remediation](0.3.0-remediation.md). Remaining limitations in those
+> documents still apply.
+
 ## Executive conclusion
 
 `piphi-mqtt-broker` is an honest but narrow Mosquitto wrapper: it can provide password-authenticated or explicitly anonymous MQTT over plain TCP, supports the MQTT versions implemented by its packaged Mosquitto, persists retained messages and durable-session state, and restarts under the platform policy. Anonymous access is off by default and startup fails when no credential is supplied. Those are useful foundations.

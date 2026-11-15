@@ -2,7 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { loadBrokerConfig } from "../src/config.js";
-import { renderAcl, renderMosquittoConfig } from "../src/mosquitto.js";
+import { renderIdentityAcl } from "../src/identity.js";
+import { renderMosquittoConfig } from "../src/mosquitto.js";
 
 const authenticated = {
   MQTT_ALLOW_PLAINTEXT: "true",
@@ -34,11 +35,15 @@ test("renderMosquittoConfig enables ACLs and resource limits", () => {
   assert.match(rendered, /acl_file \/mosquitto\/config\/aclfile/);
   assert.match(rendered, /max_packet_size 1048576/);
   assert.match(rendered, /memory_limit 268435456/);
-  assert.equal(renderAcl(config), "user piphi\ntopic readwrite piphi/#\n");
+  assert.equal(renderIdentityAcl({
+    schemaVersion: 1,
+    sourceDigest: "test",
+    principals: [{ username: "piphi", passwordSecretFile: "environment:MQTT_PASSWORD", read: ["piphi/#"], write: ["piphi/#"], health: true }],
+  }), "user piphi\ntopic read piphi/#\ntopic write piphi/#\n");
 });
 
 test("loadBrokerConfig fails closed without authentication or a transport policy", () => {
-  assert.throws(() => loadBrokerConfig({ MQTT_ALLOW_PLAINTEXT: "true" }), /credentials are required/);
+  assert.throws(() => loadBrokerConfig({ MQTT_ALLOW_PLAINTEXT: "true" }), /credentials or MQTT_AUTH_POLICY_FILE are required/);
   assert.throws(() => loadBrokerConfig({ MQTT_USERNAME: "piphi", MQTT_PASSWORD: "secret" }), /Plaintext MQTT must be explicitly enabled/);
   assert.throws(() => loadBrokerConfig({ MQTT_ALLOW_ANONYMOUS: "true", MQTT_ALLOW_PLAINTEXT: "true" }), /Anonymous MQTT is not supported/);
 });
@@ -63,4 +68,11 @@ test("TLS requires a certificate and key and renders verified TLS", () => {
   assert.match(rendered, /certfile \/run\/secrets\/server.crt/);
   assert.match(rendered, /tls_version tlsv1.2/);
   assert.doesNotMatch(rendered, /allow_anonymous true/);
+});
+
+test("auth policy mode replaces legacy credentials", () => {
+  const config = loadBrokerConfig({ MQTT_ALLOW_PLAINTEXT: "true", MQTT_AUTH_POLICY_FILE: "/run/secrets/mqtt-policy.json" });
+  assert.equal(config.authPolicyFile, "/run/secrets/mqtt-policy.json");
+  assert.match(renderMosquittoConfig(config), /acl_file/);
+  assert.throws(() => loadBrokerConfig({ ...authenticated, MQTT_AUTH_POLICY_FILE: "/run/secrets/mqtt-policy.json" }), /cannot be combined/);
 });
