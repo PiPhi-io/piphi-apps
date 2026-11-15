@@ -17,7 +17,7 @@
     "website": "https://piphi.io"
   },
   "license": "Apache-2.0",
-  "image": "piphinetwork/zigbee-integration:0.1.10",
+  "image": "ghcr.io/piphi-io/zigbee-integration:0.1.11",
   "platforms": [
     "linux",
     "windows",
@@ -27,7 +27,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "piphinetwork/zigbee-integration:0.1.10",
+        "image": "ghcr.io/piphi-io/zigbee-integration:0.1.11",
         "ports": [
           {
             "container": 8730,
