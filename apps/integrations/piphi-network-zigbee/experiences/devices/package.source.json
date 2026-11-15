@@ -3,7 +3,7 @@
   "identity": {
     "publisher_id": "io.piphi",
     "package_id": "zigbee-devices",
-    "version": "0.1.10"
+    "version": "0.1.11"
   },
   "name": "Zigbee Devices",
   "description": "Native read-only dashboard views for Zigbee Devices.",

@@ -78,6 +78,7 @@ class ZigbeeMqttClient:
         mqtt_module = self._mqtt_module or _load_paho_mqtt()
         client = _create_client(mqtt_module, client_id=f"piphi-zigbee-pub-{uuid.uuid4()}")
         _set_credentials(client, self.server)
+        _configure_tls(client, self.server)
         host, port = parse_mqtt_endpoint(self.server)
         encoded_payload = json.dumps(payload, separators=(",", ":"))
         try:
@@ -106,6 +107,7 @@ class ZigbeeMqttClient:
 
         client = _create_client(mqtt_module, client_id=f"piphi-zigbee-read-{uuid.uuid4()}")
         _set_credentials(client, self.server)
+        _configure_tls(client, self.server)
 
         def on_connect(client, _userdata, _flags, reason_code, _properties=None):
             if _reason_code_failed(reason_code):
@@ -177,6 +179,7 @@ class ZigbeeMqttSubscriber:
         mqtt_module = self._mqtt_module or _load_paho_mqtt()
         client = _create_client(mqtt_module, client_id=f"piphi-zigbee-sub-{uuid.uuid4()}")
         _set_credentials(client, self.server)
+        _configure_tls(client, self.server)
         topic_map = {subscription.topic: subscription for subscription in self.subscriptions}
 
         def on_connect(client, _userdata, _flags, reason_code, _properties=None):
@@ -303,6 +306,18 @@ def parse_mqtt_endpoint(server: str) -> tuple[str, int]:
     if parsed.scheme in {"mqtt", ""}:
         return host, 1883
     raise ValueError(f"Unsupported MQTT scheme: {parsed.scheme}")
+
+
+def _configure_tls(client: Any, server: str) -> None:
+    parsed = urlparse(server if "://" in server else f"mqtt://{server}")
+    if parsed.scheme != "mqtts":
+        return
+    tls_set = getattr(client, "tls_set", None)
+    if not callable(tls_set):
+        raise ZigbeeMqttError("MQTT client does not support certificate-verified TLS.")
+    # Paho's default context uses the system trust store, verifies certificates,
+    # and checks that the certificate matches the broker hostname.
+    tls_set()
 
 
 def _refresh_payload(entry: dict[str, Any]) -> dict[str, str]:

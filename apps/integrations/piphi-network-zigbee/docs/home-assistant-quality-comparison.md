@@ -18,6 +18,16 @@ The comparison is deliberately **not a parity claim**. Home Assistant ZHA direct
 3. PiPhi computes interview/coordinator import eligibility in the sidecar but does not enforce it when integration discovery imports the retained device list;
 4. there is no coordinator ownership claim/lock, Zigbee network backup/restore or migration workflow, or safe network-key lifecycle.
 
+### Post-audit remediation status
+
+The 0.1.11 integration / 0.1.19 sidecar release closes three findings from the
+audited revision: production sidecar deployments now fail closed unless Core
+supplies a valid bearer token, `mqtts://` uses certificate and hostname
+verification in both PiPhi MQTT clients and the broker health check, and device
+discovery rejects coordinators plus unsupported or incomplete interviews. The
+remaining P0 ownership, host-privilege, network-secret, backup, and migration
+work still blocks a production-ready or HA Bronze-equivalent claim.
+
 The right near-term product claim is: **“PiPhi-managed Zigbee2MQTT bridge setup plus a tested basic MQTT device-state/control adapter for a constrained set of exposes.”**
 
 ## Comparison model and source baseline
@@ -100,7 +110,7 @@ This assessment uses the [current HA IQS characteristics](https://github.com/hom
 
 | Tier | Analogical result for the combined stack | Why |
 |---|---|---|
-| Bronze | **Not demonstrated** | There is UI-contract metadata, ownership metadata, docs, and setup tests, but the end-to-end setup does not test/claim the coordinator before configuration, discovery admits ineligible devices, integration CI is red in this checkout, and critical orchestration routes lack an enforced trust boundary. |
+| Bronze | **Not demonstrated** | There is UI-contract metadata, ownership metadata, docs, and a passing mocked test suite, but the end-to-end setup does not test/claim the coordinator before configuration, discovery admits ineligible devices, and critical orchestration routes lack an enforced trust boundary. |
 | Silver | **Not demonstrated** | Some MQTT reconnect and supervisor behavior exists, but offline/online semantics, auth recovery, safe credential handling, automatic bridge/device recovery, and detailed troubleshooting are incomplete. No coverage threshold is enforced. |
 | Gold | **Not demonstrated** | Discovery and basic diagnostics exist, but typed/dynamic entities, endpoint fidelity, reconfiguration/repairs, stale-device handling, OTA, comprehensive supported-function docs, hardware qualification, and downloadable privacy-safe diagnostics are absent. |
 | Platinum | **Not demonstrated** | Code has type hints but no strict-type gate; synchronous Paho operations are moved to threads rather than using one fully async shared client; duplicated short-lived clients and one subscriber per server are not an efficiency claim. |
@@ -165,7 +175,7 @@ Executed from this checkout on 2026-11-15:
 - sidecar `scripts/validate.py`: **passed**;
 - sidecar `ruff check .`: **passed**;
 - sidecar tests: **27 passed**;
-- integration tests initially reported **207 passed, 1 failed** because `tests/test_release.py::test_release_pipeline_enforces_supply_chain_gates` still read a removed per-app `.github/workflows/release.yml`. The test was repaired during audit review to assert the monorepo OCI release, SBOM, provenance, evidence, proposal and GitHub-release gates; direct invocation of the repaired gate test passed. The full suite was not rerun locally after that edit because the active PDM environment selected Python 3.13 and auto-loaded a missing `piphi_runtime_testkit_python` plugin; branch CI remains the authoritative clean-environment rerun.
+- integration tests initially reported **207 passed, 1 failed** because `tests/test_release.py::test_release_pipeline_enforces_supply_chain_gates` still read a removed per-app `.github/workflows/release.yml`. The test was repaired during audit review to assert the monorepo OCI release, SBOM, provenance, evidence, proposal and GitHub-release gates. A subsequent isolated Python 3.12 run completed with **208 passed**.
 
 No live MQTT broker, coordinator, Zigbee devices, Docker daemon supervision, PM2 host, Windows/macOS proxy, hardware migration, RF behavior, OTA, or backup/restore was available. Consequently this audit verifies reachable source and mocked tests, **not** successful radio operation or hardware qualification. Dependency audit and multi-architecture image builds were not rerun locally; they are declared in CI for the sidecar, while the integration declaration does not request them.
 

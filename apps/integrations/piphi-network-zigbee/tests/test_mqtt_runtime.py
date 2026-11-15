@@ -142,6 +142,9 @@ class FakeMqttModule:
             self.username = username
             self.password = password
 
+        def tls_set(self) -> None:
+            self.tls_enabled = True
+
         def connect(self, host: str, port: int, keepalive: int) -> None:
             self.host = host
             self.port = port
@@ -256,6 +259,19 @@ async def test_mqtt_client_publishes_and_reads_json() -> None:
     assert publish_client.username == "user"
     assert publish_client.password == "pass"
     assert publish_client.published == [("zigbee2mqtt/light/set", '{"state":"ON"}')]
+
+
+@pytest.mark.anyio
+async def test_mqtts_enables_certificate_verified_tls() -> None:
+    FakeMqttModule.instances.clear()
+    await ZigbeeMqttClient(
+        server="mqtts://broker.local",
+        mqtt_module=FakeMqttModule,
+    ).publish_json("zigbee2mqtt/light/set", {"state": "ON"})
+
+    client = FakeMqttModule.instances[0]
+    assert client.port == 8883
+    assert client.tls_enabled is True
 
 
 @pytest.mark.anyio

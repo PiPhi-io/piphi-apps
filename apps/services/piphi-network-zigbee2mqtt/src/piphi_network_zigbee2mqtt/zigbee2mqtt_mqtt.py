@@ -165,6 +165,7 @@ class Zigbee2MqttMqttClient:
         username, password = _mqtt_credentials(self.mqtt)
         if username:
             client.username_pw_set(username, password)
+        _configure_tls(client, self.mqtt.server)
 
         def on_connect(client, _userdata, _flags, reason_code, _properties=None):
             if _reason_code_failed(reason_code):
@@ -214,6 +215,7 @@ class Zigbee2MqttMqttClient:
         username, password = _mqtt_credentials(self.mqtt)
         if username:
             client.username_pw_set(username, password)
+        _configure_tls(client, self.mqtt.server)
 
         def on_connect(client, _userdata, _flags, reason_code, _properties=None):
             if _reason_code_failed(reason_code):
@@ -329,6 +331,18 @@ def _mqtt_credentials(settings: MqttSettings) -> tuple[str | None, str | None]:
     username = settings.user or (unquote(parsed.username) if parsed.username else None)
     password = settings.password or (unquote(parsed.password) if parsed.password else None)
     return username, password
+
+
+def _configure_tls(client: Any, server: str) -> None:
+    parsed = urlparse(server if "://" in server else f"mqtt://{server}")
+    if parsed.scheme != "mqtts":
+        return
+    tls_set = getattr(client, "tls_set", None)
+    if not callable(tls_set):
+        raise Zigbee2MqttMqttError(
+            "MQTT client does not support certificate-verified TLS."
+        )
+    tls_set()
 
 
 def _reason_code_failed(reason_code: Any) -> bool:

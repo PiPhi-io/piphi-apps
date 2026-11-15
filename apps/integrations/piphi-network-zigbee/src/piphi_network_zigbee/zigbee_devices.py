@@ -167,6 +167,22 @@ def normalize_zigbee2mqtt_device(
     }
 
 
+def is_import_eligible(device: dict[str, Any]) -> bool:
+    """Fail closed for retained inventory that is unsafe to import."""
+    if device.get("import_eligible") is False or device.get("supported") is False:
+        return False
+    if str(device.get("type") or "").strip().lower() == "coordinator":
+        return False
+    interview_state = str(device.get("interview_state") or "").strip().lower()
+    return interview_state not in {
+        "failed",
+        "interview_failed",
+        "pending",
+        "started",
+        "interviewing",
+    }
+
+
 def entity_from_entry(entry: dict[str, Any]) -> dict[str, Any]:
     capabilities = list(entry.get("capabilities") or ["connected", "availability", "refresh"])
     return {

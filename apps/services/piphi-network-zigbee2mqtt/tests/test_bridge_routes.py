@@ -7,6 +7,36 @@ from piphi_network_zigbee2mqtt.main import app
 
 
 @pytest.mark.anyio
+async def test_v1_routes_require_valid_bearer_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("PIPHI_ENV", raising=False)
+    monkeypatch.setenv("PIPHI_ZIGBEE2MQTT_SIDECAR_TOKEN", "expected-token")
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+        denied = await client.get("/v1/snapshot")
+        accepted = await client.get(
+            "/v1/snapshot",
+            headers={"Authorization": "Bearer expected-token"},
+        )
+
+    assert denied.status_code == 401
+    assert accepted.status_code == 200
+
+
+@pytest.mark.anyio
+async def test_v1_routes_fail_closed_without_production_token(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PIPHI_ENV", "production")
+    monkeypatch.delenv("PIPHI_ZIGBEE2MQTT_SIDECAR_TOKEN", raising=False)
+    monkeypatch.delenv("PIPHI_INTEGRATION_INTERNAL_TOKEN", raising=False)
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+        response = await client.get("/v1/snapshot")
+
+    assert response.status_code == 503
+
+
+@pytest.mark.anyio
 async def test_bridge_routes_render_and_snapshot() -> None:
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:

@@ -29,6 +29,9 @@ class FakeMqttModule:
             self.username = username
             self.password = password
 
+        def tls_set(self) -> None:
+            self.tls_enabled = True
+
         def connect(self, host: str, port: int, keepalive: int) -> None:
             self.host = host
             self.port = port
@@ -134,6 +137,21 @@ async def test_list_devices_reads_retained_bridge_devices_topic() -> None:
     assert fake_client.username == "user"
     assert fake_client.password == "pass"
     assert fake_client.subscriptions == ["zigbee2mqtt/bridge/devices"]
+
+
+@pytest.mark.anyio
+async def test_mqtts_enables_certificate_verified_tls() -> None:
+    FakeMqttModule.instances.clear()
+    client = Zigbee2MqttMqttClient(
+        mqtt=MqttSettings(server="mqtts://broker.local", base_topic="zigbee2mqtt"),
+        mqtt_module=FakeMqttModule,
+    )
+
+    await client.list_devices()
+
+    fake_client = FakeMqttModule.instances[0]
+    assert fake_client.port == 8883
+    assert fake_client.tls_enabled is True
 
 
 def test_device_import_eligibility_uses_current_interview_state() -> None:

@@ -10,7 +10,7 @@ from piphi_runtime_kit_python import (
 from ..contract import CONFIG_SCHEMA
 from ..settings import DEFAULT_MQTT_BASE_TOPIC, DEFAULT_SIDECAR_BASE_URL
 from ..sidecar_client import SidecarUnavailable, Zigbee2MqttSidecarClient
-from ..zigbee_devices import normalize_zigbee2mqtt_device
+from ..zigbee_devices import is_import_eligible, normalize_zigbee2mqtt_device
 
 router = APIRouter(tags=["discovery"])
 
@@ -44,10 +44,10 @@ def _devices_from_inputs(inputs: dict, *, sidecar_base_url: str) -> list[dict]:
                 sidecar_base_url=sidecar_base_url,
             )
             for device in raw_devices
-            if isinstance(device, dict)
+            if isinstance(device, dict) and is_import_eligible(device)
         ]
 
-    if isinstance(inputs.get("device"), dict):
+    if isinstance(inputs.get("device"), dict) and is_import_eligible(inputs["device"]):
         return [
             normalize_zigbee2mqtt_device(
                 inputs["device"],
