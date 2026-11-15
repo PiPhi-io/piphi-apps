@@ -1027,8 +1027,8 @@ async def process_rtl433_packet(
 
     if matched_configs == 0:
         now = time.monotonic()
-        last_event_at = last_discovery_event_at.get(discovered["device_id"], 0.0)
-        if now - last_event_at >= DISCOVERY_EVENT_INTERVAL_SECONDS:
+        last_event_at = last_discovery_event_at.get(discovered["device_id"])
+        if last_event_at is None or now - last_event_at >= DISCOVERY_EVENT_INTERVAL_SECONDS:
             last_discovery_event_at[discovered["device_id"]] = now
             append_runtime_event(
             event_type="rtl433.packet.discovered",

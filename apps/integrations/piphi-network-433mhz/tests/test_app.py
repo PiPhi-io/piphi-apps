@@ -3,6 +3,7 @@ import asyncio
 import json
 from pathlib import Path
 import time
+from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
 from piphi_runtime_testkit_python import (
@@ -742,6 +743,7 @@ def test_health_and_diagnostics_reflect_runtime_state() -> None:
 
 def test_ingest_unmatched_packet_emits_discovery_event_and_skips_telemetry(monkeypatch) -> None:
     reset_runtime_state()
+    monkeypatch.setattr(app_module, "time", SimpleNamespace(monotonic=lambda: 1.0))
     client = TestClient(app)
     telemetry_calls: list[dict[str, object]] = []
 
