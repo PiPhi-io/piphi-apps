@@ -2,7 +2,7 @@
 
 A monitoring-first KNX/IP integration built on the pinned `xknx==4.1.1` protocol stack.
 
-Version 0.2.1 deliberately supports a smaller surface than Home Assistant KNX, but applies production safety and lifecycle rules to that surface. It owns one exclusive KNX/IP tunnel per configuration, exposes only explicitly reviewed group addresses, and never accepts a caller-supplied address or raw telegram.
+Version 0.2.2 deliberately supports a smaller surface than Home Assistant KNX, but applies production safety and lifecycle rules to that surface. It owns one exclusive KNX/IP tunnel per configuration, exposes only explicitly reviewed group addresses, and never accepts a caller-supplied address or raw telegram.
 
 ## Supported
 
@@ -17,7 +17,7 @@ Version 0.2.1 deliberately supports a smaller surface than Home Assistant KNX, b
 - Atomic reconfiguration, duplicate endpoint rejection, orderly shutdown, and durable configuration replay
 - Runtime-token authentication for every operational endpoint; only `/health` is public
 
-## Intentionally unsupported in 0.2.1
+## Intentionally unsupported in 0.2.2
 
 - KNX IP Secure, KNX Data Secure, routing, or secure routing
 - ETS `.knxproj` or `.knxkeys` import
@@ -66,8 +66,8 @@ Use a dedicated tunnel endpoint. Verify every group address, DPT, and read/write
 
 - `connected` reflects the xknx session, not configuration presence.
 - `uninitialized` means no feedback has been observed; `stale` means feedback exceeded the configured age.
-- A successful write response means xknx accepted the telegram for transmission. It does **not** claim actuator feedback. The entity remains feedback-driven.
-- A write timeout is reported as an unknown outcome and is never retried automatically.
+- A successful write response means xknx completed its transport send path. It does **not** claim actuator feedback. The entity remains feedback-driven.
+- Queue saturation or expiry before transmission is reported as `not_sent`. A timeout after transmission starts is reported as an unknown outcome. Neither case is retried automatically.
 - `allow_writes` and each datapoint's `writable` field must both be true.
 - A physical `host:port` endpoint can belong to only one active configuration.
 

@@ -9,7 +9,13 @@ from xknx.telegram import GroupAddress, Telegram
 from xknx.telegram.apci import GroupValueResponse
 
 import piphi_network_knx.protocol as protocol
-from piphi_network_knx.protocol import XknxClient, decode_value, encode_value
+from piphi_network_knx.protocol import (
+    KnxNotSentError,
+    KnxOutcomeUnknownError,
+    XknxClient,
+    decode_value,
+    encode_value,
+)
 from piphi_network_knx.schemas import DeviceConfig, DptType
 
 
@@ -18,7 +24,17 @@ class FakeXknx:
         self.kwargs = kwargs
         self.telegrams: asyncio.Queue = asyncio.Queue()
         self.connection_manager = SimpleNamespace(connected=asyncio.Event())
+        self.sent = []
+        self.send_gate: asyncio.Event | None = None
+        self.telegram_queue = SimpleNamespace(
+            process_telegram_outgoing=self._process_telegram_outgoing
+        )
         self.stopped = False
+
+    async def _process_telegram_outgoing(self, telegram) -> None:
+        self.sent.append(telegram)
+        if self.send_gate is not None:
+            await self.send_gate.wait()
 
     async def start(self) -> None:
         self.connection_manager.connected.set()
@@ -82,7 +98,7 @@ async def test_xknx_adapter_lifecycle_read_write_and_feedback(monkeypatch) -> No
     assert client.connected
     await client.read(config.datapoints[0])
     await client.write(config.datapoints[0], True)
-    sent = [await client._xknx.telegrams.get(), await client._xknx.telegrams.get()]
+    sent = client._xknx.sent
     assert [str(item.destination_address) for item in sent] == ["1/1/1", "1/1/2"]
 
     client._telegram_received(
@@ -94,6 +110,51 @@ async def test_xknx_adapter_lifecycle_read_write_and_feedback(monkeypatch) -> No
     assert values == [("light", True)]
     client._connection_changed(protocol.XknxConnectionState.DISCONNECTED)
     assert connections == [False]
+    await client.stop()
+
+
+@pytest.mark.anyio
+async def test_bounded_queue_rejects_overflow_and_skips_expired_operations(monkeypatch) -> None:
+    monkeypatch.setattr(protocol, "XKNX", FakeXknx)
+    config = DeviceConfig.model_validate(
+        {
+            "id": "test",
+            "host": "192.0.2.1",
+            "queue_size": 1,
+            "command_timeout_seconds": 1,
+            "allow_writes": True,
+            "datapoints": [
+                {
+                    "id": "light",
+                    "name": "Light",
+                    "entity_type": "light",
+                    "dpt": "1.001",
+                    "state_address": "1/1/1",
+                    "command_address": "1/1/2",
+                    "writable": True,
+                }
+            ],
+        }
+    ).model_copy(update={"command_timeout_seconds": 0.02})
+    client = XknxClient(config, lambda *_: None, lambda *_: None)
+    await client.start()
+    client._xknx.send_gate = asyncio.Event()
+    datapoint = config.datapoints[0]
+
+    started = asyncio.create_task(client.write(datapoint, True))
+    await asyncio.sleep(0)
+    queued = asyncio.create_task(client.write(datapoint, False))
+    await asyncio.sleep(0)
+    with pytest.raises(KnxNotSentError, match="queue is full"):
+        await client.write(datapoint, True)
+    with pytest.raises(KnxNotSentError, match="expired before transmission"):
+        await queued
+    with pytest.raises(KnxOutcomeUnknownError):
+        await started
+
+    client._xknx.send_gate.set()
+    await asyncio.sleep(0)
+    assert len(client._xknx.sent) == 1
     await client.stop()
 
 

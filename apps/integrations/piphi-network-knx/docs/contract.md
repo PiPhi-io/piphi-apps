@@ -1,7 +1,7 @@
 # Runtime contract
 
 - Integration: `piphi-network-knx`
-- Version: `0.2.1`
+- Version: `0.2.2`
 - Kind/preset/domain: `integration` / `protocol-bridge` / `bridge`
 - Port: `4223`
 
@@ -13,7 +13,7 @@ Required endpoints are `/health`, `/entities`, `/command`, `/config`, and `/ui-c
 
 `read_datapoint` accepts `params.datapoint_id`. The ID is resolved only inside the selected configuration and cannot be a group address.
 
-`write_datapoint` accepts `params.datapoint_id` and `params.value`. Dispatch succeeds only if global writes and that exact datapoint are enabled. The entity/DPT matrix validates the value before xknx receives it. Accepted transmission remains feedback-pending; timeout returns an unknown outcome and is not retried.
+`write_datapoint` accepts `params.datapoint_id` and `params.value`. Dispatch succeeds only if global writes and that exact datapoint are enabled. The entity/DPT matrix validates the value before xknx receives it. Queue saturation or pre-send expiry is reported as `not_sent`; a timeout after transport processing begins is an unknown outcome. Accepted transmission remains feedback-pending, and no failure is retried automatically.
 
 ```json
 {
