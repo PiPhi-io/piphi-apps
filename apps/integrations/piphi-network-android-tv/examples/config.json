@@ -1,7 +1,5 @@
 {
   "id": "demo-device",
-  "host": "127.0.0.1",
-  "alias": "Demo Device",
-  "bridge_address": "tcp://127.0.0.1:9000",
-  "protocol": "mqtt"
+  "host": "192.0.2.1",
+  "alias": "Living Room TV"
 }

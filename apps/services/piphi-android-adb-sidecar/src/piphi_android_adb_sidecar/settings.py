@@ -4,7 +4,7 @@ import os
 
 INTEGRATION_ID = "piphi-android-adb-sidecar"
 INTEGRATION_NAME = "Piphi Android Adb Sidecar"
-INTEGRATION_VERSION = "0.1.1"
+INTEGRATION_VERSION = "0.2.0-rc.1"
 PROJECT_KIND = "sidecar"
 PROJECT_PRESET = "sidecar-worker"
 PROJECT_DOMAIN = "sidecar-service"

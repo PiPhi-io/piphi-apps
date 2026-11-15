@@ -3,8 +3,8 @@
   "manifest_version": "1.0",
   "id": "piphi-android-adb-sidecar",
   "name": "Android ADB sidecar",
-  "version": "0.1.1",
-  "description": "Provide managed, allow-listed ADB transport for Android integrations.",
+  "version": "0.2.0-rc.1",
+  "description": "Draft ADB sidecar scaffold; no device transport is implemented.",
   "metadata": {
     "generator": "piphi-network-create",
     "scaffold_version": "0.3.0",
@@ -17,7 +17,7 @@
     "website": "https://piphi.io"
   },
   "license": "Apache-2.0",
-  "image": "docker.io/piphinetwork/piphi-android-adb-sidecar:0.1.1",
+  "image": "ghcr.io/piphi-io/piphi-android-adb-sidecar:0.2.0-rc.1",
   "platforms": [
     "linux"
   ],
@@ -25,7 +25,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "docker.io/piphinetwork/piphi-android-adb-sidecar:0.1.1",
+        "image": "ghcr.io/piphi-io/piphi-android-adb-sidecar:0.2.0-rc.1",
         "ports": [
           {
             "container": 4213
@@ -40,7 +40,7 @@
         }
       },
       "discovery": {
-        "method": "passive"
+        "method": "manual"
       }
     }
   },
@@ -94,17 +94,9 @@
     "connected": {
       "kind": "sensor",
       "unit": "bool"
-    },
-    "refresh": {
-      "kind": "action"
     }
   },
-  "commands": {
-    "refresh": {
-      "description": "Refresh the device state.",
-      "timeout_ms": 5000
-    }
-  },
+  "commands": {},
   "entities": [
     {
       "id": "android-adb-service",
@@ -112,16 +104,9 @@
       "device_id": "android-adb-service",
       "entity_type": "service",
       "capabilities": [
-        "connected",
-        "refresh"
+        "connected"
       ],
-      "available_commands": [
-        {
-          "id": "refresh",
-          "label": "Refresh",
-          "kind": "action"
-        }
-      ],
+      "available_commands": [],
       "dashboard": {
         "allowed_widgets": [
           "tile",
@@ -135,7 +120,7 @@
   "marketplace": {
     "metadata_version": 2,
     "display_name": "Android ADB sidecar",
-    "summary": "Provide managed, allow-listed ADB transport for Android integrations.",
+    "summary": "Draft scaffold for a future managed ADB transport; no device I/O is implemented.",
     "category": "networking",
     "regions": [
       "WW"
@@ -151,18 +136,6 @@
     },
     "access": [
       {
-        "id": "local_network",
-        "label": "Local network access",
-        "reason": "Discovers or communicates with supported services and devices on the homeowner's local network.",
-        "required": true
-      },
-      {
-        "id": "device_access",
-        "label": "USB device access",
-        "reason": "Uses the explicitly configured host device to communicate with supported hardware.",
-        "required": true
-      },
-      {
         "id": "sidecar_runtime",
         "label": "Managed sidecar runtime",
         "reason": "Runs as an isolated helper service consumed by a parent PiPhi integration.",
@@ -171,8 +144,8 @@
     ],
     "compatibility": [
       {
-        "brand": "Google and Amazon",
-        "model": "ADB-compatible Android TV, Google TV, and Fire TV devices"
+        "brand": "Android (planned)",
+        "model": "No devices supported by this draft scaffold"
       }
     ],
     "documentation_url": "https://github.com/PiPhi-io/piphi-android-adb-sidecar",
@@ -192,16 +165,13 @@
       "Android platform service"
     ],
     "protocols": [
-      "ADB",
-      "USB",
-      "TCP"
+      "ADB (planned)"
     ],
     "discovery_methods": [
-      "manual",
-      "ADB device discovery"
+      "manual configuration only"
     ],
     "connectivity": "local",
-    "offline_support": "full"
+    "offline_support": "none"
   },
   "onboarding": {
     "mode": "service"

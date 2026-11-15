@@ -6,6 +6,9 @@ ENDPOINTS = {
     "health": "/health",
     "diagnostics": "/diagnostics",
     "discover": "/discover",
+    "pairing_start": "/pairing/start",
+    "pairing_finish": "/pairing/{session_id}/finish",
+    "forget_credentials": "/pairing/credentials/{config_id}",
     "entities": "/entities",
     "state": "/state",
     "config": "/config",
@@ -23,7 +26,19 @@ CAPABILITIES: dict[str, dict[str, Any]] = {
         "kind": "sensor",
         "unit": "bool"
     },
+    "authenticated": {"kind": "sensor", "unit": "bool"},
+    "reauth_required": {"kind": "sensor", "unit": "bool"},
+    "power_on": {"kind": "sensor", "unit": "bool"},
+    "current_app_id": {"kind": "sensor", "unit": "string"},
+    "volume_level_percent": {"kind": "sensor", "unit": "%"},
+    "muted": {"kind": "sensor", "unit": "bool"},
+    "manufacturer": {"kind": "sensor", "unit": "string"},
+    "model": {"kind": "sensor", "unit": "string"},
+    "software_version": {"kind": "sensor", "unit": "string"},
     "refresh": {
+        "kind": "action"
+    },
+    "send_key": {
         "kind": "action"
     }
 }
@@ -31,6 +46,10 @@ CAPABILITIES: dict[str, dict[str, Any]] = {
 COMMANDS: dict[str, dict[str, Any]] = {
     "refresh": {
         "description": "Refresh the device state.",
+        "timeout_ms": 5000
+    },
+    "send_key": {
+        "description": "Send one allow-listed short key press.",
         "timeout_ms": 5000
     }
 }
@@ -50,14 +69,6 @@ CONFIG_SCHEMA: dict[str, Any] = {
             "alias": {
                 "type": "string",
                 "title": "Alias"
-            },
-            "bridge_address": {
-                "type": "string",
-                "title": "Bridge Address"
-            },
-            "protocol": {
-                "type": "string",
-                "title": "Protocol"
             }
         }
     },
@@ -67,12 +78,6 @@ CONFIG_SCHEMA: dict[str, Any] = {
         },
         "alias": {
             "placeholder": "Office Device"
-        },
-        "bridge_address": {
-            "placeholder": "tcp://127.0.0.1:9000"
-        },
-        "protocol": {
-            "placeholder": "mqtt"
         }
     }
 }
@@ -84,12 +89,27 @@ FALLBACK_ENTITY: dict[str, Any] = {
     "entity_type": "television",
     "capabilities": [
         "connected",
-        "refresh"
+        "authenticated",
+        "reauth_required",
+        "power_on",
+        "current_app_id",
+        "volume_level_percent",
+        "muted",
+        "manufacturer",
+        "model",
+        "software_version",
+        "refresh",
+        "send_key"
     ],
     "available_commands": [
         {
             "id": "refresh",
             "label": "Refresh",
+            "kind": "action"
+        },
+        {
+            "id": "send_key",
+            "label": "Send key",
             "kind": "action"
         }
     ],

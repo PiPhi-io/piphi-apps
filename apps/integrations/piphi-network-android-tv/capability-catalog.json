@@ -6,6 +6,8 @@
   "sources": {
     "android_adb": "https://developer.android.com/tools/adb",
     "androidtv_python": "https://github.com/JeffLIrion/python-androidtv",
+    "androidtvremote2": "https://github.com/tronikos/androidtvremote2",
+    "ha_androidtv_remote": "https://www.home-assistant.io/integrations/androidtv_remote/",
     "ha_androidtv": "https://www.home-assistant.io/integrations/androidtv/",
     "core_vocabulary": "PiPhi Network Core and maintained PiPhi integrations",
     "adb_sidecar": "PiPhi managed ADB sidecar contract"
@@ -14,23 +16,29 @@
     {
       "id": "runtime-foundation", "status": "implemented", "scope": ["all-configurations"],
       "source_refs": ["core_vocabulary"],
-      "reason": "The scaffold implements configuration presence, connectivity state, refresh dispatch, and its configuration event.",
-      "state": ["connected"], "events": ["runtime.config.applied"], "conditions": ["state_matches"], "actions": ["refresh"]
+      "reason": "The Remote v2 vertical slice implements authenticated availability, stable opaque identity metadata, push-backed power/app/volume state, refresh, and conservative short key presses.",
+      "state": ["connected", "authenticated", "reauth_required", "power_on", "current_app_id", "volume_level_percent", "muted", "manufacturer", "model", "software_version"], "events": ["runtime.config.applied"], "conditions": ["state_matches"], "actions": ["refresh", "send_key"]
+    },
+    {
+      "id": "remote-v2-pairing-and-discovery", "status": "implemented", "scope": ["android-tv-and-google-tv-with-remote-service"],
+      "source_refs": ["androidtvremote2", "ha_androidtv_remote"],
+      "reason": "The runtime implements bounded Remote v2 mDNS candidates, expiring one-shot PIN pairing, restrictive credential storage, connect-before-save, stable opaque MAC-derived identity, reauthentication signaling, reconnect callbacks, and explicit credential removal. Pairing remains an interactive administrative flow and is not a behavior action.",
+      "state": [], "events": [], "conditions": [], "actions": []
     },
     {
       "id": "device-identity-and-transport", "status": "planned", "scope": ["android-tv-google-tv-and-fire-tv-devices"],
       "source_refs": ["android_adb", "androidtv_python", "ha_androidtv", "adb_sidecar"],
       "reason": "ADB authentication, platform-specific parsing, device identity, reconnect, and credential isolation need implementation and representative fixtures.",
-      "state": ["platform", "manufacturer", "model", "device_serial_suffix", "android_version", "android_api_level", "build_fingerprint_redacted", "transport_type", "adb_authorized", "last_seen_at", "command_latency_ms"],
+      "state": ["platform", "device_serial_suffix", "android_version", "android_api_level", "build_fingerprint_redacted", "transport_type", "adb_authorized", "last_seen_at", "command_latency_ms"],
       "events": ["television.online", "television.offline", "adb.authorization_required", "transport.degraded", "transport.recovered"],
       "conditions": ["television_is_online", "television_is_stale", "adb_is_authorized", "platform_is"],
-      "actions": ["reconnect_device", "request_pairing"]
+      "actions": ["reconnect_device"]
     },
     {
       "id": "power-display-and-audio", "status": "planned", "scope": ["devices-reporting-each-property"],
       "source_refs": ["androidtv_python", "ha_androidtv"],
       "reason": "Power, wake, screen, volume, and mute behavior varies across Android TV, Google TV, and Fire TV and must be negotiated.",
-      "state": ["power_state", "screen_on", "dreaming", "volume_level_percent", "muted", "audio_output", "hdmi_cec_active"],
+      "state": ["power_state", "screen_on", "dreaming", "audio_output", "hdmi_cec_active"],
       "events": ["power.changed", "screen.changed", "volume.changed", "mute.changed", "audio_output.changed"],
       "conditions": ["power_is", "screen_is_on", "volume_above", "mute_is", "audio_output_is"],
       "actions": ["turn_on", "turn_off", "toggle_power", "set_volume", "volume_up", "volume_down", "set_mute", "toggle_mute"]
@@ -39,7 +47,7 @@
       "id": "application-media-and-playback", "status": "planned", "scope": ["devices-with-readable-media-session-or-app-state"],
       "source_refs": ["androidtv_python", "ha_androidtv"],
       "reason": "Current-app and media-session output differs by firmware and app; metadata must be bounded and capability-filtered.",
-      "state": ["current_app_id", "current_app_name", "media_state", "media_title", "media_artist", "media_album", "media_duration_seconds", "media_position_seconds", "media_content_type", "media_session_available", "playback_speed"],
+      "state": ["current_app_name", "media_state", "media_title", "media_artist", "media_album", "media_duration_seconds", "media_position_seconds", "media_content_type", "media_session_available", "playback_speed"],
       "events": ["application.changed", "media.started", "media.paused", "media.resumed", "media.stopped", "media.completed", "media.metadata_changed"],
       "conditions": ["application_is", "media_state_is", "media_position_threshold", "media_type_is"],
       "actions": ["media_play", "media_pause", "media_play_pause", "media_stop", "media_next", "media_previous", "media_rewind", "media_fast_forward", "media_seek", "launch_allowed_app", "stop_current_app"]
@@ -77,7 +85,7 @@
       "reason": "ADB is a privileged debugging interface; keys, PINs, arbitrary shell/intents, package administration, files, and destructive controls must not enter PiPhi behaviors.",
       "state": ["adb_private_key", "pairing_pin", "raw_shell_output", "account_identifiers", "unredacted_activity_history"],
       "events": [], "conditions": [],
-      "actions": ["execute_arbitrary_shell", "send_arbitrary_intent", "install_apk", "uninstall_package", "read_arbitrary_file", "write_arbitrary_file", "enable_root", "factory_reset", "change_device_accounts", "bypass_drm", "record_screen_continuously"]
+      "actions": ["request_pairing", "execute_arbitrary_shell", "send_arbitrary_intent", "install_apk", "uninstall_package", "read_arbitrary_file", "write_arbitrary_file", "enable_root", "factory_reset", "change_device_accounts", "bypass_drm", "record_screen_continuously"]
     }
   ]
 }

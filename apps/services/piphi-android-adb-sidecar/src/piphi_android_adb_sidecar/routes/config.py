@@ -4,6 +4,7 @@ from typing import Any
 
 from fastapi import APIRouter, Request
 from piphi_runtime_kit_python import (
+    RuntimeConfig,
     RuntimeConfigSnapshot,
     build_config_apply_response,
     build_config_remove_response,
@@ -30,7 +31,7 @@ async def configure(payload: DeviceConfig, request: Request):
     return build_config_apply_response(
         config_id=payload.config_id or payload.id,
         container_id=payload.container_id,
-        metadata={"host": payload.host, "alias": payload.alias},
+        metadata={"alias": payload.alias},
     )
 
 
@@ -38,10 +39,16 @@ async def configure(payload: DeviceConfig, request: Request):
 async def sync_config(snapshot: RuntimeConfigSnapshot, request: Request):
     runtime.auth.sync_from_headers(request.headers, payload_container_id=snapshot.container_id)
     typed_configs = validate_typed_configs(snapshot.configs, DeviceConfig)
+
+    async def apply_typed_config(config: RuntimeConfig) -> None:
+        if not isinstance(config, DeviceConfig):
+            raise TypeError("Expected Android ADB sidecar configuration")
+        await apply_config(config)
+
     return await config_sync.apply_snapshot(
         snapshot=snapshot.model_copy(update={"configs": typed_configs}),
         active_config_ids=registry.ids(),
-        apply_config=apply_config,
+        apply_config=apply_typed_config,
         remove_config=remove_config,
         get_active_config_ids=registry.ids,
     )
