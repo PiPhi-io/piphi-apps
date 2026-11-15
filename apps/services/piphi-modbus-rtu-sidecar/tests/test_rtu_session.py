@@ -62,6 +62,45 @@ def test_profile_scaling_bounds_and_round_trip_write() -> None:
         encode_point(profile, 101)
 
 
+@pytest.mark.parametrize(
+    ("data_type", "byte_order", "value"),
+    [
+        ("uint64", "ABCD", 0x0123456789ABCDEF),
+        ("uint64", "BADC", 0x0123456789ABCDEF),
+        ("int64", "CDAB", -(2**63)),
+        ("float64", "DCBA", 1.5),
+    ],
+)
+def test_extended_numeric_types_round_trip(
+    data_type: str, byte_order: str, value: int | float
+) -> None:
+    profile = point(data_type=data_type, byte_order=byte_order, writable=True)
+    assert decode_point(profile, encode_point(profile, value)) == value
+
+
+@pytest.mark.parametrize("byte_order", ["ABCD", "BADC", "CDAB", "DCBA"])
+def test_fixed_strings_round_trip_for_every_order(byte_order: str) -> None:
+    profile = point(
+        data_type="string",
+        string_length=8,
+        byte_order=byte_order,
+        writable=True,
+    )
+    assert decode_point(profile, encode_point(profile, "ABCDEFGH")) == "ABCDEFGH"
+
+
+def test_reviewed_enum_and_bitfield_decoding() -> None:
+    enum = point(
+        data_type="uint16",
+        enum_values={"idle": 0, "running": 4},
+        writable=True,
+    )
+    bitfield = point(data_type="uint16", bit_mask=0x00F0)
+    assert decode_point(enum, [4]) == "running"
+    assert encode_point(enum, "idle") == [0]
+    assert decode_point(bitfield, [0x00B0]) == 11
+
+
 def test_profile_hash_is_stable_and_semantic() -> None:
     config = DeviceConfig(
         id="bus",

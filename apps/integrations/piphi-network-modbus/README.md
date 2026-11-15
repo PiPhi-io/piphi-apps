@@ -2,7 +2,8 @@
 
 PiPhi Modbus runtime for reviewed semantic profiles over local Modbus TCP and
 the authenticated RTU sidecar. Profiles declare exact units, areas, addresses,
-types, byte/word order, scaling, bounds, and writability. The runtime reads
+types, byte/word order, scaling, bounds, reviewed enums, bit masks, and
+writability. The runtime reads
 coils, discrete inputs, input registers, and holding registers; exposes typed
 entities; and permits only named, bounded writes with protocol confirmation and
 read-back.
@@ -14,13 +15,20 @@ connection is reused, serialized, and re-established once after a failed read.
 An unsuccessful block marks only its points unavailable. Modbus TCP is
 unencrypted, so use only a trusted local network.
 
+Numeric profiles support signed and unsigned 16-, 32-, and 64-bit integers,
+`float32`, and `float64`. Profiles may also define bounded ASCII or UTF-8 fixed
+strings, reviewed enum labels, and read-only bitfields. All multi-register types
+support `ABCD`, `BADC`, `CDAB`, and `DCBA` byte/word policies. Writable numeric
+points become number entities, writable enums become selects, and writable
+booleans become switches.
+
 The original `register_address` plus optional `unit_id` configuration remains
 supported for compatibility as a read-only unsigned holding-register entity.
 
 ## Managed RTU sidecar
 
 Installing this integration also installs the shared
-`piphi-modbus-rtu-sidecar` service in the compatible `0.2.x` line. The service
+`piphi-modbus-rtu-sidecar` service in the compatible `0.3.x` line. The service
 has no host-published port, runs in production authentication mode, and receives
 `/dev/serial` access for explicitly configured RTU ports. The parent reaches it
 only on the internal service network at
@@ -88,6 +96,6 @@ and untrusted profiles remain excluded.
 ## Docker
 
 ```bash
-docker build -t ghcr.io/piphi-io/piphi-network-modbus:0.3.1 .
-docker run --rm -p 4222:4222 ghcr.io/piphi-io/piphi-network-modbus:0.3.1
+docker build -t ghcr.io/piphi-io/piphi-network-modbus:0.4.0 .
+docker run --rm -p 4222:4222 ghcr.io/piphi-io/piphi-network-modbus:0.4.0
 ```

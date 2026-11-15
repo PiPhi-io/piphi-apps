@@ -73,6 +73,14 @@ class RTUDeviceSimulator:
                 unit, function = request[0], request[1]
                 if (unit, function, request[2:6]) == (1, 4, bytes.fromhex("00000002")):
                     response = frame_with_crc(bytes.fromhex("01040443668000"))
+                elif (unit, function, request[2:6]) == (1, 3, bytes.fromhex("000a0004")):
+                    response = frame_with_crc(
+                        bytes.fromhex("0103080123456789abcdef")
+                    )
+                elif (unit, function, request[2:6]) == (1, 3, bytes.fromhex("00140004")):
+                    response = frame_with_crc(
+                        bytes.fromhex("010308414243442d310000")
+                    )
                 elif unit == 2 and function == 1:
                     response = frame_with_crc(bytes([2, 1, 1, int(self.relay_on)]))
                 elif unit == 2 and function == 5:
@@ -138,6 +146,24 @@ async def test_two_http_services_with_real_pty_and_restart_recovery(
                 "address": 0,
                 "data_type": "bool",
                 "writable": True
+            },
+            {
+                "id": "energy_counter",
+                "name": "Energy Counter",
+                "unit_id": 1,
+                "area": "holding_register",
+                "address": 10,
+                "data_type": "uint64",
+                "unit": "Wh"
+            },
+            {
+                "id": "device_serial",
+                "name": "Device Serial",
+                "unit_id": 1,
+                "area": "holding_register",
+                "address": 20,
+                "data_type": "string",
+                "string_length": 8
             }
         ]
     }
@@ -148,10 +174,14 @@ async def test_two_http_services_with_real_pty_and_restart_recovery(
             entities = (await client.get(f"http://127.0.0.1:{parent_port}/entities")).json()["entities"]
             voltage = next(item for item in entities if item["id"] == "e2e-bus:phase_1_voltage")
             relay = next(item for item in entities if item["id"] == "e2e-bus:relay_1")
+            counter = next(item for item in entities if item["id"] == "e2e-bus:energy_counter")
+            serial = next(item for item in entities if item["id"] == "e2e-bus:device_serial")
             assert voltage["state"]["point_value"] == pytest.approx(230.5)
             assert voltage["state"]["unit"] == "V"
             assert relay["entity_type"] == "switch"
             assert relay["state"]["point_value"] is False
+            assert counter["state"]["point_value"] == 0x0123456789ABCDEF
+            assert serial["state"]["point_value"] == "ABCD-1"
 
             write = await client.post(
                 f"http://127.0.0.1:{parent_port}/command",
