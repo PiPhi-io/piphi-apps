@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import socket
 import struct
 
 import pytest
 
-from piphi_network_modbus import state
+from piphi_network_modbus import lifecycle, state
 from piphi_network_modbus.modbus_tcp import MBAP, ModbusTCPClient, plan_read_blocks
 from piphi_network_modbus.modbus_model import normalize_snapshot
 from piphi_network_modbus.schemas import DeviceConfig, PointProfile
@@ -156,6 +158,24 @@ def test_planner_batches_only_safe_contiguous_ranges() -> None:
         (1, "input_register", 0, 3),
         (2, "coil", 0, 1),
     ]
+
+
+@pytest.mark.anyio
+async def test_dns_resolution_rejects_any_public_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = ModbusTCPClient("meter.local")
+    loop = asyncio.get_running_loop()
+
+    async def mixed_results(*_args, **_kwargs):
+        return [
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("192.168.1.10", 502)),
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", 502)),
+        ]
+
+    monkeypatch.setattr(loop, "getaddrinfo", mixed_results)
+    with pytest.raises(ValueError, match="non_local"):
+        await client._resolve_local_address(socket.SOCK_STREAM)
 
 
 @pytest.mark.anyio
@@ -423,6 +443,7 @@ async def test_parent_tcp_profile_creates_entities_and_routes_named_write(
 @pytest.mark.anyio
 async def test_profile_declared_fc15_steady_and_pulse_commands(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
 ) -> None:
     device = ModbusTCPDevice()
     device.coils.update({0: False, 1: False, 2: False})
@@ -442,6 +463,9 @@ async def test_profile_declared_fc15_steady_and_pulse_commands(
         }
     )
     monkeypatch.setattr(state, "schedule_telemetry_delivery", lambda **_kwargs: None)
+    monkeypatch.setenv(
+        "PIPHI_MODBUS_PULSE_JOURNAL_PATH", str(tmp_path / "pulse-resets.sqlite3")
+    )
     delays: list[float] = []
 
     async def no_wait(delay: float) -> None:
@@ -468,6 +492,7 @@ async def test_profile_declared_fc15_steady_and_pulse_commands(
         assert result["values"] == [False, False, False]
         assert delays == [0.05]
         assert [request[1] for request in device.requests].count(15) == 3
+        assert state.pending_pulse_resets(config.id) == []
     finally:
         await state.remove_config(config.id)
         await device.close()
@@ -491,3 +516,117 @@ def test_coil_command_policy_validation_fails_closed() -> None:
     )
     with pytest.raises(ValueError, match="non_idempotent"):
         DeviceConfig.model_validate(base)
+
+
+@pytest.mark.anyio
+async def test_failed_network_reconfiguration_preserves_working_client() -> None:
+    device = ModbusTCPDevice()
+    await device.start()
+    original_config = DeviceConfig(
+        id="transactional-network",
+        host=f"127.0.0.1:{device.port}",
+        points=[profile_points()[2]],
+    )
+    try:
+        await state.apply_config(original_config)
+        original_client = state.tcp_clients[original_config.id]
+        failed_config = original_config.model_copy(
+            update={"host": "127.0.0.1:1", "response_timeout_seconds": 0.05}
+        )
+        with pytest.raises((ConnectionError, OSError, TimeoutError, ValueError)):
+            await state.apply_config(failed_config)
+        assert state.tcp_clients[original_config.id] is original_client
+        assert state.registry.get(original_config.id)["config"]["host"] == original_config.host
+    finally:
+        await state.remove_config(original_config.id)
+        await device.close()
+
+
+@pytest.mark.anyio
+async def test_pending_pulse_reset_is_reconciled_when_config_restarts(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    monkeypatch.setenv(
+        "PIPHI_MODBUS_PULSE_JOURNAL_PATH", str(tmp_path / "pulse-resets.sqlite3")
+    )
+    device = ModbusTCPDevice()
+    device.coils.update({0: False, 1: False})
+    await device.start()
+    config = DeviceConfig.model_validate(
+        {
+            "id": "pulse-restart",
+            "host": f"127.0.0.1:{device.port}",
+            "points": [
+                {
+                    "id": f"relay_{index}",
+                    "name": f"Relay {index}",
+                    "unit_id": 1,
+                    "area": "coil",
+                    "address": index,
+                    "data_type": "bool",
+                    "writable": True,
+                }
+                for index in range(2)
+            ],
+            "coil_commands": [
+                {
+                    "id": "pulse",
+                    "name": "Pulse",
+                    "point_ids": ["relay_0", "relay_1"],
+                    "values": [True, True],
+                    "reset_values": [False, False],
+                    "pulse_seconds": 1,
+                    "idempotency": "non_idempotent",
+                }
+            ],
+        }
+    )
+    try:
+        await state.apply_config(config)
+        binding = config.coil_commands[0]
+        state.remember_pulse_reset(config.id, binding)
+        await state.tcp_clients[config.id].write_coils(config.points, binding.values)
+        assert [device.coils[index] for index in range(2)] == [True, True]
+        await state.remove_config(config.id)
+
+        await state.apply_config(config)
+        assert [device.coils[index] for index in range(2)] == [False, False]
+        assert state.pending_pulse_resets(config.id) == []
+    finally:
+        await state.remove_config(config.id)
+        await device.close()
+
+
+@pytest.mark.anyio
+async def test_startup_rehydrates_mounted_config_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    device = ModbusTCPDevice()
+    await device.start()
+    config = DeviceConfig(
+        id="startup-replay",
+        host=f"127.0.0.1:{device.port}",
+        points=[profile_points()[2]],
+    )
+    snapshot_path = tmp_path / "configs.json"
+    snapshot_path.write_text(
+        json.dumps(
+            {
+                "container_id": "",
+                "reason": "test_restart",
+                "configs": [config.model_dump(mode="json")],
+            }
+        )
+    )
+    monkeypatch.setenv("PIPHI_CONFIG_SNAPSHOT_PATH", str(snapshot_path))
+    state.runtime.auth.container_id = ""
+    state.runtime.auth.internal_token = ""
+    try:
+        await lifecycle.startup_sync(state.runtime, None)
+        assert state.registry.get(config.id) is not None
+        assert state.tcp_clients[config.id].connected is True
+    finally:
+        await state.remove_config(config.id)
+        await device.close()

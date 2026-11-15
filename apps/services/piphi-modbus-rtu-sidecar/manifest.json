@@ -3,7 +3,7 @@
   "manifest_version": "1.0",
   "id": "piphi-modbus-rtu-sidecar",
   "name": "Modbus RTU sidecar",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Coordinate bounded Modbus RTU and ASCII requests over serial buses.",
   "metadata": {
     "generator": "piphi-network-create",
@@ -17,7 +17,7 @@
     "website": "https://piphi.io"
   },
   "license": "Apache-2.0",
-  "image": "ghcr.io/piphi-io/piphi-modbus-rtu-sidecar:0.7.0",
+  "image": "ghcr.io/piphi-io/piphi-modbus-rtu-sidecar:0.8.0",
   "platforms": [
     "linux"
   ],
@@ -25,7 +25,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "ghcr.io/piphi-io/piphi-modbus-rtu-sidecar:0.7.0",
+        "image": "ghcr.io/piphi-io/piphi-modbus-rtu-sidecar:0.8.0",
         "ports": [
           {
             "container": 4212
@@ -37,8 +37,8 @@
         },
         "devices": [
           {
-            "host": "/dev/serial",
-            "container": "/dev/serial",
+            "host": "/dev/serial/by-id",
+            "container": "/dev/serial/by-id",
             "permissions": "rwm"
           }
         ],
@@ -161,7 +161,7 @@
       {
         "id": "device_access",
         "label": "Serial device access",
-        "reason": "Uses the explicitly configured host device to communicate with supported hardware.",
+        "reason": "Uses a configured stable path from the restricted host /dev/serial/by-id device mount.",
         "required": true
       },
       {

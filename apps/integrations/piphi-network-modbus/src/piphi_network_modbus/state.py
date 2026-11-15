@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 import random
+import sqlite3
 import time
 from collections.abc import Callable
+from contextlib import closing
 from datetime import UTC, datetime
 from typing import Any
 
@@ -54,6 +57,76 @@ sidecar_replay: dict[str, dict[str, Any]] = {}
 sidecar_client_factory: Callable[[], ModbusSidecarClient] = ModbusSidecarClient
 tcp_clients: dict[str, ModbusTCPClient] = {}
 tcp_client_factory: Callable[..., ModbusTCPClient] = ModbusTCPClient
+
+
+def _pulse_journal_path() -> str:
+    return os.getenv(
+        "PIPHI_MODBUS_PULSE_JOURNAL_PATH", "./data/modbus-pulse-resets.sqlite3"
+    )
+
+
+def _pulse_journal() -> sqlite3.Connection:
+    path = _pulse_journal_path()
+    directory = os.path.dirname(path)
+    if directory:
+        os.makedirs(directory, exist_ok=True)
+    connection = sqlite3.connect(path)
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS pending_pulse_resets (
+            config_id TEXT NOT NULL,
+            command_id TEXT NOT NULL,
+            point_ids TEXT NOT NULL,
+            reset_values TEXT NOT NULL,
+            created_at REAL NOT NULL,
+            PRIMARY KEY (config_id, command_id)
+        )
+        """
+    )
+    return connection
+
+
+def remember_pulse_reset(config_id: str, binding: Any) -> None:
+    with closing(_pulse_journal()) as connection, connection:
+        connection.execute(
+            """
+            INSERT OR REPLACE INTO pending_pulse_resets
+                (config_id, command_id, point_ids, reset_values, created_at)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                config_id,
+                binding.id,
+                json.dumps(list(binding.point_ids)),
+                json.dumps(list(binding.reset_values or [])),
+                time.time(),
+            ),
+        )
+
+
+def complete_pulse_reset(config_id: str, command_id: str) -> None:
+    with closing(_pulse_journal()) as connection, connection:
+        connection.execute(
+            "DELETE FROM pending_pulse_resets WHERE config_id = ? AND command_id = ?",
+            (config_id, command_id),
+        )
+
+
+def pending_pulse_resets(config_id: str) -> list[tuple[str, list[str], list[bool]]]:
+    if not os.path.exists(_pulse_journal_path()):
+        return []
+    with closing(_pulse_journal()) as connection, connection:
+        rows = connection.execute(
+            """
+            SELECT command_id, point_ids, reset_values
+            FROM pending_pulse_resets WHERE config_id = ? ORDER BY created_at
+            """,
+            (config_id,),
+        ).fetchall()
+    return [
+        (str(command_id), list(json.loads(point_ids)), list(json.loads(reset_values)))
+        for command_id, point_ids, reset_values in rows
+    ]
 
 
 def configured_poll_groups(config: DeviceConfig) -> list[dict[str, Any]]:
@@ -145,37 +218,26 @@ def get_entry_or_404(config_id: str) -> dict[str, Any]:
 async def apply_config(config: DeviceConfig) -> None:
     entry = make_entry(config)
     config_id = str(entry["config_id"])
-    previous_tcp = tcp_clients.pop(config_id, None)
-    if previous_tcp is not None:
-        await previous_tcp.close()
-    sidecar_clients.pop(config_id, None)
-    sidecar_replay.pop(config_id, None)
-    registry.set(config_id, entry)
     if config.transport in {"rtu_sidecar", "ascii_sidecar"}:
         client = sidecar_client_factory()
         sidecar_payload = sidecar_config_payload(config)
-        sidecar_clients[config_id] = client
-        try:
-            await client.configure(sidecar_payload)
+        await client.configure(sidecar_payload)
+        snapshot = await client.snapshot(config_id)
+        if not snapshot.get("connected"):
+            raise ValueError("serial_configuration_probe_failed")
+        if await recover_sidecar_pulses(config_id, client):
             snapshot = await client.snapshot(config_id)
-            await sync_sidecar_entry(entry, client)
-            sidecar_replay[config_id] = {
-                "cursor": int(snapshot.get("latest_sequence") or 0),
-                "stream_id": str(snapshot.get("stream_id") or ""),
-                "dropped": int(snapshot.get("dropped_event_count") or 0),
-            }
-        except (SidecarError, TypeError, ValueError) as exc:
-            registry.update_state(
-                config_id,
-                {
-                    "connected": False,
-                    "transport": config.transport,
-                    "quality": "unavailable",
-                    "last_error_code": type(exc).__name__,
-                    "config_id": config_id,
-                },
-                device_id=entry["device_id"],
-            )
+        registry.set(config_id, entry)
+        sidecar_clients[config_id] = client
+        await sync_sidecar_entry(entry, client, snapshot=snapshot)
+        sidecar_replay[config_id] = {
+            "cursor": int(snapshot.get("latest_sequence") or 0),
+            "stream_id": str(snapshot.get("stream_id") or ""),
+            "dropped": int(snapshot.get("dropped_event_count") or 0),
+        }
+        previous_tcp = tcp_clients.pop(config_id, None)
+        if previous_tcp is not None:
+            await previous_tcp.close()
         append_runtime_event(
             "runtime.config.applied",
             entry,
@@ -192,8 +254,32 @@ async def apply_config(config: DeviceConfig) -> None:
             tls_ca_certificate=config.tls_ca_certificate,
             tls_server_name=config.tls_server_name,
         )
+        try:
+            snapshot = await client.snapshot(config.points)
+            if not any(
+                point.get("quality") == "good" for point in snapshot.get("points", [])
+            ):
+                raise ValueError("network_configuration_probe_failed")
+        except BaseException:
+            await client.close()
+            raise
+        previous_tcp = tcp_clients.get(config_id)
+        previous_sidecar = sidecar_clients.get(config_id)
+        if previous_sidecar is not None:
+            try:
+                await previous_sidecar.deconfigure(config_id)
+            except BaseException:
+                await client.close()
+                raise
+        if await recover_tcp_pulses(config_id, client, config):
+            snapshot = await client.snapshot(config.points)
+        registry.set(config_id, entry)
         tcp_clients[config_id] = client
-        await sync_tcp_entry(entry, client)
+        _store_tcp_snapshot(entry, snapshot)
+        if previous_tcp is not None:
+            await previous_tcp.close()
+        sidecar_clients.pop(config_id, None)
+        sidecar_replay.pop(config_id, None)
         append_runtime_event(
             "runtime.config.applied",
             entry,
@@ -205,6 +291,14 @@ async def apply_config(config: DeviceConfig) -> None:
         )
         initialize_poll_schedule(entry, config)
         return
+    registry.set(config_id, entry)
+    previous_tcp = tcp_clients.pop(config_id, None)
+    if previous_tcp is not None:
+        await previous_tcp.close()
+    previous_sidecar = sidecar_clients.pop(config_id, None)
+    if previous_sidecar is not None:
+        await previous_sidecar.deconfigure(config_id)
+    sidecar_replay.pop(config_id, None)
     registry.update_state(
         config_id,
         {
@@ -420,7 +514,12 @@ async def poll_group(
 async def remove_config(config_id: str) -> bool:
     point_models.pop(config_id, None)
     composite_models.pop(config_id, None)
-    sidecar_clients.pop(config_id, None)
+    sidecar_client = sidecar_clients.pop(config_id, None)
+    if sidecar_client is not None:
+        try:
+            await sidecar_client.deconfigure(config_id)
+        except SidecarError:
+            logger.warning("modbus_sidecar_deconfigure_failed config_id=%s", config_id)
     sidecar_replay.pop(config_id, None)
     tcp_client = tcp_clients.pop(config_id, None)
     if tcp_client is not None:
@@ -550,6 +649,17 @@ async def sync_tcp_entry(
     config = DeviceConfig.model_validate(entry["config"])
     selected_points = config.points if points is None else points
     snapshot = await client.snapshot(selected_points)
+    return _store_tcp_snapshot(entry, snapshot, points=points)
+
+
+def _store_tcp_snapshot(
+    entry: dict[str, Any],
+    snapshot: dict[str, Any],
+    *,
+    points: list[Any] | None = None,
+) -> dict[str, Any]:
+    config_id = str(entry["config_id"])
+    config = DeviceConfig.model_validate(entry["config"])
     snapshot.update(
         profile_id=config.profile_id,
         profile_version=config.profile_version,
@@ -634,9 +744,11 @@ async def sync_sidecar_entry(
     client: ModbusSidecarClient,
     *,
     polled_point_ids: set[str] | None = None,
+    snapshot: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     config_id = str(entry["config_id"])
-    snapshot = await client.snapshot(config_id)
+    if snapshot is None:
+        snapshot = await client.snapshot(config_id)
     models = normalize_snapshot(snapshot, config_id=config_id)
     point_models[config_id] = models
     config = DeviceConfig.model_validate(entry["config"])
@@ -867,6 +979,31 @@ def resolve_coil_command(config: DeviceConfig, args: dict[str, Any]):
     return command, [point_by_id[point_id] for point_id in command.point_ids]
 
 
+async def recover_sidecar_pulses(
+    config_id: str, client: ModbusSidecarClient
+) -> bool:
+    pending = pending_pulse_resets(config_id)
+    for command_id, point_ids, reset_values in pending:
+        await client.write_coils(config_id, point_ids, reset_values)
+        complete_pulse_reset(config_id, command_id)
+    return bool(pending)
+
+
+async def recover_tcp_pulses(
+    config_id: str, client: ModbusTCPClient, config: DeviceConfig
+) -> bool:
+    points_by_id = {point.id: point for point in config.points}
+    pending = pending_pulse_resets(config_id)
+    for command_id, point_ids, reset_values in pending:
+        try:
+            points = [points_by_id[point_id] for point_id in point_ids]
+        except KeyError as exc:
+            raise ValueError("pending_pulse_profile_mismatch") from exc
+        await client.write_coils(points, reset_values)
+        complete_pulse_reset(config_id, command_id)
+    return bool(pending)
+
+
 async def execute_sidecar_command(
     *, config_id: str, device_id: str, command: str, args: dict[str, Any]
 ) -> dict[str, Any]:
@@ -877,6 +1014,8 @@ async def execute_sidecar_command(
     config = DeviceConfig.model_validate(entry["config"])
     if command == "run_coil_command":
         binding, _ = resolve_coil_command(config, args)
+        if binding.pulse_seconds is not None:
+            remember_pulse_reset(config_id, binding)
         result = await client.write_coils(
             config_id, binding.point_ids, binding.values
         )
@@ -887,6 +1026,7 @@ async def execute_sidecar_command(
                 result = await client.write_coils(
                     config_id, binding.point_ids, binding.reset_values or []
                 )
+            complete_pulse_reset(config_id, binding.id)
         await sync_sidecar_entry(entry, client)
         append_runtime_event(
             "modbus.coil_command.executed",
@@ -934,12 +1074,15 @@ async def execute_tcp_command(
     config = DeviceConfig.model_validate(entry["config"])
     if command == "run_coil_command":
         binding, points = resolve_coil_command(config, args)
+        if binding.pulse_seconds is not None:
+            remember_pulse_reset(config_id, binding)
         values = await client.write_coils(points, binding.values)
         if binding.pulse_seconds is not None:
             try:
                 await asyncio.sleep(binding.pulse_seconds)
             finally:
                 values = await client.write_coils(points, binding.reset_values or [])
+            complete_pulse_reset(config_id, binding.id)
         await sync_tcp_entry(entry, client)
         append_runtime_event(
             "modbus.coil_command.executed",

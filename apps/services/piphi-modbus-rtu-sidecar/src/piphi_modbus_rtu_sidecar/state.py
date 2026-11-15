@@ -79,16 +79,29 @@ def get_entry_or_404(config_id: str) -> dict[str, Any]:
 async def apply_config(config: DeviceConfig) -> None:
     entry = make_entry(config)
     config_id = str(entry["config_id"])
+    configured_port = os.path.abspath(config.serial_port)
+    resolved_port = os.path.realpath(config.serial_port)
+    production = (
+        os.getenv("PIPHI_ENV", "").lower() == "production"
+        or os.getenv("ENVIRONMENT", "").lower() == "production"
+    )
+    if production and not configured_port.startswith("/dev/serial/by-id/"):
+        raise ValueError("serial_port_outside_allowed_device_mount")
+    for active_id, controller in controllers.items():
+        if active_id != config_id and os.path.realpath(controller.config.serial_port) == resolved_port:
+            raise ValueError("serial_port_already_configured")
     candidate = BusController(config=config, entry=entry, session=session_factory(config))
     opened = await candidate.open()
     previous = controllers.get(config_id)
-    if opened or previous is None:
+    if opened or (previous is None and not production):
         controllers[config_id] = candidate
         if previous is not None:
             await previous.close()
     else:
         await candidate.close()
-        raise ValueError("serial_reconfiguration_failed_previous_session_preserved")
+        if previous is not None:
+            raise ValueError("serial_reconfiguration_failed_previous_session_preserved")
+        raise ValueError("serial_configuration_probe_failed")
     registry.set(config_id, entry)
     registry.update_state(
         config_id,
@@ -151,6 +164,17 @@ class BusController:
         self._profile_hash = profile_hash(config)
 
     async def open(self) -> bool:
+        if not await self._open_port():
+            return False
+        await self.refresh_all()
+        if self.config.registers and not any(
+            value.get("quality") == "good" for value in self.values.values()
+        ):
+            await self.close()
+            return False
+        return True
+
+    async def _open_port(self) -> bool:
         try:
             await self.session.open()
         except (OSError, ValueError) as exc:
@@ -160,7 +184,6 @@ class BusController:
         self.port_open = True
         self.last_error_code = None
         self.events.append("serial.connected", {"profile_hash": self._profile_hash})
-        await self.refresh_all()
         return True
 
     async def close(self) -> None:
@@ -170,7 +193,10 @@ class BusController:
     async def reconnect(self) -> bool:
         await self.close()
         self.reconnect_count += 1
-        return await self.open()
+        reopened = await self._open_port()
+        if reopened:
+            self.events.append("serial.recovered", {"reconnect_count": self.reconnect_count})
+        return reopened
 
     async def refresh_all(self) -> dict[str, dict[str, Any]]:
         started_at = time.monotonic()
@@ -195,7 +221,12 @@ class BusController:
             },
         )
         try:
-            words = await self.session.read(profile)
+            try:
+                words = await self.session.read(profile)
+            except (ConnectionError, OSError):
+                if not await self.reconnect():
+                    raise
+                words = await self.session.read(profile)
             value = decode_point(profile, words)
             timestamp = datetime.now(UTC).isoformat()
             record = {
@@ -250,7 +281,11 @@ class BusController:
     async def write_point(self, point_id: str, value: Any) -> dict[str, Any]:
         profile = self.point(point_id)
         encoded = encode_point(profile, value)
-        await self.session.write(profile, encoded)
+        try:
+            await self.session.write(profile, encoded)
+        except (ConnectionError, OSError) as exc:
+            await self.reconnect()
+            raise ConnectionError("write_outcome_unknown") from exc
         confirmed = await self.refresh_point(point_id)
         if confirmed.get("quality") != "good" or confirmed.get("value") != value:
             raise ValueError("write_readback_mismatch")
@@ -261,7 +296,11 @@ class BusController:
         self, point_ids: list[str], values: list[bool]
     ) -> dict[str, Any]:
         points = [self.point(point_id) for point_id in point_ids]
-        await self.session.write_coils(points, values)
+        try:
+            await self.session.write_coils(points, values)
+        except (ConnectionError, OSError) as exc:
+            await self.reconnect()
+            raise ConnectionError("write_outcome_unknown") from exc
         confirmed = [await self.refresh_point(point_id) for point_id in point_ids]
         confirmed_values = [record.get("value") for record in confirmed]
         if confirmed_values != values or any(

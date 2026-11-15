@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import struct
+import time
 import uuid
 from collections import deque
 from collections.abc import Awaitable, Callable
@@ -174,6 +175,7 @@ class SerialRTUSession:
         self.config = config
         self.queue = BoundedQueue(config.queue_capacity)
         self._serial: Any | None = None
+        self._last_frame_end = 0.0
 
     async def open(self) -> None:
         await asyncio.to_thread(self._open_sync)
@@ -290,26 +292,46 @@ class SerialRTUSession:
         serial_port = self._serial
         if serial_port is None or not serial_port.is_open:
             raise ConnectionError("serial_port_not_open")
-        serial_port.reset_input_buffer()
-        serial_port.write(
-            frame_ascii(request[:-2]) if self.config.serial_mode == "ascii" else request
-        )
-        serial_port.flush()
-        if self.config.serial_mode == "ascii":
-            frame = serial_port.read_until(b"\r\n", 513)
-            if not frame:
-                raise TimeoutError("modbus_response_timeout")
-            return validate_ascii_response(
-                frame, unit_id=unit_id, function=function
+        if self.config.serial_mode == "rtu":
+            # Modbus Serial Line V1.02 requires at least 3.5 character times
+            # between RTU frames. Above 19,200 baud it recommends 1.75 ms.
+            bits_per_character = (
+                1
+                + self.config.data_bits
+                + (0 if self.config.parity == "N" else 1)
+                + self.config.stop_bits
             )
-        header = serial_port.read(3)
-        if len(header) != 3:
-            raise TimeoutError("modbus_response_timeout")
-        if header[1] & 0x80:
-            tail = serial_port.read(2)
-        elif header[1] in {1, 2, 3, 4}:
-            tail = serial_port.read(header[2] + 2)
-        else:
-            tail = serial_port.read(5)
-        frame = header + tail
-        return validate_rtu_response(frame, unit_id=unit_id, function=function)
+            silent_interval = (
+                0.00175
+                if self.config.baud_rate > 19200
+                else 3.5 * bits_per_character / self.config.baud_rate
+            )
+            remaining = self._last_frame_end + silent_interval - time.monotonic()
+            if remaining > 0:
+                time.sleep(remaining)
+        serial_port.reset_input_buffer()
+        try:
+            serial_port.write(
+                frame_ascii(request[:-2]) if self.config.serial_mode == "ascii" else request
+            )
+            serial_port.flush()
+            if self.config.serial_mode == "ascii":
+                frame = serial_port.read_until(b"\r\n", 513)
+                if not frame:
+                    raise TimeoutError("modbus_response_timeout")
+                return validate_ascii_response(
+                    frame, unit_id=unit_id, function=function
+                )
+            header = serial_port.read(3)
+            if len(header) != 3:
+                raise TimeoutError("modbus_response_timeout")
+            if header[1] & 0x80:
+                tail = serial_port.read(2)
+            elif header[1] in {1, 2, 3, 4}:
+                tail = serial_port.read(header[2] + 2)
+            else:
+                tail = serial_port.read(5)
+            frame = header + tail
+            return validate_rtu_response(frame, unit_id=unit_id, function=function)
+        finally:
+            self._last_frame_end = time.monotonic()

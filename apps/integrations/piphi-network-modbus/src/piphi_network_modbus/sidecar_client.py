@@ -33,6 +33,9 @@ class ModbusSidecarClient:
     async def configure(self, payload: dict[str, Any]) -> dict[str, Any]:
         return await self._request("POST", "/config", json=payload)
 
+    async def deconfigure(self, config_id: str) -> dict[str, Any]:
+        return await self._request("POST", f"/deconfigure/{config_id}")
+
     async def snapshot(self, config_id: str) -> dict[str, Any]:
         payload = await self._request(
             "GET", "/v1/modbus/snapshot", params={"config_id": config_id}

@@ -17,8 +17,8 @@ def test_parent_auto_installs_compatible_rtu_sidecar() -> None:
         {
             "id": "piphi-modbus-rtu-sidecar",
             "kind": "platform_service",
-            "version_range": ">=0.7.0,<0.8.0",
-            "recommended_version": "0.7.0",
+            "version_range": ">=0.8.0,<0.9.0",
+            "recommended_version": "0.8.0",
             "required": True,
             "shared": True,
             "auto_install": True,
@@ -31,7 +31,7 @@ def test_parent_auto_installs_compatible_rtu_sidecar() -> None:
     package = SIDECAR_PACKAGE["packages"][0]
     assert package["id"] == "piphi-modbus-rtu-sidecar"
     assert package["type"] == "platform_service"
-    assert package["version"] == "0.7.0"
+    assert package["version"] == "0.8.0"
 
 
 def test_managed_rtu_sidecar_is_internal_authenticated_and_serial_only() -> None:
@@ -46,8 +46,8 @@ def test_managed_rtu_sidecar_is_internal_authenticated_and_serial_only() -> None
     assert sidecar_container["ports"] == [{"container": 4212}]
     assert sidecar_container["devices"] == [
         {
-            "host": "/dev/serial",
-            "container": "/dev/serial",
+            "host": "/dev/serial/by-id",
+            "container": "/dev/serial/by-id",
             "permissions": "rwm",
         }
     ]
@@ -56,7 +56,7 @@ def test_managed_rtu_sidecar_is_internal_authenticated_and_serial_only() -> None
 
 
 def test_coordinated_patch_versions_and_images_are_consistent() -> None:
-    assert PARENT_MANIFEST["version"] == "0.9.0"
-    assert PARENT_MANIFEST["image"].endswith(":0.9.0")
-    assert SIDECAR_MANIFEST["version"] == "0.7.0"
-    assert SIDECAR_MANIFEST["image"].endswith(":0.7.0")
+    assert PARENT_MANIFEST["version"] == "0.10.0"
+    assert PARENT_MANIFEST["image"].endswith(":0.10.0")
+    assert SIDECAR_MANIFEST["version"] == "0.8.0"
+    assert SIDECAR_MANIFEST["image"].endswith(":0.8.0")

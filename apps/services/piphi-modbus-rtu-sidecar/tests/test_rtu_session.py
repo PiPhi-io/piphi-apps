@@ -18,6 +18,7 @@ from piphi_modbus_rtu_sidecar.transport import (
     validate_ascii_response,
     validate_rtu_response,
 )
+from piphi_modbus_rtu_sidecar import transport
 
 
 def point(**updates) -> RegisterProfile:
@@ -287,3 +288,50 @@ def test_serial_frame_parsers_reject_random_input_without_crashing() -> None:
                 parser(candidate, unit_id=7, function=3)
             except ValueError:
                 pass
+
+
+def test_rtu_exchange_enforces_inter_frame_silence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    response = frame_with_crc(bytes.fromhex("0703021234"))
+
+    class FakeSerial:
+        is_open = True
+
+        def reset_input_buffer(self) -> None:
+            return None
+
+        def write(self, _request: bytes) -> None:
+            return None
+
+        def flush(self) -> None:
+            return None
+
+        def read(self, size: int) -> bytes:
+            return response[:3] if size == 3 else response[3:]
+
+    now = [100.0]
+    sleeps: list[float] = []
+
+    def fake_monotonic() -> float:
+        return now[0]
+
+    def fake_sleep(delay: float) -> None:
+        sleeps.append(delay)
+        now[0] += delay
+
+    monkeypatch.setattr(transport.time, "monotonic", fake_monotonic)
+    monkeypatch.setattr(transport.time, "sleep", fake_sleep)
+    session = SerialRTUSession(
+        DeviceConfig(
+            id="timing",
+            serial_port="/dev/serial/by-id/timing",
+            baud_rate=115200,
+            registers=[point()],
+        )
+    )
+    session._serial = FakeSerial()
+    request = frame_with_crc(bytes.fromhex("0703002A0001"))
+    assert session._exchange_sync(request, 7, 3) == bytes.fromhex("021234")
+    assert session._exchange_sync(request, 7, 3) == bytes.fromhex("021234")
+    assert sleeps == [pytest.approx(0.00175)]

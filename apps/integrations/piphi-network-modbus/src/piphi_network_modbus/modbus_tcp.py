@@ -6,6 +6,7 @@ import asyncio
 import ipaddress
 import math
 import re
+import socket
 import ssl
 import struct
 import time
@@ -193,15 +194,16 @@ class ModbusTCPClient:
             return
         if self.connected:
             return
+        resolved_address = await self._resolve_local_address(socket.SOCK_STREAM)
         connection = (
             asyncio.open_connection(
-                self.name,
+                resolved_address,
                 self.port,
                 ssl=self._ssl_context,
                 server_hostname=self.tls_server_name,
             )
             if self._ssl_context
-            else asyncio.open_connection(self.name, self.port)
+            else asyncio.open_connection(resolved_address, self.port)
         )
         self._reader, self._writer = await asyncio.wait_for(connection, self.timeout)
         self._connection_count += 1
@@ -223,13 +225,35 @@ class ModbusTCPClient:
                 if not future.done():
                     future.set_exception(exc)
 
+        resolved_address = await self._resolve_local_address(socket.SOCK_DGRAM)
         transport, _ = await loop.create_datagram_endpoint(
-            Protocol, remote_addr=(self.name, self.port)
+            Protocol, remote_addr=(resolved_address, self.port)
         )
         try:
             return await asyncio.wait_for(future, self.timeout)
         finally:
             transport.close()
+
+    async def _resolve_local_address(self, socket_type: int) -> str:
+        loop = asyncio.get_running_loop()
+        results = await loop.getaddrinfo(
+            self.name,
+            self.port,
+            type=socket_type,
+        )
+        addresses = {
+            str(sockaddr[0]).split("%", 1)[0]
+            for _family, _type, _protocol, _canonical_name, sockaddr in results
+        }
+        if not addresses:
+            raise OSError("modbus_host_resolution_failed")
+        for value in addresses:
+            address = ipaddress.ip_address(value)
+            if not (
+                address.is_private or address.is_link_local or address.is_loopback
+            ):
+                raise ValueError("modbus_host_resolved_to_non_local_address")
+        return sorted(addresses)[0]
 
     async def _rtu_over_tcp_exchange(
         self, writer: Any, reader: asyncio.StreamReader, request: bytes
