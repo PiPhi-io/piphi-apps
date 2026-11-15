@@ -28,6 +28,16 @@ discovery rejects coordinators plus unsupported or incomplete interviews. The
 remaining P0 ownership, host-privilege, network-secret, backup, and migration
 work still blocks a production-ready or HA Bronze-equivalent claim.
 
+The 0.1.20 sidecar release adds persistent, atomic coordinator claims keyed by
+Core's stable adapter identity; explicit reuse/form-new semantics; exact
+network-key and extended-PAN validation; secret-redacted API serialization;
+private configuration and backup files; a checksummed network-data backup; and
+a verified-backup gate before PAN, extended-PAN, or network-key changes. It also
+allowlists managed Docker/PM2 images, names, paths, environment, and network
+mode. The listing remains unrated because an actual adapter in-use probe,
+Docker-socket/root privilege removal, encrypted export and tested restore, and
+guided coordinator migration are still outstanding.
+
 The right near-term product claim is: **“PiPhi-managed Zigbee2MQTT bridge setup plus a tested basic MQTT device-state/control adapter for a constrained set of exposes.”**
 
 ## Comparison model and source baseline

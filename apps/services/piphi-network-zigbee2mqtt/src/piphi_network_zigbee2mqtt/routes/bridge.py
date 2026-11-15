@@ -8,16 +8,25 @@ from ..bridge_models import (
     ApplyBridgeResponse,
     DeviceListRequest,
     MqttCheckRequest,
+    NetworkBackupRequest,
     NetworkMapRequest,
     PermitJoinRequest,
     PrerequisiteCheckRequest,
     SupervisorLogsRequest,
     SupervisorRequest,
+    WriteBridgeRequest,
     WriteConfigRequest,
 )
 from ..broker_health import check_mqtt_tcp
 from ..config_renderer import render_zigbee2mqtt_config
 from ..config_store import write_config_atomic
+from ..coordinator_claims import (
+    CoordinatorClaimConflict,
+    claim_owner_id,
+    claim_store,
+    stable_coordinator_identity,
+)
+from ..network_backup import create_network_backup, verify_network_backup
 from ..state import sidecar_store
 from ..supervisor import check_prerequisites, supervise, supervisor_logs
 from ..zigbee2mqtt_mqtt import (
@@ -37,6 +46,14 @@ async def snapshot():
 @router.get("/adapters")
 async def adapters():
     return {"adapters": discover_adapters()}
+
+
+@router.post("/network-backup")
+async def network_backup(payload: NetworkBackupRequest):
+    try:
+        return create_network_backup(payload.data_path)
+    except (OSError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/devices")
@@ -123,40 +140,57 @@ async def render_config(payload: WriteConfigRequest):
     rendered = render_zigbee2mqtt_config(payload.config)
     if payload.config_path:
         rendered.config_path = payload.config_path
-    sidecar_store.current_config = payload.config
     sidecar_store.current_render = rendered
-    sidecar_store.config_path = payload.config_path
-    sidecar_store.config_hash = rendered.config_hash
     sidecar_store.last_error = None
     return rendered
 
 
 @router.post("/config/write")
-async def write_config(payload: WriteConfigRequest):
+async def write_config(payload: WriteBridgeRequest):
+    _require_safe_network_change(payload)
+    coordinator_identity, owner_id = _claim_coordinator(payload)
     rendered = render_zigbee2mqtt_config(payload.config)
     target_path = payload.config_path or f"{payload.config.data_path.rstrip('/')}/configuration.yaml"
-    write_result = write_config_atomic(rendered.yaml, target_path)
+    try:
+        write_result = write_config_atomic(rendered.yaml, target_path)
+    except (OSError, ValueError) as exc:
+        claim_store.release(coordinator_identity, owner_id)
+        raise HTTPException(status_code=400 if isinstance(exc, ValueError) else 500, detail=str(exc)) from exc
     rendered.config_path = write_result.config_path
     sidecar_store.current_config = payload.config
     sidecar_store.current_render = rendered
     sidecar_store.config_path = write_result.config_path
     sidecar_store.config_hash = write_result.config_hash
     sidecar_store.last_error = None
+    sidecar_store.coordinator_identity = coordinator_identity
+    sidecar_store.coordinator_owner_id = owner_id
     return {"rendered": rendered, "write": write_result}
 
 
 @router.post("/apply")
 async def apply_bridge(payload: ApplyBridgeRequest) -> ApplyBridgeResponse:
+    _require_safe_network_change(payload)
+    coordinator_identity, owner_id = _claim_coordinator(payload)
     rendered = render_zigbee2mqtt_config(payload.config)
     target_path = payload.config_path or f"{payload.config.data_path.rstrip('/')}/configuration.yaml"
-    write_result = write_config_atomic(rendered.yaml, target_path)
+    try:
+        write_result = write_config_atomic(rendered.yaml, target_path)
+    except (OSError, ValueError) as exc:
+        claim_store.release(coordinator_identity, owner_id)
+        raise HTTPException(status_code=400 if isinstance(exc, ValueError) else 500, detail=str(exc)) from exc
     rendered.config_path = write_result.config_path
     restart_required = _restart_required(payload.restart_policy, write_result.changed)
 
     supervisor_result = None
     if restart_required and payload.supervisor is not None:
-        supervisor_result = await supervise("restart", payload.supervisor)
+        try:
+            supervisor_result = await supervise("restart", payload.supervisor)
+        except Exception:
+            claim_store.release(coordinator_identity, owner_id)
+            raise
         sidecar_store.last_supervisor = supervisor_result
+        if not supervisor_result.ok:
+            claim_store.release(coordinator_identity, owner_id)
 
     mqtt_result = None
     if payload.mqtt_check is not None:
@@ -173,6 +207,9 @@ async def apply_bridge(payload: ApplyBridgeRequest) -> ApplyBridgeResponse:
     sidecar_store.config_path = write_result.config_path
     sidecar_store.config_hash = write_result.config_hash
     sidecar_store.last_error = None
+    if supervisor_result is None or supervisor_result.ok:
+        sidecar_store.coordinator_identity = coordinator_identity
+        sidecar_store.coordinator_owner_id = owner_id
     ok = (supervisor_result.ok if supervisor_result else True) and (mqtt_result.ok if mqtt_result else True)
     return ApplyBridgeResponse(
         ok=ok,
@@ -203,6 +240,13 @@ async def supervisor_start(payload: SupervisorRequest):
 async def supervisor_stop(payload: SupervisorRequest):
     result = await supervise("stop", payload)
     sidecar_store.last_supervisor = result
+    if result.ok and sidecar_store.coordinator_identity and sidecar_store.coordinator_owner_id:
+        claim_store.release(
+            sidecar_store.coordinator_identity,
+            sidecar_store.coordinator_owner_id,
+        )
+        sidecar_store.coordinator_identity = None
+        sidecar_store.coordinator_owner_id = None
     return result
 
 
@@ -247,6 +291,38 @@ def _restart_required(policy: str, changed: bool) -> bool:
     if policy == "never":
         return False
     return changed
+
+
+def _require_safe_network_change(payload: WriteConfigRequest) -> None:
+    current = sidecar_store.current_config
+    if current is None:
+        return
+    previous = current.advanced
+    requested = payload.config.advanced
+    identity_changed = (
+        previous.pan_id,
+        previous.ext_pan_id,
+        previous.network_key,
+    ) != (
+        requested.pan_id,
+        requested.ext_pan_id,
+        requested.network_key,
+    )
+    if identity_changed:
+        try:
+            verify_network_backup(payload.backup_path, payload.backup_sha256)
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+def _claim_coordinator(payload: WriteBridgeRequest) -> tuple[str, str]:
+    coordinator_identity = stable_coordinator_identity(payload.coordinator_identity)
+    owner_id = claim_owner_id()
+    try:
+        claim_store.claim(coordinator_identity, owner_id)
+    except CoordinatorClaimConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return coordinator_identity, owner_id
 
 
 def _apply_message(policy: str, changed: bool, restart_required: bool) -> str:

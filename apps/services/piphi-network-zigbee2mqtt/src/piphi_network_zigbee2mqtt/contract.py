@@ -83,13 +83,19 @@ CONFIG_SCHEMA: dict[str, Any] = {
         "title": "Zigbee2MQTT Sidecar Setup",
         "type": "object",
         "required": [
-            "serial_port"
+            "serial_port",
+            "coordinator_identity"
         ],
         "properties": {
             "serial_port": {
                 "type": "string",
                 "title": "Coordinator Port",
                 "description": "USB/serial path for the Zigbee coordinator. PiPhi will prefill this when it can detect the adapter."
+            },
+            "coordinator_identity": {
+                "type": "string",
+                "title": "Coordinator Identity",
+                "description": "Stable adapter identity selected from PiPhi coordinator discovery."
             },
             "adapter": {
                 "type": "string",
@@ -120,6 +126,9 @@ CONFIG_SCHEMA: dict[str, Any] = {
     "uiSchema": {
         "serial_port": {
             "placeholder": "/dev/serial/by-id/usb-... or COM4"
+        },
+        "coordinator_identity": {
+            "placeholder": "Detected adapter identity"
         },
         "adapter": {
             "placeholder": "ember"

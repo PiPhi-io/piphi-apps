@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 from urllib.parse import urlsplit, urlunsplit
 
 from pydantic import (
@@ -21,6 +21,10 @@ AdapterRuntime = Literal["docker", "native"]
 SupervisorMode = Literal["docker", "pm2"]
 SupervisorAction = Literal["status", "start", "stop", "restart", "logs"]
 RestartPolicy = Literal["never", "changed", "always"]
+NetworkFormationMode = Literal["reuse_existing", "form_new"]
+NetworkByte = Annotated[int, Field(strict=True, ge=0, le=255)]
+NetworkByteList = Annotated[list[NetworkByte], Field(min_length=16, max_length=16)]
+ExtendedPanId = Annotated[list[NetworkByte], Field(min_length=8, max_length=8)]
 
 
 class AdapterCandidate(BaseModel):
@@ -72,10 +76,9 @@ class SerialSettings(BaseModel):
 
 class AdvancedNetworkSettings(BaseModel):
     pan_id: int | None = Field(default=None, ge=0, le=65535)
-    ext_pan_id: list[int] | None = None
+    ext_pan_id: ExtendedPanId | None = None
     channel: int | None = Field(default=None, ge=11, le=26)
-    network_key: list[int] | Literal["GENERATE"] | None = None
-
+    network_key: NetworkByteList | Literal["GENERATE"] | None = None
 
 class Zigbee2MqttBridgeConfig(BaseModel):
     mqtt: MqttSettings = Field(default_factory=MqttSettings)
@@ -98,10 +101,30 @@ class RenderedBridgeConfig(BaseModel):
     rendered_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     config_hash: str | None = None
 
+    @field_serializer("yaml")
+    def serialize_yaml(self, value: str) -> str:
+        return redact_rendered_yaml(value)
+
 
 class WriteConfigRequest(BaseModel):
     config: Zigbee2MqttBridgeConfig
     config_path: str | None = None
+    network_formation: NetworkFormationMode = "reuse_existing"
+    confirm_form_new: bool = False
+    backup_path: str | None = None
+    backup_sha256: str | None = None
+
+    @model_validator(mode="after")
+    def validate_network_formation(self) -> WriteConfigRequest:
+        if self.network_formation == "form_new" and not self.confirm_form_new:
+            raise ValueError("Forming a new Zigbee network requires explicit confirmation.")
+        if self.config.advanced.network_key == "GENERATE" and self.network_formation != "form_new":
+            raise ValueError("GENERATE is only allowed when forming a new Zigbee network.")
+        return self
+
+
+class WriteBridgeRequest(WriteConfigRequest):
+    coordinator_identity: str = Field(min_length=1, max_length=256)
 
 
 class ConfigWriteResult(BaseModel):
@@ -111,6 +134,17 @@ class ConfigWriteResult(BaseModel):
     changed: bool
     backup_path: str | None = None
     written_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class NetworkBackupRequest(BaseModel):
+    data_path: str
+
+
+class NetworkBackupResponse(BaseModel):
+    backup_path: str
+    backup_sha256: str
+    files: list[str]
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class BridgeSnapshot(BaseModel):
@@ -125,6 +159,7 @@ class BridgeSnapshot(BaseModel):
     adapter_hint: str | None = None
     mqtt_server: str | None = None
     mqtt_base_topic: str | None = None
+    coordinator_claimed: bool = False
     last_rendered_at: datetime | None = None
     config_hash: str | None = None
     last_error: str | None = None
@@ -153,6 +188,30 @@ class DockerSupervisorSettings(BaseModel):
     network_mode: str | None = None
     environment: dict[str, str] = Field(default_factory=dict)
 
+    @model_validator(mode="after")
+    def restrict_runtime_options(self) -> DockerSupervisorSettings:
+        if self.image != DEFAULT_ZIGBEE2MQTT_IMAGE:
+            raise ValueError("docker.image is managed by PiPhi and cannot be overridden.")
+        if self.container_name != "piphi-zigbee2mqtt":
+            raise ValueError("docker.container_name is managed by PiPhi and cannot be overridden.")
+        if self.container_data_path != "/app/data":
+            raise ValueError("docker.container_data_path is managed by PiPhi and cannot be overridden.")
+        if self.network_mode not in {None, "bridge"}:
+            raise ValueError("docker.network_mode must use the isolated bridge network.")
+        if set(self.environment) - {"TZ"}:
+            raise ValueError("docker.environment only permits the TZ setting.")
+        if Path(self.host_data_path).expanduser().resolve() != Path(
+            "/var/lib/piphi/zigbee2mqtt"
+        ).resolve():
+            raise ValueError("docker.host_data_path must use the managed Zigbee2MQTT data directory.")
+        if self.device_path and not self.device_path.startswith(
+            ("/dev/serial/by-id/", "/dev/serial/by-path/", "/dev/tty")
+        ):
+            raise ValueError("docker.device_path must be a supported coordinator device path.")
+        if self.device_path and ".." in Path(self.device_path).parts:
+            raise ValueError("docker.device_path cannot contain path traversal.")
+        return self
+
 
 class Pm2SupervisorSettings(BaseModel):
     process_name: str = "piphi-zigbee2mqtt"
@@ -160,6 +219,20 @@ class Pm2SupervisorSettings(BaseModel):
     script: str = "index.js"
     interpreter: str | None = None
     env: dict[str, str] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def restrict_runtime_options(self) -> Pm2SupervisorSettings:
+        if self.process_name != "piphi-zigbee2mqtt":
+            raise ValueError("pm2.process_name is managed by PiPhi and cannot be overridden.")
+        if self.script != "index.js" or self.interpreter is not None:
+            raise ValueError("pm2 script and interpreter are managed by PiPhi.")
+        if set(self.env) - {"ZIGBEE2MQTT_DATA"}:
+            raise ValueError("pm2.env only permits ZIGBEE2MQTT_DATA.")
+        if self.env.get("ZIGBEE2MQTT_DATA") not in {None, "/var/lib/piphi/zigbee2mqtt"}:
+            raise ValueError("pm2 ZIGBEE2MQTT_DATA must use the managed data directory.")
+        if Path(self.working_dir).expanduser().resolve() != Path("/opt/zigbee2mqtt").resolve():
+            raise ValueError("pm2.working_dir must use the managed Zigbee2MQTT installation.")
+        return self
 
 
 class SupervisorRequest(BaseModel):
@@ -356,7 +429,7 @@ class PermitJoinResponse(BaseModel):
         return redact_mqtt_server(value) or ""
 
 
-class ApplyBridgeRequest(WriteConfigRequest):
+class ApplyBridgeRequest(WriteBridgeRequest):
     supervisor: SupervisorRequest | None = None
     restart_policy: RestartPolicy = "changed"
     mqtt_check: MqttCheckRequest | None = Field(default_factory=MqttCheckRequest)
@@ -384,6 +457,8 @@ class SidecarStore:
         self.last_devices: DeviceListResponse | None = None
         self.last_network_map: NetworkMapResponse | None = None
         self.last_permit_join: PermitJoinResponse | None = None
+        self.coordinator_identity: str | None = None
+        self.coordinator_owner_id: str | None = None
 
     def snapshot(self) -> BridgeSnapshot:
         config = self.current_config
@@ -397,6 +472,7 @@ class SidecarStore:
             adapter_hint=config.serial.adapter if config else None,
             mqtt_server=config.mqtt.server if config else None,
             mqtt_base_topic=config.mqtt.base_topic if config else None,
+            coordinator_claimed=self.coordinator_identity is not None,
             last_rendered_at=render.rendered_at if render else None,
             config_hash=self.config_hash,
             last_error=self.last_error,
@@ -406,12 +482,6 @@ class SidecarStore:
             network_map=self.last_network_map.model_dump(mode="json") if self.last_network_map else None,
             permit_join=self.last_permit_join.model_dump(mode="json") if self.last_permit_join else None,
         )
-
-
-def ensure_parent_directory(path: str) -> Path:
-    target = Path(path).expanduser()
-    target.parent.mkdir(parents=True, exist_ok=True)
-    return target
 
 
 def redact_mqtt_server(value: str | None) -> str | None:
@@ -428,3 +498,24 @@ def redact_mqtt_server(value: str | None) -> str | None:
     netloc = f"{host_token}:{parsed.port}" if parsed.port else host_token
     redacted = urlunsplit((parsed.scheme or "mqtt", netloc, parsed.path, parsed.query, parsed.fragment))
     return redacted if has_scheme else redacted.split("://", 1)[-1]
+
+
+def redact_rendered_yaml(value: str) -> str:
+    lines: list[str] = []
+    redact_network_key = False
+    network_key_indent = 0
+    for line in value.splitlines():
+        stripped = line.lstrip()
+        indent = len(line) - len(stripped)
+        if redact_network_key and stripped.startswith("-") and indent > network_key_indent:
+            continue
+        redact_network_key = False
+        if stripped.startswith("password:"):
+            lines.append(f'{line[:indent]}password: "[redacted]"')
+        elif stripped.startswith("network_key:"):
+            lines.append(f'{line[:indent]}network_key: "[redacted]"')
+            redact_network_key = True
+            network_key_indent = indent
+        else:
+            lines.append(line)
+    return "\n".join(lines) + ("\n" if value.endswith("\n") else "")

@@ -193,8 +193,10 @@ restarts Zigbee2MQTT only when the restart policy says to.
 curl -s http://127.0.0.1:8720/v1/apply \
   -H 'content-type: application/json' \
   -d '{
-    "config_path": "/var/lib/piphi/zigbee2mqtt/configuration.yaml",
+    "config_path": "/app/data/configuration.yaml",
     "restart_policy": "changed",
+    "coordinator_identity": "usb-coordinator-serial-1234",
+    "network_formation": "reuse_existing",
     "config": {
       "mqtt": {
         "server": "mqtt://127.0.0.1:1883",
@@ -227,6 +229,13 @@ Restart policies:
 - `always`: restart after every apply
 - `never`: write config but leave process state alone
 
+PiPhi persists an exclusive claim for `coordinator_identity`. Forming a new
+network requires `network_formation: "form_new"` and
+`confirm_form_new: true`. Changing an existing PAN, extended PAN, or network
+key also requires `backup_path` and `backup_sha256` returned by
+`POST /v1/network-backup`; the sidecar verifies the archive and checksum before
+writing the change.
+
 Before applying, check host prerequisites:
 
 ```bash
@@ -258,8 +267,8 @@ Windows/macOS:
 ## Docker Build
 
 ```bash
-docker build -t ghcr.io/piphi-io/zigbee2mqtt-sidecar:0.1.18 .
-docker run --rm -p 8720:8720 ghcr.io/piphi-io/zigbee2mqtt-sidecar:0.1.18
+docker build -t ghcr.io/piphi-io/zigbee2mqtt-sidecar:0.1.20 .
+docker run --rm -p 8720:8720 ghcr.io/piphi-io/zigbee2mqtt-sidecar:0.1.20
 ```
 
 For live Linux adapter detection/config writes, run with the PiPhi-managed
