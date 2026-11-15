@@ -97,3 +97,5 @@ docker build -t piphi-network-knx:test .
 ```
 
 The test suite covers strict config validation, DPT codecs and bounds, adapter lifecycle, discovery normalization, initialization reads, feedback, allowlisted writes, unknown outcomes, authentication, persistence, and contract/catalog synchronization. Physical gateway qualification remains separately tracked; this package does not claim KNX product certification.
+
+An opt-in [virtual qualification](docs/virtual-qualification.md) connects the production client through a pinned `knxd` dummy bus over UDP and TCP. It verifies real KNXnet/IP transport and feedback behavior without changing the honest physical-hardware boundary. Community or lab testers can report reproducible physical evidence using the [hardware qualification template](docs/hardware-qualification-template.md).
