@@ -1,24 +1,26 @@
 from __future__ import annotations
 
+import json
 import os
+import shutil
 import zipfile
 from datetime import UTC, datetime
 from hashlib import sha256
 from pathlib import Path
+from tempfile import mkdtemp
+from uuid import uuid4
 
-from .bridge_models import NetworkBackupResponse
+from .bridge_models import NetworkBackupResponse, NetworkRestoreResponse
+from .config_store import _write_private
+from .settings import INTEGRATION_VERSION
 
-NETWORK_FILES = (
-    "configuration.yaml",
-    "coordinator_backup.json",
-    "database.db",
-    "state.json",
-)
+BACKUP_METADATA = "piphi-backup.json"
+EXCLUDED_TOP_LEVEL = {"backups", "coordinator-claims"}
 
 
-def create_network_backup(data_path: str) -> NetworkBackupResponse:
+def create_network_backup(data_path: str, *, adapter_family: str = "unknown") -> NetworkBackupResponse:
     root = _approved_data_root(data_path)
-    available = [name for name in NETWORK_FILES if _safe_network_file(root, name)]
+    available = _network_files(root)
     if "configuration.yaml" not in available:
         raise ValueError("A Zigbee2MQTT configuration.yaml is required before backup.")
     backup_dir = root / "backups"
@@ -31,6 +33,19 @@ def create_network_backup(data_path: str) -> NetworkBackupResponse:
         os.fdopen(descriptor, "wb") as handle,
         zipfile.ZipFile(handle, "w", compression=zipfile.ZIP_DEFLATED) as archive,
     ):
+        archive.writestr(
+            BACKUP_METADATA,
+            json.dumps(
+                {
+                    "format": 1,
+                    "sidecar_version": INTEGRATION_VERSION,
+                    "zigbee2mqtt_version": "2.14.3",
+                    "adapter_family": adapter_family,
+                    "created_at": datetime.now(UTC).isoformat(),
+                },
+                sort_keys=True,
+            ),
+        )
         for name in available:
             archive.write(root / name, arcname=name)
     os.chmod(target, 0o600)
@@ -43,6 +58,10 @@ def create_network_backup(data_path: str) -> NetworkBackupResponse:
 
 
 def verify_network_backup(backup_path: str | None, expected_sha256: str | None) -> None:
+    inspect_network_backup(backup_path, expected_sha256)
+
+
+def inspect_network_backup(backup_path: str | None, expected_sha256: str | None) -> dict[str, object]:
     if not backup_path or not expected_sha256:
         raise ValueError("Changing Zigbee network identity requires verified backup evidence.")
     target = Path(backup_path).expanduser().resolve()
@@ -56,10 +75,58 @@ def verify_network_backup(backup_path: str | None, expected_sha256: str | None) 
             names = set(archive.namelist())
             if "configuration.yaml" not in names:
                 raise ValueError("Zigbee network backup is missing configuration.yaml.")
+            if BACKUP_METADATA not in names:
+                raise ValueError("Zigbee network backup is missing compatibility metadata.")
             if any(Path(name).is_absolute() or ".." in Path(name).parts for name in names):
                 raise ValueError("Zigbee network backup contains unsafe paths.")
+            metadata = json.loads(archive.read(BACKUP_METADATA))
+            if not isinstance(metadata, dict) or metadata.get("format") != 1:
+                raise ValueError("Zigbee network backup metadata is unsupported.")
     except zipfile.BadZipFile as exc:
         raise ValueError("Zigbee network backup is invalid.") from exc
+    except json.JSONDecodeError as exc:
+        raise ValueError("Zigbee network backup metadata is invalid.") from exc
+    return {**metadata, "files": sorted(names - {BACKUP_METADATA})}
+
+
+def restore_network_backup(
+    *,
+    data_path: str,
+    backup_path: str,
+    expected_sha256: str,
+    adapter_family: str,
+) -> NetworkRestoreResponse:
+    root = _approved_data_root(data_path)
+    metadata = inspect_network_backup(backup_path, expected_sha256)
+    backup_family = str(metadata.get("adapter_family") or "unknown")
+    if backup_family == "unknown" or backup_family != adapter_family:
+        raise ValueError(
+            f"Backup adapter family {backup_family!r} is not compatible with {adapter_family!r}."
+        )
+    rollback = create_network_backup(str(root), adapter_family=adapter_family)
+    staging = Path(mkdtemp(prefix=".restore-", dir=root))
+    rollback_staging: Path | None = None
+    try:
+        _extract_backup(Path(backup_path), staging)
+        restored_files = [str(item) for item in metadata["files"]]
+        _replace_data_files(root, staging, restored_files)
+    except Exception:
+        try:
+            rollback_staging = Path(mkdtemp(prefix=".rollback-", dir=root))
+            _extract_backup(Path(rollback.backup_path), rollback_staging)
+            _replace_data_files(root, rollback_staging, rollback.files)
+        finally:
+            if rollback_staging is not None:
+                shutil.rmtree(rollback_staging, ignore_errors=True)
+        raise
+    finally:
+        shutil.rmtree(staging, ignore_errors=True)
+    return NetworkRestoreResponse(
+        restored=True,
+        files=restored_files,
+        rollback_backup=rollback,
+        message="Zigbee2MQTT data restored; restart and post-restore verification are required.",
+    )
 
 
 def file_digest(path: Path) -> str:
@@ -82,10 +149,54 @@ def _approved_data_root(data_path: str) -> Path:
     return requested
 
 
-def _safe_network_file(root: Path, name: str) -> bool:
-    candidate = root / name
-    if not candidate.is_file():
-        return False
-    if candidate.is_symlink() or candidate.resolve().parent != root:
-        raise ValueError(f"Zigbee2MQTT network file {name} cannot be a symlink.")
-    return True
+def _network_files(root: Path) -> list[str]:
+    files: list[str] = []
+    total_size = 0
+    for candidate in sorted(root.rglob("*")):
+        relative = candidate.relative_to(root)
+        if not relative.parts or relative.parts[0] in EXCLUDED_TOP_LEVEL:
+            continue
+        if relative.parts[0].startswith((".restore-", ".rollback-")):
+            continue
+        if candidate.is_symlink():
+            raise ValueError(f"Zigbee2MQTT data file {relative} cannot be a symlink.")
+        if not candidate.is_file():
+            continue
+        total_size += candidate.stat().st_size
+        if total_size > 100 * 1024 * 1024 or len(files) >= 10_000:
+            raise ValueError("Zigbee2MQTT data exceeds the bounded backup limit.")
+        files.append(relative.as_posix())
+    return files
+
+
+def _extract_backup(backup: Path, staging: Path) -> None:
+    with zipfile.ZipFile(backup) as archive:
+        for member in archive.infolist():
+            if member.filename == BACKUP_METADATA:
+                continue
+            relative = Path(member.filename)
+            if member.is_dir() or relative.is_absolute() or ".." in relative.parts:
+                if member.is_dir():
+                    continue
+                raise ValueError("Zigbee network backup contains unsafe paths.")
+            target = staging / relative
+            target.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+            _write_private(target, archive.read(member))
+
+
+def _replace_data_files(root: Path, staging: Path, restored_files: list[str]) -> None:
+    desired = {Path(name) for name in restored_files}
+    for current_name in reversed(_network_files(root)):
+        current = Path(current_name)
+        if current not in desired:
+            (root / current).unlink()
+    for relative in sorted(desired):
+        source = staging / relative
+        if not source.is_file():
+            raise ValueError(f"Restore archive is missing {relative}.")
+        target = root / relative
+        target.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        temporary = target.with_name(f".{target.name}.{uuid4().hex}.tmp")
+        _write_private(temporary, source.read_bytes())
+        temporary.replace(target)
+        os.chmod(target, 0o600)

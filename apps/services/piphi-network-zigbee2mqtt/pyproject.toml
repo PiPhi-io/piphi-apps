@@ -1,6 +1,6 @@
 [project]
 name = "piphi-network-zigbee2mqtt"
-version = "0.1.20"
+version = "0.1.21"
 description = "Piphi Network Zigbee2mqtt PiPhi sidecar runtime."
 requires-python = ">=3.11"
 dependencies = [

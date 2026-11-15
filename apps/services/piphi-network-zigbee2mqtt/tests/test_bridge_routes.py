@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import httpx
 import pytest
 
@@ -42,6 +44,11 @@ async def test_v1_routes_fail_closed_without_production_token(
 async def test_bridge_routes_render_and_snapshot(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("PIPHI_ZIGBEE2MQTT_ALLOWED_DATA_ROOTS", str(tmp_path))
     monkeypatch.setattr(bridge, "claim_store", CoordinatorClaimStore(tmp_path / "claims.json"))
+    monkeypatch.setattr(
+        bridge,
+        "probe_coordinator",
+        lambda _port: SimpleNamespace(available=True, message=None),
+    )
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
         render_response = await client.post(
@@ -144,7 +151,10 @@ async def test_bridge_routes_render_and_snapshot(tmp_path, monkeypatch) -> None:
             "mqtt_check": None,
         }
         rejected_change_response = await client.post("/v1/apply", json=network_change)
-        backup_response = await client.post("/v1/network-backup", json={"data_path": str(tmp_path)})
+        backup_response = await client.post(
+            "/v1/network-backup",
+            json={"data_path": str(tmp_path), "adapter_family": "ember"},
+        )
         backup = backup_response.json()
         accepted_change_response = await client.post(
             "/v1/apply",
@@ -174,6 +184,22 @@ async def test_bridge_routes_render_and_snapshot(tmp_path, monkeypatch) -> None:
         new_owner_response = await client.post(
             "/v1/apply",
             json=network_change,
+        )
+        restore_payload = {
+            "data_path": str(tmp_path),
+            "backup_path": backup["backup_path"],
+            "backup_sha256": backup["backup_sha256"],
+            "adapter_family": "ember",
+            "coordinator_identity": "usb:sonoff-zbdongle-e:1234",
+            "coordinator_port": "/dev/ttyUSB0",
+        }
+        unconfirmed_restore_response = await client.post(
+            "/v1/network-restore",
+            json=restore_payload,
+        )
+        restore_response = await client.post(
+            "/v1/network-restore",
+            json=restore_payload | {"confirm_restore": True},
         )
         final_snapshot_response = await client.get("/v1/snapshot")
 
@@ -242,10 +268,14 @@ async def test_bridge_routes_render_and_snapshot(tmp_path, monkeypatch) -> None:
     assert conflicting_owner_response.status_code == 409
     assert stop_response.status_code == 200
     assert new_owner_response.status_code == 200
+    assert unconfirmed_restore_response.status_code == 400
+    assert restore_response.status_code == 200
+    assert restore_response.json()["restored"] is True
 
     assert final_snapshot_response.status_code == 200
     final_snapshot = final_snapshot_response.json()
     assert final_snapshot["coordinator_claimed"] is True
+    assert final_snapshot["configured"] is False
     assert final_snapshot["devices"]["status"] == "planned"
     assert final_snapshot["network_map"]["status"] == "planned"
     assert final_snapshot["permit_join"]["status"] == "planned"

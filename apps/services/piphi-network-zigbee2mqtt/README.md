@@ -234,7 +234,10 @@ network requires `network_formation: "form_new"` and
 `confirm_form_new: true`. Changing an existing PAN, extended PAN, or network
 key also requires `backup_path` and `backup_sha256` returned by
 `POST /v1/network-backup`; the sidecar verifies the archive and checksum before
-writing the change.
+writing the change. Backups include the bounded Zigbee2MQTT data tree and
+adapter/version compatibility metadata. `POST /v1/network-restore` requires a
+stopped coordinator, a matching adapter family, explicit confirmation, and
+creates a rollback backup before replacing data.
 
 Before applying, check host prerequisites:
 
@@ -267,8 +270,8 @@ Windows/macOS:
 ## Docker Build
 
 ```bash
-docker build -t ghcr.io/piphi-io/zigbee2mqtt-sidecar:0.1.20 .
-docker run --rm -p 8720:8720 ghcr.io/piphi-io/zigbee2mqtt-sidecar:0.1.20
+docker build -t ghcr.io/piphi-io/zigbee2mqtt-sidecar:0.1.21 .
+docker run --rm -p 8720:8720 ghcr.io/piphi-io/zigbee2mqtt-sidecar:0.1.21
 ```
 
 For live Linux adapter detection/config writes, run with the PiPhi-managed

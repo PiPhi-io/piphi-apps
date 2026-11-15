@@ -19,6 +19,7 @@ from .coordinator_claims import (
     claim_store,
     stable_coordinator_identity,
 )
+from .coordinator_probe import probe_coordinator
 from .schemas import DeviceConfig
 from .settings import INTEGRATION_ID, INTEGRATION_NAME, INTEGRATION_VERSION
 
@@ -77,6 +78,13 @@ async def apply_config(config: DeviceConfig) -> None:
             raise HTTPException(status_code=400, detail="A stable coordinator_identity is required.")
         coordinator_identity = stable_coordinator_identity(config.coordinator_identity)
         owner_id = claim_owner_id()
+        if sidecar_store.coordinator_identity != coordinator_identity:
+            probe = probe_coordinator(config.serial_port)
+            if not probe.available:
+                raise HTTPException(
+                    status_code=409,
+                    detail=probe.message or "Coordinator is unavailable or already in use.",
+                )
         try:
             claim_store.claim(coordinator_identity, owner_id)
         except CoordinatorClaimConflict as exc:

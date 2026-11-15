@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 
 from piphi_network_zigbee2mqtt import state
@@ -37,6 +39,11 @@ def test_runtime_config_payloads_normalizes_runtime_config_models() -> None:
 async def test_apply_config_writes_zigbee2mqtt_configuration(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("PIPHI_ZIGBEE2MQTT_ALLOWED_DATA_ROOTS", str(tmp_path))
     monkeypatch.setattr(state, "claim_store", CoordinatorClaimStore(tmp_path / "claims.json"))
+    monkeypatch.setattr(
+        state,
+        "probe_coordinator",
+        lambda _port: SimpleNamespace(available=True, message=None),
+    )
     config = DeviceConfig(
         id="bridge-config",
         config_id="bridge-config",

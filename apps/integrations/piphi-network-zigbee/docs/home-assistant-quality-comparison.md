@@ -38,6 +38,17 @@ mode. The listing remains unrated because an actual adapter in-use probe,
 Docker-socket/root privilege removal, encrypted export and tested restore, and
 guided coordinator migration are still outstanding.
 
+The 0.1.21 sidecar release adds an OS-level in-use probe before a newly claimed
+serial coordinator is configured. Linux checks `/proc` file descriptors for an
+already-open radio and reports the holding process; proxy platforms use an
+exclusive serial open, while network coordinators receive a reachability probe
+with an explicit warning that remote exclusivity cannot be proven. It also
+captures bounded full-data backups with version/adapter compatibility metadata
+and supports an explicitly confirmed, stopped-coordinator restore with an
+automatic rollback backup. This closes the local-radio preflight and basic
+restore gaps but does not remove the remaining privilege, encrypted export, or
+guided migration blockers.
+
 The right near-term product claim is: **“PiPhi-managed Zigbee2MQTT bridge setup plus a tested basic MQTT device-state/control adapter for a constrained set of exposes.”**
 
 ## Comparison model and source baseline
