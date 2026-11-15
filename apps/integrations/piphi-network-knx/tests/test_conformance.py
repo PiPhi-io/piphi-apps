@@ -9,12 +9,13 @@ import pytest
 
 from piphi_network_knx.main import app
 
-
-FIXTURES = json.loads((Path(__file__).parent / "fixtures" / "contract-conformance.json").read_text())
+FIXTURES = json.loads(
+    (Path(__file__).parent / "fixtures" / "contract-conformance.json").read_text()
+)
 
 
 @pytest.mark.anyio
-async def test_runtime_conforms_to_shared_contract_fixtures() -> None:
+async def test_runtime_conforms_to_shared_contract_fixtures(fake_knx) -> None:
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
         for fixture in FIXTURES["cases"]:
@@ -34,6 +35,8 @@ def _assert_required_keys(body: dict[str, Any], keys: list[str], fixture_id: str
         assert key in body, f"{fixture_id} missing {key}"
 
 
-def _assert_required_any_keys(body: dict[str, Any], groups: list[list[str]], fixture_id: str) -> None:
+def _assert_required_any_keys(
+    body: dict[str, Any], groups: list[list[str]], fixture_id: str
+) -> None:
     for group in groups:
         assert any(key in body for key in group), f"{fixture_id} missing one of {', '.join(group)}"

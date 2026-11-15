@@ -3,8 +3,8 @@ from __future__ import annotations
 import os
 
 INTEGRATION_ID = "piphi-network-knx"
-INTEGRATION_NAME = "Piphi Network Knx"
-INTEGRATION_VERSION = "0.1.0"
+INTEGRATION_NAME = "KNX"
+INTEGRATION_VERSION = "0.2.0"
 PROJECT_KIND = "integration"
 PROJECT_PRESET = "protocol-bridge"
 PROJECT_DOMAIN = "bridge"

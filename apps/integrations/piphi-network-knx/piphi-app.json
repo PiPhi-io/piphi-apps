@@ -12,18 +12,22 @@
     "python": "3.12"
   },
   "ci": {
-    "enforcement": "legacy-static",
+    "enforcement": "full",
     "commands": [
-      "pdm install --check",
-      "pdm run pytest"
+      "PDM_IGNORE_ACTIVE_VENV=1 pdm lock --check",
+      "PDM_IGNORE_ACTIVE_VENV=1 pdm install --check -G dev",
+      "PDM_IGNORE_ACTIVE_VENV=1 pdm run ruff check src tests",
+      "PDM_IGNORE_ACTIVE_VENV=1 pdm run mypy src",
+      "PDM_IGNORE_ACTIVE_VENV=1 pdm run pytest",
+      "PDM_IGNORE_ACTIVE_VENV=1 pdm run python scripts/validate.py"
     ],
-    "build_container": false
+    "build_container": true
   },
   "packages": [
     {
       "id": "piphi-network-knx",
       "type": "integration",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "manifest": "manifest.json",
       "release": {
         "tag": "apps/{package_id}/v{version}",

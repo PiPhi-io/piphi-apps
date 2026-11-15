@@ -1,5 +1,7 @@
 # PiPhi KNX and Home Assistant KNX: capability and quality audit
 
+> **Historical baseline:** This audit describes version 0.1.0 before remediation. Version 0.2.0 implements the deliberately bounded first protocol slice: pinned xknx transport, automatic/UDP/TCP tunnelling, active discovery, reviewed DPT 1.001/5.001/9.001 mappings, initialization reads, typed allowlisted writes, feedback-driven state, truthful availability, bounded traffic, durable lifecycle, fail-closed auth, privacy-bounded diagnostics, full CI, and a locked non-root container. ETS project import, KNX Secure, routing, broader DPT/entity coverage, and physical gateway qualification remain explicitly unavailable or unverified rather than overclaimed.
+
 **Research cutoff:** 2026-11-15
 
 **PiPhi source audited:** `piphi-network-knx` 0.1.0 source, tests, manifest, capability catalog, container, CI and release metadata in this repository

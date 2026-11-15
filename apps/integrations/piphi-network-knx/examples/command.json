@@ -1,14 +1,13 @@
 {
   "contract_version": "automation.runtime.command.v1",
-  "command": "refresh",
+  "command": "write_datapoint",
   "target": {
-    "config_id": "demo-device",
-    "device_id": "demo-device",
-    "entity_id": null
+    "config_id": "main-building"
   },
-  "params": {},
-  "capability": "device.refresh",
-  "capability_requirements": [
-    "device.refresh"
-  ]
+  "params": {
+    "datapoint_id": "office_light",
+    "value": true
+  },
+  "capability": "write_datapoint",
+  "capability_requirements": ["write_datapoint"]
 }

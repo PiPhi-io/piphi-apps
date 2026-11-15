@@ -19,12 +19,9 @@ def test_runtime_implements_contract_routes() -> None:
         "/state",
         "/contract",
         "/events",
-        "/events/device/{config_id}/example",
-        "/telemetry/example",
-        "/telemetry/device/{config_id}/example",
         "/command",
     ]:
         assert path in routes
 
     assert REQUIRED_ENDPOINTS == ["health", "entities", "command", "config", "ui_config"]
-    assert "refresh" in COMMANDS
+    assert set(COMMANDS) == {"read_datapoint", "write_datapoint"}

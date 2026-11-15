@@ -1,26 +1,28 @@
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter
 
 from ..contract import ENDPOINTS, REQUIRED_ENDPOINTS
 from ..settings import PROJECT_KIND
-from ..state import registry, starter
+from ..state import manager, registry, starter
 
 router = APIRouter(tags=["health"])
 
 
 @router.get("/health")
-async def health():
-    return starter.health_response(metadata={"active_configs": len(registry.ids())})
+async def health() -> Any:
+    return starter.health_response(metadata=manager.health_summary())
 
 
 @router.get("/diagnostics")
-async def diagnostics():
+async def diagnostics() -> Any:
     return starter.diagnostics_response(
         diagnostics={
-            "active_config_ids": registry.ids(),
             "recent_event_count": len(registry.recent_events),
             "kind": PROJECT_KIND,
+            **manager.diagnostics(),
             "contract": {
                 "endpoints": ENDPOINTS,
                 "required": REQUIRED_ENDPOINTS,
