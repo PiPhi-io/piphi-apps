@@ -64,6 +64,13 @@ export class SidecarClient {
     }) as JsonObject;
   }
 
+  async provisionThread(setupPayload: string, operationalDataset: string): Promise<JsonObject> {
+    return await this.request("/v1/commission/thread", {
+      method: "POST",
+      body: JSON.stringify({ setup_payload: setupPayload, operational_dataset: operationalDataset }),
+    }) as JsonObject;
+  }
+
   async decommissionNode(nodeId: string): Promise<JsonObject> {
     return await this.request(`/v1/nodes/${encodeURIComponent(nodeId)}/decommission`, {
       method: "POST",

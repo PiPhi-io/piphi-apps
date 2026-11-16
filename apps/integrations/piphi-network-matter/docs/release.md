@@ -7,6 +7,9 @@ docker build -t piphi-network-matter:candidate .
 npm run qualify:release-image -- piphi-network-matter:candidate
 ```
 
+Remote images are pulled automatically when they are not already present in the local Docker
+cache. Digest-pinned references are preferred for post-publication verification.
+
 Slow builders or hosts can extend the startup deadline:
 
 ```bash

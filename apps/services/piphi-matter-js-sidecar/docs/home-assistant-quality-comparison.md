@@ -2,7 +2,7 @@
 
 **Research cutoff:** 2026-11-15
 
-**Candidate PiPhi release:** `piphi.service.matter-sidecar` `0.2.0-alpha.5`
+**Candidate PiPhi release:** `piphi.service.matter-sidecar` `0.2.0-alpha.6`
 **Comparison baseline:** Home Assistant Core `dev` and its first-party Matter documentation as of the cutoff; OHF Matter Server `1.4.0` and `1.6.0`; final Python Matter Server `8.1.2`; public CSA/Matter guidance.
 
 ## Post-audit implementation status

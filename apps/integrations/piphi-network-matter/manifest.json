@@ -2,14 +2,14 @@
   "manifest_version": "1.0",
   "id": "piphi-network-matter-integration",
   "name": "Matter",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Projects commissioned Matter endpoints from the authenticated managed sidecar into PiPhi Core.",
   "maintainer": { "name": "PiPhi Network", "website": "https://piphi.io" },
   "license": "Apache-2.0",
-  "image": "ghcr.io/piphi-io/piphi-network-matter-integration:0.1.0",
+  "image": "ghcr.io/piphi-io/piphi-network-matter-integration:0.1.1",
   "platforms": ["linux"],
   "runtime": { "linux": { "type": "container", "container": {
-    "image": "ghcr.io/piphi-io/piphi-network-matter-integration:0.1.0",
+    "image": "ghcr.io/piphi-io/piphi-network-matter-integration:0.1.1",
     "ports": [{ "container": 4221 }],
     "network_mode": "host",
     "privileged": false,
@@ -18,7 +18,7 @@
     "volumes": [{ "host": "/var/lib/piphi/matter-integration", "container": "/app/data", "mode": "rw" }]
   }, "discovery": { "method": "passive" } } },
   "api": { "required": ["health", "entities", "command", "config"], "endpoints": {
-    "health": "/health", "entities": "/entities", "state": "/state", "config": "/config", "command": "/command", "events": "/events", "diagnostics": "/diagnostics", "repairs": "/repairs", "preflight": "/preflight", "commissionables": "/commissioning/commissionables", "commission": "/commissioning/code", "commission_wifi": "/commissioning/wifi", "decommission_node": "/nodes/:nodeId/decommission", "backup_quiesce": "/backup/quiesce", "backup_resume": "/backup/resume"
+    "health": "/health", "entities": "/entities", "state": "/state", "config": "/config", "command": "/command", "events": "/events", "diagnostics": "/diagnostics", "repairs": "/repairs", "preflight": "/preflight", "commissionables": "/commissioning/commissionables", "commission": "/commissioning/code", "commission_wifi": "/commissioning/wifi", "commission_thread": "/commissioning/thread", "decommission_node": "/nodes/:nodeId/decommission", "backup_quiesce": "/backup/quiesce", "backup_resume": "/backup/resume"
   } },
   "config": {
     "source": "endpoint", "endpoint": "/config", "required": true,

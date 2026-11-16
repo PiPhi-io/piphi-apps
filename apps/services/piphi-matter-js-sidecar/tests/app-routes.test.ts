@@ -141,10 +141,9 @@ test("persistent Wi-Fi credentials are rejected while other configuration routes
     const response = await app.inject({ method: "POST", url: "/v1/credentials/wifi", payload });
     assert.equal(response.statusCode, 410);
   }
-  const threadMissing = await app.inject({ method: "POST", url: "/v1/credentials/thread", payload: { operational_dataset: " " } });
-  assert.equal(threadMissing.statusCode, 400);
-  assert.equal((await app.inject({ method: "POST", url: "/v1/credentials/thread", payload: { operational_dataset: " dataset " } })).statusCode, 204);
-  assert.equal(backend.threadDataset, "dataset");
+  const persistentThread = await app.inject({ method: "POST", url: "/v1/credentials/thread", payload: { operational_dataset: "a".repeat(64) } });
+  assert.equal(persistentThread.statusCode, 410);
+  assert.equal(backend.threadDataset, undefined);
   assert.equal((await app.inject({ method: "DELETE", url: "/v1/credentials/thread" })).statusCode, 204);
   assert.equal(backend.threadDataset, undefined);
 
@@ -159,6 +158,48 @@ test("persistent Wi-Fi credentials are rejected while other configuration routes
   assert.equal((await app.inject({ method: "DELETE", url: "/v1/configs/1234/1" })).statusCode, 200);
   const missing = await app.inject({ method: "DELETE", url: "/v1/configs/1234/1" });
   assert.equal(missing.statusCode, 404);
+});
+
+test("Thread commissioning uses a one-shot dataset and clears it on success and failure", async (t) => {
+  const { app, backend } = await fixture();
+  t.after(() => app.close());
+  const secretDataset = "a".repeat(64);
+
+  const success = await app.inject({
+    method: "POST",
+    url: "/v1/commission/thread",
+    payload: { setup_payload: "MT:WRITE-ONLY-THREAD", operational_dataset: secretDataset },
+  });
+  assert.equal(success.statusCode, 201, success.body);
+  assert.doesNotMatch(success.body, new RegExp(secretDataset));
+  assert.equal(backend.threadDataset, undefined);
+
+  backend.commissionWithCode = async () => { throw new Error("thread-device-not-discovered"); };
+  const failure = await app.inject({
+    method: "POST",
+    url: "/v1/commission/thread",
+    payload: { setup_payload: "MT:WRITE-ONLY-THREAD", operational_dataset: secretDataset },
+  });
+  assert.equal(failure.statusCode, 400);
+  assert.doesNotMatch(failure.body, new RegExp(secretDataset));
+  assert.equal(backend.threadDataset, undefined);
+
+  for (const operationalDataset of ["", "not-hex", "aa", "a".repeat(509)]) {
+    const invalid = await app.inject({
+      method: "POST",
+      url: "/v1/commission/thread",
+      payload: { setup_payload: "MT:WRITE-ONLY-THREAD", operational_dataset: operationalDataset },
+    });
+    assert.equal(invalid.statusCode, 400);
+  }
+});
+
+test("startup clears an orphaned Thread dataset before readiness", async (t) => {
+  const { app, backend } = await fixture();
+  t.after(() => app.close());
+  backend.threadDataset = "a".repeat(64);
+  await app.ready();
+  assert.equal(backend.threadDataset, undefined);
 });
 
 test("transport events and command aliases reject invalid input and accept alternate fields", async (t) => {

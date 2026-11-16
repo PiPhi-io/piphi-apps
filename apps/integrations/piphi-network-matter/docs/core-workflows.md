@@ -52,6 +52,14 @@ The UI must state that BLE/Wi-Fi and Thread commissioning are experimental. A co
 failure does not authorize automatic node removal; refresh entities and
 repairs first because upstream commissioning may have completed before response delivery failed.
 
+Thread commissioning accepts the setup payload and active operational dataset only through the
+one-shot `POST /commissioning/thread` Core flow, which maps to sidecar
+`POST /v1/commission/thread`. The sidecar clears the dataset in a `finally` path after success or
+failure and also clears any orphaned dataset during startup. Persistent Thread credential writes
+are rejected. Core must clear both secret fields locally in its own `finally` path and must never
+retry automatically with a retained dataset. The Core request must include
+`experimental_acknowledgement: "thread"` after presenting its experimental-status warning.
+
 Parent failures use stable safe codes: `matter_operation_rejected`, `matter_resource_not_found`,
 `matter_operation_conflict`, `matter_sidecar_unavailable`,
 `matter_sidecar_authentication_failed`, or `matter_sidecar_request_failed`. Core should localize

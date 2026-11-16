@@ -156,6 +156,7 @@ function stopAndRemove(name) {
 }
 
 async function qualify(image, timeoutSeconds) {
+  if (!docker(["image", "inspect", image], false)) docker(["pull", image]);
   inspectImage(image);
   const [parentPort, sidecarPort] = await Promise.all([freePort(), freePort()]);
   assert.notEqual(parentPort, sidecarPort, "allocated ports must differ");

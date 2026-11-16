@@ -42,9 +42,14 @@ the node and endpoint IDs, preventing stale configuration from attaching to a re
 The supported release accepts devices already reachable on Ethernet or Wi-Fi. Core first checks
 `GET /preflight`, optionally lists `GET /commissioning/commissionables`, and then submits the
 write-only setup payload to `POST /commissioning/code` with `network_only: true`. BLE and Thread
-commissioning remain the qualified path. Factory-reset Wi-Fi devices may use experimental
+commissioning remain experimental. Factory-reset Wi-Fi devices may use experimental
 `POST /commissioning/wifi` only when preflight reports `ready_for_ble_wifi: true`; setup payload,
 SSID, and password are write-only and discarded after the request.
+
+Experimental Thread commissioning uses `POST /commissioning/thread` with write-only setup payload
+and operational dataset fields plus `experimental_acknowledgement: "thread"`. The dataset exists in
+the sidecar only for that operation and is cleared after success or failure; Core must clear both
+secret fields locally as well.
 
 Removing fabric membership is intentionally node-scoped. `POST /nodes/:nodeId/decommission`
 requires `confirm_node_id` to exactly match the URL. Successful removal also deletes the parent

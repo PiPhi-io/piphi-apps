@@ -9,6 +9,7 @@ interface ConfigBody { node_id?: string; endpoint_id?: number; alias?: string; e
 interface CommandBody { command?: string; node_id?: string; endpoint_id?: number; entity_id?: string }
 interface CommissionBody { setup_payload?: string; network_only?: boolean }
 interface WifiCommissionBody { setup_payload?: string; ssid?: string; credentials?: string }
+interface ThreadCommissionBody { setup_payload?: string; operational_dataset?: string; experimental_acknowledgement?: string }
 
 export function createApp(reconciler: Reconciler, sidecar: SidecarClient, configs: ConfigStore): FastifyInstance {
   const app = Fastify({ logger: process.env.NODE_ENV !== "test" && process.env.NODE_TEST_CONTEXT === undefined });
@@ -126,6 +127,23 @@ export function createApp(reconciler: Reconciler, sidecar: SidecarClient, config
       ok: true,
       node_id: result.node_id ?? null,
       reconciled_entity_count: reconciler.entities().length,
+    });
+  });
+  app.post<{ Body: ThreadCommissionBody }>("/commissioning/thread", async (request, reply) => {
+    const setupPayload = request.body?.setup_payload?.trim() ?? "";
+    const operationalDataset = request.body?.operational_dataset?.trim() ?? "";
+    if (!setupPayload) return reply.code(400).send({ ok: false, error: "setup_payload_required" });
+    if (!operationalDataset) return reply.code(400).send({ ok: false, error: "thread_operational_dataset_required" });
+    if (request.body?.experimental_acknowledgement !== "thread") {
+      return reply.code(400).send({ ok: false, error: "thread_experimental_acknowledgement_required" });
+    }
+    const result = await sidecar.provisionThread(setupPayload, operationalDataset);
+    await reconciler.fullSnapshot();
+    return reply.code(201).send({
+      ok: true,
+      node_id: result.node_id ?? null,
+      reconciled_entity_count: reconciler.entities().length,
+      experimental: "thread",
     });
   });
   app.post<{ Params: { nodeId: string }; Body: { confirm_node_id?: string } }>("/nodes/:nodeId/decommission", async (request, reply) => {

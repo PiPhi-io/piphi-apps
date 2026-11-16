@@ -19,6 +19,8 @@ assert.equal(manifest.runtime.linux.container.privileged, false);
 assert.equal(pkg.dependencies["@stoprocent/noble"], "2.8.0", "BLE scanner must be a production dependency");
 assert.equal(hardware.schema_version, 1);
 assert.equal(hardware.release, pkg.version);
+assert.match(hardware.publication?.index_digest ?? "", /^sha256:[a-f0-9]{64}$/, "published image index digest is required");
+assert.ok(hardware.publication?.release, "published release version is required");
 assert.deepEqual(hardware.policy.supported_transports.sort(), ["ethernet", "wifi_on_network"]);
 assert.deepEqual(hardware.policy.experimental_transports.sort(), ["ble", "thread"]);
 const profileIds = hardware.profiles.map((profile) => profile.id);
@@ -26,6 +28,7 @@ assert.equal(new Set(profileIds).size, profileIds.length, "hardware qualificatio
 assert.deepEqual([...profileIds].sort(), [...hardware.policy.required_profiles].sort());
 for (const profile of hardware.profiles) {
   assert.ok(["pending_hardware", "qualified", "failed", "blocked"].includes(profile.status));
+  assert.ok(["pending_hardware", "pending_published_digest", "qualified", "failed", "blocked"].includes(profile.production_status));
   assert.ok(hardware.policy.supported_transports.includes(profile.transport));
   if (profile.status === "qualified") {
     assert.ok(profile.evidence.length > 0, `qualified hardware profile ${profile.id} requires evidence`);
@@ -35,6 +38,16 @@ for (const profile of hardware.profiles) {
     }
   } else {
     assert.ok(profile.blocker, `unqualified hardware profile ${profile.id} requires a blocker`);
+  }
+  if (profile.production_status === "qualified") {
+    assert.equal(profile.production_release, hardware.publication.release);
+    assert.ok(profile.evidence.some((entry) => (
+      entry.evidence_level === "published"
+      && entry.image_digest === hardware.publication.index_digest
+      && /^sha256:[a-f0-9]{64}$/.test(entry.platform_manifest_digest ?? "")
+    )), `production-qualified profile ${profile.id} requires exact published-digest evidence`);
+  } else {
+    assert.ok(profile.production_blocker, `production-unqualified profile ${profile.id} requires a blocker`);
   }
 }
 selfTestHardwareReportValidator(hardware);
