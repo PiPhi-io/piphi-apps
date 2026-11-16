@@ -11,7 +11,7 @@ The stack has a useful **early supported slice**, but it is not yet safe to desc
 
 The comparison is deliberately **not a parity claim**. Home Assistant ZHA directly owns one coordinator and implements the Zigbee application model through `zha`/`zigpy`; PiPhi owns a Zigbee2MQTT process and translates an MQTT contract. The appropriate upstream behavioral authority for PiPhi is therefore Zigbee2MQTT, while ZHA is an analogical benchmark for onboarding, recovery, diagnostics, identity, entity quality, and safety UX. ZHA itself documents that a coordinator must not be used by another application, and Zigbee2MQTT states the same single-owner invariant ([HA docs](https://github.com/home-assistant/home-assistant.io/blob/8d777bfc7ab4b0bb6b16a4eb605f6dd5d4138a2f/source/_integrations/zha.markdown#troubleshooting), [Z2M FAQ](https://github.com/Koenkk/zigbee2mqtt.io/blob/c5763c305a61a1dc7a6428b6fa81df6f87b3f9e2/docs/guide/faq/README.md#general-limitations-that-apply-to-all-zigbee-implementations)).
 
-**Release recommendation: do not represent the stack as production-ready until the P0 boundary issues are closed.** Most importantly:
+**Recommendation at the audited revision: do not represent the stack as production-ready until the P0 boundary issues are closed.** Most importantly:
 
 1. the privileged sidecar exposes coordinator configuration, process control, arbitrary config paths, MQTT credentials, and Docker-socket-backed operations without route-level authorization;
 2. `mqtts://` selects port 8883 but neither PiPhi MQTT client enables TLS, while the UI/config model cannot carry Zigbee2MQTT CA/client-certificate settings;
@@ -81,6 +81,38 @@ planning/apply and rollback passed against a disposable clone of the qualified
 ZStack data. This is useful P0 evidence, but it is still a single physical
 coordinator and does not qualify a second physical migration target or another
 adapter family. Marketplace quality therefore remains `unrated`.
+
+Final P0 qualification on 2026-11-16 used released Core
+`0.1.0-alpha.324` from `370d3423` (backend
+`sha256:3302d85d750534fc1be5e23522875d296ce9a1457c7fad4dc3e11a0c25e360f7`,
+managed-runtime helper
+`sha256:f4fdc6d5c433e7f0002e7ffa0919f3d960724dbde244aeefb65ac51cd24d043b`)
+and sidecar `0.1.25`
+(`sha256:dc6a17f86f2027abb8ee7f5c32a1d2062ffa916ba7e6d4d9446ac1122ef2496e`).
+Core discovered and fenced the same physical Sonoff coordinator through its
+authenticated Unix-socket helper, then delivered operation-scoped 30-second
+HMAC evidence to the unprivileged, device-less sidecar. The helper ran the
+digest-pinned Zigbee2MQTT target
+`sha256:d98792b2ad86cb4edd23f952f3c956b4d1bcc955ce0a84bd665231b685419f8f`;
+its effective specification digest was
+`9072947f4207a6e046ab5540496c03bb97861f8a257c01c93aeb0820bbc7634a`.
+
+The final network archive
+`sha256:c4480b34ccf6d9f591510d218b78fe55408839ad5bd4ad2e1be0dd5730d86efb`
+contained Zigbee2MQTT network data and no `piphi-sidecar/` control-plane files.
+Released-artifact restore succeeded with fresh `network_restore` evidence;
+managed configuration synchronization then succeeded without a local device
+probe. A same-family, same-physical-coordinator migration plan and apply both
+succeeded with distinct one-time evidence, using the real stable
+`/dev/serial/by-id/usb-ITead_Sonoff_Zigbee_3.0_USB_Dongle_Plus_489f23aeb912ec119ee323c7bd930c07-if00-port0`
+path rather than a fabricated device path. The plan had no warnings and the
+apply restored the full qualified network data set.
+
+This closes the Zigbee delivery stack's scoped P0 implementation and
+one-coordinator release-qualification gates. A second physical migration target
+and additional adapter families remain explicitly deferred coverage, not P0
+blockers. Marketplace quality remains `unrated`; no broader hardware-support or
+Home Assistant quality-tier claim follows from this qualification.
 
 The right near-term product claim is: **“PiPhi-managed Zigbee2MQTT bridge setup plus a tested basic MQTT device-state/control adapter for a constrained set of exposes.”**
 
