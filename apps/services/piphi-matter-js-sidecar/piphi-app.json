@@ -30,7 +30,7 @@
     {
       "id": "piphi.service.matter-sidecar",
       "type": "platform_service",
-      "version": "0.2.0-alpha.4",
+      "version": "0.2.0-alpha.5",
       "manifest": "src/manifest.json",
       "release": {
         "tag": "apps/{package_id}/v{version}",

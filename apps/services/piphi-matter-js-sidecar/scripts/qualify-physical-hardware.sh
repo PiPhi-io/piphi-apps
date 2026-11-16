@@ -199,6 +199,7 @@ finish() {
 # ──────────────────────────────────────────────────────────────────────────
 
 PACKAGE_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+RELEASE_VERSION=$(node -p 'require(process.argv[1]).version' "$PACKAGE_ROOT/package.json")
 PROFILE_ID="wifi_on_off_plug"
 SOURCE_CONTAINER=""
 RESTORE_CONTAINER=""
@@ -527,7 +528,7 @@ else
   QUALIFICATION_STEPS='["network_preflight","commission","capability_negotiation","turn_on","subscription_state_on","turn_off","subscription_state_off","sidecar_restart_recovery","controller_restore_recovery","decommission"]'
 fi
 jq -n \
-  --arg release "0.2.0-alpha.4" --arg profile "$PROFILE_ID" \
+  --arg release "$RELEASE_VERSION" --arg profile "$PROFILE_ID" \
   --arg vendor "$DEVICE_VENDOR" --arg model "$DEVICE_MODEL" \
   --arg hardware "$HARDWARE_REVISION" --arg firmware "$FIRMWARE_VERSION" \
   --arg digest "$IMAGE_DIGEST" --arg host "$(uname -srmo)" --arg network "$NETWORK_SUMMARY" \
