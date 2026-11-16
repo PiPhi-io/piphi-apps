@@ -78,9 +78,13 @@ def make_entry(config: DeviceConfig) -> dict[str, Any]:
     identity = build_runtime_identity(config, integration_id=INTEGRATION_ID)
     return {
         **identity,
-        "email": config.email,
         "alias": config.alias,
-        "config": config.model_dump(mode="json"),
+        "config": {
+            "poll_interval_seconds": config.poll_interval_seconds,
+            "trend_interval_seconds": config.trend_interval_seconds,
+            "expose_appliance_activity": config.expose_appliance_activity,
+            "expose_timeline": config.expose_timeline,
+        },
     }
 
 
@@ -123,7 +127,7 @@ async def apply_config(config: DeviceConfig) -> None:
     append_runtime_event(
         "runtime.config.applied",
         entry,
-        {"email": config.email, "alias": config.alias},
+        {"alias": config.alias},
     )
 
 
@@ -135,7 +139,7 @@ async def remove_config(config_id: str) -> bool:
     append_runtime_event(
         "runtime.config.removed",
         entry,
-        {"email": entry.get("email"), "alias": entry.get("alias")},
+        {"alias": entry.get("alias")},
     )
     return True
 

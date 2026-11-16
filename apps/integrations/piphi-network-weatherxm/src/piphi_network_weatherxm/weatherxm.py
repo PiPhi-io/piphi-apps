@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from time import perf_counter
 from typing import Any
 
 import httpx
+from pydantic import SecretStr
 
 from .settings import DEFAULT_WEATHERXM_BASE_URL
 
@@ -34,23 +36,34 @@ class WeatherXMReading:
     latest_timestamp: str | None
     latency_ms: int
     device: dict[str, Any]
+    observed_at: datetime
+
+
+class WeatherXMError(RuntimeError):
+    def __init__(self, category: str) -> None:
+        super().__init__(category)
+        self.category = category
 
 
 class WeatherXMClient:
     def __init__(
         self,
         *,
-        api_token: str | None = None,
-        username: str | None = None,
-        password: str | None = None,
+        api_token: str | SecretStr | None = None,
+        username: str | SecretStr | None = None,
+        password: str | SecretStr | None = None,
         base_url: str | None = None,
         timeout: float = 10.0,
     ) -> None:
-        self.api_token = None if is_placeholder_secret(api_token) else api_token
-        self.username = None if is_placeholder_secret(username) else username
-        self.password = None if is_placeholder_secret(password) else password
+        self.api_token = None if is_placeholder_secret(api_token) else secret_value(api_token)
+        self.username = None if is_placeholder_secret(username) else secret_value(username)
+        self.password = None if is_placeholder_secret(password) else secret_value(password)
         self.base_url = (base_url or DEFAULT_WEATHERXM_BASE_URL).rstrip("/")
         self.timeout = timeout
+        self._session = httpx.AsyncClient(timeout=timeout)
+
+    async def close(self) -> None:
+        await self._session.aclose()
 
     async def devices(self) -> list[dict[str, Any]]:
         payload = await self._get_json("/me/devices")
@@ -60,11 +73,12 @@ class WeatherXMClient:
         payload = await self._get_json(f"/me/devices/{station_id}")
         return payload if isinstance(payload, dict) else {"id": station_id}
 
-    async def latest_reading(self, station_id: str | None = None) -> WeatherXMReading:
+    async def latest_reading(self, station_id: str) -> WeatherXMReading:
         started = perf_counter()
         device = await self.resolve_device(station_id)
         latency_ms = int((perf_counter() - started) * 1000)
         metrics, units, latest_timestamp = normalize_current_weather(device)
+        observed_at = parse_source_timestamp(latest_timestamp)
         metrics["connected"] = True
         metrics["api_latency_ms"] = latency_ms
         units["connected"] = "bool"
@@ -76,28 +90,30 @@ class WeatherXMClient:
             latest_timestamp=latest_timestamp,
             latency_ms=latency_ms,
             device=device,
+            observed_at=observed_at,
         )
 
     async def resolve_device(self, station_id: str | None = None) -> dict[str, Any]:
-        if station_id:
-            return await self.device(station_id)
-        devices = await self.devices()
-        if not devices:
-            raise httpx.HTTPStatusError(
-                "WeatherXM account has no devices",
-                request=httpx.Request("GET", f"{self.base_url}/me/devices"),
-                response=httpx.Response(404),
-            )
-        return devices[0]
+        if not station_id:
+            raise ValueError("explicit WeatherXM station_id is required")
+        return await self.device(station_id)
 
     async def _get_json(self, path: str) -> Any:
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            response = await client.get(
+        try:
+            response = await self._session.get(
                 f"{self.base_url}{path}",
-                headers=await self._headers(client),
+                headers=await self._headers(self._session),
             )
             response.raise_for_status()
             return response.json()
+        except httpx.HTTPStatusError as exc:
+            status = exc.response.status_code
+            category = "auth" if status in {401, 403} else "quota" if status == 429 else "outage" if status >= 500 else "request"
+            raise WeatherXMError(category) from None
+        except (httpx.TimeoutException, httpx.NetworkError):
+            raise WeatherXMError("outage") from None
+        except (ValueError, TypeError):
+            raise WeatherXMError("provider_contract") from None
 
     async def _headers(self, client: httpx.AsyncClient) -> dict[str, str]:
         token = self.api_token or await self._login(client)
@@ -147,6 +163,19 @@ def normalize_current_weather(device: dict[str, Any]) -> tuple[dict[str, float |
     return metrics, units, timestamp if isinstance(timestamp, str) else None
 
 
+def parse_source_timestamp(value: str | None, *, now: datetime | None = None) -> datetime:
+    try:
+        parsed = datetime.fromisoformat((value or "").replace("Z", "+00:00"))
+    except ValueError:
+        raise WeatherXMError("provider_contract") from None
+    if parsed.tzinfo is None:
+        raise WeatherXMError("provider_contract")
+    parsed = parsed.astimezone(UTC)
+    if parsed > (now or datetime.now(UTC)) + timedelta(minutes=5):
+        raise WeatherXMError("provider_contract")
+    return parsed
+
+
 def device_display_name(device: dict[str, Any], fallback: str) -> str:
     for key in ("label", "name", "address"):
         value = device.get(key)
@@ -155,8 +184,13 @@ def device_display_name(device: dict[str, Any], fallback: str) -> str:
     return fallback
 
 
-def is_placeholder_secret(secret: str | None) -> bool:
-    return secret is None or secret.strip().lower() in PLACEHOLDER_SECRETS
+def is_placeholder_secret(secret: str | SecretStr | None) -> bool:
+    value = secret_value(secret)
+    return value is None or value.strip().lower() in PLACEHOLDER_SECRETS
+
+
+def secret_value(secret: str | SecretStr | None) -> str | None:
+    return secret.get_secret_value() if isinstance(secret, SecretStr) else secret
 
 
 def is_number(value: Any) -> bool:
@@ -173,9 +207,4 @@ def has_credentials(config: Any) -> bool:
 
 
 def resolve_station_id(config: Any) -> str:
-    return str(
-        getattr(config, "station_id", None)
-        or getattr(config, "host", None)
-        or getattr(config, "device_id", None)
-        or getattr(config, "id", "")
-    ).strip()
+    return str(getattr(config, "station_id", "")).strip()

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any
+from datetime import UTC, datetime, timedelta
 
 import httpx
 import pytest
@@ -13,6 +14,7 @@ from piphi_network_weatherxm.weatherxm import (
     has_credentials,
     is_placeholder_secret,
     normalize_current_weather,
+    parse_source_timestamp,
     resolve_station_id,
 )
 
@@ -208,9 +210,6 @@ def test_has_credentials_rejects_incomplete_or_placeholder_credentials(config: D
     ("config", "expected"),
     [
         (DeviceConfig(id="wxm", station_id="station-1", host="host-1"), "station-1"),
-        (DeviceConfig(id="wxm", host="host-1"), "host-1"),
-        (DeviceConfig(id="wxm", device_id="runtime-device"), "runtime-device"),
-        (DeviceConfig(id="wxm"), "wxm"),
         (DeviceConfig(id="wxm", station_id="  station-2  "), "station-2"),
     ],
 )
@@ -292,19 +291,8 @@ async def test_client_resolve_device_uses_explicit_station_id(fake_httpx: type[F
 
 
 @pytest.mark.anyio
-async def test_client_resolve_device_uses_first_account_device(fake_httpx: type[FakeAsyncClient]) -> None:
-    fake_httpx.get_responses = [response([{"id": "station-1"}, {"id": "station-2"}])]
-
-    result = await WeatherXMClient(api_token="token", base_url="https://api.weatherxm.test").resolve_device()
-
-    assert result == {"id": "station-1"}
-
-
-@pytest.mark.anyio
-async def test_client_resolve_device_raises_when_account_has_no_devices(fake_httpx: type[FakeAsyncClient]) -> None:
-    fake_httpx.get_responses = [response([])]
-
-    with pytest.raises(httpx.HTTPStatusError, match="no devices"):
+async def test_client_resolve_device_requires_explicit_station(fake_httpx: type[FakeAsyncClient]) -> None:
+    with pytest.raises(ValueError, match="station_id is required"):
         await WeatherXMClient(api_token="token", base_url="https://api.weatherxm.test").resolve_device()
 
 
@@ -319,6 +307,24 @@ async def test_client_latest_reading_adds_connectivity_and_latency_metrics(fake_
     assert isinstance(reading.metrics["api_latency_ms"], int)
     assert reading.units["connected"] == "bool"
     assert reading.latest_timestamp == "2026-05-11T10:00:00Z"
+    assert reading.observed_at.tzinfo is not None
+
+
+@pytest.mark.parametrize("timestamp", ["", "local-time", "2026-05-11T10:00:00"])
+def test_parse_source_timestamp_rejects_malformed_or_naive_values(timestamp: str) -> None:
+    with pytest.raises(WeatherXMError, match="provider_contract"):
+        parse_source_timestamp(timestamp)
+
+
+def test_parse_source_timestamp_rejects_future_value() -> None:
+    now = datetime(2026, 5, 11, 10, tzinfo=UTC)
+    with pytest.raises(WeatherXMError, match="provider_contract"):
+        parse_source_timestamp((now + timedelta(minutes=6)).isoformat(), now=now)
+
+
+def test_parse_source_timestamp_normalizes_timezone_to_utc() -> None:
+    parsed = parse_source_timestamp("2026-05-11T12:00:00+02:00", now=datetime(2026, 5, 11, 11, tzinfo=UTC))
+    assert parsed == datetime(2026, 5, 11, 10, tzinfo=UTC)
 
 
 @pytest.mark.anyio

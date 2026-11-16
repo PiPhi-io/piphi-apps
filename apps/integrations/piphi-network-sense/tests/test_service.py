@@ -10,6 +10,7 @@ from piphi_network_sense.extended_api import SenseTimelineEvent
 from piphi_network_sense.schemas import DeviceConfig
 from piphi_network_sense.sense_client import SenseDeviceReading, SenseReading
 from piphi_network_sense.service import SenseRuntimeService
+from piphi_network_sense.service import _reading_to_state
 
 
 class FakeRegistry:
@@ -62,7 +63,14 @@ class FakeClient:
 
 
 def config(config_id: str, email: str = "owner@example.com") -> DeviceConfig:
-    return DeviceConfig(id=config_id, email=email, password="secret", poll_interval_seconds=3600)
+    return DeviceConfig(
+        id=config_id,
+        email=email,
+        password="secret",
+        poll_interval_seconds=3600,
+        expose_appliance_activity=True,
+        expose_timeline=True,
+    )
 
 
 @pytest.mark.anyio
@@ -118,3 +126,17 @@ async def test_service_reuses_one_client_and_rejects_second_instance(monkeypatch
 
     await service.close()
     assert clients[0].closed is True
+
+
+def test_privacy_sensitive_appliances_and_timeline_default_off() -> None:
+    reading = FakeClient()
+
+    # Reuse the provider-shaped reading while proving the default state surface
+    # does not publish occupancy-correlated appliance or timeline details.
+    import asyncio
+    snapshot = asyncio.run(reading.read(include_trends=True))
+    state = _reading_to_state(snapshot)
+
+    assert state["devices"] == []
+    assert state["timeline_events"] == []
+    assert state["active_device_count"] is None

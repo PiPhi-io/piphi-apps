@@ -20,7 +20,6 @@ The PiPhi UI config endpoint asks for:
 
 - `device_udid`: Kaiterra device UDID
 - `api_key`: Kaiterra API key
-- `base_url`: defaults to `https://api.kaiterra.com/v1`
 - `alias`: optional display name
 - `poll_interval_seconds`: optional polling cadence
 
@@ -31,7 +30,6 @@ Example:
   "id": "kaiterra-sensedge",
   "device_udid": "00000000-0031-0101-0000-00007e57c0de",
   "alias": "Office Kaiterra",
-  "base_url": "https://api.kaiterra.com/v1",
   "api_key": "change-me",
   "poll_interval_seconds": 60
 }
@@ -39,6 +37,10 @@ Example:
 
 The generated examples use Kaiterra's documented public test UDIDs. A real
 deployment needs a Kaiterra API key for the target device.
+
+Production requests are pinned to `https://api.kaiterra.com/v1`; the setup UI
+does not accept endpoint overrides. Isolated tests may set
+`PIPHI_ALLOW_TEST_BASE_URL=1` and use a loopback-only URL.
 
 ## Capabilities
 

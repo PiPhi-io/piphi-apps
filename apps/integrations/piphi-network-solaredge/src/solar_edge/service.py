@@ -5,6 +5,7 @@ import datetime as dt
 from collections.abc import Callable
 from contextlib import suppress
 from dataclasses import dataclass
+from hashlib import sha256
 from time import monotonic
 from typing import Any
 
@@ -12,7 +13,14 @@ from fastapi import HTTPException
 from piphi_runtime_kit_python import schedule_telemetry_delivery
 
 from .schemas import DeviceConfig
-from .solaredge_client import MonitoringApiClient, SolarEdgeClient, SolarEdgeReading
+from .solaredge_client import (
+    MonitoringApiClient,
+    SolarEdgeAuthenticationError,
+    SolarEdgeClient,
+    SolarEdgeRateLimitError,
+    SolarEdgeReading,
+    SolarEdgeRequestError,
+)
 
 LIVE_METRICS = (
     "production_power_w", "consumption_power_w", "grid_power_w",
@@ -40,9 +48,11 @@ class ActiveSession:
     config: DeviceConfig
     client: SolarEdgeClient
     entry: dict[str, Any]
-    credentials_key: tuple[int, str]
+    credentials_key: str
     last_summary_poll: float = 0.0
     last_summary_fingerprint: tuple[Any, ...] | None = None
+    failure_count: int = 0
+    retry_after_seconds: float | None = None
 
 
 class SolarEdgeRuntimeService:
@@ -70,7 +80,9 @@ class SolarEdgeRuntimeService:
                     "message": "This release supports one SolarEdge site per runtime.",
                     "maximum_instances": 1,
                 })
-            key = (config.site_id, config.secret_api_key())
+            key = sha256(
+                f"{config.site_id}\0{config.secret_api_key()}".encode()
+            ).hexdigest()
             if self._active and self._active.credentials_key == key:
                 self._active.config = config
                 self._active.entry = entry
@@ -127,7 +139,13 @@ class SolarEdgeRuntimeService:
     async def _poll_loop(self) -> None:
         while self._active is not None:
             active = self._active
-            await asyncio.sleep(active.config.poll_interval_seconds)
+            backoff = active.config.poll_interval_seconds * (2 ** min(active.failure_count, 5))
+            delay = (
+                min(active.retry_after_seconds, 3600)
+                if active.retry_after_seconds
+                else min(backoff, 3600)
+            )
+            await asyncio.sleep(delay)
             try:
                 async with self._lock:
                     if self._active is not active:
@@ -144,12 +162,23 @@ class SolarEdgeRuntimeService:
         device_id = str(active.entry["device_id"])
         failed_at = _utc_now_iso()
         previous = self.registry.state_snapshots.get(config_id, {}).get("state", {})
-        state = {**previous, "connected": False, "read_failed": True,
-                 "last_error": str(exc), "last_polled_at": failed_at}
+        error_class = _error_class(exc)
+        state = {
+            **previous,
+            "connected": False,
+            "available": False,
+            "stale": True,
+            "read_failed": True,
+            "last_error": error_class,
+            "error_class": error_class,
+            "reauth_required": isinstance(exc, SolarEdgeAuthenticationError),
+            "last_poll_failed_at": failed_at,
+            "last_polled_at": failed_at,
+        }
         self.registry.update_state(config_id, state, device_id=device_id)
         current = self.poll_status.get(config_id, {})
         self._update_poll_status(
-            config_id, last_polled_at=failed_at, last_error=str(exc),
+            config_id, last_polled_at=failed_at, last_error=error_class,
             read_failure_count=int(current.get("read_failure_count", 0)) + 1,
         )
         self._schedule_delivery(
@@ -165,10 +194,16 @@ class SolarEdgeRuntimeService:
         try:
             reading = await active.client.read(include_summary=include_summary)
         except Exception as exc:
+            active.failure_count += 1
+            active.retry_after_seconds = (
+                exc.retry_after_seconds if isinstance(exc, SolarEdgeRateLimitError) else None
+            )
             self._record_read_failure(active, exc)
             raise
 
         polled_at = _utc_now_iso()
+        active.failure_count = 0
+        active.retry_after_seconds = None
         if include_summary:
             active.last_summary_poll = now
         config_id, device_id = str(active.entry["config_id"]), str(active.entry["device_id"])
@@ -190,7 +225,7 @@ class SolarEdgeRuntimeService:
                 active.last_summary_fingerprint = fingerprint
                 self._schedule_delivery(
                     active, metrics=summary, units=_units_for(summary),
-                    timestamp=polled_at, sample=True,
+                    timestamp=_source_timestamp(reading.last_update) or polled_at, sample=True,
                 )
                 self._update_poll_status(config_id, last_sample_recorded_at=polled_at)
         return state
@@ -246,9 +281,14 @@ def _latest(statuses: list[dict[str, Any]], key: str) -> str | None:
 
 
 def reading_to_state(reading: SolarEdgeReading, *, polled_at: str | None = None) -> dict[str, Any]:
+    fetched_at = polled_at or _utc_now_iso()
+    source_observed_at = _source_timestamp(reading.last_update)
     return {
-        "connected": True, "read_failed": False, "last_error": None,
-        "last_polled_at": polled_at or _utc_now_iso(), "vendor_last_update": reading.last_update,
+        "connected": True, "available": True, "stale": False,
+        "read_failed": False, "last_error": None, "error_class": None,
+        "reauth_required": False, "last_polled_at": fetched_at,
+        "fetched_at": fetched_at, "last_success_at": fetched_at,
+        "source_observed_at": source_observed_at,
         "site_id": reading.site_id, "site_name": reading.site_name, "site_status": reading.site_status,
         "production_power_w": reading.production_power_w,
         "consumption_power_w": reading.consumption_power_w, "grid_power_w": reading.grid_power_w,
@@ -257,3 +297,26 @@ def reading_to_state(reading: SolarEdgeReading, *, polled_at: str | None = None)
         "year_energy_kwh": reading.year_energy_kwh, "lifetime_energy_kwh": reading.lifetime_energy_kwh,
         "lifetime_revenue": reading.lifetime_revenue,
     }
+
+
+def _source_timestamp(value: str | None) -> str | None:
+    if not value:
+        return None
+    normalized = value.strip().replace("Z", "+00:00")
+    try:
+        parsed = dt.datetime.fromisoformat(normalized)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return None
+    return parsed.astimezone(dt.timezone.utc).isoformat()
+
+
+def _error_class(exc: Exception) -> str:
+    if isinstance(exc, SolarEdgeAuthenticationError):
+        return "authentication"
+    if isinstance(exc, SolarEdgeRateLimitError):
+        return "rate_limit"
+    if isinstance(exc, SolarEdgeRequestError):
+        return "caller_error"
+    return "transient_outage"

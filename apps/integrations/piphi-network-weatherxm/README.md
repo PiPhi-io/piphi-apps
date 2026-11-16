@@ -1,11 +1,24 @@
 # PiPhi Network WeatherXM
 
-PiPhi integration runtime for WeatherXM stations using the WeatherXM public API.
+Experimental PiPhi integration runtime for WeatherXM stations using WeatherXM's
+**unofficial and unsupported mobile-account API** (`/api/v1/me/devices`). This is
+not the documented WeatherXM Pro API, has no provider compatibility guarantee,
+and must not be described or published as a production/official integration.
 
 The runtime maps WeatherXM station readings into PiPhi telemetry capabilities
 such as temperature, humidity, wind, precipitation, pressure, UV index, solar
 irradiance, and WeatherXM quality-of-data score. Configure either an existing
-WeatherXM bearer token or username/password credentials.
+WeatherXM mobile-account bearer token or username/password credentials. An
+explicit station ID is always required; the runtime never silently chooses the
+first station in an account. Credentials remain in the private client and are
+never copied into registry state, discovery results, diagnostics, or events.
+
+Source observation timestamps must include a timezone and may be at most five
+minutes in the future. Observations older than 30 minutes are retained for
+diagnostic continuity but marked `stale=true` and `available=false`.
+Production requests are pinned to `https://api.weatherxm.com/api/v1`; setup and
+discovery do not accept endpoint overrides. Isolated tests may set
+`PIPHI_ALLOW_TEST_BASE_URL=1` and use a loopback-only URL.
 
 ## Run locally
 

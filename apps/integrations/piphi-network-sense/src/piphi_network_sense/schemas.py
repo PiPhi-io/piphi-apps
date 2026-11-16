@@ -11,6 +11,8 @@ class DeviceConfig(RuntimeConfig):
     mfa_code: SecretStr | None = None
     poll_interval_seconds: int = Field(default=60, ge=60, le=3600)
     trend_interval_seconds: int = Field(default=900, ge=300, le=86400)
+    expose_appliance_activity: bool = False
+    expose_timeline: bool = False
 
     @field_validator("email")
     @classmethod

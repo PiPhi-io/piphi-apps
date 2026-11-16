@@ -118,7 +118,7 @@ class AirthingsCloudDevice:
             return self.device_type.replace("_", " ").title()
         return "Airthings Device"
 
-    def to_discovery_record(self, *, client_id: str, client_secret: str) -> dict[str, Any]:
+    def to_discovery_record(self) -> dict[str, Any]:
         return {
             "id": self.serial_number,
             "serial_number": self.serial_number,
@@ -126,8 +126,6 @@ class AirthingsCloudDevice:
             "name": self.name or self.model_name,
             "device_model": self.device_type,
             "model": self.device_type,
-            "client_id": client_id,
-            "client_secret": client_secret,
             "metadata": {
                 "serial_number": self.serial_number,
                 "home": self.home,

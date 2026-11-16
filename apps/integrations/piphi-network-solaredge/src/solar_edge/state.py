@@ -126,7 +126,7 @@ async def apply_config(config: DeviceConfig) -> None:
     append_runtime_event(
         "runtime.config.applied",
         entry,
-        {"site_id": config.site_id, "alias": config.alias},
+        {"site_configured": True},
     )
 
 
@@ -138,7 +138,7 @@ async def remove_config(config_id: str) -> bool:
     append_runtime_event(
         "runtime.config.removed",
         entry,
-        {"site_id": entry.get("site_id"), "alias": entry.get("alias")},
+        {"site_configured": True},
     )
     return True
 

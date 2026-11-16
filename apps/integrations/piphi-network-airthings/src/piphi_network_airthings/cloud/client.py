@@ -22,6 +22,7 @@ DEFAULT_CONSUMER_BASE_URL = "https://consumer-api.airthings.com"
 DEFAULT_HTTP_TIMEOUT_SECONDS = 15.0
 DEFAULT_RETRY_ATTEMPTS = 3
 DEFAULT_RETRY_DELAY_SECONDS = 1.0
+MAX_RETRY_DELAY_SECONDS = 3600.0
 TOKEN_EXPIRY_SAFETY_SECONDS = 120
 ACCOUNTS_BASE_URL_ENV = "PIPHI_AIRTHINGS_ACCOUNTS_BASE_URL"
 CONSUMER_BASE_URL_ENV = "PIPHI_AIRTHINGS_CONSUMER_BASE_URL"
@@ -116,7 +117,7 @@ class AirthingsCloudClient:
         self._http_client = http_client
         self._owns_http_client = http_client is None
         self._token_cache: dict[str, _TokenRecord] = {}
-        self._account_cache: dict[str, str] = {}
+        self._validated_accounts: set[tuple[str, str]] = set()
 
     async def aclose(self) -> None:
         if self._http_client is not None and self._owns_http_client:
@@ -152,12 +153,22 @@ class AirthingsCloudClient:
                 if response.status_code == 429:
                     if attempt >= self.retry_attempts:
                         raise AirthingsCloudRateLimitError("Airthings API rate limit exceeded.")
-                    retry_after = response.headers.get("Retry-After")
-                    delay = float(retry_after) if retry_after else self.retry_delay_seconds * attempt
+                    retry_after = (
+                        response.headers.get("X-RateLimit-Retry-After")
+                        or response.headers.get("Retry-After")
+                    )
+                    try:
+                        delay = (
+                            min(MAX_RETRY_DELAY_SECONDS, max(float(retry_after), 0.0))
+                            if retry_after
+                            else self.retry_delay_seconds * attempt
+                        )
+                    except ValueError:
+                        delay = self.retry_delay_seconds * attempt
                     logger.warning(
                         "Airthings API rate limit on %s %s attempt=%s/%s retry_in_seconds=%.2f",
                         method,
-                        url,
+                        urlparse(url).path,
                         attempt,
                         self.retry_attempts,
                         delay,
@@ -171,7 +182,7 @@ class AirthingsCloudClient:
                     logger.warning(
                         "Airthings API server error on %s %s status=%s attempt=%s/%s retry_in_seconds=%.2f",
                         method,
-                        url,
+                        urlparse(url).path,
                         response.status_code,
                         attempt,
                         self.retry_attempts,
@@ -188,11 +199,11 @@ class AirthingsCloudClient:
                 logger.warning(
                     "Airthings API request error on %s %s attempt=%s/%s retry_in_seconds=%.2f error=%r",
                     method,
-                    url,
+                    urlparse(url).path,
                     attempt,
                     self.retry_attempts,
                     delay,
-                    exc,
+                    type(exc).__name__,
                 )
                 await asyncio.sleep(delay)
 
@@ -206,8 +217,7 @@ class AirthingsCloudClient:
         cached = self._token_cache.get(credentials.cache_key())
         if cached is not None and not cached.is_expired():
             logger.debug(
-                "Airthings token cache hit client_id=%s expires_at=%s",
-                credentials.client_id,
+                "Airthings token cache hit expires_at=%s",
                 cached.expires_at.isoformat(),
             )
             return cached.access_token
@@ -248,22 +258,20 @@ class AirthingsCloudClient:
             expires_at=expires_at,
         )
         logger.info(
-            "Airthings token refreshed client_id=%s expires_at=%s",
-            credentials.client_id,
+            "Airthings token refreshed expires_at=%s",
             expires_at.isoformat(),
         )
         return access_token
 
     def _clear_cached_auth(self, credentials: AirthingsCredentials) -> None:
-        self._token_cache.pop(credentials.cache_key(), None)
-        self._account_cache.pop(credentials.cache_key(), None)
-        logger.warning("Airthings auth cache cleared client_id=%s", credentials.client_id)
+        key = credentials.cache_key()
+        self._token_cache.pop(key, None)
+        self._validated_accounts = {
+            item for item in self._validated_accounts if item[0] != key
+        }
+        logger.warning("Airthings auth cache cleared")
 
-    async def _account_id(self, credentials: AirthingsCredentials) -> str:
-        cached_account_id = self._account_cache.get(credentials.cache_key())
-        if cached_account_id:
-            return cached_account_id
-
+    async def list_account_ids(self, credentials: AirthingsCredentials) -> list[str]:
         access_token = await self._access_token(credentials)
         response = await self._request(
             "GET",
@@ -285,24 +293,34 @@ class AirthingsCloudClient:
         if not isinstance(raw_accounts, list):
             raise AirthingsCloudRequestError("Airthings account lookup returned an unexpected payload.")
 
+        account_ids: list[str] = []
         for item in raw_accounts:
             if not isinstance(item, dict):
                 continue
             account_id = str(item.get("id") or item.get("accountId") or "").strip()
             if account_id:
-                self._account_cache[credentials.cache_key()] = account_id
-                logger.info(
-                    "Airthings account resolved client_id=%s account_id=%s",
-                    credentials.client_id,
-                    account_id,
-                )
-                return account_id
+                account_ids.append(account_id)
+        if not account_ids:
+            raise AirthingsCloudRequestError("Airthings account lookup returned no account ids.")
+        return account_ids
 
-        raise AirthingsCloudRequestError("Airthings account lookup returned no account ids.")
+    async def _validate_account_id(self, credentials: AirthingsCredentials, account_id: str) -> str:
+        selected = str(account_id).strip()
+        if not selected:
+            raise AirthingsCloudRequestError("An explicit Airthings account id is required.")
+        cache_key = (credentials.cache_key(), selected)
+        if cache_key in self._validated_accounts:
+            return selected
+        if selected not in await self.list_account_ids(credentials):
+            raise AirthingsCloudAuthError("The selected Airthings account is not accessible with these credentials.")
+        self._validated_accounts.add(cache_key)
+        return selected
 
-    async def list_devices(self, credentials: AirthingsCredentials) -> list[AirthingsCloudDevice]:
+    async def list_devices(
+        self, credentials: AirthingsCredentials, *, account_id: str
+    ) -> list[AirthingsCloudDevice]:
         access_token = await self._access_token(credentials)
-        account_id = await self._account_id(credentials)
+        account_id = await self._validate_account_id(credentials, account_id)
         response = await self._request(
             "GET",
             f"{self.consumer_base_url}/v1/accounts/{account_id}/devices",
@@ -336,9 +354,7 @@ class AirthingsCloudClient:
                 )
             )
         logger.info(
-            "Airthings devices listed client_id=%s account_id=%s discovered=%s",
-            credentials.client_id,
-            account_id,
+            "Airthings devices listed discovered=%s",
             len(devices),
         )
         return devices
@@ -347,10 +363,11 @@ class AirthingsCloudClient:
         self,
         *,
         credentials: AirthingsCredentials,
+        account_id: str,
         serial_number: str,
     ) -> AirthingsLatestSample:
         access_token = await self._access_token(credentials)
-        account_id = await self._account_id(credentials)
+        account_id = await self._validate_account_id(credentials, account_id)
         response = await self._request(
             "GET",
             f"{self.consumer_base_url}/v1/accounts/{account_id}/sensors",
@@ -360,7 +377,7 @@ class AirthingsCloudClient:
         if response.status_code in {401, 403}:
             self._clear_cached_auth(credentials)
             raise AirthingsCloudAuthError(
-                f"Airthings consumer cloud token was rejected while reading {serial_number}."
+                "Airthings consumer cloud token was rejected while reading a device."
             )
         if response.status_code >= 400:
             raise AirthingsCloudRequestError(
@@ -377,13 +394,10 @@ class AirthingsCloudClient:
             item_serial = str(item.get("serialNumber") or item.get("serial_number") or "").strip()
             if item_serial == serial_number:
                 logger.info(
-                    "Airthings sample fetched client_id=%s account_id=%s serial_number=%s",
-                    credentials.client_id,
-                    account_id,
-                    serial_number,
+                    "Airthings sample fetched",
                 )
                 return AirthingsLatestSample.from_api_payload(serial_number, item)
 
         raise AirthingsCloudRequestError(
-            f"Airthings device {serial_number} was not found in the cloud account."
+            "The selected Airthings device was not found in the selected cloud account."
         )

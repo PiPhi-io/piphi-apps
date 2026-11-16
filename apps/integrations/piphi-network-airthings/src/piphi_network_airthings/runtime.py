@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 import os
@@ -9,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, SecretStr
 
 from piphi_runtime_kit_python import (
     AutomationActionRequest,
@@ -96,6 +97,7 @@ automation_registry = AutomationRegistry(
 )
 poll_tasks: dict[str, asyncio.Task[Any]] = {}
 poll_status: dict[str, dict[str, Any]] = {}
+runtime_credentials: dict[str, AirthingsCredentials] = {}
 
 
 async def _refresh_all_state() -> None:
@@ -137,7 +139,8 @@ automation_registry.action("refresh")(_refresh_registered_device)
 
 class AirthingsCloudConfig(RuntimeConfig):
     client_id: str
-    client_secret: str
+    client_secret: SecretStr
+    account_id: str
     serial_number: str
     device_name: str | None = None
     device_model: str | None = None
@@ -168,6 +171,7 @@ async def reset_runtime_state() -> None:
             pass
     poll_tasks.clear()
     poll_status.clear()
+    runtime_credentials.clear()
     registry.entries.clear()
     registry.state_snapshots.clear()
     registry.recent_events.clear()
@@ -179,14 +183,17 @@ async def reset_runtime_state() -> None:
 
 
 def _credentials(config: AirthingsCloudConfig) -> AirthingsCredentials:
-    return AirthingsCredentials(client_id=config.client_id, client_secret=config.client_secret)
+    return AirthingsCredentials(
+        client_id=config.client_id,
+        client_secret=config.client_secret.get_secret_value(),
+    )
 
 
 def _entry_credentials(entry: dict[str, Any]) -> AirthingsCredentials:
-    return AirthingsCredentials(
-        client_id=str(entry["client_id"]),
-        client_secret=str(entry["client_secret"]),
-    )
+    credentials = runtime_credentials.get(str(entry["config_id"]))
+    if credentials is None:
+        raise AirthingsCloudAuthError("Airthings credentials are not available; reconfigure the integration.")
+    return credentials
 
 
 def _config_id(config: AirthingsCloudConfig) -> str:
@@ -198,11 +205,10 @@ def _device_id(config: AirthingsCloudConfig) -> str:
 
 
 def _entry_log_label(entry: dict[str, Any]) -> str:
-    return (
-        f"config_id={entry.get('config_id')} "
-        f"serial_number={entry.get('serial_number')} "
-        f"device_model={entry.get('device_model') or 'unknown'}"
-    )
+    reference = hashlib.sha256(
+        str(entry.get("config_id") or entry.get("serial_number") or "unknown").encode()
+    ).hexdigest()[:12]
+    return f"config_ref={reference} device_model={entry.get('device_model') or 'unknown'}"
 
 
 def _entry_name(entry: dict[str, Any]) -> str:
@@ -210,11 +216,8 @@ def _entry_name(entry: dict[str, Any]) -> str:
 
 
 def _config_log_label(config: AirthingsCloudConfig) -> str:
-    return (
-        f"config_id={_config_id(config)} "
-        f"serial_number={config.serial_number} "
-        f"poll_interval_seconds={config.poll_interval_seconds}"
-    )
+    reference = hashlib.sha256(_config_id(config).encode()).hexdigest()[:12]
+    return f"config_ref={reference} poll_interval_seconds={config.poll_interval_seconds}"
 
 
 def _filtered_telemetry_payload(
@@ -503,6 +506,7 @@ def _latest_poll_metadata() -> dict[str, str | None]:
 async def _fetch_latest_sample(entry: dict[str, Any]) -> tuple[AirthingsCloudDevice | None, AirthingsLatestSample]:
     sample = await cloud_client.latest_sample(
         credentials=_entry_credentials(entry),
+        account_id=str(entry["account_id"]),
         serial_number=str(entry["serial_number"]),
     )
     return None, sample
@@ -530,11 +534,18 @@ def _update_state_snapshot(
         {
             **state_payload,
             "connected": True,
+            "available": True,
+            "stale": False,
+            "source_observed_at": sample.recorded_at,
+            "fetched_at": polled_at,
+            "last_success_at": polled_at,
             "serial_number": entry["serial_number"],
             "device_model": entry.get("device_model"),
             "name": _entry_name(entry),
             "last_polled_at": polled_at,
             "last_error": None,
+            "error_class": None,
+            "reauth_required": False,
         },
     )
     metrics = dict(derived_metrics)
@@ -687,10 +698,15 @@ async def poll_once(config_id: str) -> None:
                 config_id,
                 {
                     "connected": False,
+                    "available": False,
+                    "stale": True,
                     "serial_number": entry["serial_number"],
                     "device_model": entry.get("device_model"),
                     "name": _entry_name(entry),
                     "last_error": safe_error,
+                    "error_class": _poll_error_class(exc),
+                    "reauth_required": isinstance(exc, AirthingsCloudAuthError),
+                    "last_poll_failed_at": _utc_now_iso(),
                 },
             )
             schedule_telemetry_delivery(
@@ -744,7 +760,9 @@ async def _poll_config(config_id: str, interval_seconds: int) -> None:
 
 async def _ensure_known_device(config: AirthingsCloudConfig) -> AirthingsCloudDevice:
     try:
-        devices = await cloud_client.list_devices(_credentials(config))
+        devices = await cloud_client.list_devices(
+            _credentials(config), account_id=config.account_id
+        )
     except AirthingsCloudError as exc:
         _raise_http_for_cloud_error(exc)
     for device in devices:
@@ -759,13 +777,28 @@ async def _ensure_known_device(config: AirthingsCloudConfig) -> AirthingsCloudDe
             return device
     raise HTTPException(
         status_code=404,
-        detail=f"Airthings serial number {config.serial_number} was not found for the provided cloud credentials.",
+        detail="The selected Airthings device was not found in the selected account.",
     )
 
 
 async def apply_config(config: AirthingsCloudConfig) -> dict[str, Any]:
     config_id = _config_id(config)
     logger.info("airthings_config_apply_started %s", _config_log_label(config))
+    duplicate = next(
+        (
+            existing_id
+            for existing_id, existing in registry.entries.items()
+            if existing_id != config_id
+            and str(existing.get("account_id")) == config.account_id
+            and str(existing.get("serial_number")) == config.serial_number
+        ),
+        None,
+    )
+    if duplicate is not None:
+        raise HTTPException(
+            status_code=409,
+            detail="The selected Airthings account and device are already configured.",
+        )
     device = await _ensure_known_device(config)
     previous_entry = registry.get(config_id)
     previous_sample_at = (
@@ -780,15 +813,14 @@ async def apply_config(config: AirthingsCloudConfig) -> dict[str, Any]:
         "device_id": _device_id(config),
         "container_id": getattr(config, "container_id", None),
         "integration_id": getattr(config, "integration_id", None) or INTEGRATION_ID,
-        "client_id": config.client_id,
-        "client_secret": config.client_secret,
+        "account_id": config.account_id,
         "serial_number": config.serial_number,
         "device_name": config.device_name or device.name,
         "device_model": config.device_model or device.device_type,
         "poll_interval_seconds": config.poll_interval_seconds,
-        "config": config.model_dump(),
         "known_sensors": list(device.sensors),
     }
+    runtime_credentials[config_id] = _credentials(config)
     if previous_sample_at:
         entry["last_delivered_sample_at"] = previous_sample_at
     registry.set(config_id, entry)
@@ -821,10 +853,14 @@ async def apply_config(config: AirthingsCloudConfig) -> dict[str, Any]:
             config_id,
             {
                 "connected": False,
+                "available": False,
+                "stale": True,
                 "serial_number": entry["serial_number"],
                 "device_model": entry.get("device_model"),
                 "name": _entry_name(entry),
                 "last_error": initial_error,
+                "error_class": _poll_error_class(exc),
+                "reauth_required": isinstance(exc, AirthingsCloudAuthError),
             },
         )
         _schedule_runtime_event_delivery(
@@ -868,6 +904,7 @@ async def remove_config(config_id: str) -> bool:
             pass
     removed = registry.remove(config_id)
     poll_status.pop(config_id, None)
+    runtime_credentials.pop(config_id, None)
     if removed is None:
         logger.info("airthings_config_remove_skipped config_id=%s reason=not_found", config_id)
         return False
@@ -884,20 +921,20 @@ async def _discover_devices(
     *,
     client_id: str,
     client_secret: str,
+    account_id: str,
     serial_number: str | None = None,
 ) -> list[dict[str, Any]]:
     credentials = AirthingsCredentials(client_id=client_id, client_secret=client_secret)
-    devices = await cloud_client.list_devices(credentials)
+    devices = await cloud_client.list_devices(credentials, account_id=account_id)
     if serial_number:
         devices = [device for device in devices if device.serial_number == serial_number]
     logger.info(
-        "airthings_discovery_completed client_id=%s serial_filter=%s discovered=%s",
-        client_id,
-        serial_number or "none",
+        "airthings_discovery_completed filtered=%s discovered=%s",
+        bool(serial_number),
         len(devices),
     )
     return [
-        device.to_discovery_record(client_id=client_id, client_secret=client_secret)
+        device.to_discovery_record()
         for device in devices
     ]
 
@@ -923,6 +960,16 @@ def _safe_poll_error(exc: Exception) -> str:
     if isinstance(exc, AirthingsCloudError):
         return "Airthings consumer cloud request failed."
     return "Airthings poll failed."
+
+
+def _poll_error_class(exc: Exception) -> str:
+    if isinstance(exc, AirthingsCloudAuthError):
+        return "authentication"
+    if isinstance(exc, AirthingsCloudRateLimitError):
+        return "rate_limit"
+    if isinstance(exc, AirthingsCloudRequestError):
+        return "transient_outage"
+    return "runtime_error"
 
 
 async def _extract_discovery_inputs(
@@ -1066,11 +1113,15 @@ async def diagnostics(request: Request) -> RuntimeDiagnosticsResponse:
     authorize_runtime_request(request, runtime_context=runtime)
     return starter.diagnostics_response(
         diagnostics={
-            "active_config_ids": registry.ids(),
+            "active_config_count": len(registry.ids()),
             "recent_event_count": len(registry.recent_events),
-            "poll_task_ids": sorted(poll_tasks.keys()),
-            "poll_status": poll_status,
-            "state_snapshots": registry.state_snapshots,
+            "poll_task_count": len(poll_tasks),
+            "poll_status": {
+                "read_failure_count": sum(
+                    1 for status in poll_status.values() if status.get("last_poll_error")
+                ),
+                **_latest_poll_metadata(),
+            },
         }
     )
 
@@ -1083,7 +1134,7 @@ async def ui_config() -> dict[str, Any]:
             "title": "Airthings Consumer Cloud Setup",
             "description": "Connect PiPhi to an Airthings consumer account device using your Airthings Consumer API client credentials.",
             "type": "object",
-            "required": ["client_id", "client_secret", "serial_number"],
+            "required": ["client_id", "client_secret", "account_id", "serial_number"],
             "properties": {
                 "client_id": {
                     "type": "string",
@@ -1094,6 +1145,11 @@ async def ui_config() -> dict[str, Any]:
                     "type": "string",
                     "title": "Client Secret",
                     "description": "Client secret from the Airthings dashboard integrations page.",
+                },
+                "account_id": {
+                    "type": "string",
+                    "title": "Account ID",
+                    "description": "Explicit consumer account ID shown by the Airthings API; PiPhi never chooses the first account.",
                 },
                 "serial_number": {
                     "type": "string",
@@ -1140,17 +1196,18 @@ async def discover(
     inputs = await _extract_discovery_inputs(request, payload)
     client_id = str(inputs.get("client_id") or "").strip()
     client_secret = str(inputs.get("client_secret") or "").strip()
-    if not client_id or not client_secret:
-        raise HTTPException(status_code=400, detail="Discovery requires client_id and client_secret.")
+    account_id = str(inputs.get("account_id") or "").strip()
+    if not client_id or not client_secret or not account_id:
+        raise HTTPException(status_code=400, detail="Discovery requires client_id, client_secret, and an explicit account_id.")
     logger.info(
-        "airthings_discovery_started client_id=%s serial_filter=%s",
-        client_id,
-        str(inputs.get("serial_number") or "").strip() or "none",
+        "airthings_discovery_started filtered=%s",
+        bool(str(inputs.get("serial_number") or "").strip()),
     )
     try:
         devices = await _discover_devices(
             client_id=client_id,
             client_secret=client_secret,
+            account_id=account_id,
             serial_number=str(inputs.get("serial_number") or "").strip() or None,
         )
     except AirthingsCloudError as exc:
