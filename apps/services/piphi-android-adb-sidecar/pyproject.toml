@@ -1,6 +1,6 @@
 [project]
 name = "piphi-android-adb-sidecar"
-version = "0.2.0-rc.1"
+version = "0.3.0-rc.1"
 description = "Piphi Android Adb Sidecar PiPhi sidecar runtime."
 requires-python = ">=3.11"
 dependencies = [

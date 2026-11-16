@@ -1,7 +1,7 @@
 """Version 1 of the bounded parent-to-ADB-sidecar message contract.
 
-This module only validates messages.  It deliberately contains no ADB transport or
-command construction.
+This module validates the private parent contract. Transport command construction
+remains isolated in ``transport.py``.
 """
 
 from __future__ import annotations
@@ -122,6 +122,29 @@ class AcceptedResponse(ContractModel):
     status: Literal["accepted"]
 
 
+class KeyEventResult(ContractModel):
+    operation: Literal["key_event"]
+    repeats_completed: int = Field(strict=True, ge=1, le=10)
+
+
+class PropertyQueryResult(ContractModel):
+    operation: Literal["property_query"]
+    properties: dict[ReadableProperty, str]
+
+
+CompletedResult = Annotated[
+    KeyEventResult | PropertyQueryResult,
+    Field(discriminator="operation"),
+]
+
+
+class CompletedResponse(ContractModel):
+    version: Literal["1"]
+    request_id: RequestId
+    status: Literal["completed"]
+    result: CompletedResult
+
+
 class ErrorResponse(ContractModel):
     version: Literal["1"]
     request_id: RequestId
@@ -131,7 +154,10 @@ class ErrorResponse(ContractModel):
     retry_after_ms: int | None = Field(default=None, strict=True, ge=1, le=60_000)
 
 
-Response = Annotated[AcceptedResponse | ErrorResponse, Field(discriminator="status")]
+Response = Annotated[
+    AcceptedResponse | CompletedResponse | ErrorResponse,
+    Field(discriminator="status"),
+]
 response_adapter: TypeAdapter[Response] = TypeAdapter(Response)
 
 

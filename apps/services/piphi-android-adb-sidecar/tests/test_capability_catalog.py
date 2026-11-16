@@ -6,13 +6,44 @@ from pathlib import Path
 import httpx
 import pytest
 
+from piphi_android_adb_sidecar import state
 from piphi_android_adb_sidecar.main import app
+from piphi_android_adb_sidecar.transport import AdbOfflineError, BoundedQueue
 
 ROOT = Path(__file__).parents[1]
 CATALOG = json.loads((ROOT / "capability-catalog.json").read_text())
 MANIFEST = json.loads((ROOT / "manifest.json").read_text())
 EXAMPLE = json.loads((ROOT / "examples" / "entity-response.json").read_text())
 ROLES = ("state", "events", "conditions", "actions")
+AUTH_HEADERS = {"Authorization": "Bearer test-internal-token"}
+
+
+class AuthorizedSession:
+    def __init__(self, config) -> None:
+        self.queue = BoundedQueue(config.queue_capacity)
+        self.connected = False
+        self.authorized = False
+        self.target_id: str | None = None
+        self.metadata: dict[str, str] = {}
+
+    async def open(self) -> None:
+        self.connected = True
+        self.authorized = True
+        self.target_id = "adb-catalog-target"
+
+    async def close(self) -> None:
+        self.connected = False
+        self.authorized = False
+
+
+class OfflineSession(AuthorizedSession):
+    async def open(self) -> None:
+        raise AdbOfflineError("offline")
+
+
+@pytest.fixture(autouse=True)
+def sidecar_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PIPHI_ANDROID_ADB_SIDECAR_TOKEN", "test-internal-token")
 
 
 def _by_status(status: str, role: str) -> set[str]:
@@ -49,9 +80,14 @@ def test_sidecar_has_only_a_transport_service_entity() -> None:
 
 
 @pytest.mark.anyio
-async def test_config_apply_emits_runtime_event() -> None:
+async def test_config_apply_emits_runtime_event(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(state, "session_factory", AuthorizedSession)
     transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+    async with httpx.AsyncClient(
+        transport=transport,
+        base_url="http://testserver",
+        headers=AUTH_HEADERS,
+    ) as client:
         try:
             assert (await client.post("/config", json={"id": "catalog-test", "host": "127.0.0.1", "alias": "ADB"})).status_code == 200
             events = (await client.get("/events")).json()["events"]
@@ -61,28 +97,36 @@ async def test_config_apply_emits_runtime_event() -> None:
 
 
 @pytest.mark.anyio
-async def test_config_does_not_claim_adb_connectivity() -> None:
+async def test_offline_config_is_rejected_transactionally(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(state, "session_factory", OfflineSession)
     transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
-        try:
-            response = await client.post(
-                "/config",
-                json={"id": "offline-test", "host": "192.0.2.1", "alias": "ADB"},
-            )
-            assert response.status_code == 200
-            state = (await client.get("/state")).json()
-            assert state["entries"]["offline-test"]["latest_state"]["connected"] is False
-            assert "192.0.2.1" not in str(state)
-            assert "192.0.2.1" not in str((await client.get("/events")).json())
-            assert "192.0.2.1" not in str((await client.get("/diagnostics")).json())
-        finally:
-            await client.post("/deconfigure/offline-test")
+    async with httpx.AsyncClient(
+        transport=transport,
+        base_url="http://testserver",
+        headers=AUTH_HEADERS,
+    ) as client:
+        response = await client.post(
+            "/config",
+            json={"id": "offline-test", "host": "192.0.2.1", "alias": "ADB"},
+        )
+        assert response.status_code == 503
+        runtime_state = (await client.get("/state")).json()
+        assert "offline-test" not in runtime_state["entries"]
+        assert "192.0.2.1" not in str(runtime_state)
+        assert "192.0.2.1" not in str((await client.get("/events")).json())
+        assert "192.0.2.1" not in str((await client.get("/diagnostics")).json())
 
 
 @pytest.mark.anyio
 async def test_discovery_does_not_fabricate_an_adb_target() -> None:
     transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+    async with httpx.AsyncClient(
+        transport=transport,
+        base_url="http://testserver",
+        headers=AUTH_HEADERS,
+    ) as client:
         response = await client.post("/discover", json={})
     assert response.status_code == 200
     assert response.json()["devices"] == []
@@ -92,7 +136,11 @@ async def test_discovery_does_not_fabricate_an_adb_target() -> None:
 @pytest.mark.parametrize("command", ["refresh", "restart_worker", "execute_arbitrary_shell", "install_arbitrary_apk"])
 async def test_unimplemented_and_unsafe_commands_fail_closed(command: str) -> None:
     transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+    async with httpx.AsyncClient(
+        transport=transport,
+        base_url="http://testserver",
+        headers=AUTH_HEADERS,
+    ) as client:
         response = await client.post("/command", json={"contract_version": "automation.runtime.command.v1", "command": command, "target": {"device_id": "android-adb-service", "config_id": "android-adb-service"}, "params": {}})
     assert response.status_code == 400
     assert response.json()["detail"] == f"Unsupported command: {command}"

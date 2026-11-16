@@ -9,12 +9,15 @@ from piphi_android_adb_sidecar.parent_contract_v1 import (
     CONTRACT_VERSION,
     MAX_PAYLOAD_BYTES,
     AcceptedResponse,
+    CompletedResponse,
     ContractPayloadError,
     ErrorCode,
     ErrorResponse,
     KeyCode,
     KeyEvent,
+    KeyEventResult,
     PropertyQuery,
+    PropertyQueryResult,
     ReadableProperty,
     parse_request,
     response_adapter,
@@ -189,6 +192,32 @@ def test_response_contract_has_only_explicit_errors() -> None:
     assert AcceptedResponse(
         version="1", request_id="request-1", status="accepted"
     ).status == "accepted"
+    completed = response_adapter.validate_python(
+        {
+            "version": "1",
+            "request_id": "request-1",
+            "status": "completed",
+            "result": {
+                "operation": "property_query",
+                "properties": {"ro.product.model": "Example TV"},
+            },
+        }
+    )
+    assert completed == CompletedResponse(
+        version="1",
+        request_id="request-1",
+        status="completed",
+        result=PropertyQueryResult(
+            operation="property_query",
+            properties={ReadableProperty.PRODUCT_MODEL: "Example TV"},
+        ),
+    )
+    assert CompletedResponse(
+        version="1",
+        request_id="request-2",
+        status="completed",
+        result=KeyEventResult(operation="key_event", repeats_completed=1),
+    ).status == "completed"
     with pytest.raises(ValidationError):
         ErrorResponse(
             version="1",

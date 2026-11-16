@@ -1,6 +1,10 @@
 {
   "id": "demo-device",
-  "host": "127.0.0.1",
+  "host": "192.168.1.50",
+  "port": 5555,
   "alias": "Demo Device",
-  "service_name": "local-helper"
+  "service_name": "android-adb",
+  "queue_capacity": 16,
+  "connect_timeout_ms": 5000,
+  "operation_timeout_ms": 5000
 }
