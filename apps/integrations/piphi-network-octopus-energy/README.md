@@ -68,6 +68,6 @@ billing details, tariff switching, and arbitrary API requests are excluded.
 ## Docker
 
 ```bash
-docker build -t docker.io/piphinetwork/piphi-network-octopus-energy:0.1.0 .
-docker run --rm -p 4212:4212 docker.io/piphinetwork/piphi-network-octopus-energy:0.1.0
+docker build -t ghcr.io/piphi-io/piphi-network-octopus-energy:0.1.1 .
+docker run --rm -p 4212:4212 ghcr.io/piphi-io/piphi-network-octopus-energy:0.1.1
 ```
