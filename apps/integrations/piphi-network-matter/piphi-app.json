@@ -7,7 +7,7 @@
   "toolchains": { "node": "22" },
   "ci": {
     "enforcement": "full",
-    "commands": ["npm ci", "npm audit --omit=dev --audit-level=high", "npm run check", "npm test", "npm run test:coverage", "npm run build"],
+    "commands": ["npm ci", "npm --prefix ../../services/piphi-matter-js-sidecar ci", "npm audit --omit=dev --audit-level=high", "npm run check", "npm test", "npm run test:coverage", "npm run build"],
     "build_container": true
   },
   "packages": [{
