@@ -24,7 +24,11 @@ async def test_runtime_conforms_to_shared_contract_fixtures(monkeypatch) -> None
                 "camera_count": 1,
                 "name": "Demo camera",
                 "model": "RLC-Test",
+                "hardware": "IPC-Test",
+                "firmware": "v1",
+                "hardware_id": "demo-hardware",
                 "is_nvr": False,
+                "is_battery": False,
                 "channels": [],
             }
 
@@ -34,7 +38,7 @@ async def test_runtime_conforms_to_shared_contract_fixtures(monkeypatch) -> None
     async def connect(**_kwargs):
         return FakeClient()
 
-    monkeypatch.setattr(state, "_client_connector", connect)
+    monkeypatch.setattr(state.runtime_data, "client_connector", connect)
     transport = httpx.ASGITransport(app=app)
     try:
         async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:

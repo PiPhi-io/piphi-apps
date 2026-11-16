@@ -1,18 +1,19 @@
 [project]
 name = "piphi-network-reolink"
-version = "0.1.0"
+version = "0.2.0"
 description = "Local Reolink camera and NVR integration for PiPhi Network."
 requires-python = ">=3.11"
 dependencies = [
   "fastapi>=0.115.0",
   "uvicorn[standard]>=0.30.0",
   "piphi-runtime-kit-python>=0.8.0,<1.0.0",
-  "reolink-aio>=0.21.17,<0.22.0",
+  "reolink-aio==0.23.1",
 ]
 
 [project.optional-dependencies]
 dev = [
   "pytest>=8.0.0",
+  "pytest-cov>=6.0.0",
   "httpx>=0.27.0",
   "ruff>=0.9.0",
 ]
@@ -34,3 +35,6 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/piphi_network_reolink"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"src/behaviors.json" = "piphi_network_reolink/behaviors.json"

@@ -22,5 +22,5 @@ short-lived `GITHUB_TOKEN`; no long-lived registry credential is required.
 Current image target:
 
 ```text
-ghcr.io/piphi-io/piphi-network-reolink:0.1.0
+ghcr.io/piphi-io/piphi-network-reolink:0.2.0
 ```

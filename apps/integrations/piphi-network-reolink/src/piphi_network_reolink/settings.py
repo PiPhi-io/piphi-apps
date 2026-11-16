@@ -4,7 +4,7 @@ import os
 
 INTEGRATION_ID = "piphi-network-reolink"
 INTEGRATION_NAME = "Reolink cameras"
-INTEGRATION_VERSION = "0.1.0"
+INTEGRATION_VERSION = "0.2.0"
 PROJECT_KIND = "integration"
 PROJECT_PRESET = "actuator-device"
 PROJECT_DOMAIN = "local-device"

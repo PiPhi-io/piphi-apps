@@ -1,5 +1,15 @@
 # Home Assistant quality comparison: Reolink
 
+> **Historical audit and remediation status:** This ledger records the strict 0.1.0 audit that
+> motivated version 0.2.0. Version 0.2.0 closes the software-verifiable Bronze gaps: verified and
+> transactional setup, classified reauthentication failures, hashed hardware identity and duplicate
+> rejection, route authentication, retained stale inventory, bounded concurrent polling/backoff,
+> battery wake safeguards, an exact `reolink-aio` pin, complete user documentation, package assets,
+> expanded negative tests, and container CI. The registry remains `beta`, 1% rollout, and
+> `qualification.status: unverified` because representative physical-hardware qualification is
+> still required. The comparison tables below remain the immutable evidence for the 0.1.0 finding,
+> not a description of the 0.2.0 runtime.
+
 **Research cutoff:** 2026-11-15
 
 **Audited package:** `piphi-network-reolink` 0.1.0 at PiPhi Apps commit [`8c69c0d`](https://github.com/PiPhi-io/piphi-apps/tree/8c69c0d1715c2bdecdb2d5125e4eef2395cf4652/apps/integrations/piphi-network-reolink)

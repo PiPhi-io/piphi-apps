@@ -21,16 +21,19 @@ def _connection_entity(entry: dict[str, Any]) -> dict[str, Any]:
         "available_commands": FALLBACK_ENTITY["available_commands"],
         "dashboard": FALLBACK_ENTITY["dashboard"],
         "metadata": {
-            "host": entry.get("host"),
             "model": entry.get("model"),
+            "hardware": entry.get("hardware"),
+            "firmware": entry.get("firmware"),
             "is_nvr": bool(entry.get("is_nvr")),
+            "availability": entry.get("availability", "unknown"),
         },
     }
 
 
 def _camera_entity(entry: dict[str, Any], channel: dict[str, Any]) -> dict[str, Any]:
     channel_number = int(channel["channel"])
-    device_id = f"{entry['device_id']}:channel:{channel_number}"
+    channel_identity = channel.get("hardware_id") or f"channel:{channel_number}"
+    device_id = f"{entry['device_id']}:camera:{channel_identity}"
     return {
         "id": device_id,
         "name": channel["name"],
@@ -44,6 +47,7 @@ def _camera_entity(entry: dict[str, Any], channel: dict[str, Any]) -> dict[str, 
         "metadata": {
             "channel": channel_number,
             "model": channel.get("model"),
+            "hardware": channel.get("hardware"),
             "firmware": channel.get("firmware"),
             "features": channel.get("features", []),
             "online": bool(channel.get("online")),

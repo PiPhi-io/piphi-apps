@@ -51,9 +51,10 @@ CONFIG_SCHEMA: dict[str, Any] = {
             "poll_interval_seconds": {
                 "type": "integer",
                 "title": "Polling interval",
-                "minimum": 10,
+                "minimum": 60,
                 "maximum": 3600,
-                "default": 30,
+                "default": 60,
+                "description": "Powered devices only. Battery devices use a wake-safe minimum.",
             },
         },
     },
