@@ -217,7 +217,8 @@ async def test_bridge_routes_render_and_snapshot(tmp_path, monkeypatch) -> None:
     supervisor = supervisor_response.json()
     assert supervisor["ok"] is True
     assert supervisor["status"] == "planned"
-    assert supervisor["commands"][1][0:3] == ["docker", "run", "-d"]
+    assert supervisor["commands"] == []
+    assert "Core owns Zigbee2MQTT lifecycle" in supervisor["message"]
 
     assert logs_response.status_code == 200
     logs = logs_response.json()
@@ -232,7 +233,7 @@ async def test_bridge_routes_render_and_snapshot(tmp_path, monkeypatch) -> None:
     assert prerequisites_response.status_code == 200
     prerequisites = prerequisites_response.json()
     assert prerequisites["ok"] is True
-    assert prerequisites["checks"][0]["name"] == "docker_available"
+    assert prerequisites["checks"][0]["name"] == "core_managed_helper_required"
 
     assert devices_response.status_code == 200
     devices = devices_response.json()

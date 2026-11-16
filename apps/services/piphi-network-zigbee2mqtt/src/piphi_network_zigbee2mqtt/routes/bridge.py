@@ -6,8 +6,13 @@ from ..adapter_detector import discover_adapters
 from ..bridge_models import (
     ApplyBridgeRequest,
     ApplyBridgeResponse,
+    CoordinatorMigrationApplyRequest,
+    CoordinatorMigrationApplyResponse,
+    CoordinatorMigrationPlanRequest,
     CoordinatorProbeRequest,
     DeviceListRequest,
+    EncryptedBackupExportRequest,
+    EncryptedBackupImportRequest,
     MqttCheckRequest,
     NetworkBackupRequest,
     NetworkMapRequest,
@@ -28,8 +33,15 @@ from ..coordinator_claims import (
     claim_store,
     stable_coordinator_identity,
 )
+from ..coordinator_migration import migration_plan_id, plan_coordinator_migration
 from ..coordinator_probe import probe_coordinator
-from ..network_backup import create_network_backup, restore_network_backup, verify_network_backup
+from ..network_backup import (
+    create_network_backup,
+    export_encrypted_backup,
+    import_encrypted_backup,
+    restore_network_backup,
+    verify_network_backup,
+)
 from ..state import sidecar_store
 from ..supervisor import check_prerequisites, supervise, supervisor_logs
 from ..zigbee2mqtt_mqtt import (
@@ -65,6 +77,127 @@ async def network_backup(payload: NetworkBackupRequest):
         return create_network_backup(payload.data_path, adapter_family=payload.adapter_family)
     except (OSError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/network-backup/export")
+async def network_backup_export(payload: EncryptedBackupExportRequest):
+    try:
+        return export_encrypted_backup(
+            backup_path=payload.backup_path,
+            expected_sha256=payload.backup_sha256,
+            passphrase=payload.passphrase,
+        )
+    except (OSError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/network-backup/import")
+async def network_backup_import(payload: EncryptedBackupImportRequest):
+    try:
+        return import_encrypted_backup(
+            data_path=payload.data_path,
+            export_path=payload.export_path,
+            expected_sha256=payload.export_sha256,
+            passphrase=payload.passphrase,
+        )
+    except (OSError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/coordinator-migration/plan")
+async def coordinator_migration_plan(payload: CoordinatorMigrationPlanRequest):
+    try:
+        return plan_coordinator_migration(payload, probe=probe_coordinator)
+    except (OSError, ValueError) as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.post("/coordinator-migration/apply", response_model=CoordinatorMigrationApplyResponse)
+async def coordinator_migration_apply(payload: CoordinatorMigrationApplyRequest):
+    if not payload.confirm_migration:
+        raise HTTPException(status_code=400, detail="Coordinator migration requires explicit confirmation.")
+    plan_request = CoordinatorMigrationPlanRequest.model_validate(
+        payload.model_dump(exclude={"plan_id", "confirm_migration"})
+    )
+    if migration_plan_id(plan_request) != payload.plan_id:
+        raise HTTPException(status_code=409, detail="Coordinator migration plan no longer matches the request.")
+    try:
+        plan_coordinator_migration(plan_request, probe=probe_coordinator)
+    except (OSError, ValueError) as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    identity = stable_coordinator_identity(payload.target_coordinator_identity)
+    owner_id = claim_owner_id()
+    previous_identity = sidecar_store.coordinator_identity
+    previous_owner = sidecar_store.coordinator_owner_id
+    claimed_target = previous_identity != identity or previous_owner != owner_id
+    restore_result = None
+    try:
+        claim_store.claim(identity, owner_id)
+        restore_result = restore_network_backup(
+            data_path=payload.data_path,
+            backup_path=payload.backup_path,
+            expected_sha256=payload.backup_sha256,
+            adapter_family=payload.target_adapter_family,
+            compatibility_evidence=payload.compatibility_evidence,
+            rollback_adapter_family=payload.source_adapter_family,
+        )
+        if sidecar_store.current_config is None:
+            raise ValueError("A current Zigbee2MQTT configuration is required for guided migration.")
+        migrated_config = sidecar_store.current_config.model_copy(
+            update={
+                "serial": sidecar_store.current_config.serial.model_copy(
+                    update={
+                        "port": payload.target_coordinator_port,
+                        "adapter": payload.target_adapter,
+                    }
+                )
+            }
+        )
+        rendered = render_zigbee2mqtt_config(migrated_config)
+        target_path = f"{payload.data_path.rstrip('/')}/configuration.yaml"
+        write_result = write_config_atomic(rendered.yaml, target_path)
+        rendered.config_path = write_result.config_path
+        rendered.config_hash = write_result.config_hash
+        sidecar_store.current_config = migrated_config
+        sidecar_store.current_render = rendered
+        sidecar_store.config_path = write_result.config_path
+        sidecar_store.config_hash = write_result.config_hash
+        sidecar_store.coordinator_identity = identity
+        sidecar_store.coordinator_owner_id = owner_id
+        sidecar_store.last_error = None
+    except CoordinatorClaimConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except (OSError, ValueError) as exc:
+        if restore_result is not None:
+            try:
+                restore_network_backup(
+                    data_path=payload.data_path,
+                    backup_path=restore_result.rollback_backup.backup_path,
+                    expected_sha256=restore_result.rollback_backup.backup_sha256,
+                    adapter_family=payload.source_adapter_family,
+                )
+            except (OSError, ValueError) as rollback_exc:
+                sidecar_store.last_error = "Coordinator migration and automatic rollback both failed."
+                raise HTTPException(status_code=500, detail=sidecar_store.last_error) from rollback_exc
+        sidecar_store.last_error = f"Coordinator migration failed and was rolled back: {exc}"
+        raise HTTPException(status_code=409, detail=sidecar_store.last_error) from exc
+    finally:
+        if claimed_target and sidecar_store.coordinator_identity != identity:
+            claim_store.release(identity, owner_id)
+
+    if previous_identity and previous_owner and previous_identity != identity:
+        claim_store.release(previous_identity, previous_owner)
+    assert restore_result is not None
+    return CoordinatorMigrationApplyResponse(
+        migrated=True,
+        plan_id=payload.plan_id,
+        target_coordinator_identity=identity,
+        target_coordinator_port=payload.target_coordinator_port,
+        restored_files=restore_result.files,
+        rollback_backup=restore_result.rollback_backup,
+        message="Coordinator migration restored and configured; Core restart and post-migration verification are required.",
+    )
 
 
 @router.post("/network-restore")

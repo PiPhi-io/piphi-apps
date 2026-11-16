@@ -165,6 +165,73 @@ class NetworkRestoreResponse(BaseModel):
     message: str
 
 
+class EncryptedBackupExportRequest(BaseModel):
+    backup_path: str
+    backup_sha256: str
+    passphrase: str = Field(min_length=12, max_length=1024, repr=False)
+
+
+class EncryptedBackupExportResponse(BaseModel):
+    export_path: str
+    export_sha256: str
+    format: Literal["piphi-zigbee-aes256-gcm-v1"] = "piphi-zigbee-aes256-gcm-v1"
+
+
+class EncryptedBackupImportRequest(BaseModel):
+    data_path: str
+    export_path: str
+    export_sha256: str
+    passphrase: str = Field(min_length=12, max_length=1024, repr=False)
+
+
+class CoordinatorMigrationPlanRequest(BaseModel):
+    data_path: str
+    backup_path: str
+    backup_sha256: str
+    source_adapter_family: str = Field(min_length=1, max_length=64)
+    target_adapter_family: str = Field(min_length=1, max_length=64)
+    target_coordinator_identity: str = Field(min_length=1, max_length=256)
+    target_coordinator_port: str = Field(min_length=1, max_length=512)
+    target_adapter: str | None = Field(default=None, min_length=1, max_length=64)
+    compatibility_evidence: str | None = Field(default=None, min_length=1, max_length=512)
+
+    @field_validator("source_adapter_family", "target_adapter_family")
+    @classmethod
+    def normalize_adapter_family(cls, value: str) -> str:
+        token = value.strip().lower()
+        if not token:
+            raise ValueError("Adapter family is required.")
+        return token
+
+
+class CoordinatorMigrationPlanResponse(BaseModel):
+    plan_id: str
+    compatible: bool
+    target_available: bool
+    source_adapter_family: str
+    target_adapter_family: str
+    target_coordinator_identity: str
+    target_coordinator_port: str
+    compatibility_basis: Literal["same_family", "explicit_evidence"]
+    steps: list[str]
+    warnings: list[str] = Field(default_factory=list)
+
+
+class CoordinatorMigrationApplyRequest(CoordinatorMigrationPlanRequest):
+    plan_id: str = Field(pattern=r"sha256:[0-9a-f]{64}")
+    confirm_migration: bool = False
+
+
+class CoordinatorMigrationApplyResponse(BaseModel):
+    migrated: bool
+    plan_id: str
+    target_coordinator_identity: str
+    target_coordinator_port: str
+    restored_files: list[str]
+    rollback_backup: NetworkBackupResponse
+    message: str
+
+
 class CoordinatorProbeRequest(BaseModel):
     port: str
 

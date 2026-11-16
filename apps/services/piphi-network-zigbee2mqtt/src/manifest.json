@@ -4,7 +4,7 @@
   "kind": "platform_service",
   "id": "piphi.service.zigbee2mqtt-sidecar",
   "name": "Zigbee2MQTT Sidecar",
-  "version": "0.1.21",
+  "version": "0.1.22",
   "description": "PiPhi sidecar service for detecting Zigbee coordinators and rendering Zigbee2MQTT bridge configuration.",
   "metadata": {
     "generator": "piphi-network-create",
@@ -16,7 +16,9 @@
       "service": "zigbee2mqtt",
       "linux": {
         "mode": "container",
-        "supervisor": "docker",
+        "supervisor": "core_managed_helper",
+        "helper_package_id": "piphi.helper.zigbee2mqtt",
+        "helper_package_version": "2.14.3",
         "recommended_for": [
           "usb_coordinator",
           "network_coordinator"
@@ -49,7 +51,7 @@
     "website": "https://piphi.io"
   },
   "license": "Apache-2.0",
-  "image": "ghcr.io/piphi-io/zigbee2mqtt-sidecar:0.1.21",
+  "image": "ghcr.io/piphi-io/zigbee2mqtt-sidecar:0.1.22",
   "platforms": [
     "linux",
     "windows",
@@ -59,7 +61,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "ghcr.io/piphi-io/zigbee2mqtt-sidecar:0.1.21",
+        "image": "ghcr.io/piphi-io/zigbee2mqtt-sidecar:0.1.22",
         "ports": [
           {
             "container": 8720
@@ -70,33 +72,17 @@
           "PIPHI_ENV": "production",
           "PIPHI_ZIGBEE2MQTT_ALLOWED_DATA_ROOTS": "/app/data",
           "PIPHI_ZIGBEE2MQTT_CLAIM_DIR": "/app/data/coordinator-claims",
-          "ZIGBEE2MQTT_BRIDGE_CONTAINER": "piphi-zigbee2mqtt",
-          "ZIGBEE2MQTT_BRIDGE_IMAGE": "ghcr.io/koenkk/zigbee2mqtt@sha256:fb4a6b0f6868ad1cd6a9996479802b2420e599c3463b62bbff8c8cd9a908f43a",
-          "ZIGBEE2MQTT_CONTAINER_DATA_PATH": "/app/data",
-          "ZIGBEE2MQTT_DATA_PATH": "/app/data",
-          "ZIGBEE2MQTT_HOST_DATA_PATH": "/var/lib/piphi/zigbee2mqtt",
-          "ZIGBEE2MQTT_NETWORK_MODE": "bridge"
+          "ZIGBEE2MQTT_DATA_PATH": "/app/data"
         },
         "volumes": [
           {
-            "host": "/var/lib/piphi/zigbee2mqtt",
+            "host": "piphi-helper-zigbee2mqtt-data",
             "container": "/app/data",
             "mode": "rw"
-          },
-          {
-            "host": "/var/run/docker.sock",
-            "container": "/var/run/docker.sock",
-            "mode": "rw"
           }
         ],
-        "devices": [
-          {
-            "host": "/dev/bus/usb",
-            "container": "/dev/bus/usb",
-            "permissions": "rwm"
-          }
-        ],
-        "privileged": true,
+        "devices": [],
+        "privileged": false,
         "restart_policy": {
           "name": "unless-stopped",
           "maximum_retry_count": 0

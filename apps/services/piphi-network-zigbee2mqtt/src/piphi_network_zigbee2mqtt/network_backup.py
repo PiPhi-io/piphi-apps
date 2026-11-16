@@ -10,12 +10,21 @@ from pathlib import Path
 from tempfile import mkdtemp
 from uuid import uuid4
 
-from .bridge_models import NetworkBackupResponse, NetworkRestoreResponse
+from cryptography.exceptions import InvalidTag
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
+
+from .bridge_models import (
+    EncryptedBackupExportResponse,
+    NetworkBackupResponse,
+    NetworkRestoreResponse,
+)
 from .config_store import _write_private
 from .settings import INTEGRATION_VERSION
 
 BACKUP_METADATA = "piphi-backup.json"
 EXCLUDED_TOP_LEVEL = {"backups", "coordinator-claims"}
+ENCRYPTED_BACKUP_MAGIC = b"PIPHI-ZIGBEE-AES256-GCM-V1\n"
 
 
 def create_network_backup(data_path: str, *, adapter_family: str = "unknown") -> NetworkBackupResponse:
@@ -95,15 +104,23 @@ def restore_network_backup(
     backup_path: str,
     expected_sha256: str,
     adapter_family: str,
+    compatibility_evidence: str | None = None,
+    rollback_adapter_family: str | None = None,
 ) -> NetworkRestoreResponse:
     root = _approved_data_root(data_path)
     metadata = inspect_network_backup(backup_path, expected_sha256)
     backup_family = str(metadata.get("adapter_family") or "unknown")
-    if backup_family == "unknown" or backup_family != adapter_family:
+    explicit_evidence = (compatibility_evidence or "").strip()
+    if backup_family == "unknown" or (
+        backup_family != adapter_family and not explicit_evidence
+    ):
         raise ValueError(
             f"Backup adapter family {backup_family!r} is not compatible with {adapter_family!r}."
         )
-    rollback = create_network_backup(str(root), adapter_family=adapter_family)
+    rollback = create_network_backup(
+        str(root),
+        adapter_family=rollback_adapter_family or adapter_family,
+    )
     staging = Path(mkdtemp(prefix=".restore-", dir=root))
     rollback_staging: Path | None = None
     try:
@@ -129,6 +146,76 @@ def restore_network_backup(
     )
 
 
+def export_encrypted_backup(
+    *,
+    backup_path: str,
+    expected_sha256: str,
+    passphrase: str,
+) -> EncryptedBackupExportResponse:
+    inspect_network_backup(backup_path, expected_sha256)
+    source = Path(backup_path).expanduser().resolve()
+    root = _approved_data_root(str(source.parent.parent))
+    export_dir = root / "exports"
+    export_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+    os.chmod(export_dir, 0o700)
+    salt = os.urandom(16)
+    nonce = os.urandom(12)
+    key = _derive_export_key(passphrase, salt)
+    ciphertext = AESGCM(key).encrypt(nonce, source.read_bytes(), ENCRYPTED_BACKUP_MAGIC)
+    target = export_dir / f"{source.stem}-{uuid4().hex}.piphi-zigbee-backup"
+    _write_private(target, ENCRYPTED_BACKUP_MAGIC + salt + nonce + ciphertext)
+    return EncryptedBackupExportResponse(
+        export_path=str(target),
+        export_sha256=file_digest(target),
+    )
+
+
+def import_encrypted_backup(
+    *,
+    data_path: str,
+    export_path: str,
+    expected_sha256: str,
+    passphrase: str,
+) -> NetworkBackupResponse:
+    root = _approved_data_root(data_path)
+    source = Path(export_path).expanduser().resolve()
+    if source.parent != root / "exports" or not source.is_file():
+        raise ValueError("Encrypted export must reference the managed Zigbee2MQTT export directory.")
+    if file_digest(source) != expected_sha256:
+        raise ValueError("Encrypted Zigbee backup checksum verification failed.")
+    payload = source.read_bytes()
+    minimum = len(ENCRYPTED_BACKUP_MAGIC) + 16 + 12 + 16
+    if len(payload) < minimum or not payload.startswith(ENCRYPTED_BACKUP_MAGIC):
+        raise ValueError("Encrypted Zigbee backup format is invalid.")
+    offset = len(ENCRYPTED_BACKUP_MAGIC)
+    salt = payload[offset : offset + 16]
+    nonce = payload[offset + 16 : offset + 28]
+    ciphertext = payload[offset + 28 :]
+    try:
+        plaintext = AESGCM(_derive_export_key(passphrase, salt)).decrypt(
+            nonce,
+            ciphertext,
+            ENCRYPTED_BACKUP_MAGIC,
+        )
+    except InvalidTag as exc:
+        raise ValueError("Encrypted Zigbee backup passphrase or authentication is invalid.") from exc
+    backup_dir = root / "backups"
+    backup_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+    target = backup_dir / f"imported-{uuid4().hex}.zip"
+    _write_private(target, plaintext)
+    digest = file_digest(target)
+    try:
+        metadata = inspect_network_backup(str(target), digest)
+    except Exception:
+        target.unlink(missing_ok=True)
+        raise
+    return NetworkBackupResponse(
+        backup_path=str(target),
+        backup_sha256=digest,
+        files=[str(name) for name in metadata["files"]],
+    )
+
+
 def file_digest(path: Path) -> str:
     digest = sha256()
     with path.open("rb") as handle:
@@ -147,6 +234,10 @@ def _approved_data_root(data_path: str) -> Path:
     if requested not in approved:
         raise ValueError("Backup data_path must be an approved Zigbee2MQTT data root.")
     return requested
+
+
+def _derive_export_key(passphrase: str, salt: bytes) -> bytes:
+    return Scrypt(salt=salt, length=32, n=2**15, r=8, p=1).derive(passphrase.encode("utf-8"))
 
 
 def _network_files(root: Path) -> list[str]:

@@ -7,7 +7,6 @@ from typing import Protocol
 
 from .bridge_models import (
     CommandResult,
-    DockerSupervisorSettings,
     Pm2SupervisorSettings,
     PrerequisiteCheckRequest,
     PrerequisiteCheckResponse,
@@ -77,9 +76,7 @@ async def supervise(
 ) -> SupervisorResponse:
     selected_runner = runner or AsyncioCommandRunner()
     if request.mode == "docker":
-        if request.docker is None:
-            return _missing_settings_response(request.mode, action, "docker settings are required")
-        return await _supervise_docker(action, request.docker, request.dry_run, selected_runner)
+        return _core_managed_response(action, request.dry_run)
     if request.pm2 is None:
         return _missing_settings_response(request.mode, action, "pm2 settings are required")
     return await _supervise_pm2(action, request.pm2, request.dry_run, selected_runner)
@@ -92,11 +89,7 @@ async def supervisor_logs(
 ) -> SupervisorResponse:
     selected_runner = runner or AsyncioCommandRunner()
     if request.mode == "docker":
-        if request.docker is None:
-            return _missing_settings_response(request.mode, "logs", "docker settings are required")
-        command = ["docker", "logs", "--tail", str(request.tail), request.docker.container_name]
-        result = await _maybe_run(command, request.dry_run, selected_runner)
-        return _response("docker", "logs", "planned" if request.dry_run else "collected", [command], [result], request.dry_run or result.returncode == 0)
+        return _core_managed_response("logs", request.dry_run)
     if request.pm2 is None:
         return _missing_settings_response(request.mode, "logs", "pm2 settings are required")
     command = ["pm2", "logs", request.pm2.process_name, "--lines", str(request.tail), "--nostream"]
@@ -111,13 +104,17 @@ async def check_prerequisites(
 ) -> PrerequisiteCheckResponse:
     selected_runner = runner or AsyncioCommandRunner()
     if request.mode == "docker":
-        command = ["docker", "version", "--format", "{{.Server.Version}}"]
-        result = await _maybe_run(command, request.dry_run, selected_runner)
-        checks = [_check("docker_available", request.dry_run or result.returncode == 0, command, result)]
-        if request.docker is not None:
-            checks.append({"name": "host_data_path_configured", "ok": bool(request.docker.host_data_path)})
-            checks.append({"name": "coordinator_device_configured", "ok": bool(request.docker.device_path or request.docker.network_mode)})
-        return PrerequisiteCheckResponse(ok=all(item["ok"] for item in checks), mode="docker", checks=checks)
+        return PrerequisiteCheckResponse(
+            ok=True,
+            mode="docker",
+            checks=[
+                {
+                    "name": "core_managed_helper_required",
+                    "ok": True,
+                    "message": "Core owns Zigbee2MQTT container and selected-device supervision.",
+                }
+            ],
+        )
 
     command = ["pm2", "ping"]
     result = await _maybe_run(command, request.dry_run, selected_runner)
@@ -126,37 +123,6 @@ async def check_prerequisites(
         checks.append({"name": "working_dir_configured", "ok": bool(request.pm2.working_dir)})
         checks.append({"name": "script_configured", "ok": bool(request.pm2.script)})
     return PrerequisiteCheckResponse(ok=all(item["ok"] for item in checks), mode="pm2", checks=checks)
-
-
-async def _supervise_docker(
-    action: SupervisorAction,
-    settings: DockerSupervisorSettings,
-    dry_run: bool,
-    runner: CommandRunner,
-) -> SupervisorResponse:
-    status_command = ["docker", "inspect", "--format", "{{.State.Status}}", settings.container_name]
-    if action == "status":
-        result = await _maybe_run(status_command, dry_run, runner)
-        status = _docker_status_from_result(result)
-        return _response("docker", action, status, [status_command], [result], status != "missing")
-
-    status_result = await _maybe_run(status_command, dry_run, runner)
-    status = "missing" if dry_run else _docker_status_from_result(status_result)
-    commands = [status_command]
-    results = [status_result]
-
-    if action == "start":
-        command = _docker_start_command(settings) if status == "missing" else ["docker", "start", settings.container_name]
-    elif action == "stop":
-        command = ["docker", "stop", settings.container_name]
-    else:
-        command = ["docker", "restart", settings.container_name] if status != "missing" else _docker_start_command(settings)
-
-    commands.append(command)
-    result = await _maybe_run(command, dry_run, runner)
-    results.append(result)
-    ok = dry_run or result.returncode == 0
-    return _response("docker", action, "planned" if dry_run else ("running" if ok and action != "stop" else "stopped"), commands, results, ok)
 
 
 async def _supervise_pm2(
@@ -182,31 +148,6 @@ async def _supervise_pm2(
     ok = dry_run or result.returncode == 0
     status = "planned" if dry_run else ("online" if ok and action != "stop" else "stopped")
     return _response("pm2", action, status, [command], [result], ok)
-
-
-def _docker_start_command(settings: DockerSupervisorSettings) -> list[str]:
-    command = [
-        "docker",
-        "run",
-        "-d",
-        "--name",
-        settings.container_name,
-        "--restart",
-        "unless-stopped",
-        "-v",
-        f"{settings.host_data_path}:{settings.container_data_path}",
-    ]
-    if settings.network_mode:
-        command.extend(["--network", settings.network_mode])
-    if settings.frontend_port and not settings.network_mode:
-        command.extend(["-p", f"{settings.frontend_port}:8080"])
-    if settings.device_path:
-        container_device = settings.device_path if settings.device_path.startswith("/") else "/dev/ttyZigbee"
-        command.extend(["--device", f"{settings.device_path}:{container_device}"])
-    for key, value in sorted(settings.environment.items()):
-        command.extend(["-e", f"{key}={value}"])
-    command.append(settings.image)
-    return command
 
 
 def _pm2_start_command(settings: Pm2SupervisorSettings) -> list[str]:
@@ -235,13 +176,6 @@ def _normalize_cwd(cwd: str | None) -> str | None:
     if not cwd:
         return None
     return str(Path(cwd).expanduser())
-
-
-def _docker_status_from_result(result: CommandResult) -> str:
-    if result.returncode != 0:
-        return "missing"
-    status = result.stdout.strip()
-    return status or "unknown"
 
 
 def _pm2_status_from_result(process_name: str, result: CommandResult) -> str:
@@ -280,6 +214,19 @@ def _missing_settings_response(mode: str, action: SupervisorAction, message: str
         action=action,
         status="invalid",
         message=message,
+    )
+
+
+def _core_managed_response(action: SupervisorAction, dry_run: bool) -> SupervisorResponse:
+    return SupervisorResponse(
+        ok=True,
+        mode="docker",
+        action=action,
+        status="planned" if dry_run else "managed_by_core",
+        message=(
+            "Core owns Zigbee2MQTT lifecycle and selected-device handoff; "
+            "the unprivileged sidecar does not execute Docker commands."
+        ),
     )
 
 
