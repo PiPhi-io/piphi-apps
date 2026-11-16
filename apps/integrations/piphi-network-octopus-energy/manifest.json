@@ -3,7 +3,7 @@
   "manifest_version": "1.0",
   "id": "piphi-network-octopus-energy",
   "name": "Octopus Energy",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Monitor current and upcoming Octopus Energy electricity tariff rates.",
   "metadata": {
     "generator": "piphi-network-create",
@@ -17,7 +17,7 @@
     "website": "https://piphi.io"
   },
   "license": "Apache-2.0",
-  "image": "docker.io/piphinetwork/piphi-network-octopus-energy:0.1.0",
+  "image": "ghcr.io/piphi-io/piphi-network-octopus-energy:0.1.1",
   "platforms": [
     "linux"
   ],
@@ -25,7 +25,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "docker.io/piphinetwork/piphi-network-octopus-energy:0.1.0",
+        "image": "ghcr.io/piphi-io/piphi-network-octopus-energy:0.1.1",
         "ports": [
           {
             "container": 4212,
@@ -99,8 +99,16 @@
       "kind": "sensor",
       "unit": "bool"
     },
-    "current_rate": {"kind": "sensor", "value_kind": "numeric", "unit": "p/kWh"},
-    "next_rate": {"kind": "sensor", "value_kind": "numeric", "unit": "p/kWh"},
+    "current_rate": {
+      "kind": "sensor",
+      "value_kind": "numeric",
+      "unit": "p/kWh"
+    },
+    "next_rate": {
+      "kind": "sensor",
+      "value_kind": "numeric",
+      "unit": "p/kWh"
+    },
     "refresh": {
       "kind": "action"
     }
@@ -142,7 +150,11 @@
   ],
   "ui": {
     "experience_packages": [
-      {"registry_id": "io.piphi.octopus-rates", "version_range": ">=0.1,<1", "auto_install": true}
+      {
+        "registry_id": "io.piphi.octopus-rates",
+        "version_range": ">=0.1,<1",
+        "auto_install": true
+      }
     ]
   },
   "marketplace": {
