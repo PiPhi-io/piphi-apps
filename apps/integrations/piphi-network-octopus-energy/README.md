@@ -37,11 +37,14 @@ The first live capability slice reads the public Octopus electricity tariff
 native Rates widget shows the current VAT-inclusive price in p/kWh and the
 next published price when available. The runtime fetches on configuration,
 refresh, and a bounded poll cadence. Without valid codes or a successful
-response it reports disconnected and does not invent a price. This slice uses
-no account API key. See the [Octopus API endpoint guide](https://developer.octopus.energy/guides/rest/api-endpoints/).
+response it retains the last good price, marks it explicitly stale, and reports
+its stale age. State includes fetch time and source validity intervals. This
+slice rejects account credentials and endpoint overrides. See the
+[Octopus API endpoint guide](https://developer.octopus.energy/guides/rest/api-endpoints/).
 
-The rest of the account and meter surface remains planned; the widget does not
-show consumption, bills, export, or tariff-switching controls.
+This is a public-price integration, not an account integration. It does not show
+the user's actual tariff agreement, consumption, bills, taxes, network charges,
+export, or tariff-switching controls.
 
 `capability-catalog.json` inventories accounts, properties, meters,
 consumption, export, costs, products, tariffs, rates, Intelligent dispatches,

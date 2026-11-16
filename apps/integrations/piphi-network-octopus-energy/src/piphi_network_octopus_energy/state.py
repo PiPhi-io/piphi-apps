@@ -4,6 +4,7 @@ import asyncio
 import logging
 import os
 import time
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
@@ -49,7 +50,7 @@ def make_entry(config: DeviceConfig) -> dict[str, Any]:
         **identity,
         "host": config.host,
         "alias": config.alias,
-        "config": config.model_dump(exclude={"api_key"}),
+        "config": config.model_dump(),
     }
 
 
@@ -105,6 +106,7 @@ async def refresh_entry(entry: dict[str, Any]) -> dict[str, Any]:
         state = {"connected": False, "reason": "missing_tariff_codes"}
         registry.update_state(entry["config_id"], state, device_id=entry["device_id"])
         return state
+    attempted_at = datetime.now(UTC)
     try:
         rates = await fetch_rates(config.product_code, config.tariff_code)
     except (httpx.HTTPError, TypeError, ValueError) as exc:
@@ -113,15 +115,43 @@ async def refresh_entry(entry: dict[str, Any]) -> dict[str, Any]:
             entry["config_id"],
             type(exc).__name__,
         )
-        state = {"connected": False, "reason": "tariff_fetch_failed"}
+        previous = registry.state_snapshots.get(entry["config_id"], {}).get("state", {})
+        fetched_at = previous.get("fetched_at")
+        stale_age_seconds = None
+        if isinstance(fetched_at, str):
+            try:
+                fetched = datetime.fromisoformat(fetched_at)
+                if fetched.tzinfo is not None:
+                    stale_age_seconds = max(
+                        0, int((attempted_at - fetched.astimezone(UTC)).total_seconds())
+                    )
+            except ValueError:
+                pass
+        state = {
+            **previous,
+            "connected": False,
+            "data_stale": True,
+            "stale_age_seconds": stale_age_seconds,
+            "last_fetch_attempt_at": attempted_at.isoformat(),
+            "reason": "tariff_fetch_failed",
+        }
         registry.update_state(entry["config_id"], state, device_id=entry["device_id"])
         return state
+    fetched_at = rates.fetched_at or attempted_at.isoformat()
     metrics: dict[str, Any] = {
         "connected": True,
         "current_rate": rates.current_p_kwh,
+        "current_valid_from": rates.current_valid_from,
+        "current_valid_to": rates.current_valid_to,
+        "fetched_at": fetched_at,
+        "last_fetch_attempt_at": attempted_at.isoformat(),
+        "data_stale": False,
+        "stale_age_seconds": 0,
     }
     if rates.next_p_kwh is not None:
         metrics["next_rate"] = rates.next_p_kwh
+        metrics["next_valid_from"] = rates.next_valid_from
+        metrics["next_valid_to"] = rates.next_valid_to
     state = dict(metrics)
     registry.update_state(entry["config_id"], state, device_id=entry["device_id"])
     entry["latest_metrics"] = metrics
@@ -135,7 +165,7 @@ async def refresh_entry(entry: dict[str, Any]) -> dict[str, Any]:
         config_id=str(entry["config_id"]),
         device_id=str(entry["device_id"]),
         container_id=entry.get("container_id"),
-        metrics=metrics,
+        metrics={key: value for key, value in metrics.items() if value is not None},
         units={"current_rate": "p/kWh", "next_rate": "p/kWh"},
     )
     if task is not None:

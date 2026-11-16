@@ -22,6 +22,11 @@ async def test_refresh_exposes_real_prices_and_retains_last_good_on_failure(
             "price_unit": "EUR/kWh",
             "current_price_per_kwh": 0.123,
             "next_price_per_kwh": 0.145,
+            "current_interval_start": "2026-09-20T12:00:00+00:00",
+            "current_interval_end": "2026-09-20T13:00:00+00:00",
+            "next_interval_start": "2026-09-20T13:00:00+00:00",
+            "next_interval_end": "2026-09-20T13:15:00+00:00",
+            "fetched_at": "2026-09-20T12:30:00+00:00",
         }
 
     monkeypatch.setattr(state, "fetch_prices", prices)
@@ -34,6 +39,17 @@ async def test_refresh_exposes_real_prices_and_retains_last_good_on_failure(
     config_id = "runtime-prices-test"
     async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
         try:
+            rejected = await client.post(
+                "/config",
+                json={
+                    "id": "rejected-secret",
+                    "config_id": config_id,
+                    "market_area": "se3",
+                    "currency": "EUR",
+                    "api_key": "must-not-appear-in-state",
+                },
+            )
+            assert rejected.status_code == 422
             configured = await client.post(
                 "/config",
                 json={
@@ -41,7 +57,6 @@ async def test_refresh_exposes_real_prices_and_retains_last_good_on_failure(
                     "config_id": config_id,
                     "market_area": "se3",
                     "currency": "EUR",
-                    "api_key": "must-not-appear-in-state",
                 },
             )
             assert configured.status_code == 200
@@ -68,7 +83,10 @@ async def test_refresh_exposes_real_prices_and_retains_last_good_on_failure(
             assert observed_telemetry[-1]["metrics"]["current_price_per_kwh"] == 0.123
             snapshot = (await client.get("/state")).json()
             assert snapshot["state_snapshots"][config_id]["state"]["connected"] is True
-            assert "must-not-appear-in-state" not in str(snapshot)
+            current = snapshot["state_snapshots"][config_id]["state"]
+            assert current["data_stale"] is False
+            assert current["current_interval_end"] == "2026-09-20T13:00:00+00:00"
+            assert current["production_publication_allowed"] is False
 
             async def unavailable(**_: Any) -> dict[str, Any]:
                 raise MarketDataError("market data request failed")
@@ -88,6 +106,8 @@ async def test_refresh_exposes_real_prices_and_retains_last_good_on_failure(
             latest = (await client.get("/state")).json()["state_snapshots"][config_id]["state"]
             assert latest["connected"] is False
             assert latest["current_price_per_kwh"] == 0.123
+            assert latest["data_stale"] is True
+            assert latest["stale_age_seconds"] >= 0
         finally:
             await client.post(f"/deconfigure/{config_id}")
 

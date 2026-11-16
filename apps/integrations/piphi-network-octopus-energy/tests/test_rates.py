@@ -87,6 +87,57 @@ async def test_fetch_uses_fixed_https_origin_and_bounded_public_endpoint() -> No
 
 
 @pytest.mark.anyio
+async def test_fetch_retries_transient_responses_and_follows_bounded_pagination() -> None:
+    calls = 0
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return httpx.Response(503, headers={"retry-after": "0"})
+        if "page=2" not in str(request.url):
+            next_url = str(request.url.copy_add_param("page", "2"))
+            return httpx.Response(
+                200,
+                json={
+                    "results": [_row("2026-09-19T12:00Z", "2026-09-19T12:30Z", 18.4)],
+                    "next": next_url,
+                },
+            )
+        return httpx.Response(
+            200,
+            json={
+                "results": [_row("2026-09-19T12:30Z", "2026-09-19T13:00Z", 19.4)],
+                "next": None,
+            },
+        )
+
+    rates = await fetch_rates(
+        "AGILE-FLEX-22-11-25",
+        "E-1R-AGILE-FLEX-22-11-25-A",
+        now=NOW,
+        transport=httpx.MockTransport(respond),
+    )
+    assert calls == 3
+    assert rates.current_p_kwh == 18.4
+    assert rates.next_p_kwh == 19.4
+
+
+@pytest.mark.anyio
+async def test_fetch_rejects_unsafe_pagination() -> None:
+    def respond(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"results": [], "next": "https://example.test/steal"})
+
+    with pytest.raises(ValueError, match="Unsafe Octopus pagination"):
+        await fetch_rates(
+            "AGILE-FLEX-22-11-25",
+            "E-1R-AGILE-FLEX-22-11-25-A",
+            now=NOW,
+            transport=httpx.MockTransport(respond),
+        )
+
+
+@pytest.mark.anyio
 async def test_runtime_publishes_real_rates_and_never_exposes_api_key(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -98,10 +149,16 @@ async def test_runtime_publishes_real_rates_and_never_exposes_api_key(
     monkeypatch.setattr(
         state, "schedule_telemetry_delivery", lambda **kwargs: delivered.append(kwargs)
     )
+    with pytest.raises(ValueError, match="does not accept account credentials"):
+        DeviceConfig(
+            id="rejected-secret",
+            api_key="should-never-be-accepted",
+            product_code="AGILE-FLEX-22-11-25",
+            tariff_code="E-1R-AGILE-FLEX-22-11-25-A",
+        )
     config = DeviceConfig(
         id="octopus-widget-test",
         host="home-tariff",
-        api_key="should-never-leak",
         product_code="AGILE-FLEX-22-11-25",
         tariff_code="E-1R-AGILE-FLEX-22-11-25-A",
     )
@@ -113,8 +170,8 @@ async def test_runtime_publishes_real_rates_and_never_exposes_api_key(
         assert result["next_rate"] == 9.4
         assert delivered[0]["metrics"]["current_rate"] == 12.3
         assert delivered[0]["units"]["current_rate"] == "p/kWh"
-        assert "should-never-leak" not in json.dumps(entry)
-        assert "should-never-leak" not in json.dumps(result)
+        assert result["data_stale"] is False
+        assert result["current_valid_to"] == "2026-09-19T12:30:00+00:00"
     finally:
         state.registry.remove(config.id)
 
@@ -139,7 +196,9 @@ async def test_runtime_fails_closed_when_tariff_is_missing_or_unavailable(
             }
         )
         result = await state.refresh_entry(entry)
-        assert result == {"connected": False, "reason": "tariff_fetch_failed"}
+        assert result["connected"] is False
+        assert result["data_stale"] is True
+        assert result["reason"] == "tariff_fetch_failed"
         assert "vendor payload" not in json.dumps(result)
     finally:
         state.registry.remove(config.id)

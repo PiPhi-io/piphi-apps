@@ -6,6 +6,8 @@ from datetime import datetime, timezone
 from math import isfinite
 from typing import Any
 
+MAX_INTERVALS = 200
+
 
 def normalize_prices(payload: dict[str, Any], area: str, now: datetime) -> dict[str, Any]:
     """Return only validated, area-specific prices; API prices are per MWh."""
@@ -17,6 +19,8 @@ def normalize_prices(payload: dict[str, Any], area: str, now: datetime) -> dict[
     entries = payload.get("multiAreaEntries")
     if not isinstance(entries, list):
         raise ValueError("missing price intervals")
+    if len(entries) > MAX_INTERVALS:
+        raise ValueError("too many price intervals")
 
     intervals: list[dict[str, Any]] = []
     for entry in entries:

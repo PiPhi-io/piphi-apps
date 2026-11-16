@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+import asyncio
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -11,12 +12,46 @@ import httpx
 from .pricing import normalize_prices
 
 API_URL = "https://dataportal-api.nordpoolgroup.com/api/DayAheadPrices"
+ENDPOINT_STATUS = "first_party_public_portal_backend_unofficial_api"
+LICENSING_STATUS = "redistribution_rights_unresolved"
+PRODUCTION_PUBLICATION_ALLOWED = False
 MARKET_TIMEZONE = ZoneInfo("Europe/Oslo")
 MAX_RESPONSE_BYTES = 1_000_000
+MAX_RETRIES = 3
+MAX_RETRY_DELAY_SECONDS = 2.0
 
 
 class MarketDataError(Exception):
     """The market feed did not provide a usable current price."""
+
+
+def _retry_delay(response: httpx.Response, attempt: int) -> float:
+    retry_after = response.headers.get("retry-after")
+    if retry_after is not None:
+        try:
+            return min(MAX_RETRY_DELAY_SECONDS, max(0.0, float(retry_after)))
+        except ValueError:
+            pass
+    return min(MAX_RETRY_DELAY_SECONDS, 0.1 * (2**attempt))
+
+
+async def _get_with_retries(
+    client: httpx.AsyncClient, *, params: dict[str, str]
+) -> httpx.Response:
+    for attempt in range(MAX_RETRIES):
+        try:
+            response = await client.get(API_URL, params=params)
+        except (httpx.TimeoutException, httpx.NetworkError) as exc:
+            if attempt + 1 == MAX_RETRIES:
+                raise MarketDataError("market data request failed") from exc
+            await asyncio.sleep(min(MAX_RETRY_DELAY_SECONDS, 0.1 * (2**attempt)))
+            continue
+        if response.status_code != 429 and response.status_code < 500:
+            return response
+        if attempt + 1 == MAX_RETRIES:
+            return response
+        await asyncio.sleep(_retry_delay(response, attempt))
+    raise AssertionError("unreachable")
 
 
 async def fetch_day(
@@ -27,8 +62,8 @@ async def fetch_day(
     currency: str,
 ) -> dict[str, Any] | None:
     try:
-        response = await client.get(
-            API_URL,
+        response = await _get_with_retries(
+            client,
             params={
                 "date": day,
                 "market": "DayAhead",
@@ -90,4 +125,8 @@ async def fetch_prices(
         if normalized["currency"] != currency:
             raise MarketDataError("market response currency mismatch")
         normalized["data_updated_at"] = today.get("updatedAt")
+        normalized["fetched_at"] = datetime.now(UTC).isoformat()
+        normalized["source_endpoint_status"] = ENDPOINT_STATUS
+        normalized["source_licensing_status"] = LICENSING_STATUS
+        normalized["production_publication_allowed"] = PRODUCTION_PUBLICATION_ALLOWED
         return normalized
