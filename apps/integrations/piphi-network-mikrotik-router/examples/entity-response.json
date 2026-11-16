@@ -1,9 +1,9 @@
 {
   "entities": [
     {
-      "id": "demo-device",
-      "name": "Demo Device",
-      "device_id": "demo-device",
+      "id": "routeros-health",
+      "name": "Configured RouterOS Health",
+      "device_id": "routeros-health",
       "entity_type": "router",
       "capabilities": [
         "connected",

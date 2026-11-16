@@ -45,6 +45,7 @@ async def get_entities() -> dict:
                     "documented_commands": latest_state.get("documented_commands") or [],
                     "device_profile": latest_state.get("device_profile") or {},
                     "raw": latest_state.get("raw"),
+                    "lifecycle": entry.get("lifecycle") or {},
                 },
                 "latest_state": latest_state,
             }

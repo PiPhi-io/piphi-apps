@@ -51,6 +51,7 @@
         "api_key": "test-api-key",
         "scheme": "http",
         "verify_tls": false,
+        "allow_insecure_transport": true,
         "poll_interval_seconds": 3600
       },
       "required_any_keys": [

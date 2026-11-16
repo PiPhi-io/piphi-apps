@@ -28,12 +28,16 @@ WORKDIR /app
 COPY --from=builder /install /usr/local
 COPY src /app/src
 
-RUN mkdir -p /.piphinetwork
+RUN groupadd --system piphi && useradd --system --gid piphi --home-dir /nonexistent piphi \
+    && mkdir -p /.piphinetwork \
+    && chown piphi:piphi /.piphinetwork
 
 VOLUME ["/.piphinetwork"]
 EXPOSE 3675
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD python -c "import json, urllib.request; json.load(urllib.request.urlopen('http://127.0.0.1:3675/health', timeout=3))" || exit 1
+
+USER piphi
 
 CMD ["python", "-m", "piphi_network_spi.main"]

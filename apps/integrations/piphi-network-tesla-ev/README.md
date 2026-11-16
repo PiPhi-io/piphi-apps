@@ -7,7 +7,7 @@ This first version focuses on:
 - Tesla vehicle discovery from `GET /api/1/vehicles`
 - vehicle summary lookup from `GET /api/1/vehicles/{vin}`
 - live refresh from `GET /api/1/vehicles/{vin}/vehicle_data`
-- wake-up support from `POST /api/1/vehicles/{vin}/wake_up`
+- opt-in, explicitly confirmed wake-up support from `POST /api/1/vehicles/{vin}/wake_up`
 - telemetry delivery back into PiPhi Core through `piphi-runtime-kit-node`
 
 ## Important scope note
@@ -21,7 +21,7 @@ This repo is intentionally modeled as a Tesla vehicle integration instead, using
 This runtime currently exposes:
 
 - `refresh`
-- `wake_up`
+- `wake_up` (disabled while the default read-only mode is active)
 
 It does **not** expose signed vehicle commands like lock, unlock, climate start, or charge start yet.
 
@@ -35,13 +35,19 @@ The runtime expects:
 - `access_token`
 - `region`
 
-Optional fields:
+Optional safety fields:
 
 - `vehicle_name`
-- `include_location`
-- `base_url`
+- `include_location` (defaults to `false`)
+- `read_only` (defaults to `true`)
+- `enable_wake` (defaults to `false` and has no effect while read-only)
+- daily request/live-data/wake budgets and a wake cooldown
 
-`base_url` exists mainly for tests and non-default regional proxy setups.
+Production endpoints are fixed to Tesla's regional Fleet API allowlist. Runtime configuration cannot redirect a bearer token to a custom URL. Mock HTTP transports remain available only to in-process tests.
+
+Access tokens are held as `SecretStr` values and are removed from discovery, state, events, diagnostics, and error responses. VINs are replaced on those surfaces with opaque identifiers. Discovery configuration uses bounded, expiring, single-use references tied to the creating credential and region. Exact location, speed, and heading are opt-in and omitted from general state, diagnostics, and events; opted-in values are sent only as current telemetry and this integration does not maintain a location history. Removing the config deletes its in-memory vehicle snapshot.
+
+The pasted access-token input is a temporary onboarding limitation, not a complete account lifecycle. Production use remains blocked until PiPhi provides Tesla authorization-code OAuth, rotating refresh-token storage, scope/account-subject checks, reauthentication, and revocation handling.
 
 ## Tesla Fleet API prerequisites
 
@@ -108,3 +114,5 @@ The runtime uses `piphi-runtime-kit-python` for:
 - FastAPI command dispatch adapters
 
 Refresh and wake-up commands persist their idempotency results under `/.piphinetwork` by default, so worker retries or restarts do not repeat a completed vehicle action.
+
+Requests sharing an access token are serialized and counted against conservative daily limits. Sleeping/offline summaries do not wake the vehicle and preserve prior detailed values as stale/last-known data. Wake has no blind retry, requires explicit confirmation, observes a per-vehicle cooldown and daily budget, and polls readiness for at most 60 seconds.

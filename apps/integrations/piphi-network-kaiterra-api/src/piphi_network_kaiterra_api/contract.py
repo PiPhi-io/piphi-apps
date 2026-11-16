@@ -99,10 +99,6 @@ CONFIG_SCHEMA: dict[str, Any] = {
                 "type": "string",
                 "title": "Alias"
             },
-            "base_url": {
-                "type": "string",
-                "title": "Base URL"
-            },
             "api_key": {
                 "type": "string",
                 "title": "API Key"
@@ -121,11 +117,9 @@ CONFIG_SCHEMA: dict[str, Any] = {
         "alias": {
             "placeholder": "Office Kaiterra"
         },
-        "base_url": {
-            "placeholder": "https://api.kaiterra.com/v1"
-        },
         "api_key": {
-            "placeholder": "Kaiterra API key"
+            "placeholder": "Kaiterra API key",
+            "ui:widget": "password"
         },
         "poll_interval_seconds": {
             "placeholder": "60"

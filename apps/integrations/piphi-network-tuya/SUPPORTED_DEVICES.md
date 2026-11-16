@@ -8,21 +8,22 @@ A device being listed here means the runtime has a defined compatibility path fo
 
 ## Support policy
 
-### Tier 1 — First-class supported
-A family is Tier 1 when the runtime provides all of the following:
+### Tier 1 — Model-certified control
+A model is Tier 1 only when the runtime provides all of the following:
 
 - explicit `device_type`, `device_class`, and `entity_type`
 - discovery normalization and `suggested_config` support
 - family-specific normalized capabilities
-- family-specific commands beyond raw `set_dp`
+- bounded family-specific semantic commands
 - automated route/runtime test coverage in this repo
+- a populated real-hardware certification row with an exact reviewed DP mapping
 
 ### Tier 2 — Best-effort / generic support
 A device is Tier 2 when it can usually still be discovered or manually configured, but the runtime may rely on:
 
 - raw DPS inspection
 - DP override fields
-- generic `set_dp`
+- raw DPS inspection (raw writes are not exposed)
 - manual configuration choices
 
 ### Tier 3 — Unsupported / unknown
@@ -36,7 +37,9 @@ The matrix distinguishes between these validation levels:
 - **Hardware pending** — intended support exists, but this repo does not claim broad real-device certification for all vendor/model variants
 - **Model certified** — reserved for specific real devices that have been manually validated in production or lab hardware testing
 
-At the time of writing, the families below are **Automated + Hardware pending** unless otherwise noted.
+At the time of writing, **no model is Tier 1 or certified**. The families below
+are automated parsers with hardware certification pending. Consequential writes
+derived from heuristic DP mappings are disabled by default.
 
 ---
 
@@ -46,19 +49,19 @@ At the time of writing, the families below are **Automated + Hardware pending** 
 
 - **Works in common cases** — discovery and default DP assumptions are expected to work for many standard devices in that family
 - **May need DP overrides** — discovery usually helps, but some real devices in the family often need manual DP remapping or scale changes
-- **Advanced / experimental** — use only if you are comfortable inspecting raw DPS and using `set_dp`
+- **Advanced / experimental** — use only if you are comfortable inspecting raw DPS without a write surface
 
 | Family | `device_type` | Primary Tuya categories | Support tier | Expected setup experience | Discovery support | Normalized metrics | Family commands | Typical DP assumptions | Validation |
 |---|---|---|---|---|---|---|---|---|---|
-| Smart plug / outlet | `plug` | `cz`, `pc` | Tier 1 | Works in common cases | Category + DPS + name heuristics | `power`, `current_ma`, `power_w`, `voltage_v` | `turn_on`, `turn_off` | power on `1`; energy often on `18/19/20` or `4/5/6` | Automated, hardware pending |
-| Wall switch / relay | `switch` | `kg` | Tier 1 | Works in common cases | Category + DPS + name heuristics | `power` | `turn_on`, `turn_off` | primary relay often on `1`; multiple boolean channels possible | Automated, hardware pending |
-| Light / bulb / strip | `light` | `dj` | Tier 1 | Works in common cases | Category + DPS + name heuristics | `power`, `mode`, `brightness_percent`, `color_temp_percent`, `color_value` | `set_brightness`, `set_color_temp`, `set_color_rgb`, `set_mode` | power often `20`; mode `21`; brightness `22`; CT `23`; RGB `24` | Automated, hardware pending |
-| Fan | `fan` | `fs` | Tier 1 | May need DP overrides | Category + DPS + name heuristics | `power`, `fan_speed_percent`, `oscillating`, `mode` | `set_fan_speed`, `set_oscillate`, `set_mode` | power `1`; speed usually `3/4/5`; mode often `4/5/6`; oscillate often `5/4/6` | Automated, hardware pending |
-| Cover / blind / curtain | `cover` | `cl` | Tier 1 | May need DP overrides | Category + DPS + name heuristics | `position_percent`, `motion_state` | `open_cover`, `close_cover`, `stop_cover`, `set_cover_position` | control often `1`; position often `2/3/5` | Automated, hardware pending |
-| Climate / thermostat | `climate` | `wk`, `wkf` | Tier 1 | May need DP overrides | Category + DPS + name heuristics | `power`, `mode`, `temperature_c`, `target_temperature_c` | `set_temperature`, `set_mode` | target often `16`; current often `24`; mode often `4`; scale often `1` or `10` | Automated, hardware pending |
-| Humidifier / diffuser | `humidifier` | `jsq` | Tier 1 | May need DP overrides | Category + DPS + name heuristics | `power`, `mode`, `humidity_percent`, `target_humidity_percent` | `set_humidity`, `set_mode` | target often `103`; current often `104`; mode often `2`; scale often `1` or `10` | Automated, hardware pending |
-| Air purifier | `air_purifier` | `kj` | Tier 1 | May need DP overrides | Category + DPS + name heuristics | `power`, `mode`, `fan_speed_percent`, `air_quality_index` | `set_fan_speed`, `set_mode` | speed often `4`; mode often `2`; AQI-like reading often `22`; scale often `1` | Automated, hardware pending |
-| Unknown Tuya devices | `device` or inferred fallback | varies | Tier 2 | Advanced / experimental | Best-effort only | raw `dp_<number>` values | `refresh`, `turn_on`, `turn_off`, `set_dp` when applicable | no family guarantees | Automated generic path only |
+| Smart plug / outlet | `plug` | `cz`, `pc` | Tier 2 | Works in common cases | Category + DPS + name heuristics | `power`, `current_ma`, `power_w`, `voltage_v` | `turn_on`, `turn_off` | power on `1`; energy often on `18/19/20` or `4/5/6` | Automated, uncertified |
+| Wall switch / relay | `switch` | `kg` | Tier 2 | Works in common cases | Category + DPS + name heuristics | `power` | `turn_on`, `turn_off` | primary relay often on `1`; multiple boolean channels possible | Automated, uncertified |
+| Light / bulb / strip | `light` | `dj` | Tier 2 | Works in common cases | Category + DPS + name heuristics | `power`, `mode`, `brightness_percent`, `color_temp_percent`, `color_value` | bounded light helpers | power often `20`; mode `21`; brightness `22`; CT `23`; RGB `24` | Automated, uncertified |
+| Fan | `fan` | `fs` | Tier 2 read path | May need DP overrides | Category + DPS + name heuristics | `power`, `fan_speed_percent`, `oscillating`, `mode` | inferred DP writes disabled | power `1`; speed usually `3/4/5`; mode often `4/5/6`; oscillate often `5/4/6` | Automated, uncertified |
+| Cover / blind / curtain | `cover` | `cl` | Tier 2 read path | May need DP overrides | Category + DPS + name heuristics | `position_percent`, `motion_state` | all motion writes disabled | control often `1`; position often `2/3/5` | Automated, uncertified |
+| Climate / thermostat | `climate` | `wk`, `wkf` | Tier 2 read path | May need DP overrides | Category + DPS + name heuristics | `power`, `mode`, `temperature_c`, `target_temperature_c` | all HVAC writes disabled | target often `16`; current often `24`; mode often `4`; scale often `1` or `10` | Automated, uncertified |
+| Humidifier / diffuser | `humidifier` | `jsq` | Tier 2 read path | May need DP overrides | Category + DPS + name heuristics | `power`, `mode`, `humidity_percent`, `target_humidity_percent` | inferred target/mode writes disabled | target often `103`; current often `104`; mode often `2`; scale often `1` or `10` | Automated, uncertified |
+| Air purifier | `air_purifier` | `kj` | Tier 2 read path | May need DP overrides | Category + DPS + name heuristics | `power`, `mode`, `fan_speed_percent`, `air_quality_index` | inferred speed/mode writes disabled | speed often `4`; mode often `2`; AQI-like reading often `22`; scale often `1` | Automated, uncertified |
+| Unknown Tuya devices | `device` or inferred fallback | varies | Tier 3 | Advanced / experimental | Best-effort only | raw `dp_<number>` values | `refresh` only | no family guarantees | Automated generic read path only |
 
 ---
 
@@ -166,7 +169,7 @@ These areas should currently be treated as Tier 2 or Tier 3 unless proven otherw
 For these, the runtime may still:
 - discover the device
 - expose raw DPS values as `dp_<number>`
-- allow manual `set_dp` operations
+- inspect raw DPS for diagnostics (manual raw writes are not exposed)
 
 But that is **not** the same as first-class support.
 
@@ -176,9 +179,9 @@ But that is **not** the same as first-class support.
 
 For production use, this runtime should be treated as:
 
-- **Production-ready runtime implementation** for the Tier 1 families above
-- **Best with known devices that match the listed DP assumptions**
-- **Still requiring hardware validation per actual model/vendor variant before broad rollout**
+- **Implemented LAN runtime, pre-certification**
+- **No certified model rows and no unqualified production-ready device claim**
+- **Read-only inferred family state; consequential writes require exact model certification**
 
 The appendices below are the source of truth for model-level certification.
 
@@ -284,7 +287,7 @@ Use this checklist for each real device model.
 - [ ] `refresh`
 - [ ] `turn_on` / `turn_off` where applicable
 - [ ] family-specific commands verified
-- [ ] raw `set_dp` tested if needed
+- [ ] no raw write surface is exposed
 - [ ] post-command state refresh reflects change
 
 ### Failure behavior

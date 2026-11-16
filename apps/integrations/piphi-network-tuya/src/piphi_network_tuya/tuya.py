@@ -15,6 +15,8 @@ from .contract import (
     LIGHT_ENTITY_CAPABILITIES,
     PLUG_ENTITY_CAPABILITIES,
     SWITCH_ENTITY_CAPABILITIES,
+    CAPABILITIES,
+    COMMANDS,
 )
 from .schemas import TuyaDeviceConfig
 from .settings import tuya_discovery_timeout_seconds, tuya_io_timeout_seconds
@@ -30,8 +32,8 @@ class TuyaClientError(RuntimeError):
 
 
 DISCOVERY_PROFILE_COMMANDS: dict[str, list[str]] = {
-    "plug": ["refresh", "turn_on", "turn_off", "set_dp"],
-    "switch": ["refresh", "turn_on", "turn_off", "set_dp"],
+    "plug": ["refresh", "turn_on", "turn_off"],
+    "switch": ["refresh", "turn_on", "turn_off"],
     "light": [
         "refresh",
         "turn_on",
@@ -40,7 +42,6 @@ DISCOVERY_PROFILE_COMMANDS: dict[str, list[str]] = {
         "set_color_temp",
         "set_color_rgb",
         "set_mode",
-        "set_dp",
     ],
     "fan": [
         "refresh",
@@ -49,7 +50,6 @@ DISCOVERY_PROFILE_COMMANDS: dict[str, list[str]] = {
         "set_fan_speed",
         "set_oscillate",
         "set_mode",
-        "set_dp",
     ],
     "cover": [
         "refresh",
@@ -57,7 +57,6 @@ DISCOVERY_PROFILE_COMMANDS: dict[str, list[str]] = {
         "close_cover",
         "stop_cover",
         "set_cover_position",
-        "set_dp",
     ],
     "climate": [
         "refresh",
@@ -65,7 +64,6 @@ DISCOVERY_PROFILE_COMMANDS: dict[str, list[str]] = {
         "turn_off",
         "set_temperature",
         "set_mode",
-        "set_dp",
     ],
     "humidifier": [
         "refresh",
@@ -73,7 +71,6 @@ DISCOVERY_PROFILE_COMMANDS: dict[str, list[str]] = {
         "turn_off",
         "set_humidity",
         "set_mode",
-        "set_dp",
     ],
     "air_purifier": [
         "refresh",
@@ -81,9 +78,8 @@ DISCOVERY_PROFILE_COMMANDS: dict[str, list[str]] = {
         "turn_off",
         "set_fan_speed",
         "set_mode",
-        "set_dp",
     ],
-    "device": ["refresh", "turn_on", "turn_off", "set_dp"],
+    "device": ["refresh", "turn_on", "turn_off"],
 }
 
 TUYA_CATEGORY_DEVICE_TYPES: dict[str, str] = {
@@ -97,6 +93,17 @@ TUYA_CATEGORY_DEVICE_TYPES: dict[str, str] = {
     "wkf": "climate",
     "jsq": "humidifier",
     "kj": "air_purifier",
+}
+
+DISCOVERY_SAFE_COMMANDS = set(COMMANDS)
+DISCOVERY_SAFE_CAPABILITIES = set(CAPABILITIES)
+DISCOVERY_CERTIFICATION_REQUIRED = {
+    "fan": {"set_fan_speed", "set_oscillate", "set_mode"},
+    "cover": {"open_cover", "close_cover", "stop_cover", "set_cover_position"},
+    "climate": {"turn_on", "turn_off", "set_temperature", "set_mode"},
+    "humidifier": {"set_humidity", "set_mode"},
+    "air_purifier": {"set_fan_speed", "set_mode"},
+    "device": {"turn_on", "turn_off"},
 }
 
 
@@ -500,9 +507,8 @@ def _profile_for_discovered_device(
             "refresh",
             "turn_on",
             "turn_off",
-            "set_dp",
         ]
-        commands = ["refresh", "turn_on", "turn_off", "set_dp"]
+        commands = ["refresh", "turn_on", "turn_off"]
         if features["supports_mode"]:
             capabilities.append("mode")
             commands.append("set_mode")
@@ -543,9 +549,8 @@ def _profile_for_discovered_device(
             "refresh",
             "turn_on",
             "turn_off",
-            "set_dp",
         ]
-        commands = ["refresh", "turn_on", "turn_off", "set_dp"]
+        commands = ["refresh", "turn_on", "turn_off"]
         if speed_dp is not None:
             capabilities.append("fan_speed_percent")
             commands.append("set_fan_speed")
@@ -579,9 +584,8 @@ def _profile_for_discovered_device(
             "dp_count",
             "protocol_version",
             "refresh",
-            "set_dp",
         ]
-        commands = ["refresh", "set_dp"]
+        commands = ["refresh"]
         if control_dp is not None:
             capabilities.append("motion_state")
             commands.extend(["open_cover", "close_cover", "stop_cover"])
@@ -620,9 +624,8 @@ def _profile_for_discovered_device(
             "refresh",
             "turn_on",
             "turn_off",
-            "set_dp",
         ]
-        commands = ["refresh", "turn_on", "turn_off", "set_dp"]
+        commands = ["refresh", "turn_on", "turn_off"]
         if current_temp_dp is not None:
             capabilities.append("temperature_c")
         if target_temp_dp is not None:
@@ -667,9 +670,8 @@ def _profile_for_discovered_device(
             "refresh",
             "turn_on",
             "turn_off",
-            "set_dp",
         ]
-        commands = ["refresh", "turn_on", "turn_off", "set_dp"]
+        commands = ["refresh", "turn_on", "turn_off"]
         if current_humidity_dp is not None:
             capabilities.append("humidity_percent")
         if target_humidity_dp is not None:
@@ -712,9 +714,8 @@ def _profile_for_discovered_device(
             "refresh",
             "turn_on",
             "turn_off",
-            "set_dp",
         ]
-        commands = ["refresh", "turn_on", "turn_off", "set_dp"]
+        commands = ["refresh", "turn_on", "turn_off"]
         if speed_dp is not None:
             capabilities.append("fan_speed_percent")
             commands.append("set_fan_speed")
@@ -755,7 +756,6 @@ def _profile_for_discovered_device(
             "refresh",
             "turn_on",
             "turn_off",
-            "set_dp",
         ]
         if supports_energy:
             capabilities.extend(["current_ma", "power_w", "voltage_v"])
@@ -937,6 +937,21 @@ def _build_discovery_record(
         dps=normalized_dps,
     )
     profile = _profile_for_discovered_device(resolved_device_type, normalized_dps)
+    profile["supported_commands"] = [
+        command
+        for command in profile["supported_commands"]
+        if command in DISCOVERY_SAFE_COMMANDS
+        and command not in DISCOVERY_CERTIFICATION_REQUIRED.get(resolved_device_type, set())
+    ]
+    profile["supported_capabilities"] = [
+        capability
+        for capability in profile["supported_capabilities"]
+        if capability in DISCOVERY_SAFE_CAPABILITIES
+        and (
+            CAPABILITIES[capability].get("kind") != "action"
+            or capability in profile["supported_commands"]
+        )
+    ]
     primary_power = _primary_power_dp(normalized_dps, resolved_device_type)
     suggested_config: dict[str, Any] = {
         "device_type": resolved_device_type,
@@ -1058,6 +1073,8 @@ def _build_discovery_record(
         "suggested_config": suggested_config,
         "resolved_config_preview": resolved_config_preview,
         "missing_required_fields": ["local_key"],
+        "hardware_certification": "uncertified",
+        "consequential_writes_enabled": False,
     }
     if version is not None:
         record["version"] = str(version)
@@ -1817,20 +1834,6 @@ async def execute_command(
                 operation="Tuya turn_off command",
             )
             return TuyaCommandResult(command=command, raw=raw)
-        if command == "set_dp":
-            dp = str(payload.get("dp") or "").strip()
-            if not dp:
-                raise TuyaClientError("set_dp requires a dp argument.")
-            if "value" not in payload:
-                raise TuyaClientError("set_dp requires a value argument.")
-            raw = await _run_blocking_tuya_call(
-                _set_dp_sync,
-                runtime_device,
-                dp,
-                _jsonish_value(payload["value"]),
-                operation="Tuya set_dp command",
-            )
-            return TuyaCommandResult(command=command, raw=raw)
         if command == "set_brightness":
             if "brightness" not in payload:
                 raise TuyaClientError("set_brightness requires a brightness argument.")
@@ -2047,6 +2050,15 @@ def has_cloud_credentials(inputs: Mapping[str, Any]) -> bool:
     )
 
 
+def _redact_discovery_error(error: Exception, inputs: Mapping[str, Any]) -> str:
+    message = str(error)
+    for field in ("local_key", "localKey", "api_key", "apiKey", "api_secret", "apiSecret"):
+        secret = str(inputs.get(field) or "")
+        if secret:
+            message = message.replace(secret, "***redacted***")
+    return message
+
+
 def _discover_cloud_sync(inputs: Mapping[str, Any]) -> list[dict[str, Any]]:
     module = _require_tinytuya()
     cloud_cls = getattr(module, "Cloud", None)
@@ -2251,7 +2263,11 @@ async def discover_devices(inputs: Mapping[str, Any]) -> list[dict[str, Any]]:
                 cloud_devices = _filter_discovered_devices(cloud_devices, inputs)
                 if cloud_devices:
                     return cloud_devices
-            return [_build_manual_candidate(inputs, discovery_error=str(exc))]
+            return [
+                _build_manual_candidate(
+                    inputs, discovery_error=_redact_discovery_error(exc, inputs)
+                )
+            ]
 
     if has_cloud_credentials(inputs):
         try:
@@ -2265,6 +2281,10 @@ async def discover_devices(inputs: Mapping[str, Any]) -> list[dict[str, Any]]:
             if devices:
                 return devices
         except Exception as exc:
-            return [_build_manual_candidate(inputs, discovery_error=str(exc))]
+            return [
+                _build_manual_candidate(
+                    inputs, discovery_error=_redact_discovery_error(exc, inputs)
+                )
+            ]
 
     return [_build_manual_candidate(inputs)]

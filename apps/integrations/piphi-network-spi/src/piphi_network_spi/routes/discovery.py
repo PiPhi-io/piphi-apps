@@ -9,6 +9,7 @@ from piphi_runtime_kit_python import (
 )
 
 from ..sensors import discover_devices, normalize_config
+from ..state import run_hardware_operation
 
 router = APIRouter(tags=["discovery"])
 
@@ -16,9 +17,9 @@ router = APIRouter(tags=["discovery"])
 @router.post("/discover", response_model=IntegrationDiscoveryResponse)
 async def discover(payload: IntegrationDiscoveryRequest | None = None) -> IntegrationDiscoveryResponse:
     inputs = normalize_discovery_inputs(payload.inputs if payload else None)
-    config = normalize_config({**inputs, "adapter": inputs.get("adapter") or "linux_spi"})
     try:
-        devices = discover_devices(config)
-    except RuntimeError as exc:
+        config = normalize_config({**inputs, "adapter": inputs.get("adapter") or "linux_spi"})
+        devices = await run_hardware_operation(config, discover_devices)
+    except (RuntimeError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return build_discovery_response(devices)

@@ -59,7 +59,40 @@ class TuyaDeviceSession:
 
 
 device_sessions: dict[str, TuyaDeviceSession] = {}
-_SECRET_CONFIG_FIELDS = {"local_key", "api_key", "api_secret"}
+_SECRET_CONFIG_FIELDS = {
+    "local_key",
+    "localkey",
+    "api_key",
+    "apikey",
+    "api_secret",
+    "apisecret",
+    "secret",
+    "token",
+    "password",
+}
+_EVENT_PRIVATE_FIELDS = _SECRET_CONFIG_FIELDS | {
+    "config",
+    "host",
+    "alias",
+    "tuya_device_id",
+    "tuyadeviceid",
+    "api_device_id",
+    "apideviceid",
+}
+
+# Populated only after a model has a named real-hardware certification row and
+# a reviewed, exact DP mapping. An empty registry intentionally makes
+# consequential heuristic writes fail closed.
+CERTIFIED_WRITE_MAPPINGS: dict[str, dict[str, Any]] = {}
+_RAW_WRITE_COMMANDS = {"set_dp"}
+_CERTIFICATION_REQUIRED_COMMANDS = {
+    "fan": {"set_fan_speed", "set_oscillate", "set_mode"},
+    "cover": {"open_cover", "close_cover", "stop_cover", "set_cover_position"},
+    "climate": {"turn_on", "turn_off", "set_temperature", "set_mode"},
+    "humidifier": {"set_humidity", "set_mode"},
+    "air_purifier": {"set_fan_speed", "set_mode"},
+    "device": {"turn_on", "turn_off"},
+}
 
 
 def _utc_now() -> str:
@@ -89,14 +122,144 @@ def _safe_int(value: Any, default: int = 0) -> int:
         return default
 
 
+def _secret_values(value: Any) -> set[str]:
+    if not isinstance(value, dict):
+        return set()
+    secrets: set[str] = set()
+    for key, item in value.items():
+        if str(key).replace("-", "_").lower() in _SECRET_CONFIG_FIELDS and item:
+            secrets.add(str(item))
+        secrets.update(_secret_values(item))
+    return secrets
+
+
+def redact_sensitive(value: Any, *, secrets: set[str] | None = None) -> Any:
+    """Recursively redact secret fields and known secret values."""
+    known = set(secrets or set())
+    known.update(_secret_values(value))
+    if isinstance(value, dict):
+        result: dict[str, Any] = {}
+        for key, item in value.items():
+            normalized = str(key).replace("-", "_").lower()
+            result[key] = (
+                "***redacted***"
+                if normalized in _SECRET_CONFIG_FIELDS
+                else redact_sensitive(item, secrets=known)
+            )
+        return result
+    if isinstance(value, list):
+        return [redact_sensitive(item, secrets=known) for item in value]
+    if isinstance(value, tuple):
+        return tuple(redact_sensitive(item, secrets=known) for item in value)
+    if isinstance(value, str):
+        redacted = value
+        for secret in sorted(known, key=len, reverse=True):
+            if secret:
+                redacted = redacted.replace(secret, "***redacted***")
+        return redacted
+    return copy.deepcopy(value)
+
+
 def sanitize_entry(entry: dict[str, Any]) -> dict[str, Any]:
-    redacted = copy.deepcopy(entry)
-    config = redacted.get("config")
-    if isinstance(config, dict):
-        for field in _SECRET_CONFIG_FIELDS:
-            if field in config:
-                config[field] = "***redacted***"
-    return redacted
+    public_fields = {
+        "config_id",
+        "device_id",
+        "container_id",
+        "integration_id",
+        "device_type",
+        "protocol_version",
+        "poll_interval_seconds",
+        "runtime_status",
+        "latest_metrics",
+        "latest_units",
+    }
+    return redact_sensitive(
+        {key: value for key, value in entry.items() if key in public_fields}
+    )
+
+
+def _event_device(device: dict[str, Any]) -> dict[str, Any]:
+    """Return only the stable routing identity required by Runtime Kit."""
+    safe = {
+        "device_id": str(device.get("device_id") or device.get("config_id") or ""),
+        "config_id": str(device.get("config_id") or device.get("id") or ""),
+        "integration_id": INTEGRATION_ID,
+    }
+    container_id = device.get("container_id")
+    if container_id:
+        safe["container_id"] = str(container_id)
+    return safe
+
+
+def _event_private_values(device: dict[str, Any]) -> set[str]:
+    config = device.get("config") if isinstance(device.get("config"), dict) else {}
+    values = _secret_values(config)
+    for field in (
+        "host",
+        "alias",
+        "tuya_device_id",
+        "api_device_id",
+        "api_key",
+        "api_secret",
+        "local_key",
+    ):
+        value = device.get(field) or config.get(field)
+        if value:
+            values.add(str(value))
+    return values
+
+
+def _sanitize_event_payload(value: Any, *, private_values: set[str]) -> Any:
+    if isinstance(value, dict):
+        return {
+            key: _sanitize_event_payload(item, private_values=private_values)
+            for key, item in value.items()
+            if str(key).replace("-", "_").lower() not in _EVENT_PRIVATE_FIELDS
+        }
+    if isinstance(value, list):
+        return [
+            _sanitize_event_payload(item, private_values=private_values)
+            for item in value
+        ]
+    if isinstance(value, str):
+        sanitized = value
+        for private_value in sorted(private_values, key=len, reverse=True):
+            sanitized = sanitized.replace(private_value, "***redacted***")
+        return sanitized
+    return copy.deepcopy(value)
+
+
+def certified_mapping_for(config: TuyaDeviceConfig) -> dict[str, Any] | None:
+    mapping_id = str(config.certified_mapping_id or "").strip()
+    mapping = CERTIFIED_WRITE_MAPPINGS.get(mapping_id)
+    if not mapping or mapping.get("device_type") != normalize_device_type(
+        config.device_type, alias=config.alias
+    ):
+        return None
+    expected_config = mapping.get("config")
+    if not isinstance(expected_config, dict):
+        return None
+    configured = config.model_dump()
+    if any(configured.get(field) != value for field, value in expected_config.items()):
+        return None
+    return mapping
+
+
+def ensure_command_allowed(config: TuyaDeviceConfig, command_name: str) -> None:
+    if command_name in _RAW_WRITE_COMMANDS:
+        raise TuyaClientError(
+            "Raw Tuya DP writes are not exposed by this runtime; use a reviewed semantic command."
+        )
+    device_type = normalize_device_type(config.device_type, alias=config.alias)
+    if command_name not in _CERTIFICATION_REQUIRED_COMMANDS.get(device_type, set()):
+        return
+    mapping = certified_mapping_for(config)
+    allowed = set(mapping.get("commands", [])) if mapping else set()
+    if command_name not in allowed:
+        raise TuyaClientError(
+            f"Command '{command_name}' is disabled for uncertified {device_type} mappings. "
+            "Select a registered certified_mapping_id validated on the exact hardware model."
+        )
 
 
 def make_entry(config: TuyaDeviceConfig) -> dict[str, Any]:
@@ -133,10 +296,14 @@ def emit_runtime_event(
     *,
     severity: str = "info",
 ) -> dict[str, Any]:
+    safe_payload = _sanitize_event_payload(
+        payload or {}, private_values=_event_private_values(device)
+    )
+    safe_device = _event_device(device)
     event = build_local_event_record(
         event_type=event_type,
-        device=device,
-        payload=payload or {},
+        device=safe_device,
+        payload=safe_payload,
         source=INTEGRATION_ID,
         severity=severity,
     )
@@ -147,8 +314,8 @@ def emit_runtime_event(
             event_client=event_client,
             auth_context=runtime.auth,
             event_type=event_type,
-            device=device,
-            payload=payload or {},
+            device=safe_device,
+            payload=safe_payload,
             source=INTEGRATION_ID,
             severity=severity,
         )
@@ -174,11 +341,11 @@ def ensure_unique_device_identity(config: TuyaDeviceConfig) -> None:
         existing_device_id = str(existing.get("tuya_device_id") or "").strip().lower()
         if host and host == existing_host:
             raise TuyaClientError(
-                f"A Tuya device with host {config.host} is already configured as config_id={existing_config_id}"
+                f"This Tuya network endpoint is already configured as config_id={existing_config_id}"
             )
         if tuya_device_id and tuya_device_id == existing_device_id:
             raise TuyaClientError(
-                f"A Tuya device with tuya_device_id {config.tuya_device_id} is already configured as config_id={existing_config_id}"
+                f"This Tuya device identity is already configured as config_id={existing_config_id}"
             )
 
 
@@ -257,9 +424,6 @@ async def refresh_entry(entry: dict[str, Any]) -> dict[str, Any]:
         status["last_latency_ms"] = snapshot.metrics.get("latency_ms")
         state = {
             **snapshot.metrics,
-            "host": entry["host"],
-            "alias": entry["alias"],
-            "tuya_device_id": entry["tuya_device_id"],
             "device_type": entry["device_type"],
             "config_id": entry["config_id"],
             "last_refresh_at": status["last_refresh_at"],
@@ -271,25 +435,26 @@ async def refresh_entry(entry: dict[str, Any]) -> dict[str, Any]:
         entry["latest_units"] = snapshot.units
         entry["latest_raw"] = snapshot.raw
         logger.info(
-            "Tuya refresh succeeded for config_id=%s device_type=%s host=%s latency_ms=%s",
+            "Tuya refresh succeeded for config_id=%s device_type=%s latency_ms=%s",
             entry["config_id"],
             entry["device_type"],
-            entry["host"],
             snapshot.metrics.get("latency_ms"),
         )
         emit_runtime_event(
             "tuya.status.refreshed",
             entry,
             {
-                "host": entry["host"],
-                "tuya_device_id": entry["tuya_device_id"],
                 "dp_count": snapshot.metrics.get("dp_count", 0),
                 "persistent_session": True,
             },
         )
         return state
     except Exception as exc:
-        reason = str(exc)
+        reason = str(
+            _sanitize_event_payload(
+                str(exc), private_values=_event_private_values(entry)
+            )
+        )
         now = _utc_now()
         previous_error = str(status.get("last_error") or "")
         previous_error_event_at = status.get("last_error_event_at")
@@ -301,9 +466,6 @@ async def refresh_entry(entry: dict[str, Any]) -> dict[str, Any]:
         status["last_error"] = reason
         state = {
             "connected": False,
-            "host": entry["host"],
-            "alias": entry["alias"],
-            "tuya_device_id": entry["tuya_device_id"],
             "device_type": entry["device_type"],
             "config_id": entry["config_id"],
             "error": reason,
@@ -316,10 +478,9 @@ async def refresh_entry(entry: dict[str, Any]) -> dict[str, Any]:
         entry["latest_units"] = {"connected": "bool"}
         entry["latest_raw"] = {"error": reason}
         logger.warning(
-            "Tuya refresh failed for config_id=%s device_type=%s host=%s failures=%s error=%s",
+            "Tuya refresh failed for config_id=%s device_type=%s failures=%s error=%s",
             entry["config_id"],
             entry["device_type"],
-            entry["host"],
             status["consecutive_failures"],
             reason,
         )
@@ -338,8 +499,6 @@ async def refresh_entry(entry: dict[str, Any]) -> dict[str, Any]:
                 "tuya.status.error",
                 entry,
                 {
-                    "host": entry["host"],
-                    "tuya_device_id": entry["tuya_device_id"],
                     "error": reason,
                     "consecutive_failures": status["consecutive_failures"],
                 },
@@ -427,9 +586,8 @@ async def apply_config(config: TuyaDeviceConfig) -> None:
     if strict_config_validation() and not bool(state.get("connected")):
         reason = str(state.get("error") or "Initial Tuya validation failed")
         logger.error(
-            "Tuya config validation failed for config_id=%s host=%s device_type=%s error=%s",
+            "Tuya config validation failed for config_id=%s device_type=%s error=%s",
             config_id,
-            entry["host"],
             entry["device_type"],
             reason,
         )
@@ -437,9 +595,6 @@ async def apply_config(config: TuyaDeviceConfig) -> None:
             "tuya.config.validation_failed",
             entry,
             {
-                "host": entry["host"],
-                "alias": entry["alias"],
-                "tuya_device_id": entry["tuya_device_id"],
                 "device_type": entry["device_type"],
                 "error": reason,
             },
@@ -455,23 +610,19 @@ async def apply_config(config: TuyaDeviceConfig) -> None:
         else:
             registry.state_snapshots.pop(config_id, None)
         raise TuyaClientError(
-            f"Config validation failed for Tuya device {entry['alias']}: {reason}"
+            f"Config validation failed for configured Tuya device: {reason}"
         )
 
     _schedule_latest_telemetry(entry)
     logger.info(
-        "Applied Tuya config_id=%s device_type=%s host=%s",
+        "Applied Tuya config_id=%s device_type=%s",
         config_id,
         entry["device_type"],
-        entry["host"],
     )
     emit_runtime_event(
         "tuya.config.applied",
         entry,
         {
-            "host": entry["host"],
-            "alias": entry["alias"],
-            "tuya_device_id": entry["tuya_device_id"],
             "device_type": entry["device_type"],
             "poll_interval_seconds": entry["poll_interval_seconds"],
             "persistent_session": True,
@@ -489,11 +640,7 @@ async def remove_config(config_id: str) -> bool:
     emit_runtime_event(
         "tuya.config.removed",
         entry,
-        {
-            "host": entry.get("host"),
-            "alias": entry.get("alias"),
-            "tuya_device_id": entry.get("tuya_device_id"),
-        },
+        {"device_type": entry.get("device_type")},
     )
     return True
 
@@ -514,6 +661,7 @@ async def execute_command_for_entry(
         return {"result": {"command": command_name}, "state": state}
 
     config = TuyaDeviceConfig.model_validate(entry["config"])
+    ensure_command_allowed(config, command_name)
 
     async def _execute(session: TuyaDeviceSession, _attempt: int):
         return await execute_command(
@@ -522,10 +670,9 @@ async def execute_command_for_entry(
 
     result = await _with_persistent_session(entry, _execute)
     logger.info(
-        "Executed Tuya command config_id=%s command=%s host=%s",
+        "Executed Tuya command config_id=%s command=%s",
         entry["config_id"],
         command_name,
-        entry["host"],
     )
     state = await refresh_entry(entry)
     emit_runtime_event(
@@ -564,6 +711,7 @@ __all__ = [
     "config_sync",
     "device_sessions",
     "ensure_unique_device_identity",
+    "ensure_command_allowed",
     "event_client",
     "execute_command_for_entry",
     "find_entry",
@@ -574,6 +722,7 @@ __all__ = [
     "refresh_entry",
     "registry",
     "runtime",
+    "redact_sensitive",
     "sanitize_entry",
     "shutdown_runtime_resources",
     "start_poll_task",

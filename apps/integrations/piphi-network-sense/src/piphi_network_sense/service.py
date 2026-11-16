@@ -4,6 +4,8 @@ import asyncio
 from collections.abc import Callable
 from contextlib import suppress
 from dataclasses import dataclass
+from datetime import UTC, datetime
+from hashlib import sha256
 from time import monotonic
 from typing import Any
 
@@ -11,7 +13,13 @@ from fastapi import HTTPException
 from piphi_runtime_kit_python import schedule_telemetry_delivery
 
 from .schemas import DeviceConfig
-from .sense_client import SenseClient, SenseEnergyClient, SenseReading
+from .sense_client import (
+    SenseAuthenticationError,
+    SenseClient,
+    SenseEnergyClient,
+    SenseRateLimitError,
+    SenseReading,
+)
 
 
 @dataclass(slots=True)
@@ -19,8 +27,9 @@ class ActiveSenseSession:
     config: DeviceConfig
     client: SenseClient
     entry: dict[str, Any]
-    credentials_key: tuple[str, str]
+    credentials_key: str
     last_trend_poll: float = 0.0
+    failure_count: int = 0
 
 
 class SenseRuntimeService:
@@ -53,7 +62,9 @@ class SenseRuntimeService:
                     },
                 )
 
-            credentials_key = (config.email, config.secret_password())
+            credentials_key = sha256(
+                f"{config.email}\0{config.secret_password()}".encode()
+            ).hexdigest()
             if self._active and self._active.credentials_key == credentials_key:
                 self._active.config = config
                 self._active.entry = entry
@@ -72,6 +83,9 @@ class SenseRuntimeService:
                 entry=entry,
                 credentials_key=credentials_key,
             )
+            # The provider monitor id is the immutable entity identity. Mutable
+            # email/alias values never form the runtime device id.
+            entry["device_id"] = str(client.monitor_id)
             try:
                 await self._refresh_locked(force_trends=True)
             except Exception:
@@ -112,7 +126,8 @@ class SenseRuntimeService:
             active = self._active
             if active is None:
                 return
-            await asyncio.sleep(active.config.poll_interval_seconds)
+            delay = active.config.poll_interval_seconds * (2 ** min(active.failure_count, 5))
+            await asyncio.sleep(min(delay, 1800))
             try:
                 async with self._lock:
                     if self._active is not active:
@@ -121,9 +136,21 @@ class SenseRuntimeService:
             except asyncio.CancelledError:
                 raise
             except Exception as exc:  # keep the long-lived session alive after transient API failures
+                active.failure_count += 1
+                previous = self.registry.state_snapshots.get(
+                    str(active.entry["config_id"]), {}
+                ).get("state", {}) if hasattr(self.registry, "state_snapshots") else {}
                 self.registry.update_state(
                     str(active.entry["config_id"]),
-                    {"connected": False, "error": str(exc)},
+                    {
+                        **previous,
+                        "connected": False,
+                        "available": False,
+                        "stale": True,
+                        "error_class": _error_class(exc),
+                        "reauth_required": isinstance(exc, SenseAuthenticationError),
+                        "last_poll_failed_at": _utc_now_iso(),
+                    },
                     device_id=str(active.entry["device_id"]),
                 )
 
@@ -133,9 +160,14 @@ class SenseRuntimeService:
         now = monotonic()
         include_trends = force_trends or now - active.last_trend_poll >= active.config.trend_interval_seconds
         reading = await active.client.read(include_trends=include_trends)
+        active.failure_count = 0
         if include_trends:
             active.last_trend_poll = now
-        state = _reading_to_state(reading)
+        state = _reading_to_state(
+            reading,
+            expose_appliance_activity=active.config.expose_appliance_activity,
+            expose_timeline=active.config.expose_timeline,
+        )
         config_id = str(active.entry["config_id"])
         device_id = str(active.entry["device_id"])
         self.registry.update_state(config_id, state, device_id=device_id)
@@ -149,7 +181,7 @@ class SenseRuntimeService:
             metrics={key: value for key, value in state.items() if isinstance(value, (bool, int, float))},
             units=TELEMETRY_UNITS,
         )
-        for device in reading.devices:
+        for device in reading.devices if active.config.expose_appliance_activity else ():
             schedule_telemetry_delivery(
                 process_state=self.runtime.process_state,
                 telemetry_client=self.telemetry,
@@ -188,9 +220,33 @@ DEVICE_TELEMETRY_UNITS = {
 }
 
 
-def _reading_to_state(reading: SenseReading) -> dict[str, Any]:
+def _utc_now_iso() -> str:
+    return datetime.now(tz=UTC).isoformat()
+
+
+def _error_class(exc: Exception) -> str:
+    if isinstance(exc, SenseAuthenticationError):
+        return "authentication"
+    if isinstance(exc, SenseRateLimitError):
+        return "rate_limit"
+    return "transient_outage"
+
+
+def _reading_to_state(
+    reading: SenseReading,
+    *,
+    expose_appliance_activity: bool = False,
+    expose_timeline: bool = False,
+) -> dict[str, Any]:
+    fetched_at = _utc_now_iso()
     state: dict[str, Any] = {
         "connected": True,
+        "available": True,
+        "stale": False,
+        "fetched_at": fetched_at,
+        "last_success_at": fetched_at,
+        "error_class": None,
+        "reauth_required": False,
         "monitor_id": reading.monitor_id,
         "time_zone": reading.time_zone,
         "active_power_w": reading.active_power_w,
@@ -200,7 +256,10 @@ def _reading_to_state(reading: SenseReading) -> dict[str, Any]:
         "daily_production_kwh": reading.daily_production_kwh,
         "daily_from_grid_kwh": reading.daily_from_grid_kwh,
         "daily_to_grid_kwh": reading.daily_to_grid_kwh,
-        "active_device_count": sum(1 for device in reading.devices if device.is_on),
+        "active_device_count": (
+            sum(1 for device in reading.devices if device.is_on)
+            if expose_appliance_activity else None
+        ),
         "always_on_power_w": reading.always_on_power_w,
         "other_power_w": reading.other_power_w,
         "devices": [
@@ -216,6 +275,7 @@ def _reading_to_state(reading: SenseReading) -> dict[str, Any]:
                 "timeline_enabled": device.timeline_enabled,
             }
             for device in reading.devices
+            if expose_appliance_activity
         ],
         "timeline_events": [
             {
@@ -229,6 +289,7 @@ def _reading_to_state(reading: SenseReading) -> dict[str, Any]:
                 "icon": event.icon,
             }
             for event in reading.timeline_events
+            if expose_timeline
         ],
     }
     if reading.voltage_v:

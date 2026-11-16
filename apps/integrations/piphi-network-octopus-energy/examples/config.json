@@ -1,8 +1,7 @@
 {
   "id": "demo-device",
-  "host": "127.0.0.1",
-  "alias": "Demo Device",
-  "base_url": "https://api.vendor.example",
-  "api_key": "change-me",
-  "poll_interval_seconds": 15
+  "alias": "Agile tariff",
+  "product_code": "AGILE-FLEX-22-11-25",
+  "tariff_code": "E-1R-AGILE-FLEX-22-11-25-A",
+  "poll_interval_seconds": 300
 }

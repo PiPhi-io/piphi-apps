@@ -759,7 +759,113 @@ async def test_duplicate_push_msg_id_is_ignored_and_reported_in_diagnostics(
     assert push_diagnostics["tracked_msg_id_count"] == 1
     assert push_diagnostics["status"]["received_count"] == 2
     assert push_diagnostics["status"]["duplicate_count"] == 1
-    assert push_diagnostics["status"]["last_msg_id"] == "push-dup-1"
+    assert "last_msg_id" not in push_diagnostics["status"]
+
+
+@pytest.mark.asyncio
+async def test_push_verification_uses_constant_time_comparison(
+    async_client,
+    fake_cloud_client,
+    config_payload,
+    monkeypatch,
+) -> None:
+    fake_cloud_client.devices = {
+        "lumi.push-compare": AqaraCloudDevice(
+            did="lumi.push-compare", name="Push compare", model="lumi.plug.maus01", state=1
+        )
+    }
+    fake_cloud_client.resources_by_model = {
+        "lumi.plug.maus01": [AqaraResourceInfo(resource_id="4.1.85", name="plug status", access=5)]
+    }
+    fake_cloud_client.values_by_did = {
+        "lumi.push-compare": [AqaraResourceValue(subject_id="lumi.push-compare", resource_id="4.1.85", value="0")]
+    }
+    assert (
+        await async_client.post(
+            "/config",
+            json=config_payload(
+                config_id="cfg-push-compare",
+                device_id="lumi.push-compare",
+                extra={
+                    "region": "us",
+                    "app_id": "app-id",
+                    "key_id": "key-id",
+                    "app_key": "app-key",
+                    "access_token": "push-token-canary",
+                    "open_id": "push-open-id",
+                    "did": "lumi.push-compare",
+                },
+            ),
+        )
+    ).status_code == 200
+
+    from piphi_network_aqara import runtime as runtime_module
+
+    real_compare = runtime_module.hmac.compare_digest
+    comparisons: list[tuple[str, str]] = []
+
+    def tracked_compare(left: str, right: str) -> bool:
+        comparisons.append((left, right))
+        return real_compare(left, right)
+
+    monkeypatch.setattr(runtime_module.hmac, "compare_digest", tracked_compare)
+    response = await async_client.post(
+        "/push/aqara",
+        headers={"token": "wrong-token-canary"},
+        json={"msgId": "compare-1", "openId": "push-open-id", "msgType": "resource_report", "data": []},
+    )
+    assert response.status_code == 403
+    assert ("push-token-canary", "wrong-token-canary") in comparisons
+
+
+@pytest.mark.asyncio
+async def test_concurrent_push_replay_is_processed_once(
+    async_client,
+    fake_cloud_client,
+    config_payload,
+) -> None:
+    did = "lumi.push-race"
+    model = "lumi.plug.maus01"
+    fake_cloud_client.devices = {did: AqaraCloudDevice(did=did, name="Push race", model=model, state=1)}
+    fake_cloud_client.resources_by_model = {
+        model: [AqaraResourceInfo(resource_id="4.1.85", name="plug status", access=5)]
+    }
+    fake_cloud_client.values_by_did = {
+        did: [AqaraResourceValue(subject_id=did, resource_id="4.1.85", value="0", timestamp_ms=1710000000000)]
+    }
+    assert (
+        await async_client.post(
+            "/config",
+            json=config_payload(
+                config_id="cfg-push-race",
+                device_id=did,
+                extra={
+                    "region": "us",
+                    "app_id": "app-id",
+                    "key_id": "key-id",
+                    "app_key": "app-key",
+                    "access_token": "race-token",
+                    "open_id": "race-open-id",
+                    "did": did,
+                },
+            ),
+        )
+    ).status_code == 200
+    payload = {
+        "msgId": "race-msg-1",
+        "openId": "race-open-id",
+        "time": "1710000001000",
+        "msgType": "resource_report",
+        "data": [{"subjectId": did, "resourceId": "4.1.85", "value": "1", "time": "1710000001000"}],
+    }
+    first, second = await asyncio.gather(
+        async_client.post("/push/aqara", headers={"token": "race-token"}, json=payload),
+        async_client.post("/push/aqara", headers={"token": "race-token"}, json=payload),
+    )
+    assert first.status_code == second.status_code == 200
+    results = [first.json(), second.json()]
+    assert sorted(result["duplicate"] for result in results) == [False, True]
+    assert sum(result["handled"] for result in results) == 1
 
 
 @pytest.mark.asyncio
@@ -840,7 +946,7 @@ async def test_stale_push_resource_report_is_ignored_and_counted_in_diagnostics(
     assert diagnostics_response.status_code == 200
     push_diagnostics = diagnostics_response.json()["diagnostics"]["push"]
     assert push_diagnostics["status"]["stale_count"] == 1
-    assert push_diagnostics["status"]["last_msg_id"] == "push-stale-1"
+    assert "last_msg_id" not in push_diagnostics["status"]
     assert push_diagnostics["status"]["last_stale_at"] is not None
 
 

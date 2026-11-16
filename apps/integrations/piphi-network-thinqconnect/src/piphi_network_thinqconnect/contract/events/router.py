@@ -11,6 +11,7 @@ from piphi_runtime_kit_python import (
 )
 
 from piphi_network_thinqconnect.lib.logging import logger
+from piphi_network_thinqconnect.lib.privacy import redact_sensitive
 from piphi_network_thinqconnect.lib.store import append_event, registry
 
 
@@ -20,7 +21,7 @@ router = APIRouter(tags=["events"])
 @router.get("/events")
 async def get_events() -> IntegrationEventListResponse:
     logger.info("events_list count=%s", len(registry.recent_events))
-    return build_event_list_response(registry.recent_events)
+    return build_event_list_response(redact_sensitive(registry.recent_events))
 
 
 @router.post("/events")

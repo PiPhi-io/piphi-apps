@@ -11,6 +11,7 @@ A PiPhi Tuya runtime integration built with `piphi-runtime-kit-python`, tested w
 - Optional Tuya cloud-backed discovery inputs (`api_region`, `api_key`, `api_secret`, `api_device_id`)
 - Discovery candidate normalization with Tuya category, DPS, and product-name heuristics
 - Discovery-time capability/command hints for plugs, switches, lights, fans, covers, climate devices, humidifiers, and air purifiers
+- Read-only inferred family state for uncertified models; consequential inferred writes are default-deny
 - Background polling scheduler per configured device
 - Persistent TinyTuya device sessions for lower socket churn during polling and commands
 - Separate plug, switch, light, fan, cover, climate, humidifier, and air purifier entity modeling
@@ -97,6 +98,13 @@ This is the document to use when deciding whether a device family should be pres
 
 ## Device-specific commands
 
+The package currently has **no model-certified hardware mappings**. Raw `set_dp`
+is not exposed. Cover, climate/HVAC, fan, humidifier, and air-purifier commands
+that depend on inferred DP mappings remain hidden and are rejected until an
+exact model mapping is registered from real-hardware certification. The lists
+below describe implemented handlers, not commands available on uncertified
+devices.
+
 When `device_type` is `light`, the runtime also exposes these commands:
 
 - `set_brightness`
@@ -104,30 +112,30 @@ When `device_type` is `light`, the runtime also exposes these commands:
 - `set_color_rgb`
 - `set_mode`
 
-When `device_type` is `fan`, the runtime also exposes these commands:
+For a model-certified `fan`, the runtime can expose:
 
 - `set_fan_speed`
 - `set_oscillate`
 - `set_mode`
 
-When `device_type` is `cover`, the runtime also exposes these commands:
+For a model-certified `cover`, the runtime can expose:
 
 - `open_cover`
 - `close_cover`
 - `stop_cover`
 - `set_cover_position`
 
-When `device_type` is `climate`, the runtime also exposes these commands:
+For a model-certified `climate`, the runtime can expose:
 
 - `set_temperature`
 - `set_mode`
 
-When `device_type` is `humidifier`, the runtime also exposes these commands:
+For a model-certified `humidifier`, the runtime can expose:
 
 - `set_humidity`
 - `set_mode`
 
-When `device_type` is `air_purifier`, the runtime also exposes these commands:
+For a model-certified `air_purifier`, the runtime can expose:
 
 - `set_fan_speed`
 - `set_mode`
@@ -154,6 +162,10 @@ This runtime uses `tinytuya` in the same local-LAN style recommended by the proj
 - local status via device `status()`
 - local commands like `turn_on()`, `turn_off()`, `set_value()`, and bulb helpers where available
 - optional cloud discovery through TinyTuya `Cloud`
+
+Optional cloud credentials assist discovery and local-key acquisition only.
+Configured operation remains LAN polling/control; this package does not claim
+Home Assistant Tuya cloud parity, cloud push, or away-from-home operation.
 
 For real devices you will need:
 
@@ -260,7 +272,7 @@ Recommended production defaults are already shown in `docker-compose.runtime.yml
 
 ## Climate / thermostat notes
 
-For many Tuya thermostats, discovery can now infer and prefill:
+For many Tuya thermostats, discovery can infer read mappings and prefill:
 
 - `climate_target_temp_dp`
 - `climate_current_temp_dp`
@@ -268,6 +280,9 @@ For many Tuya thermostats, discovery can now infer and prefill:
 - `climate_temp_scale`
 
 Common DP patterns are target temperature on `16` and current temperature on `24`, but devices vary. Some thermostats report whole-degree values and use `climate_temp_scale: 1`, while others report tenths of a degree and need `climate_temp_scale: 10`.
+
+These heuristics are not write certification. HVAC power, mode, and target
+temperature writes remain disabled without an exact certified mapping.
 
 The runtime exposes both normalized climate metrics:
 
@@ -317,8 +332,8 @@ and the raw Tuya datapoints as `dp_<number>` so you can still inspect device-spe
 
 - This runtime uses TinyTuya LAN-style control and is not guaranteed to support every Tuya datapoint family or every Tuya device model out of the box.
 - Discovery gracefully falls back to a manual candidate when cloud credentials are not supplied.
-- The runtime currently provides first-class profiles for plug/switch, light, fan, cover, climate, humidifier, and air purifier devices, while still exposing unknown DPS generically as `dp_<number>` metrics.
-- `/state` redacts `local_key`, `api_key`, and `api_secret` from stored config payloads.
+- The runtime provides automated family parsers, not model certification. All hardware certification rows are currently empty.
+- `/state` omits raw config, host, alias, and raw vendor responses; diagnostics and entity metadata expose only operational fields; events use identity-only device references and remove local/cloud credentials, host, and user aliases from payloads.
 - `/health` and `/diagnostics` now expose operational summaries such as poll task counts, persistent session counts, and per-device refresh/failure status to help production monitoring.
 - Config apply now rejects duplicate Tuya identities and, by default, rejects invalid initial device handshakes instead of accepting a broken config.
 - `/discover` now validates cloud credentials as an all-or-nothing set and rejects invalid `scan_seconds` values early.

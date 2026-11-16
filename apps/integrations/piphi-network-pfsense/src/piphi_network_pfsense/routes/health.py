@@ -18,9 +18,8 @@ async def health() -> Any:
 
 @router.get("/diagnostics")
 async def diagnostics() -> Any:
-    firewalls = {
-        config_id: {
-            "host": entry.get("host"),
+    firewalls = [
+        {
             "connected": (entry.get("latest_state") or {}).get("connected", False),
             "pfsense_version": (entry.get("latest_state") or {}).get("pfsense_version"),
             "rest_api_version": (entry.get("latest_state") or {}).get(
@@ -31,17 +30,22 @@ async def diagnostics() -> Any:
                 "endpoint_errors", {}
             ),
             "error": (entry.get("latest_state") or {}).get("error"),
+            "read_only": (entry.get("connection") or {}).get("read_only", True),
         }
-        for config_id, entry in registry.entries.items()
-    }
+        for entry in registry.entries.values()
+    ]
     return starter.diagnostics_response(
         diagnostics={
-            "active_config_ids": registry.ids(),
+            "active_config_count": len(registry.ids()),
             "firewalls": firewalls,
             "recent_event_count": len(registry.recent_events),
             "kind": PROJECT_KIND,
             "upstream_api": "pfSense REST API v2 (community pfREST package)",
-            "access_mode": "read-only",
+            "access_mode": (
+                "read-only"
+                if all(item["read_only"] for item in firewalls)
+                else "monitoring-with-opt-in-operations"
+            ),
             "contract": {
                 "endpoints": ENDPOINTS,
                 "required": REQUIRED_ENDPOINTS,

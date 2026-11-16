@@ -90,7 +90,7 @@ async def _execute_registered_command(
         return AutomationActionResult.failure(
             str(exc.detail),
             retryable=exc.status_code >= 500,
-            metadata={"status_code": exc.status_code},
+            metadata={"status_code": exc.status_code, "detail": exc.detail},
         )
     return AutomationActionResult.success(
         {
@@ -138,6 +138,6 @@ async def execute_command(
     if not result.ok:
         raise HTTPException(
             status_code=int(result.metadata.get("status_code") or 503),
-            detail=result.error,
+            detail=result.metadata.get("detail") or result.error,
         )
     return {**result.result, "replayed": result.replayed}

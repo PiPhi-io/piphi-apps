@@ -43,6 +43,12 @@ Optional monitoring privileges, enabled by their corresponding collection flags:
 - `GET /api/v2/status/carp`, `/api/v2/firewall/virtual_ips`, and
   `/api/v2/system/hasync` for high-availability monitoring
 
+All six baseline GET endpoints above are essential: setup fails, and an active
+firewall is marked unavailable, if any is denied or malformed. Optional endpoint
+failures remain scoped to their selected feature. Use a separate pfREST API key
+containing only these exact endpoint privileges and the explicitly selected
+optional privileges; no administrator role is required or recommended.
+
 ## Local development
 
 ```bash
@@ -70,6 +76,7 @@ Configure the runtime through `POST /config`:
   "port": 443,
   "scheme": "https",
   "verify_tls": true,
+  "allow_insecure_transport": false,
   "poll_interval_seconds": 60,
   "collect_dhcp_leases": false,
   "collect_vpn_status": false,
@@ -102,8 +109,12 @@ events, allow-list checks, actions, and widgets use the production code paths.
 
 `host` accepts a hostname or IP address, not a URL. HTTPS and certificate
 verification are enabled by default. For an internal CA, mount its PEM bundle
-into the container and set `ca_bundle_path`. HTTP requires both `scheme=http`
-and `verify_tls=false` and should only be used in an isolated lab.
+read-only under `/etc/ssl/certs/` or `/run/secrets/` and set `ca_bundle_path`.
+HTTP or disabled verification additionally requires
+`allow_insecure_transport=true` **and** the deployment-level environment gate
+`PIPHI_PFSENSE_LAB_ALLOW_INSECURE=true`. The container does not set that gate
+by default, so ordinary production configuration cannot disable transport
+security. Use both controls only in an isolated lab.
 
 ## Runtime model
 
@@ -127,8 +138,11 @@ under `widgets/pfsense-overview`. A second client/security widget displays
 inventory, certificate alerts, and recent log volume. Run `npm ci && npm run
 conformance` in either widget directory for local validation.
 
-Log collection establishes the first response as its baseline and emits only
-new entries afterward. Certificate responses are stripped down to description,
+Log collection is an explicit privacy opt-in, establishes the first response as
+its baseline, and emits only a stream name plus an opaque event fingerprint for
+new entries. Raw firewall/auth/DHCP/system text is never forwarded. Inputs are
+bounded and credentials, IP addresses, and hostnames are redacted before
+deduplication. Certificate responses are stripped down to description,
 type, and validity fields immediately; certificate bodies, CSRs, CA references,
 and private keys are never retained in normalized snapshots or PiPhi state.
 

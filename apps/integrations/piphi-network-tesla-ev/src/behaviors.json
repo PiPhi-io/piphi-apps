@@ -837,7 +837,7 @@
           "failure": {
             "strategy": "retry_then_continue",
             "retry": {
-              "maxAttempts": 2,
+              "maxAttempts": 1,
               "delaySeconds": 5,
               "timeoutSeconds": 15,
               "backoff": "fixed"
@@ -869,9 +869,9 @@
           "failure": {
             "strategy": "retry_then_stop",
             "retry": {
-              "maxAttempts": 2,
+              "maxAttempts": 1,
               "delaySeconds": 10,
-              "timeoutSeconds": 30,
+              "timeoutSeconds": 65,
               "backoff": "fixed"
             }
           },
@@ -879,7 +879,9 @@
             "group": "do_this"
           },
           "safety": {
-            "riskLevel": "medium"
+            "riskLevel": "medium",
+            "requiresConfirmation": true,
+            "liveRunAllowed": false
           }
         }
       ],
@@ -1078,7 +1080,7 @@
             "failure": {
               "strategy": "retry_then_continue",
               "retry": {
-                "maxAttempts": 2,
+                "maxAttempts": 1,
                 "delaySeconds": 5,
                 "timeoutSeconds": 15,
                 "backoff": "fixed"
@@ -1188,9 +1190,9 @@
             "failure": {
               "strategy": "retry_then_stop",
               "retry": {
-                "maxAttempts": 2,
+                "maxAttempts": 1,
                 "delaySeconds": 10,
-                "timeoutSeconds": 30,
+                "timeoutSeconds": 65,
                 "backoff": "fixed"
               },
               "continueOnPartialFailure": false

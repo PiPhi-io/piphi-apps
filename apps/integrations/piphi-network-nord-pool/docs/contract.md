@@ -3,6 +3,12 @@
 Based on the `piphi-network-create` cloud API starter; the runtime now reads
 published market intervals for a configured `market_area` and `currency`.
 
+The source is the fixed, first-party but unofficial Nord Pool public-portal
+backend. Runtime state reports `source_endpoint_status`,
+`source_licensing_status=redistribution_rights_unresolved`, and
+`production_publication_allowed=false`. These fields are safeguards, not legal
+advice or provider approval; this draft package must not be assumed publishable.
+
 - Integration ID: `piphi-network-nord-pool`
 - Kind: `integration`
 - Preset: `cloud-polling-api`

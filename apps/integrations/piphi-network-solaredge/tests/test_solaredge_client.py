@@ -1,8 +1,15 @@
 from __future__ import annotations
 
 import pytest
+import httpx
 
-from solar_edge.solaredge_client import MonitoringApiClient, _power_factor
+from solar_edge.solaredge_client import (
+    MonitoringApiClient,
+    SolarEdgeRateLimitError,
+    SolarEdgeTransientError,
+    _power_factor,
+    _translate_error,
+)
 
 
 class FakeUpstreamClient:
@@ -50,3 +57,15 @@ async def test_adapter_normalizes_units_directions_and_energy() -> None:
 def test_unknown_power_unit_safely_falls_back_to_watts() -> None:
     assert _power_factor("kW") == 1000.0
     assert _power_factor("unexpected") == 1.0
+
+
+def test_provider_errors_are_redacted_and_retry_after_is_preserved() -> None:
+    request = httpx.Request("GET", "https://monitoringapi.solaredge.com/site?api_key=canary")
+    response = httpx.Response(429, headers={"Retry-After": "120"}, request=request)
+    quota = _translate_error(httpx.HTTPStatusError("canary-body", request=request, response=response))
+    outage = _translate_error(httpx.ConnectError("canary-secret", request=request))
+
+    assert isinstance(quota, SolarEdgeRateLimitError)
+    assert quota.retry_after_seconds == 120
+    assert isinstance(outage, SolarEdgeTransientError)
+    assert "canary" not in f"{quota} {outage}"

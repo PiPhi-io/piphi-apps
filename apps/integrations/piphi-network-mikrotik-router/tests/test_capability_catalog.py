@@ -5,6 +5,8 @@ from pathlib import Path
 
 import httpx
 import pytest
+from piphi_network_mikrotik_router import state
+from piphi_network_mikrotik_router.routeros import RouterResources
 
 from piphi_network_mikrotik_router.main import app
 
@@ -83,17 +85,47 @@ def test_implemented_behavior_events_and_conditions_are_declared() -> None:
 
 
 @pytest.mark.anyio
-async def test_config_apply_emits_the_implemented_behavior_event() -> None:
+async def test_config_apply_emits_the_implemented_behavior_event(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def resources(*_args, **_kwargs):
+        return RouterResources(10, 20, "catalog-device", "7.20")
+
+    monkeypatch.setattr(state, "fetch_resources", resources)
     transport = httpx.ASGITransport(app=app)
     config_id = "capability-catalog-test"
     async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
         try:
-            response = await client.post("/config", json={"id": config_id, "host": "127.0.0.1", "alias": "Coverage Test"})
+            response = await client.post("/config", json={"id": config_id, "host": "127.0.0.1", "alias": "Coverage Test", "username": "monitor", "password": "secret"})
             assert response.status_code == 200
             events = (await client.get("/events")).json()["events"]
             assert any(event["event_type"] == "runtime.config.applied" and event["config_id"] == config_id for event in events)
         finally:
             await client.post(f"/deconfigure/{config_id}")
+
+
+@pytest.mark.anyio
+async def test_config_rejects_auth_failure_without_saving(monkeypatch) -> None:
+    from piphi_network_mikrotik_router.routeros import RouterOSError
+
+    async def denied(*_args, **_kwargs):
+        raise RouterOSError("authentication_failed", retryable=False)
+
+    monkeypatch.setattr(state, "fetch_resources", denied)
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://testserver"
+    ) as client:
+        response = await client.post(
+            "/config",
+            json={
+                "id": "rejected-router",
+                "host": "router.example",
+                "username": "monitor",
+                "password": "secret",
+            },
+        )
+    assert response.status_code == 401
+    assert response.json()["detail"] == "authentication_failed"
+    assert state.registry.get("rejected-router") is None
 
 
 @pytest.mark.anyio
@@ -106,7 +138,10 @@ async def test_unimplemented_and_unsafe_commands_fail_closed(command: str) -> No
             json={
                 "contract_version": "automation.runtime.command.v1",
                 "command": command,
-                "target": {"device_id": "demo-device", "config_id": "demo-device"},
+                "target": {
+                    "device_id": "configured-router",
+                    "config_id": "configured-router",
+                },
                 "params": {},
             },
         )

@@ -100,6 +100,9 @@ async def test_discover_with_credentials_returns_account_devices(
         async def devices(self) -> list[dict[str, Any]]:
             return [{"id": "station-1", "label": "Roof", "relation": "owned", "timezone": "America/New_York"}]
 
+        async def close(self) -> None:
+            pass
+
     monkeypatch.setattr(discovery_routes, "WeatherXMClient", FakeWeatherXMClient)
 
     response = await client.post("/discover", json={"inputs": {"api_token": "token"}})

@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import os
 import random
+import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +19,15 @@ DEFAULT_ADDRESSES: dict[str, tuple[int, ...]] = {
 BLINKA_I2C_ADAPTERS = {"ft232h"}
 BOARD_I2C_ADAPTERS = {"mcp2221a", "ft232h"}
 DEFAULT_MCP2221_I2C_CLOCK = 100_000
+SUPPORTED_ADAPTERS = {"linux_i2c", "mcp2221a", "ft232h", "mock"}
+SUPPORTED_MODELS = {"auto", "bme680", "bme280", "bmp280", "aht20", "pmsa003i", "generic"}
+MIN_POLL_INTERVAL_SECONDS = 5
+MAX_POLL_INTERVAL_SECONDS = 3600
+MAX_BUS_NUMBER = 255
+OPERATION_TIMEOUT_SECONDS = 10.0
+CHIP_IDS = {0x60: "bme280", 0x58: "bmp280", 0x61: "bme680"}
+_adapter_locks: dict[tuple[str, int], threading.Lock] = {}
+_adapter_locks_guard = threading.Lock()
 
 
 @dataclass(frozen=True)
@@ -27,6 +37,7 @@ class SensorConfig:
     address: int | None = None
     sensor_model: str = "auto"
     poll_interval_seconds: int = 30
+    allow_scan: bool = False
 
 
 def parse_address(value: Any) -> int | None:
@@ -41,13 +52,59 @@ def parse_address(value: Any) -> int | None:
 
 def normalize_config(payload: dict[str, Any] | None) -> SensorConfig:
     data = payload or {}
-    return SensorConfig(
+    config = SensorConfig(
         adapter=str(data.get("adapter") or "linux_i2c").strip().lower(),
-        bus=int(data.get("bus") or 1),
+        bus=int(data.get("bus", 1)),
         address=parse_address(data.get("address")),
         sensor_model=str(data.get("sensor_model") or "auto").strip().lower(),
-        poll_interval_seconds=max(5, int(data.get("poll_interval_seconds") or 30)),
+        poll_interval_seconds=int(data.get("poll_interval_seconds") or 30),
+        allow_scan=data.get("allow_scan") is True,
     )
+    validate_config(config)
+    return config
+
+
+def validate_config(config: SensorConfig) -> None:
+    if config.adapter not in SUPPORTED_ADAPTERS:
+        raise ValueError(f"Unsupported I2C adapter: {config.adapter}")
+    if config.sensor_model not in SUPPORTED_MODELS:
+        raise ValueError(f"Unsupported I2C sensor_model: {config.sensor_model}")
+    if not 0 <= config.bus <= MAX_BUS_NUMBER:
+        raise ValueError(f"I2C bus must be between 0 and {MAX_BUS_NUMBER}")
+    if config.address is not None and not 0x03 <= config.address <= 0x77:
+        raise ValueError("I2C address must be a non-reserved 7-bit address (0x03..0x77)")
+    if not MIN_POLL_INTERVAL_SECONDS <= config.poll_interval_seconds <= MAX_POLL_INTERVAL_SECONDS:
+        raise ValueError(
+            f"poll_interval_seconds must be between {MIN_POLL_INTERVAL_SECONDS} and "
+            f"{MAX_POLL_INTERVAL_SECONDS}"
+        )
+    if config.adapter == "ft232h" and config.bus != 1:
+        raise ValueError("FT232H exposes one Blinka I2C bus; bus must be 1")
+    if config.adapter == "linux_i2c" and config.sensor_model in {"aht20", "pmsa003i"}:
+        raise ValueError(
+            f"sensor_model={config.sensor_model} is not supported on linux_i2c because its "
+            "Blinka driver cannot honor the selected bus"
+        )
+    if config.sensor_model in DEFAULT_ADDRESSES and config.address is not None:
+        if config.address not in DEFAULT_ADDRESSES[config.sensor_model]:
+            allowed = ", ".join(f"0x{value:02X}" for value in DEFAULT_ADDRESSES[config.sensor_model])
+            raise ValueError(f"{config.sensor_model} address must be one of: {allowed}")
+
+
+def adapter_key(config: SensorConfig) -> tuple[str, int]:
+    return (config.adapter, config.bus)
+
+
+def target_key(config: SensorConfig) -> tuple[str, int, int | None]:
+    return (*adapter_key(config), config.address)
+
+
+def run_serialized(config: SensorConfig, operation: Any) -> Any:
+    key = adapter_key(config)
+    with _adapter_locks_guard:
+        lock = _adapter_locks.setdefault(key, threading.Lock())
+    with lock:
+        return operation(config)
 
 
 def scan_i2c_addresses(config: SensorConfig) -> list[int]:
@@ -126,20 +183,32 @@ def scan_blinka_i2c_addresses(config: SensorConfig) -> list[int]:
     finally:
         if locked and hasattr(i2c, "unlock"):
             i2c.unlock()
+        _deinit(i2c)
 
 
 def discover_devices(config: SensorConfig) -> list[dict[str, Any]]:
+    if config.adapter == "mock":
+        require_mock_enabled()
+    if config.address is None and not config.allow_scan:
+        return []
     addresses = [config.address] if config.address is not None else scan_i2c_addresses(config)
     devices: list[dict[str, Any]] = []
     for address in addresses:
         if address is None:
             continue
-        model = resolve_sensor_model(config, addresses=[address])
+        if config.sensor_model == "generic" and config.address is not None:
+            raise RuntimeError(
+                "Generic I2C discovery cannot safely verify one arbitrary target; "
+                "use the explicit maintenance scan instead"
+            )
+        model = probe_sensor_model(config, address)
+        if model is None:
+            continue
         devices.append(
             {
-                "id": f"i2c-{model}-{address:02x}",
+                "id": f"i2c-{config.adapter}-{config.bus}-{address:02x}",
                 "name": f"I2C {model.upper()} 0x{address:02X}",
-                "device_id": f"i2c-{config.bus}-{address:02x}",
+                "device_id": f"i2c-{config.adapter}-{config.bus}-{address:02x}",
                 "address": f"0x{address:02X}",
                 "adapter": config.adapter,
                 "bus": config.bus,
@@ -152,24 +221,50 @@ def discover_devices(config: SensorConfig) -> list[dict[str, Any]]:
 def resolve_sensor_model(config: SensorConfig, *, addresses: list[int] | None = None) -> str:
     if config.sensor_model != "auto":
         return config.sensor_model
+    if addresses is None and config.address is None and not config.allow_scan:
+        return "generic"
     candidate_addresses = addresses if addresses is not None else (
         [config.address] if config.address is not None else scan_i2c_addresses(config)
     )
     for address in candidate_addresses:
-        guessed = guess_model(address)
-        if guessed != "generic":
-            return guessed
+        detected = probe_sensor_model(config, address)
+        if detected is not None:
+            return detected
     return "generic"
 
 
-def guess_model(address: int) -> str:
-    if address == 0x12:
-        return "pmsa003i"
-    if address == 0x38:
-        return "aht20"
-    if address in (0x76, 0x77):
-        return "bme280"
-    return "generic"
+def probe_sensor_model(config: SensorConfig, address: int) -> str | None:
+    if config.adapter == "mock":
+        require_mock_enabled()
+        return "bme280" if config.sensor_model == "auto" else config.sensor_model
+    if config.sensor_model not in {"auto", "bme280", "bmp280", "bme680"}:
+        # These drivers do not expose a non-mutating chip-ID probe. Explicit model
+        # configuration is therefore required rather than guessing from address.
+        return config.sensor_model
+    chip_id = read_bosch_chip_id(config, address)
+    detected = CHIP_IDS.get(chip_id)
+    if detected is None:
+        return None
+    if config.sensor_model != "auto" and detected != config.sensor_model:
+        return None
+    return detected
+
+
+def read_bosch_chip_id(config: SensorConfig, address: int) -> int:
+    if config.adapter == "linux_i2c":
+        from smbus2 import SMBus
+
+        with SMBus(config.bus) as bus:
+            return int(bus.read_byte_data(address, 0xD0))
+    if config.adapter == "mcp2221a":
+        bus = _mcp2221_smbus(config)
+        try:
+            return int(bus.read_byte_data(address, 0xD0))
+        finally:
+            _close_i2c_handle(bus)
+    raise RuntimeError(
+        f"Chip-ID discovery is unavailable for adapter={config.adapter}; configure the model explicitly"
+    )
 
 
 def read_state(config: SensorConfig) -> dict[str, Any]:
@@ -177,15 +272,21 @@ def read_state(config: SensorConfig) -> dict[str, Any]:
     if config.adapter == "mock":
         require_mock_enabled()
         return mock_state(config)
+    effective_config = replace(config, sensor_model=resolved_model)
     if resolved_model in {"pmsa003i", "pm25"}:
-        return read_pmsa003i(config)
+        return read_pmsa003i(effective_config)
     if resolved_model in {"aht20", "ahtx0"}:
-        return read_aht20(config)
+        return read_aht20(effective_config)
     if resolved_model == "bme680":
-        return read_bme680(config)
+        return read_bme680(effective_config)
     if resolved_model in {"bme280", "bmp280"}:
-        return read_bme280(config)
-    return {"connected": True, "addresses": [f"0x{address:02X}" for address in scan_i2c_addresses(config)]}
+        return read_bme280(effective_config)
+    if resolved_model == "generic":
+        raise RuntimeError(
+            "Generic I2C reads are unsupported: configure a typed sensor driver. "
+            "Whole-bus scanning is maintenance-only."
+        )
+    raise RuntimeError(f"Unsupported I2C sensor model: {resolved_model}")
 
 
 def mock_state(config: SensorConfig) -> dict[str, Any]:
@@ -314,6 +415,12 @@ def _close_i2c_handle(handle: Any) -> None:
         close()
 
 
+def _deinit(handle: Any) -> None:
+    deinit = getattr(handle, "deinit", None)
+    if callable(deinit):
+        deinit()
+
+
 def _board_i2c(config: SensorConfig) -> Any:
     if config.adapter in BOARD_I2C_ADAPTERS:
         import board
@@ -328,28 +435,35 @@ def _board_i2c(config: SensorConfig) -> Any:
 def read_aht20(config: SensorConfig) -> dict[str, Any]:
     import adafruit_ahtx0
 
-    sensor = adafruit_ahtx0.AHTx0(_board_i2c(config))
-    return {
-        "connected": True,
-        "temperature_c": round(float(sensor.temperature), 2),
-        "humidity_percent": round(float(sensor.relative_humidity), 2),
-        "updated_at": int(time.time()),
-    }
+    i2c = _board_i2c(config)
+    try:
+        sensor = adafruit_ahtx0.AHTx0(i2c)
+        return {
+            "connected": True,
+            "temperature_c": round(float(sensor.temperature), 2),
+            "humidity_percent": round(float(sensor.relative_humidity), 2),
+            "updated_at": int(time.time()),
+        }
+    finally:
+        _deinit(i2c)
 
 
 def read_pmsa003i(config: SensorConfig) -> dict[str, Any]:
     from adafruit_pm25.i2c import PM25_I2C
 
-    sensor = PM25_I2C(_board_i2c(config), None)
-    payload = sensor.read()
+    i2c = _board_i2c(config)
+    try:
+        sensor = PM25_I2C(i2c, None)
+        payload = sensor.read()
+    finally:
+        _deinit(i2c)
     address = config.address or 0x12
-    resolved_model = resolve_sensor_model(config, addresses=[address])
     return {
         "connected": True,
         "adapter": config.adapter,
         "bus": config.bus,
         "address": f"0x{address:02X}",
-        "sensor_model": resolved_model,
+        "sensor_model": config.sensor_model,
         "pm1_0_standard_ugm3": int(payload["pm10 standard"]),
         "pm2_5_standard_ugm3": int(payload["pm25 standard"]),
         "pm10_standard_ugm3": int(payload["pm100 standard"]),
@@ -368,20 +482,9 @@ def read_pmsa003i(config: SensorConfig) -> dict[str, Any]:
 
 def read_bme280(config: SensorConfig) -> dict[str, Any]:
     if config.adapter == "mcp2221a":
-        try:
-            return read_bme280_mcp2221(config)
-        except ImportError as exc:
-            try:
-                return read_bme280_adafruit(config)
-            except ImportError as fallback_exc:
-                raise ImportError(
-                    f"{exc}. MCP2221A Blinka fallback also unavailable: {fallback_exc}"
-                ) from fallback_exc
+        return read_bme280_mcp2221(config)
     if config.adapter == "linux_i2c":
-        try:
-            return read_bme280_pimoroni(config)
-        except ImportError:
-            return read_bme280_adafruit(config)
+        return read_bme280_pimoroni(config)
     return read_bme280_adafruit(config)
 
 
@@ -392,19 +495,19 @@ def read_bme280_pimoroni(config: SensorConfig) -> dict[str, Any]:
     bus = SMBus(config.bus)
     try:
         sensor = BME280(i2c_dev=bus, i2c_addr=config.address or 0x76)
-    except TypeError:
-        sensor = BME280(i2c_dev=bus)
-    return {
-        "connected": True,
-        "adapter": config.adapter,
-        "bus": config.bus,
-        "address": f"0x{(config.address or 0x76):02X}",
-        "sensor_model": config.sensor_model,
-        "temperature_c": round(float(sensor.get_temperature()), 2),
-        "humidity_percent": round(float(sensor.get_humidity()), 2),
-        "pressure_hpa": round(float(sensor.get_pressure()), 2),
-        "updated_at": int(time.time()),
-    }
+        return {
+            "connected": True,
+            "adapter": config.adapter,
+            "bus": config.bus,
+            "address": f"0x{(config.address or 0x76):02X}",
+            "sensor_model": config.sensor_model,
+            "temperature_c": round(float(sensor.get_temperature()), 2),
+            "humidity_percent": round(float(sensor.get_humidity()), 2),
+            "pressure_hpa": round(float(sensor.get_pressure()), 2),
+            "updated_at": int(time.time()),
+        }
+    finally:
+        _close_i2c_handle(bus)
 
 
 def read_bme280_mcp2221(config: SensorConfig) -> dict[str, Any]:
@@ -412,10 +515,7 @@ def read_bme280_mcp2221(config: SensorConfig) -> dict[str, Any]:
     try:
         from bme280 import BME280
 
-        try:
-            sensor = BME280(i2c_dev=bus, i2c_addr=config.address or 0x76)
-        except TypeError:
-            sensor = BME280(i2c_dev=bus)
+        sensor = BME280(i2c_dev=bus, i2c_addr=config.address or 0x76)
         return {
             "connected": True,
             "adapter": config.adapter,
@@ -434,8 +534,10 @@ def read_bme280_mcp2221(config: SensorConfig) -> dict[str, Any]:
 def read_bme280_adafruit(config: SensorConfig) -> dict[str, Any]:
     import adafruit_bme280.advanced as adafruit_bme280
 
-    sensor = adafruit_bme280.Adafruit_BME280_I2C(_board_i2c(config), address=config.address or 0x76)
-    return {
+    i2c = _board_i2c(config)
+    try:
+        sensor = adafruit_bme280.Adafruit_BME280_I2C(i2c, address=config.address or 0x76)
+        return {
         "connected": True,
         "adapter": config.adapter,
         "bus": config.bus,
@@ -445,46 +547,45 @@ def read_bme280_adafruit(config: SensorConfig) -> dict[str, Any]:
         "humidity_percent": round(float(sensor.relative_humidity), 2),
         "pressure_hpa": round(float(sensor.pressure), 2),
         "updated_at": int(time.time()),
-    }
+        }
+    finally:
+        _deinit(i2c)
 
 
 def read_bme680(config: SensorConfig) -> dict[str, Any]:
     if config.adapter == "mcp2221a":
-        try:
-            return read_bme680_mcp2221(config)
-        except ImportError as exc:
-            try:
-                return read_bme680_adafruit(config)
-            except ImportError as fallback_exc:
-                raise ImportError(
-                    f"{exc}. MCP2221A Blinka fallback also unavailable: {fallback_exc}"
-                ) from fallback_exc
+        return read_bme680_mcp2221(config)
     if config.adapter == "linux_i2c":
-        try:
-            return read_bme680_pimoroni(config)
-        except ImportError:
-            return read_bme680_adafruit(config)
+        return read_bme680_pimoroni(config)
     return read_bme680_adafruit(config)
 
 
 def read_bme680_pimoroni(config: SensorConfig) -> dict[str, Any]:
     import bme680
+    from smbus2 import SMBus
 
-    sensor = bme680.BME680(config.address or bme680.I2C_ADDR_PRIMARY)
-    sensor.get_sensor_data()
-    output = sensor.data
-    return {
-        "connected": True,
-        "adapter": config.adapter,
-        "bus": config.bus,
-        "address": f"0x{(config.address or bme680.I2C_ADDR_PRIMARY):02X}",
-        "sensor_model": config.sensor_model,
-        "temperature_c": round(float(output.temperature), 2),
-        "humidity_percent": round(float(output.humidity), 2),
-        "pressure_hpa": round(float(output.pressure), 2),
-        "gas_ohms": round(float(output.gas_resistance), 2),
-        "updated_at": int(time.time()),
-    }
+    bus = SMBus(config.bus)
+    try:
+        sensor = bme680.BME680(
+            i2c_addr=config.address or bme680.I2C_ADDR_PRIMARY,
+            i2c_device=bus,
+        )
+        sensor.get_sensor_data()
+        output = sensor.data
+        return {
+            "connected": True,
+            "adapter": config.adapter,
+            "bus": config.bus,
+            "address": f"0x{(config.address or bme680.I2C_ADDR_PRIMARY):02X}",
+            "sensor_model": config.sensor_model,
+            "temperature_c": round(float(output.temperature), 2),
+            "humidity_percent": round(float(output.humidity), 2),
+            "pressure_hpa": round(float(output.pressure), 2),
+            "gas_ohms": round(float(output.gas_resistance), 2),
+            "updated_at": int(time.time()),
+        }
+    finally:
+        _close_i2c_handle(bus)
 
 
 def read_bme680_mcp2221(config: SensorConfig) -> dict[str, Any]:
@@ -517,8 +618,10 @@ def read_bme680_mcp2221(config: SensorConfig) -> dict[str, Any]:
 def read_bme680_adafruit(config: SensorConfig) -> dict[str, Any]:
     import adafruit_bme680
 
-    sensor = adafruit_bme680.Adafruit_BME680_I2C(_board_i2c(config), address=config.address or 0x77)
-    return {
+    i2c = _board_i2c(config)
+    try:
+        sensor = adafruit_bme680.Adafruit_BME680_I2C(i2c, address=config.address or 0x77)
+        return {
         "connected": True,
         "adapter": config.adapter,
         "bus": config.bus,
@@ -529,4 +632,6 @@ def read_bme680_adafruit(config: SensorConfig) -> dict[str, Any]:
         "pressure_hpa": round(float(sensor.pressure), 2),
         "gas_ohms": round(float(sensor.gas), 2),
         "updated_at": int(time.time()),
-    }
+        }
+    finally:
+        _deinit(i2c)

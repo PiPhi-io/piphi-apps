@@ -34,7 +34,8 @@ The runtime listens on port `4218` by default and exposes the common PiPhi runti
 The first live capability slice uses an HTTPS-only, authenticated GET of
 RouterOS `/rest/system/resource`. Configure the router `host`, a dedicated
 read-only `username`, the RouterOS password in the password field, and a
-`ca_bundle_path` if the router certificate uses a private CA. The native
+`ca_bundle_path` under `/etc/ssl/certs/` or `/run/secrets/` if the router
+certificate uses a private CA. The native
 Router Health widget shows CPU and memory use. Failed authentication, TLS, or
 malformed readings keep the device disconnected; no router password is
 returned in state or telemetry. See the [RouterOS REST API](https://help.mikrotik.com/docs/spaces/ROS/pages/47579162/REST%2BAPI)
@@ -42,6 +43,16 @@ and [resource fields](https://help.mikrotik.com/docs/spaces/ROS/pages/40992875/R
 
 Other RouterOS features, such as per-interface traffic and client inventory,
 remain planned and are not implied by the health widget.
+
+Create a dedicated RouterOS group with only `read,rest-api`; do not use the
+built-in `read` group, which grants unrelated sensitive privileges. Restrict
+the monitoring user's `address` to the PiPhi runtime host or management subnet,
+enable `www-ssl`, and disable plain `www`. Setup performs authenticated reads of
+`/rest/system/resource` and `/rest/system/license`; both must be permitted.
+The license software ID is hashed into the PiPhi device ID, is never exported,
+and prevents the same appliance being configured twice under different hosts.
+Legacy configuration payloads named `api_key` are accepted as passwords during
+migration but are never returned.
 
 `capability-catalog.json` inventories the reviewed RouterOS system health,
 interfaces, traffic, clients, DHCP, wireless, LTE, routing, firewall, VPN,

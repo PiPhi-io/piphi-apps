@@ -56,7 +56,7 @@ COMMANDS: dict[str, dict[str, Any]] = {
 CONFIG_SCHEMA: dict[str, Any] = {
     "schema": {
         "title": "Sense Energy Setup",
-        "description": "Connect one Sense account. The integration reuses one authenticated session to respect Sense API limits.",
+        "description": "Experimental: connect one Sense account through the unofficial, unsupported sense-energy API. Compatibility may break without notice.",
         "type": "object",
         "required": ["email", "password"],
         "properties": {
@@ -86,6 +86,16 @@ CONFIG_SCHEMA: dict[str, Any] = {
                 "minimum": 300,
                 "maximum": 86400,
                 "default": 900,
+            },
+            "expose_appliance_activity": {
+                "type": "boolean",
+                "title": "Expose appliance activity (privacy-sensitive)",
+                "default": False,
+            },
+            "expose_timeline": {
+                "type": "boolean",
+                "title": "Expose timeline events (privacy-sensitive, unofficial endpoint)",
+                "default": False,
             },
         },
     },

@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 from piphi_runtime_kit_python import (
     RuntimeConfig,
     RuntimeConfigSnapshot,
@@ -37,15 +37,21 @@ async def apply_synced_config(value: RuntimeConfig) -> None:
 @router.post("/config")
 async def configure(payload: DeviceConfig, request: Request) -> Any:
     sync_runtime_auth_from_fastapi_payload(runtime, request, payload)
-    await apply_config(payload)
+    try:
+        await apply_config(payload)
+    except ValueError as exc:
+        if "different pfSense appliance" in str(exc) or "already configured" in str(
+            exc
+        ):
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        raise
     return build_config_apply_response(
         config_id=payload.config_id or payload.id,
         container_id=payload.container_id,
         metadata={
-            "host": payload.host,
             "alias": payload.alias,
             "api": "pfrest-v2",
-            "read_only": True,
+            "read_only": payload.read_only,
             "simulation_mode": payload.simulation_mode,
         },
     )

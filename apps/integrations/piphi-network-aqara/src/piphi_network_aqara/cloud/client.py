@@ -51,12 +51,16 @@ class AqaraCloudClient:
         retry_attempts: int = DEFAULT_RETRY_ATTEMPTS,
         retry_delay_seconds: float = DEFAULT_RETRY_DELAY_SECONDS,
         http_client: httpx.AsyncClient | None = None,
+        test_api_base_url: str | None = None,
     ) -> None:
         self.timeout_seconds = timeout_seconds
         self.retry_attempts = max(int(retry_attempts), 1)
         self.retry_delay_seconds = max(float(retry_delay_seconds), 0.0)
         self._http_client = http_client
         self._owns_http_client = http_client is None
+        self._test_api_base_url = str(test_api_base_url or "").strip().rstrip("/") or None
+        if self._test_api_base_url and http_client is None:
+            raise ValueError("test_api_base_url requires an injected test HTTP client.")
         self._resource_cache: dict[str, list[AqaraResourceInfo]] = {}
 
     async def aclose(self) -> None:
@@ -71,17 +75,16 @@ class AqaraCloudClient:
         return self._http_client
 
     def _base_url(self, credentials: AqaraCloudCredentials) -> str:
-        domain = str(credentials.custom_api_domain or "").strip() or DEFAULT_API_DOMAINS.get(
-            str(credentials.region or "").strip().lower(),
-            "",
-        )
+        if credentials.custom_api_domain:
+            raise AqaraCloudRequestError("Custom Aqara API domains are not permitted.")
+        if self._test_api_base_url:
+            return self._test_api_base_url
+        domain = DEFAULT_API_DOMAINS.get(str(credentials.region or "").strip().lower(), "")
         if not domain:
             raise AqaraCloudRequestError(
-                f"Unsupported Aqara region '{credentials.region}'. Provide custom_api_domain or use one of: {', '.join(sorted(DEFAULT_API_DOMAINS))}."
+                f"Unsupported Aqara region. Use one of: {', '.join(sorted(DEFAULT_API_DOMAINS))}."
             )
-        if domain.startswith("http://") or domain.startswith("https://"):
-            return domain.rstrip("/")
-        return f"https://{domain.rstrip('/')}"
+        return f"https://{domain}"
 
     def _signed_headers(
         self,
@@ -145,7 +148,7 @@ class AqaraCloudClient:
                     )
                 if response.status_code >= 400:
                     raise AqaraCloudRequestError(
-                        f"Aqara cloud request failed with status {response.status_code}: {response.text}"
+                        f"Aqara cloud request failed with status {response.status_code}."
                     )
                 payload_json = response.json()
                 if not isinstance(payload_json, dict):
@@ -154,7 +157,19 @@ class AqaraCloudClient:
                 if code != 0:
                     message = str(payload_json.get("message") or payload_json.get("msgDetails") or "Aqara request failed")
                     lowered = message.lower()
-                    if any(token in lowered for token in ("token", "auth", "permission", "unauthorized")):
+                    if any(
+                        token in lowered
+                        for token in (
+                            "token",
+                            "auth",
+                            "permission",
+                            "unauthorized",
+                            "invalid grant",
+                            "invalid_grant",
+                            "revoked",
+                            "expired credential",
+                        )
+                    ):
                         raise AqaraCloudAuthError(message)
                     raise AqaraCloudRequestError(message)
                 return payload_json
@@ -205,12 +220,14 @@ class AqaraCloudClient:
         )
         if not isinstance(result, dict):
             raise AqaraCloudRequestError("Aqara token exchange returned an unexpected payload.")
-        return AqaraAuthTokens(
+        tokens = AqaraAuthTokens(
             access_token=str(result.get("accessToken") or "").strip(),
             refresh_token=str(result.get("refreshToken") or "").strip() or None,
             open_id=str(result.get("openId") or "").strip(),
             expires_in=_coerce_int(result.get("expiresIn")),
         )
+        _validate_token_response(tokens, operation="exchange")
+        return tokens
 
     async def refresh_access_token(self, credentials: AqaraCloudCredentials) -> AqaraAuthTokens:
         refresh_token = str(credentials.refresh_token or "").strip()
@@ -224,12 +241,14 @@ class AqaraCloudClient:
         )
         if not isinstance(result, dict):
             raise AqaraCloudRequestError("Aqara token refresh returned an unexpected payload.")
-        return AqaraAuthTokens(
+        tokens = AqaraAuthTokens(
             access_token=str(result.get("accessToken") or "").strip(),
             refresh_token=str(result.get("refreshToken") or "").strip() or None,
             open_id=str(result.get("openId") or "").strip(),
             expires_in=_coerce_int(result.get("expiresIn")),
         )
+        _validate_token_response(tokens, operation="refresh")
+        return tokens
 
     async def list_devices(
         self,
@@ -283,9 +302,8 @@ class AqaraCloudClient:
                 break
             page_num += 1
         logger.info(
-            "Aqara devices listed region=%s open_id=%s discovered=%s",
+            "Aqara devices listed region=%s discovered=%s",
             credentials.region,
-            credentials.open_id or "unknown",
             len(devices),
         )
         return devices
@@ -419,3 +437,10 @@ def _coerce_int(value: Any) -> int | None:
         return int(str(value).strip())
     except (TypeError, ValueError):
         return None
+
+
+def _validate_token_response(tokens: AqaraAuthTokens, *, operation: str) -> None:
+    if not tokens.access_token or not tokens.open_id:
+        raise AqaraCloudAuthError(
+            f"Aqara token {operation} did not return a usable access token and account identity. Reauthenticate the account."
+        )

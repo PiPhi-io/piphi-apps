@@ -41,9 +41,7 @@ CONFIG_SCHEMA: dict[str, Any] = {
     "schema": {
         "title": "Piphi Network Mikrotik Router Setup",
         "type": "object",
-        "required": [
-            "host"
-        ],
+        "required": ["host", "username", "password"],
         "properties": {
             "host": {
                 "type": "string",
@@ -54,12 +52,12 @@ CONFIG_SCHEMA: dict[str, Any] = {
                 "title": "Alias"
             },
             "username": {"type": "string", "title": "Read-only RouterOS username"},
-            "api_key": {"type": "string", "title": "RouterOS password"},
+            "password": {"type": "string", "title": "RouterOS password"},
             "ca_bundle_path": {"type": "string", "title": "CA bundle path (optional)"},
             "poll_interval_seconds": {
                 "type": "integer",
                 "title": "Poll Interval Seconds",
-                "minimum": 5
+                "minimum": 60
             }
         }
     },
@@ -71,7 +69,7 @@ CONFIG_SCHEMA: dict[str, Any] = {
             "placeholder": "Office Device"
         },
         "username": {"placeholder": "monitor"},
-        "api_key": {"ui:widget": "password"},
+        "password": {"ui:widget": "password"},
         "ca_bundle_path": {"placeholder": "/etc/ssl/certs/router-ca.pem"},
         "poll_interval_seconds": {
             "placeholder": "30"
@@ -80,9 +78,9 @@ CONFIG_SCHEMA: dict[str, Any] = {
 }
 
 FALLBACK_ENTITY: dict[str, Any] = {
-    "id": "demo-device",
-    "name": "Demo Device",
-    "device_id": "demo-device",
+    "id": "routeros-health",
+    "name": "Configured RouterOS Health",
+    "device_id": "routeros-health",
     "entity_type": "router",
     "capabilities": [
         "connected",

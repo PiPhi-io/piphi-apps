@@ -48,8 +48,10 @@ class AqaraCloudCredentials:
             key_id=self.key_id,
             app_key=self.app_key,
             access_token=tokens.access_token,
-            open_id=tokens.open_id,
-            refresh_token=tokens.refresh_token,
+            open_id=tokens.open_id or self.open_id,
+            # Aqara may rotate the refresh token. If it omits one, retain the
+            # current token rather than silently making the entry unrefreshable.
+            refresh_token=tokens.refresh_token or self.refresh_token,
             account=self.account,
             account_type=self.account_type,
             custom_api_domain=self.custom_api_domain,
@@ -126,11 +128,7 @@ class AqaraCloudDevice:
             "region": credentials.region,
             "app_id": credentials.app_id,
             "key_id": credentials.key_id,
-            "app_key": credentials.app_key,
-            "access_token": credentials.access_token,
-            "refresh_token": credentials.refresh_token,
             "open_id": credentials.open_id,
-            "custom_api_domain": credentials.custom_api_domain,
             "account": credentials.account,
             "account_type": credentials.account_type,
             "metadata": {

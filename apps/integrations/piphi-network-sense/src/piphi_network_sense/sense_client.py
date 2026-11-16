@@ -20,6 +20,14 @@ class SenseMFARequiredError(SenseAuthenticationError):
     pass
 
 
+class SenseRateLimitError(SenseClientError):
+    pass
+
+
+class SenseTransientError(SenseClientError):
+    pass
+
+
 @dataclass(frozen=True, slots=True)
 class SenseDeviceReading:
     device_id: str
@@ -69,6 +77,7 @@ class SenseEnergyClient:
         self._sense = None
         self._scale = None
         self._extended: SenseExtendedApi | None = None
+        self._extended_enabled = False
         self.monitor_id = ""
 
     async def authenticate(self, config: DeviceConfig) -> None:
@@ -86,6 +95,9 @@ class SenseEnergyClient:
         self._session = aiohttp.ClientSession()
         self._sense = ASyncSenseable(client_session=self._session, device_id=device_id)
         self._scale = Scale
+        self._extended_enabled = bool(
+            config.expose_appliance_activity or config.expose_timeline
+        )
         try:
             await self._sense.authenticate(config.email, config.secret_password())
         except SenseMFARequiredException as exc:
@@ -115,14 +127,17 @@ class SenseEnergyClient:
         if self._sense is None or self._scale is None:
             raise SenseClientError("Sense client is not authenticated")
 
-        await self._sense.update_realtime()
-        if include_trends:
-            await self._sense.get_trend_data(self._scale.DAY)
-        if not getattr(self._sense, "_monitor", None):
-            await self._sense.get_monitor_data()
+        try:
+            await self._sense.update_realtime()
+            if include_trends:
+                await self._sense.get_trend_data(self._scale.DAY)
+            if not getattr(self._sense, "_monitor", None):
+                await self._sense.get_monitor_data()
+        except Exception as exc:
+            raise _translate_read_error(exc) from exc
 
         extended = ExtendedSenseSnapshot()
-        if self._extended is not None:
+        if self._extended is not None and self._extended_enabled:
             extended = (
                 await self._extended.refresh()
                 if include_trends
@@ -180,6 +195,7 @@ class SenseEnergyClient:
         self._session = None
         self._sense = None
         self._extended = None
+        self._extended_enabled = False
 
 
 def _optional_float(value: object) -> float | None:
@@ -193,3 +209,14 @@ def _bucket_power(
         if device.device_id.lower() in aliases or device.name.lower() in aliases:
             return device.power_w
     return None
+
+
+def _translate_read_error(exc: Exception) -> SenseClientError:
+    """Classify unofficial-library failures without exposing response bodies."""
+    name = type(exc).__name__.lower()
+    status = getattr(exc, "status", None) or getattr(exc, "status_code", None)
+    if status in {401, 403} or "auth" in name:
+        return SenseAuthenticationError("Sense authentication expired; reauthentication is required.")
+    if status == 429 or "ratelimit" in name or "rate_limit" in name:
+        return SenseRateLimitError("Sense rate limited the unofficial client.")
+    return SenseTransientError("The unofficial Sense service is temporarily unavailable.")

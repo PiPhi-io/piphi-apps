@@ -10,6 +10,7 @@ from piphi_network_pfsense.schemas import DeviceConfig
 from piphi_network_pfsense.service import (
     ActiveFirewall,
     PfSenseRuntimeService,
+    _appliance_device_id,
     apply_interface_rates,
     main_metrics,
     snapshot_to_state,
@@ -137,6 +138,14 @@ def test_interface_rates_handle_first_sample_and_counter_reset() -> None:
     assert interfaces[0]["transmit_rate_bps"] == 0
 
 
+def test_appliance_identity_is_stable_and_opaque() -> None:
+    snapshot = PfSenseSnapshot(system={"serial": "RAW-SERIAL-123"})
+    device_id = _appliance_device_id(snapshot)
+    assert device_id == _appliance_device_id(snapshot)
+    assert device_id.startswith("pfsense-")
+    assert "RAW-SERIAL-123" not in device_id
+
+
 class ActionClient:
     def __init__(self) -> None:
         self.pings: list[tuple[str, int]] = []
@@ -165,6 +174,61 @@ class ActionClient:
 
     async def close(self) -> None:
         return None
+
+
+@pytest.mark.anyio
+async def test_reconfigure_rejects_identity_change_without_replacing_session() -> None:
+    config_id = "firewall-1"
+    old_entry = {
+        "config_id": config_id,
+        "device_id": _appliance_device_id(
+            PfSenseSnapshot(system={"serial": "ORIGINAL-SERIAL"})
+        ),
+    }
+
+    class Registry:
+        def __init__(self) -> None:
+            self.entries = {config_id: old_entry}
+
+        def get(self, key: str):
+            return self.entries.get(key)
+
+    class TrackingClient(ActionClient):
+        def __init__(self, serial: str) -> None:
+            super().__init__()
+            self.serial = serial
+            self.closed = False
+
+        async def read_snapshot(self) -> PfSenseSnapshot:
+            return PfSenseSnapshot(system={"serial": self.serial})
+
+        async def close(self) -> None:
+            self.closed = True
+
+    registry = Registry()
+    working_client = TrackingClient("ORIGINAL-SERIAL")
+    replacement_client = TrackingClient("DIFFERENT-SERIAL")
+    service = PfSenseRuntimeService(
+        registry=registry,
+        runtime=SimpleNamespace(),
+        telemetry=SimpleNamespace(),
+        client_factory=lambda _config: replacement_client,
+    )
+    working = ActiveFirewall(
+        config=DeviceConfig(id=config_id, host="old.test", api_key="old-key"),
+        entry=old_entry,
+        client=working_client,
+    )
+    service._active[config_id] = working
+
+    replacement = DeviceConfig(id=config_id, host="new.test", api_key="new-key")
+    with pytest.raises(ValueError, match="different pfSense appliance"):
+        await service.configure(replacement, {"config_id": config_id})
+
+    assert registry.get(config_id) is old_entry
+    assert service._active[config_id] is working
+    assert working_client.closed is False
+    assert replacement_client.closed is True
 
 
 def action_service(config: DeviceConfig) -> tuple[PfSenseRuntimeService, ActionClient]:
@@ -342,3 +406,4 @@ def test_log_deduplication_and_certificate_alert_levels(monkeypatch) -> None:
         "network.security.auth_log",
         "network.certificate.expiring",
     ]
+    assert "message" not in events[0]["payload"]

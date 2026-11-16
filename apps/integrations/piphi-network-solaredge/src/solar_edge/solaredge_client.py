@@ -15,7 +15,9 @@ class SolarEdgeAuthenticationError(SolarEdgeClientError):
 
 
 class SolarEdgeRateLimitError(SolarEdgeClientError):
-    pass
+    def __init__(self, message: str, *, retry_after_seconds: float | None = None) -> None:
+        super().__init__(message)
+        self.retry_after_seconds = retry_after_seconds
 
 
 class SolarEdgeRequestError(SolarEdgeClientError):
@@ -77,7 +79,10 @@ class MonitoringApiClient:
             if status == 404:
                 raise SolarEdgeAuthenticationError("SolarEdge did not find that Site ID.") from exc
             if status == 429:
-                raise SolarEdgeRateLimitError("SolarEdge API request quota is exhausted.") from exc
+                raise SolarEdgeRateLimitError(
+                    "SolarEdge API request quota is exhausted.",
+                    retry_after_seconds=_retry_after(exc.response.headers),
+                ) from exc
             error_type = SolarEdgeTransientError if status >= 500 else SolarEdgeRequestError
             raise error_type(f"SolarEdge API returned HTTP {status}.") from exc
         details = payload.get("details", {})
@@ -128,16 +133,29 @@ def _translate_error(exc: Exception) -> SolarEdgeClientError:
         if isinstance(exc, httpx.HTTPStatusError):
             status = exc.response.status_code
             if status == 429:
-                return SolarEdgeRateLimitError("SolarEdge API request quota is exhausted.")
+                return SolarEdgeRateLimitError(
+                    "SolarEdge API request quota is exhausted.",
+                    retry_after_seconds=_retry_after(exc.response.headers),
+                )
             if status in {401, 403}:
                 return SolarEdgeAuthenticationError("SolarEdge rejected the API key or site access.")
             error_type = SolarEdgeTransientError if status >= 500 else SolarEdgeRequestError
             return error_type(f"SolarEdge API returned HTTP {status}.")
         if isinstance(exc, httpx.HTTPError):
-            return SolarEdgeTransientError(f"Could not reach SolarEdge: {exc}")
+            return SolarEdgeTransientError("Could not reach the SolarEdge Monitoring API.")
     except ImportError:
         pass
-    return exc if isinstance(exc, SolarEdgeClientError) else SolarEdgeClientError(str(exc))
+    return exc if isinstance(exc, SolarEdgeClientError) else SolarEdgeClientError(
+        "SolarEdge returned an unexpected provider error."
+    )
+
+
+def _retry_after(headers: Any) -> float | None:
+    value = headers.get("Retry-After") if headers is not None else None
+    try:
+        return max(float(value), 0.0) if value is not None else None
+    except (TypeError, ValueError):
+        return None
 
 
 def _power_factor(unit: object) -> float:

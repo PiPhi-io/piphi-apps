@@ -119,8 +119,12 @@ async def test_list_devices_and_latest_sample_mapping() -> None:
         )
         credentials = AirthingsCredentials(client_id="client-1", client_secret="secret-1")
 
-        devices = await client.list_devices(credentials)
-        sample = await client.latest_sample(credentials=credentials, serial_number="2930046980")
+        devices = await client.list_devices(credentials, account_id="account-1")
+        sample = await client.latest_sample(
+            credentials=credentials,
+            account_id="account-1",
+            serial_number="2930046980",
+        )
 
     assert len(devices) == 1
     assert devices[0].model_name == "Airthings Wave Plus"
@@ -148,7 +152,10 @@ async def test_token_rejection_raises_auth_error() -> None:
             http_client=http_client,
         )
         with pytest.raises(AirthingsCloudAuthError):
-            await client.list_devices(AirthingsCredentials(client_id="client-1", client_secret="secret-1"))
+            await client.list_devices(
+                AirthingsCredentials(client_id="client-1", client_secret="secret-1"),
+                account_id="account-1",
+            )
 
 
 @pytest.mark.asyncio
@@ -170,6 +177,7 @@ async def test_latest_sample_404_raises_request_error() -> None:
         with pytest.raises(AirthingsCloudRequestError):
             await client.latest_sample(
                 credentials=AirthingsCredentials(client_id="client-1", client_secret="secret-1"),
+                account_id="account-1",
                 serial_number="missing-serial",
             )
 
@@ -201,8 +209,12 @@ async def test_secret_rotation_uses_distinct_token_and_account_cache_entries() -
             consumer_base_url="https://example.test",
             http_client=http_client,
         )
-        await client.list_devices(AirthingsCredentials("shared-client", "old-secret"))
-        await client.list_devices(AirthingsCredentials("shared-client", "new-secret"))
+        await client.list_devices(
+            AirthingsCredentials("shared-client", "old-secret"), account_id="account-1"
+        )
+        await client.list_devices(
+            AirthingsCredentials("shared-client", "new-secret"), account_id="account-2"
+        )
 
     assert token_requests == 2
     assert account_requests == 2
@@ -227,7 +239,36 @@ async def test_upstream_error_body_is_not_exposed() -> None:
             http_client=http_client,
         )
         with pytest.raises(AirthingsCloudRequestError) as exc_info:
-            await client.list_devices(AirthingsCredentials("client-1", "secret-1"))
+            await client.list_devices(
+                AirthingsCredentials("client-1", "secret-1"), account_id="account-1"
+            )
+
+
+@pytest.mark.asyncio
+async def test_multiple_accounts_require_exact_selected_account() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v1/token":
+            return httpx.Response(200, json={"access_token": "canary-token", "expires_in": 3600})
+        if request.url.path == "/v1/accounts":
+            return httpx.Response(200, json={"accounts": [{"id": "a"}, {"id": "b"}]})
+        raise AssertionError("device endpoint must not be called for an unknown selection")
+
+    transport = httpx.MockTransport(handler)
+    async with httpx.AsyncClient(transport=transport) as http_client:
+        client = AirthingsCloudClient(
+            accounts_base_url="https://example.test",
+            consumer_base_url="https://example.test",
+            http_client=http_client,
+        )
+        with pytest.raises(AirthingsCloudAuthError) as exc_info:
+            await client.list_devices(
+                AirthingsCredentials("canary-client", "canary-secret"),
+                account_id="not-owned",
+            )
+
+    rendered = str(exc_info.value)
+    assert "canary" not in rendered
+    assert "not-owned" not in rendered
 
     assert "upstream-secret-body" not in str(exc_info.value)
     assert str(exc_info.value) == "Airthings token request failed with status 500."

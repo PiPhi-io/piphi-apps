@@ -9,7 +9,77 @@ from piphi_network_thinqconnect.lib.refrigerator import derive_refrigerator_cont
 
 
 class ThinQClientError(RuntimeError):
-    pass
+    def __init__(
+        self,
+        message: str,
+        *,
+        category: str = "transient_outage",
+        retryable: bool = True,
+    ) -> None:
+        super().__init__(message)
+        self.category = category
+        self.retryable = retryable
+
+
+def classify_thinq_error(exc: Exception) -> ThinQClientError:
+    """Classify SDK/HTTP failures without exposing vendor response bodies."""
+    if isinstance(exc, ThinQClientError):
+        return exc
+
+    status: int | None = None
+    for candidate in (exc, getattr(exc, "response", None)):
+        if candidate is None:
+            continue
+        for attribute in ("status", "status_code", "code"):
+            value = getattr(candidate, attribute, None)
+            if isinstance(value, int):
+                status = value
+                break
+        if status is not None:
+            break
+
+    text = str(exc).casefold()
+    if ("region" in text or "country" in text) and any(
+        term in text for term in ("invalid", "unsupported", "not available", "mismatch")
+    ):
+        return ThinQClientError(
+            "ThinQ country or region is not eligible",
+            category="invalid_region",
+            retryable=False,
+        )
+    if status == 429 or any(term in text for term in ("rate limit", "too many requests", "quota")):
+        return ThinQClientError(
+            "ThinQ request rate limit reached",
+            category="rate_limited",
+            retryable=True,
+        )
+    if status == 401 or any(
+        term in text for term in ("invalid token", "token expired", "expired token", "invalid pat")
+    ):
+        return ThinQClientError(
+            "ThinQ personal access token is invalid or expired",
+            category="invalid_pat",
+            retryable=False,
+        )
+    if status == 403 or any(
+        term in text for term in ("forbidden", "not authorized", "permission denied", "insufficient scope")
+    ):
+        return ThinQClientError(
+            "ThinQ account authorization does not permit this request",
+            category="authorization_required",
+            retryable=False,
+        )
+    if status == 404 or any(term in text for term in ("device not found", "unsupported device")):
+        return ThinQClientError(
+            "ThinQ device is unavailable or unsupported",
+            category="unsupported_device",
+            retryable=False,
+        )
+    return ThinQClientError(
+        "ThinQ cloud is temporarily unavailable",
+        category="transient_outage",
+        retryable=True,
+    )
 
 
 class ThinQApiClient:
@@ -30,7 +100,7 @@ class ThinQApiClient:
                 ["async_get_device_list", "get_device_list"],
             )
         if not isinstance(raw_devices, list):
-            raise ThinQClientError("ThinQ device list response was not a list")
+            raise ThinQClientError("ThinQ device list response was invalid")
         return [normalize_discovered_device(device) for device in raw_devices if isinstance(device, dict)]
 
     async def fetch_device_snapshot(
@@ -132,7 +202,11 @@ class ThinQApiClient:
                 candidate_id = raw_device.get("deviceId") or raw_device.get("device_id") or raw_device.get("id")
                 if str(candidate_id) == str(device_id):
                     return raw_device
-        return {"deviceId": device_id, "deviceType": "unknown", "deviceName": device_id}
+        raise ThinQClientError(
+            "ThinQ device is unavailable or unsupported",
+            category="unsupported_device",
+            retryable=False,
+        )
 
     async def _call_with_signatures(
         self,
@@ -155,22 +229,24 @@ class ThinQApiClient:
                     errors.append(exc)
                     continue
                 except Exception as exc:
-                    if allow_missing:
+                    classified = classify_thinq_error(exc)
+                    if allow_missing and classified.category == "unsupported_device":
                         return {}
-                    raise ThinQClientError(str(exc)) from exc
+                    raise classified from exc
             if fallback_kwargs:
                 try:
                     return await self._resolve_call(method, **fallback_kwargs)
                 except TypeError as exc:
                     errors.append(exc)
                 except Exception as exc:
-                    if allow_missing:
+                    classified = classify_thinq_error(exc)
+                    if allow_missing and classified.category == "unsupported_device":
                         return {}
-                    raise ThinQClientError(str(exc)) from exc
+                    raise classified from exc
         if allow_missing:
             return {}
         if errors:
-            raise ThinQClientError(str(errors[-1]))
+            raise classify_thinq_error(errors[-1])
         raise ThinQClientError(f"ThinQ SDK method not available: {method_names[0]}")
 
     async def _call_first_available(self, api: Any, method_names: list[str]) -> Any:
@@ -183,7 +259,7 @@ class ThinQApiClient:
             except TypeError:
                 continue
             except Exception as exc:
-                raise ThinQClientError(str(exc)) from exc
+                raise classify_thinq_error(exc) from exc
         raise ThinQClientError(f"ThinQ SDK method not available: {method_names[0]}")
 
     async def _resolve_call(self, func: Any, *args: Any, **kwargs: Any) -> Any:

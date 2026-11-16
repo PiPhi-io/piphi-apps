@@ -9,6 +9,7 @@ from piphi_runtime_kit_python import (
 )
 
 from piphi_network_thinqconnect.lib.manifest import load_manifest
+from piphi_network_thinqconnect.lib.privacy import private_identifier
 from piphi_network_thinqconnect.lib.store import list_pending_background_tasks, runtime_context, registry
 
 
@@ -44,7 +45,7 @@ async def diagnostics_report() -> RuntimeDiagnosticsResponse:
             "version": manifest["version"],
         },
         diagnostics={
-            "configured_device_ids": sorted(registry.entries.keys()),
-            "devices_with_state": sorted(registry.state_snapshots.keys()),
+            "configured_device_ids": sorted(private_identifier(value) for value in registry.entries),
+            "devices_with_state": sorted(private_identifier(value) for value in registry.state_snapshots),
         },
     )

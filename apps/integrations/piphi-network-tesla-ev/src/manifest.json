@@ -69,7 +69,13 @@
     "required": true,
     "defaults": {
       "region": "na",
-      "include_location": true
+      "include_location": false,
+      "read_only": true,
+      "enable_wake": false,
+      "request_budget_per_day": 100,
+      "live_data_budget_per_day": 48,
+      "wake_budget_per_day": 2,
+      "wake_cooldown_minutes": 30
     },
     "editable_fields": [
       "vin",
@@ -77,21 +83,41 @@
       "region",
       "access_token",
       "include_location",
-      "base_url"
+      "read_only",
+      "enable_wake",
+      "request_budget_per_day",
+      "live_data_budget_per_day",
+      "wake_budget_per_day",
+      "wake_cooldown_minutes"
     ],
     "runtime_fields": ["id", "container_id"],
-    "identity_fields": ["vin", "region"],
+    "identity_fields": ["vehicle_ref", "region"],
     "secrets": [{"field": "access_token"}],
     "schema": {
       "title": "Tesla EV Integration Configuration",
       "description": "Configure one Tesla vehicle using a Tesla Fleet API access token and VIN.",
       "type": "object",
-      "required": ["vin", "access_token"],
+      "required": ["access_token"],
+      "oneOf": [
+        {
+          "required": ["vin"],
+          "not": { "required": ["vehicle_ref"] }
+        },
+        {
+          "required": ["vehicle_ref"],
+          "not": { "required": ["vin"] }
+        }
+      ],
       "properties": {
         "vin": {
           "type": "string",
           "title": "Vehicle VIN",
           "description": "Tesla VIN to configure inside PiPhi."
+        },
+        "vehicle_ref": {
+          "type": "string",
+          "title": "Discovered vehicle reference",
+          "description": "Opaque reference supplied by discovery; it does not contain the VIN."
         },
         "vehicle_name": {
           "type": "string",
@@ -112,18 +138,36 @@
         "include_location": {
           "type": "boolean",
           "title": "Include Location Metrics",
+          "default": false,
+          "description": "Explicitly opt in to precise location, speed, and heading telemetry."
+        },
+        "read_only": {
+          "type": "boolean",
+          "title": "Read-only mode",
           "default": true
         },
-        "base_url": {
-          "type": "string",
-          "title": "Fleet API Base URL Override",
-          "description": "Optional override for testing or regional proxies."
+        "enable_wake": {
+          "type": "boolean",
+          "title": "Allow explicitly confirmed wake requests",
+          "default": false
+        },
+        "request_budget_per_day": {
+          "type": "integer", "minimum": 1, "maximum": 1000, "default": 100
+        },
+        "live_data_budget_per_day": {
+          "type": "integer", "minimum": 1, "maximum": 500, "default": 48
+        },
+        "wake_budget_per_day": {
+          "type": "integer", "minimum": 0, "maximum": 3, "default": 2
+        },
+        "wake_cooldown_minutes": {
+          "type": "integer", "minimum": 10, "maximum": 1440, "default": 30
         }
       }
     }
   },
   "identity": {
-    "fields": ["vin", "region"]
+    "fields": ["vehicle_ref", "region"]
   },
   "capabilities": {
     "online": { "kind": "sensor" },
@@ -158,8 +202,8 @@
       "timeout_ms": 15000
     },
     "wake_up": {
-      "description": "Wake a sleeping Tesla before requesting a live vehicle_data refresh.",
-      "timeout_ms": 30000
+      "description": "Explicitly confirmed, opt-in wake with daily budget and cooldown; disabled in read-only mode.",
+      "timeout_ms": 65000
     }
   },
   "entities": [

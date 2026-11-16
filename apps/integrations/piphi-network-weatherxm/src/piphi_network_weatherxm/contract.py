@@ -104,7 +104,7 @@ COMMANDS: dict[str, dict[str, Any]] = {
 
 CONFIG_SCHEMA: dict[str, Any] = {
     "schema": {
-        "title": "PiPhi Network WeatherXM Setup",
+        "title": "WeatherXM Account (Unofficial / Unsupported) Setup",
         "type": "object",
         "required": [
             "station_id"
@@ -118,13 +118,9 @@ CONFIG_SCHEMA: dict[str, Any] = {
                 "type": "string",
                 "title": "Alias"
             },
-            "base_url": {
-                "type": "string",
-                "title": "Base URL"
-            },
             "api_token": {
                 "type": "string",
-                "title": "Access Token"
+                "title": "Unofficial Mobile API Access Token"
             },
             "username": {
                 "type": "string",
@@ -148,11 +144,9 @@ CONFIG_SCHEMA: dict[str, Any] = {
         "alias": {
             "placeholder": "Backyard WeatherXM"
         },
-        "base_url": {
-            "placeholder": "https://api.weatherxm.com/api/v1"
-        },
         "api_token": {
-            "placeholder": "Bearer token from WeatherXM auth"
+            "placeholder": "Bearer token from unsupported mobile-account API",
+            "ui:widget": "password"
         },
         "username": {
             "placeholder": "weatherxm@example.com"

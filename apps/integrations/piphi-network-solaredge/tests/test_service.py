@@ -126,7 +126,7 @@ async def test_failed_read_preserves_last_values_and_sends_failure_heartbeat(mon
     active = service_module.ActiveSession(
         config=config(), client=FailingClient(),
         entry={"config_id": "site-one", "device_id": "solaredge-1234567", "container_id": "container-1"},
-        credentials_key=(1234567, "secret"),
+        credentials_key="redacted-fingerprint",
     )
     service._active = active
 

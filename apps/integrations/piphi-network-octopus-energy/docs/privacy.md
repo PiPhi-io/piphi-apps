@@ -2,10 +2,13 @@
 
 ## Data handled
 
-Octopus Energy processes Octopus account and meter identifiers, tariff details, consumption readings, pricing, and account-associated energy data.
+This integration sends caller-selected product and tariff codes to Octopus
+Energy's public tariff endpoint. It does not request or accept an account API
+key, account identifier, meter identifier, consumption, billing, or payment
+data. Product and tariff codes select public prices and do not prove the
+caller's household tariff agreement.
 
-Credentials are used only for the configured upstream service or device. They
-must not be emitted through PiPhi state, telemetry, events, logs, or diagnostics.
+Account credential and endpoint-override fields are rejected by configuration.
 
 ## Data flow and retention
 
@@ -14,7 +17,5 @@ or execute an explicitly requested command. PiPhi installations control their
 own configuration and retention. This integration does not introduce a separate
 PiPhi-operated analytics or advertising data flow.
 
-Refer to the configured upstream provider's privacy terms for data the provider
-already stores and processes. Remove the integration configuration to stop new
-requests and delete locally retained credentials according to the PiPhi host's
-configuration controls.
+Refer to Octopus Energy's terms and privacy information for requests received by
+its public API. Remove the integration configuration to stop new requests.

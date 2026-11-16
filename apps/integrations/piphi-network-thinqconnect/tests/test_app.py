@@ -15,8 +15,10 @@ from piphi_runtime_testkit_python import (
 )
 
 from piphi_network_thinqconnect.app import app
+from piphi_network_thinqconnect.lib.client import ThinQClientError, classify_thinq_error
 from piphi_network_thinqconnect.lib.normalization import build_command_catalog
-from piphi_network_thinqconnect.lib.store import registry, runtime_context
+from piphi_network_thinqconnect.lib.privacy import REDACTED, redact_sensitive
+from piphi_network_thinqconnect.lib.store import credential_store, registry, runtime_context
 
 config_module = importlib.import_module("piphi_network_thinqconnect.contract.config.routes")
 command_module = importlib.import_module("piphi_network_thinqconnect.contract.command.router")
@@ -36,6 +38,7 @@ def reset_runtime_state() -> None:
     registry.entries.clear()
     registry.state_snapshots.clear()
     registry.recent_events.clear()
+    credential_store.clear()
     runtime_context.auth.container_id = ""
     runtime_context.auth.internal_token = ""
     runtime_context.process_state.background_tasks.clear()
@@ -416,6 +419,10 @@ def test_config_apply_keeps_real_polling_task_alive_and_cleans_up(
 
 def test_config_apply_rolls_back_when_poll_task_cannot_start(monkeypatch) -> None:
     reset_runtime_state()
+    async def fake_fetch_device_snapshot(**_kwargs):
+        return _ac_snapshot()
+
+    monkeypatch.setattr(config_module.thinq_client, "fetch_device_snapshot", fake_fetch_device_snapshot)
     monkeypatch.setattr(
         config_module,
         "start_device_poll_task",
@@ -443,6 +450,10 @@ def test_config_apply_rolls_back_when_poll_task_cannot_start(monkeypatch) -> Non
 
 def test_config_apply_awaits_poll_task_when_registry_entry_disappears(monkeypatch) -> None:
     reset_runtime_state()
+    async def fake_fetch_device_snapshot(**_kwargs):
+        return _ac_snapshot()
+
+    monkeypatch.setattr(config_module.thinq_client, "fetch_device_snapshot", fake_fetch_device_snapshot)
     original_start = config_module.start_device_poll_task
     captured_tasks = []
 
@@ -476,7 +487,7 @@ def test_config_apply_awaits_poll_task_when_registry_entry_disappears(monkeypatc
     assert captured_tasks[0].cancelled()
 
 
-def test_config_apply_cleans_up_poll_task_when_initial_refresh_crashes(monkeypatch) -> None:
+def test_config_apply_does_not_start_polling_when_initial_validation_crashes(monkeypatch) -> None:
     reset_runtime_state()
     captured_tasks = []
     original_start = config_module.start_device_poll_task
@@ -486,11 +497,11 @@ def test_config_apply_cleans_up_poll_task_when_initial_refresh_crashes(monkeypat
         captured_tasks.append(task)
         return task
 
-    async def crash_refresh(_device_id):
+    async def crash_refresh(_device):
         raise RuntimeError("unexpected refresh failure")
 
     monkeypatch.setattr(config_module, "start_device_poll_task", capture_task)
-    monkeypatch.setattr(config_module, "trigger_refresh", crash_refresh)
+    monkeypatch.setattr(config_module, "_fetch_normalized_state", crash_refresh)
     headers = build_runtime_headers(container_id="runtime-456", internal_token="secret-token")
 
     with TestClient(app) as client, pytest.raises(RuntimeError, match="unexpected refresh failure"):
@@ -509,9 +520,216 @@ def test_config_apply_cleans_up_poll_task_when_initial_refresh_crashes(monkeypat
         )
 
     assert registry.get("cfg-ac-refresh-crash") is None
-    assert len(captured_tasks) == 1
-    assert captured_tasks[0].done()
-    assert captured_tasks[0].cancelled()
+    assert captured_tasks == []
+
+
+@pytest.mark.parametrize(
+    ("category", "status_code", "action", "retryable"),
+    [
+        ("invalid_pat", 401, "replace_pat", False),
+        ("authorization_required", 403, "reauthorize_thinq_account", False),
+        ("invalid_region", 422, "correct_country_code", False),
+        ("unsupported_device", 422, "select_supported_device", False),
+        ("transient_outage", 503, "retry", True),
+        ("rate_limited", 429, "retry_after_backoff", True),
+    ],
+)
+def test_initial_validation_classifies_failure_without_retaining_config(
+    monkeypatch,
+    category,
+    status_code,
+    action,
+    retryable,
+) -> None:
+    reset_runtime_state()
+
+    async def fail_validation(**_kwargs):
+        raise ThinQClientError(
+            "vendor body containing PAT-CANARY",
+            category=category,
+            retryable=retryable,
+        )
+
+    monkeypatch.setattr(config_module.thinq_client, "fetch_device_snapshot", fail_validation)
+    monkeypatch.setattr(config_module, "start_device_poll_task", lambda **_kwargs: _DummyTask())
+    headers = build_runtime_headers(container_id="runtime-errors", internal_token="secret-token")
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/config",
+            json={
+                "id": "cfg-invalid",
+                "device_id": "device-invalid",
+                "device_type": "DEVICE_AIR_CONDITIONER",
+                "access_token": "PAT-CANARY",
+                "country_code": "US",
+            },
+            headers=headers,
+        )
+
+    assert response.status_code == status_code
+    detail = response.json()["detail"]
+    assert detail["code"] == category
+    assert detail["action"] == action
+    assert detail["retryable"] is retryable
+    assert "PAT-CANARY" not in response.text
+    assert registry.get("cfg-invalid") is None
+
+
+@pytest.mark.parametrize(
+    ("status", "message", "category"),
+    [
+        (401, "unauthorized", "invalid_pat"),
+        (403, "forbidden", "authorization_required"),
+        (400, "country region mismatch", "invalid_region"),
+        (404, "device not found", "unsupported_device"),
+        (429, "too many requests", "rate_limited"),
+        (503, "service unavailable", "transient_outage"),
+    ],
+)
+def test_sdk_http_failures_have_stable_lifecycle_classification(
+    status,
+    message,
+    category,
+) -> None:
+    class VendorError(Exception):
+        def __init__(self) -> None:
+            super().__init__(message)
+            self.status = status
+
+    classified = classify_thinq_error(VendorError())
+    assert classified.category == category
+    assert message not in str(classified)
+
+
+def test_failed_pat_replacement_preserves_existing_identity(monkeypatch) -> None:
+    reset_runtime_state()
+
+    async def fetch_by_pat(**kwargs):
+        if kwargs["access_token"] == "replacement-invalid":
+            raise ThinQClientError(
+                "invalid token replacement-invalid",
+                category="invalid_pat",
+                retryable=False,
+            )
+        return _ac_snapshot()
+
+    monkeypatch.setattr(config_module.thinq_client, "fetch_device_snapshot", fetch_by_pat)
+    monkeypatch.setattr(config_module, "start_device_poll_task", lambda **_kwargs: _DummyTask())
+    headers = build_runtime_headers(container_id="runtime-reauth", internal_token="secret-token")
+    original = {
+        "id": "cfg-stable",
+        "config_id": "cfg-stable",
+        "device_id": "device-ac-1",
+        "device_type": "DEVICE_AIR_CONDITIONER",
+        "access_token": "original-valid",
+        "country_code": "US",
+    }
+
+    with TestClient(app) as client:
+        assert client.post("/config", json=original, headers=headers).status_code == 200
+        previous = registry.get("cfg-stable")
+        response = client.post(
+            "/config",
+            json={**original, "access_token": "replacement-invalid"},
+            headers=headers,
+        )
+
+    assert response.status_code == 401
+    detail = response.json()["detail"]
+    assert detail["reauth_required"] is True
+    assert detail["existing_config_preserved"] is True
+    assert detail["credential_replacement"] == {
+        "endpoint": "/config",
+        "config_id": "cfg-stable",
+        "field": "access_token",
+        "preserves_identity": True,
+    }
+    assert registry.get("cfg-stable") is previous
+    assert credential_store["cfg-stable"] == "original-valid"
+    assert "access_token" not in registry.get("cfg-stable")
+    assert registry.get("cfg-stable")["device_id"] == "device-ac-1"
+
+
+def test_recursive_redaction_covers_nested_secrets_and_pii() -> None:
+    canary = "PAT-CANARY-DO-NOT-LEAK"
+    payload = {
+        "access_token": canary,
+        "nested": [
+            {
+                "authorization": f"Bearer {canary}",
+                "device_name": "Private Kitchen",
+                "message": f"failed for {canary} at owner@example.com from 192.168.1.9",
+            }
+        ],
+        "raw": {"status": {"home_name": "My Home"}},
+    }
+
+    sanitized = redact_sensitive(payload, secrets=(canary,))
+    rendered = repr(sanitized)
+    assert canary not in rendered
+    assert "owner@example.com" not in rendered
+    assert "192.168.1.9" not in rendered
+    assert "Private Kitchen" not in rendered
+    assert sanitized["access_token"] == REDACTED
+    assert sanitized["raw"] == REDACTED
+
+
+def test_runtime_surfaces_do_not_expose_config_state_event_or_diagnostic_canaries(
+    monkeypatch,
+) -> None:
+    reset_runtime_state()
+    pat = "PAT-RUNTIME-CANARY"
+    private_name = "Private Kitchen Canary"
+
+    async def fake_fetch_device_snapshot(**_kwargs):
+        snapshot = _ac_snapshot()
+        snapshot["device"]["deviceName"] = private_name
+        snapshot["status"]["nested"] = {
+            "access_token": pat,
+            "email": "private@example.com",
+            "ip_address": "10.20.30.40",
+        }
+        return snapshot
+
+    monkeypatch.setattr(config_module.thinq_client, "fetch_device_snapshot", fake_fetch_device_snapshot)
+    monkeypatch.setattr(config_module, "start_device_poll_task", lambda **_kwargs: _DummyTask())
+    headers = build_runtime_headers(container_id="runtime-private", internal_token="secret-token")
+
+    with TestClient(app) as client:
+        configured = client.post(
+            "/config",
+            json={
+                "id": "cfg-private",
+                "device_id": "device-private",
+                "device_name": private_name,
+                "device_type": "DEVICE_AIR_CONDITIONER",
+                "access_token": pat,
+                "country_code": "US",
+            },
+            headers=headers,
+        )
+        events = client.get("/events")
+        diagnostics = client.get("/diagnostics")
+
+    assert configured.status_code == 200
+    assert events.status_code == 200
+    assert diagnostics.status_code == 200
+    public_and_registry_state = " ".join(
+        (
+            repr(registry.entries),
+            repr(registry.state_snapshots),
+            repr(registry.recent_events),
+            events.text,
+            diagnostics.text,
+        )
+    )
+    assert pat not in public_and_registry_state
+    assert private_name not in public_and_registry_state
+    assert "private@example.com" not in public_and_registry_state
+    assert "10.20.30.40" not in public_and_registry_state
+    assert "cfg-private" not in diagnostics.text
+    assert "sha256:" in diagnostics.text
 
 
 def test_runtime_auth_bootstrap_rejects_takeover_and_protects_deconfigure(
@@ -673,7 +891,7 @@ def test_entities_and_state_include_read_only_device(mock_core, monkeypatch) -> 
         assert payload["state_scope"] == "identity-addressed"
         state = payload["entries"]["cfg-fridge-1"]
         assert state["config_id"] == "cfg-fridge-1"
-        assert state["latest_state"]["device_name"] == "Kitchen Fridge"
+        assert state["latest_state"]["device_name"] == REDACTED
         assert state["latest_state"]["fresh_air_filter_remain_percent"] == 81
 
 
@@ -765,6 +983,51 @@ def test_command_route_rejects_unsupported_command(mock_core, monkeypatch) -> No
 
     assert response.status_code == 400
     assert "not supported" in response.json()["detail"]
+
+
+def test_command_route_blocks_mutation_while_reauthentication_is_required(
+    monkeypatch,
+) -> None:
+    reset_runtime_state()
+    executed: list[dict] = []
+
+    async def fake_fetch_device_snapshot(**_kwargs):
+        return _ac_snapshot()
+
+    async def fake_execute_device_command(**kwargs):
+        executed.append(kwargs)
+        return {"status": "ok"}
+
+    monkeypatch.setattr(config_module.thinq_client, "fetch_device_snapshot", fake_fetch_device_snapshot)
+    monkeypatch.setattr(config_module.thinq_client, "execute_device_command", fake_execute_device_command)
+    monkeypatch.setattr(config_module, "start_device_poll_task", lambda **_kwargs: _DummyTask())
+    headers = build_runtime_headers(container_id="runtime-command-reauth", internal_token="secret-token")
+
+    with TestClient(app) as client:
+        assert client.post(
+            "/config",
+            json={
+                "id": "cfg-command-reauth",
+                "device_id": "device-ac-1",
+                "device_type": "DEVICE_AIR_CONDITIONER",
+                "access_token": "pat-1",
+                "country_code": "US",
+            },
+            headers=headers,
+        ).status_code == 200
+        registry.get("cfg-command-reauth")["lifecycle"] = {
+            "status": "reauth_required",
+            "reason": "invalid_pat",
+        }
+        response = client.post(
+            "/command",
+            json={"device_id": "device-ac-1", "command": "set_mode", "args": {"mode": "COOL"}},
+            headers={**headers, "X-PiPhi-Idempotency-Key": "blocked-during-reauth"},
+        )
+
+    assert response.status_code == 401
+    assert response.json()["detail"]["credential_replacement"]["preserves_identity"] is True
+    assert executed == []
 
 
 def test_command_route_dispatches_family_specific_refrigerator_control(mock_core, monkeypatch) -> None:

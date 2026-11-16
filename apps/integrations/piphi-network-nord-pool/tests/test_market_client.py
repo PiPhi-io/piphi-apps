@@ -57,6 +57,10 @@ async def test_fetches_current_and_next_interval_without_exposing_raw_response()
     assert result["price_unit"] == "EUR/kWh"
     assert result["market_area"] == "SE3"
     assert result["data_updated_at"] == "2026-09-20T10:00:00Z"
+    assert result["fetched_at"]
+    assert result["source_endpoint_status"] == "first_party_public_portal_backend_unofficial_api"
+    assert result["source_licensing_status"] == "redistribution_rights_unresolved"
+    assert result["production_publication_allowed"] is False
     assert len(result["chart_intervals"]) == 3
     assert "multiAreaEntries" not in result
 
@@ -112,6 +116,29 @@ async def test_rejects_missing_current_market_data() -> None:
         )
 
 
+@pytest.mark.anyio
+async def test_retries_rate_limit_with_retry_after_and_stays_bounded() -> None:
+    requests = 0
+    today = response_payload(
+        "2026-09-20", "2026-09-20T12:00:00Z", "2026-09-20T13:00:00Z", 100
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal requests
+        requests += 1
+        if requests == 1:
+            return httpx.Response(429, headers={"retry-after": "0"})
+        if request.url.params["date"] == "2026-09-21":
+            return httpx.Response(204)
+        return httpx.Response(200, json=today)
+
+    result = await fetch_prices(
+        area="SE3", currency="EUR", now=NOW, transport=httpx.MockTransport(handler)
+    )
+    assert result["current_price_per_kwh"] == 0.1
+    assert requests == 3
+
+
 def test_rejects_nonfinite_and_overlapping_intervals() -> None:
     payload = response_payload(
         "2026-09-20", "2026-09-20T12:00:00Z", "2026-09-20T13:00:00Z", float("nan")
@@ -128,6 +155,10 @@ def test_rejects_nonfinite_and_overlapping_intervals() -> None:
         }
     )
     with pytest.raises(ValueError, match="overlapping"):
+        normalize_prices(payload, "SE3", NOW)
+
+    payload["multiAreaEntries"] *= 101
+    with pytest.raises(ValueError, match="too many"):
         normalize_prices(payload, "SE3", NOW)
 
 

@@ -43,11 +43,20 @@ samples is assumed. Missing current data marks the feed unavailable. A missing
 tomorrow publication does not erase a valid current price. Daily statistics,
 price-window actions, and chart widgets remain planned.
 
-The public data-portal endpoint serves published auction prices, but it is not
-Nord Pool's subscription-based Market Data API and has no guaranteed uptime or
-schema stability. On a failed refresh, the runtime retains the last good price
-and marks `connected=false`. The `telemetry/example` compatibility routes now
-refresh real market data rather than sending fabricated samples.
+The fixed `dataportal-api.nordpoolgroup.com` endpoint is a first-party public
+portal backend, not Nord Pool's documented subscription Market Data API. It has
+no guaranteed uptime or schema stability. Redistribution/licensing permission
+is unresolved; technical access is not legal approval. Runtime state therefore
+identifies the endpoint as unofficial, identifies licensing as unresolved, and
+sets `production_publication_allowed=false`. The package remains a technical
+beta/draft and must not be treated as production-publication eligible until the
+owner obtains written provider approval or moves to a licensed supported API.
+This statement does not claim approval and does not change publication status.
+
+On a failed refresh, the runtime retains the last good price, marks it stale,
+and reports its stale age. Successful state carries fetch time and current/next
+source validity intervals. The `telemetry/example` compatibility routes refresh
+real market data rather than sending fabricated samples.
 
 ## Manifest
 

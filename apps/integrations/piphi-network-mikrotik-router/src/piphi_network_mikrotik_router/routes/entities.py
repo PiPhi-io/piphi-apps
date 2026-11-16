@@ -16,7 +16,7 @@ async def entities() -> dict[str, Any]:
     runtime_entities = [
         {
             "id": entry["device_id"],
-            "name": entry.get("alias") or "Demo Device",
+            "name": entry.get("alias") or "RouterOS Health",
             "config_id": entry["config_id"],
             "device_id": entry["device_id"],
             "entity_type": FALLBACK_ENTITY["entity_type"],

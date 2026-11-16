@@ -26,9 +26,11 @@ async def discover(payload: IntegrationDiscoveryRequest | None = None):
             api_token=str(api_token) if api_token else None,
             username=str(username) if username else None,
             password=str(password) if password else None,
-            base_url=str(inputs.get("base_url")) if inputs.get("base_url") else None,
         )
-        devices = await client.devices()
+        try:
+            devices = await client.devices()
+        finally:
+            await client.close()
         return build_discovery_response(
             [
                 {
@@ -43,7 +45,9 @@ async def discover(payload: IntegrationDiscoveryRequest | None = None):
             ]
         )
 
-    station_id = str(inputs.get("station_id") or inputs.get("host") or "weatherxm-station")
+    station_id = str(inputs.get("station_id") or inputs.get("host") or "").strip()
+    if not station_id:
+        return build_discovery_response([])
     return build_discovery_response(
         [
             {

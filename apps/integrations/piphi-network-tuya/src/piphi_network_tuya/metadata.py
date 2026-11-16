@@ -68,6 +68,10 @@ def build_manifest() -> dict[str, Any]:
             "preset": PROJECT_PRESET,
             "domain": PROJECT_DOMAIN,
             "vendor_library": "tinytuya",
+            "architecture": "lan_first",
+            "cloud_scope": "optional_discovery_and_local_key_assistance_only",
+            "hardware_certification": "none",
+            "consequential_writes": "default_deny_without_certified_mapping",
         },
         "maintainer": {
             "name": "PiPhi Integrations Team",
@@ -156,7 +160,8 @@ def build_manifest() -> dict[str, Any]:
                         {
                             "name": "api_key",
                             "label": "Tuya Cloud API Key",
-                            "type": "text",
+                            "type": "password",
+                            "secret": True,
                             "required": False,
                         },
                         {
@@ -219,6 +224,7 @@ def build_manifest() -> dict[str, Any]:
                 "purifier_aqi_dp",
                 "purifier_aqi_scale",
                 "poll_interval_seconds",
+                "certified_mapping_id",
                 "api_region",
                 "api_key",
                 "api_secret",
@@ -241,6 +247,12 @@ def build_manifest() -> dict[str, Any]:
             HUMIDIFIER_FALLBACK_ENTITY,
             AIR_PURIFIER_FALLBACK_ENTITY,
         ],
+        "support_status": {
+            "architecture": "local_lan",
+            "cloud_runtime_parity": False,
+            "certified_model_count": 0,
+            "consequential_writes": "disabled_until_model_certified",
+        },
     }
 
 
@@ -262,7 +274,6 @@ def build_behaviors() -> dict[str, Any]:
                     "refresh",
                     "turn_on",
                     "turn_off",
-                    "set_dp",
                 ],
                 "conditions": [
                     _connected_condition("Plug"),
@@ -402,10 +413,6 @@ def build_behaviors() -> dict[str, Any]:
                     "refresh",
                     "turn_on",
                     "turn_off",
-                    "set_fan_speed",
-                    "set_oscillate",
-                    "set_mode",
-                    "set_dp",
                 ],
                 "conditions": [
                     _connected_condition("Fan"),
@@ -467,21 +474,6 @@ def build_behaviors() -> dict[str, Any]:
                 "actions": [
                     {"id": "turn_on", "label": "Turn on", "command": "turn_on"},
                     {"id": "turn_off", "label": "Turn off", "command": "turn_off"},
-                    {
-                        "id": "set_fan_speed",
-                        "label": "Set fan speed",
-                        "command": "set_fan_speed",
-                    },
-                    {
-                        "id": "set_oscillate",
-                        "label": "Set oscillation",
-                        "command": "set_oscillate",
-                    },
-                    {
-                        "id": "set_mode",
-                        "label": "Set mode",
-                        "command": "set_mode",
-                    },
                     {"id": "refresh", "label": "Refresh", "command": "refresh"},
                 ],
             },
@@ -496,11 +488,6 @@ def build_behaviors() -> dict[str, Any]:
                     "position_percent",
                     "motion_state",
                     "refresh",
-                    "open_cover",
-                    "close_cover",
-                    "stop_cover",
-                    "set_cover_position",
-                    "set_dp",
                 ],
                 "conditions": [
                     _connected_condition("Cover"),
@@ -547,14 +534,6 @@ def build_behaviors() -> dict[str, Any]:
                     },
                 ],
                 "actions": [
-                    {"id": "open_cover", "label": "Open", "command": "open_cover"},
-                    {"id": "close_cover", "label": "Close", "command": "close_cover"},
-                    {"id": "stop_cover", "label": "Stop", "command": "stop_cover"},
-                    {
-                        "id": "set_cover_position",
-                        "label": "Set position",
-                        "command": "set_cover_position",
-                    },
                     {"id": "refresh", "label": "Refresh", "command": "refresh"},
                 ],
             },
@@ -571,11 +550,6 @@ def build_behaviors() -> dict[str, Any]:
                     "temperature_c",
                     "target_temperature_c",
                     "refresh",
-                    "turn_on",
-                    "turn_off",
-                    "set_temperature",
-                    "set_mode",
-                    "set_dp",
                 ],
                 "conditions": [
                     _connected_condition("Climate device"),
@@ -644,18 +618,6 @@ def build_behaviors() -> dict[str, Any]:
                     },
                 ],
                 "actions": [
-                    {"id": "turn_on", "label": "Turn on", "command": "turn_on"},
-                    {"id": "turn_off", "label": "Turn off", "command": "turn_off"},
-                    {
-                        "id": "set_temperature",
-                        "label": "Set temperature",
-                        "command": "set_temperature",
-                    },
-                    {
-                        "id": "set_mode",
-                        "label": "Set mode",
-                        "command": "set_mode",
-                    },
                     {"id": "refresh", "label": "Refresh", "command": "refresh"},
                 ],
             },
@@ -674,9 +636,6 @@ def build_behaviors() -> dict[str, Any]:
                     "refresh",
                     "turn_on",
                     "turn_off",
-                    "set_humidity",
-                    "set_mode",
-                    "set_dp",
                 ],
                 "conditions": [
                     _connected_condition("Humidifier"),
@@ -747,16 +706,6 @@ def build_behaviors() -> dict[str, Any]:
                 "actions": [
                     {"id": "turn_on", "label": "Turn on", "command": "turn_on"},
                     {"id": "turn_off", "label": "Turn off", "command": "turn_off"},
-                    {
-                        "id": "set_humidity",
-                        "label": "Set humidity",
-                        "command": "set_humidity",
-                    },
-                    {
-                        "id": "set_mode",
-                        "label": "Set mode",
-                        "command": "set_mode",
-                    },
                     {"id": "refresh", "label": "Refresh", "command": "refresh"},
                 ],
             },
@@ -775,9 +724,6 @@ def build_behaviors() -> dict[str, Any]:
                     "refresh",
                     "turn_on",
                     "turn_off",
-                    "set_fan_speed",
-                    "set_mode",
-                    "set_dp",
                 ],
                 "conditions": [
                     _connected_condition("Air purifier"),
@@ -848,16 +794,6 @@ def build_behaviors() -> dict[str, Any]:
                 "actions": [
                     {"id": "turn_on", "label": "Turn on", "command": "turn_on"},
                     {"id": "turn_off", "label": "Turn off", "command": "turn_off"},
-                    {
-                        "id": "set_fan_speed",
-                        "label": "Set speed",
-                        "command": "set_fan_speed",
-                    },
-                    {
-                        "id": "set_mode",
-                        "label": "Set mode",
-                        "command": "set_mode",
-                    },
                     {"id": "refresh", "label": "Refresh", "command": "refresh"},
                 ],
             },

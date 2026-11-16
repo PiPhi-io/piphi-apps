@@ -29,7 +29,7 @@
           "PIPHI_I2C_PORT": "3674",
           "PIPHI_ALLOW_MOCK_HARDWARE": "false"
         },
-        "privileged": true,
+        "privileged": false,
         "restart_policy": {
           "name": "unless-stopped",
           "maximum_retry_count": 0
@@ -79,6 +79,13 @@
               "pmsa003i",
               "generic"
             ]
+          },
+          {
+            "name": "allow_scan",
+            "label": "Actively scan the full bus",
+            "type": "boolean",
+            "required": false,
+            "description": "Maintenance-only: sends probe traffic to every normal 7-bit address. Leave disabled on unknown or shared buses."
           }
         ]
       }
@@ -121,16 +128,14 @@
     "identity_fields": [
       "adapter",
       "bus",
-      "address",
-      "sensor_model"
+      "address"
     ]
   },
   "identity": {
     "fields": [
       "adapter",
       "bus",
-      "address",
-      "sensor_model"
+      "address"
     ]
   },
   "capabilities": {

@@ -36,7 +36,8 @@ class FakeAirthingsCloudClient(AirthingsCloudClient):
     async def aclose(self) -> None:
         return None
 
-    async def list_devices(self, credentials):
+    async def list_devices(self, credentials, *, account_id):
+        assert account_id
         self.list_devices_calls.append(credentials.client_id)
         from piphi_network_airthings.cloud.models import AirthingsCloudDevice
 
@@ -53,8 +54,9 @@ class FakeAirthingsCloudClient(AirthingsCloudClient):
             for record in self.devices.values()
         ]
 
-    async def latest_sample(self, *, credentials, serial_number):
+    async def latest_sample(self, *, credentials, account_id, serial_number):
         del credentials
+        assert account_id
         self.latest_sample_calls.append(serial_number)
         if serial_number in self.latest_sample_failures:
             raise self.latest_sample_failures[serial_number]

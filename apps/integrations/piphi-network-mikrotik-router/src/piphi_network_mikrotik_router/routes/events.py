@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from piphi_runtime_kit_python import build_event_ingest_response, build_event_list_response
 
-from ..settings import INTEGRATION_ID
-from ..state import append_runtime_event, get_entry_or_404, registry, runtime
+from ..state import append_runtime_event, get_entry_or_404, registry
 
 router = APIRouter(tags=["events"])
 
@@ -16,12 +15,9 @@ async def events():
 
 @router.post("/events/example")
 async def event_example():
-    entry = registry.primary_entry() or {
-        "device_id": "demo-device",
-        "config_id": "demo-device",
-        "integration_id": INTEGRATION_ID,
-        "container_id": runtime.auth.container_id or None,
-    }
+    entry = registry.primary_entry()
+    if entry is None:
+        raise HTTPException(status_code=409, detail="RouterOS is not configured")
     event = append_runtime_event(
         "runtime.event",
         entry,
@@ -38,7 +34,6 @@ async def device_event_example(config_id: str):
         entry,
         {
             "message": "Example local runtime event for a configured device",
-            "host": entry.get("host"),
         },
     )
     return build_event_ingest_response(event)

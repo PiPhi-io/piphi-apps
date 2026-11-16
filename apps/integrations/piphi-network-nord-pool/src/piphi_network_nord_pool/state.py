@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from time import monotonic
 from typing import Any
 
@@ -18,7 +18,13 @@ from piphi_runtime_kit_python import (
 )
 
 from .contract import CAPABILITIES, COMMANDS
-from .market_client import MarketDataError, fetch_prices
+from .market_client import (
+    ENDPOINT_STATUS,
+    LICENSING_STATUS,
+    PRODUCTION_PUBLICATION_ALLOWED,
+    MarketDataError,
+    fetch_prices,
+)
 from .schemas import DeviceConfig
 from .settings import INTEGRATION_ID, INTEGRATION_NAME, INTEGRATION_VERSION
 
@@ -85,6 +91,11 @@ async def apply_config(config: DeviceConfig) -> None:
         {
             "connected": False,
             "market_area": config.market_area,
+            "data_stale": True,
+            "stale_age_seconds": None,
+            "source_endpoint_status": ENDPOINT_STATUS,
+            "source_licensing_status": LICENSING_STATUS,
+            "production_publication_allowed": PRODUCTION_PUBLICATION_ALLOWED,
         },
         device_id=entry["device_id"],
     )
@@ -112,17 +123,38 @@ async def remove_config(config_id: str) -> bool:
 async def refresh_config(config_id: str) -> dict[str, Any]:
     """Read a current market interval and publish only validated state."""
     entry = get_entry_or_404(config_id)
+    attempted_at = datetime.now(UTC)
     try:
         prices = await fetch_prices(
             area=entry["market_area"],
             currency=entry["currency"],
-            now=datetime.now(timezone.utc),
+            now=attempted_at,
         )
     except MarketDataError:
         previous = registry.state_snapshots.get(config_id, {}).get("state", {})
+        fetched_at = previous.get("fetched_at")
+        stale_age_seconds = None
+        if isinstance(fetched_at, str):
+            try:
+                fetched = datetime.fromisoformat(fetched_at)
+                if fetched.tzinfo is not None:
+                    stale_age_seconds = max(
+                        0, int((attempted_at - fetched.astimezone(UTC)).total_seconds())
+                    )
+            except ValueError:
+                pass
         registry.update_state(
             config_id,
-            {**previous, "connected": False},
+            {
+                **previous,
+                "connected": False,
+                "data_stale": True,
+                "stale_age_seconds": stale_age_seconds,
+                "last_fetch_attempt_at": attempted_at.isoformat(),
+                "source_endpoint_status": ENDPOINT_STATUS,
+                "source_licensing_status": LICENSING_STATUS,
+                "production_publication_allowed": PRODUCTION_PUBLICATION_ALLOWED,
+            },
             device_id=entry["device_id"],
         )
         raise
@@ -132,6 +164,18 @@ async def refresh_config(config_id: str) -> dict[str, Any]:
         "current_price_per_kwh": prices["current_price_per_kwh"],
         "next_price_per_kwh": prices["next_price_per_kwh"],
         "price_unit": prices["price_unit"],
+        "current_interval_start": prices.get("current_interval_start"),
+        "current_interval_end": prices.get("current_interval_end"),
+        "next_interval_start": prices.get("next_interval_start"),
+        "next_interval_end": prices.get("next_interval_end"),
+        "source_updated_at": prices.get("data_updated_at"),
+        "fetched_at": prices.get("fetched_at", attempted_at.isoformat()),
+        "last_fetch_attempt_at": attempted_at.isoformat(),
+        "data_stale": False,
+        "stale_age_seconds": 0,
+        "source_endpoint_status": ENDPOINT_STATUS,
+        "source_licensing_status": LICENSING_STATUS,
+        "production_publication_allowed": PRODUCTION_PUBLICATION_ALLOWED,
     }
     registry.update_state(config_id, latest, device_id=entry["device_id"])
     schedule_telemetry_delivery(

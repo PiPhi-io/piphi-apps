@@ -44,9 +44,7 @@ async def diagnostics():
             {
                 "config_id": config_id,
                 "device_id": entry.get("device_id"),
-                "alias": entry.get("alias"),
                 "device_type": entry.get("device_type"),
-                "host": entry.get("host"),
                 "connected": state.get("connected")
                 if isinstance(state, dict)
                 else None,

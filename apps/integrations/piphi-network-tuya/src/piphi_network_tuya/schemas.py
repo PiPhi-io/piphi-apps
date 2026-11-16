@@ -47,6 +47,7 @@ class TuyaDeviceConfig(RuntimeConfig):
     purifier_aqi_dp: int | None = Field(default=None, ge=1)
     purifier_aqi_scale: float = Field(default=1.0, gt=0)
     poll_interval_seconds: int = Field(default=60, ge=10)
+    certified_mapping_id: str | None = None
     api_region: str | None = Field(
         default=None,
         validation_alias=AliasChoices("api_region", "apiRegion"),
@@ -75,6 +76,7 @@ class TuyaDeviceConfig(RuntimeConfig):
         "api_key",
         "api_secret",
         "api_device_id",
+        "certified_mapping_id",
         mode="before",
     )
     @classmethod

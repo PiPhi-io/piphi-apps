@@ -28,6 +28,7 @@ from piphi_network_thinqconnect.lib.normalization import (
     normalize_device_snapshot,
     stable_client_id,
 )
+from piphi_network_thinqconnect.lib.privacy import redact_sensitive
 from piphi_network_thinqconnect.lib.push import (
     ThinQPushSupervisor,
     create_sdk_push_transport,
@@ -45,8 +46,11 @@ from piphi_network_thinqconnect.lib.store import (
     INTEGRATION_ID,
     append_event,
     event_client,
+    get_credential,
     get_runtime_context,
     registry,
+    remove_credential,
+    set_credential,
     telemetry_client,
     update_device_state,
 )
@@ -93,8 +97,8 @@ def schedule_event_send(
         event_client=event_client,
         auth_context=runtime_context.auth,
         event_type=event_type,
-        device=device,
-        payload=payload,
+        device=redact_sensitive(device),
+        payload=redact_sensitive(payload or {}, secrets=(str(device.get("access_token") or ""),)),
         source=source,
         severity=severity,
         record_event=append_event,
@@ -105,10 +109,10 @@ def schedule_event_send(
             details.get("device_id") or "unknown",
         ),
         on_error=lambda exc, details: logger.exception(
-            "event_send_unexpected_error event_type=%s device_id=%s error=%s",
+            "event_send_unexpected_error event_type=%s device_id=%s error_type=%s",
             details.get("event_type") or event_type,
             details.get("device_id") or "unknown",
-            exc,
+            type(exc).__name__,
         ),
     )
 
@@ -188,27 +192,65 @@ def _build_telemetry_units(normalized_state: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
-async def fetch_and_store_state(*, device_id: str) -> dict[str, Any]:
-    entry_id = resolve_entry_id(device_id)
-    if entry_id is None:
-        raise HTTPException(status_code=404, detail=f"Device '{device_id}' is not configured")
+def _classified_http_error(
+    exc: ThinQClientError,
+    *,
+    config_id: str | None = None,
+    existing_config_preserved: bool = False,
+) -> HTTPException:
+    statuses = {
+        "invalid_pat": 401,
+        "authorization_required": 403,
+        "invalid_region": 422,
+        "unsupported_device": 422,
+        "rate_limited": 429,
+        "transient_outage": 503,
+    }
+    actions = {
+        "invalid_pat": "replace_pat",
+        "authorization_required": "reauthorize_thinq_account",
+        "invalid_region": "correct_country_code",
+        "unsupported_device": "select_supported_device",
+        "rate_limited": "retry_after_backoff",
+        "transient_outage": "retry",
+    }
+    messages = {
+        "invalid_pat": "The ThinQ personal access token is invalid or expired.",
+        "authorization_required": "ThinQ account authorization does not permit this request.",
+        "invalid_region": "The selected country or region is not eligible for this ThinQ account.",
+        "unsupported_device": "The selected ThinQ device is unavailable or unsupported.",
+        "rate_limited": "ThinQ is rate limiting requests; retry after backoff.",
+        "transient_outage": "ThinQ is temporarily unavailable; retry without saving this configuration.",
+    }
+    reauth_required = exc.category in {"invalid_pat", "authorization_required"}
+    detail: dict[str, Any] = {
+        "code": exc.category,
+        "message": messages.get(exc.category, "ThinQ is temporarily unavailable."),
+        "action": actions.get(exc.category, "retry"),
+        "retryable": exc.retryable,
+        "reauth_required": reauth_required,
+        "existing_config_preserved": existing_config_preserved,
+    }
+    if reauth_required and config_id:
+        detail["credential_replacement"] = {
+            "endpoint": "/config",
+            "config_id": config_id,
+            "field": "access_token",
+            "preserves_identity": True,
+        }
+    return HTTPException(status_code=statuses.get(exc.category, 503), detail=detail)
 
-    device = registry.get(entry_id)
-    if device is None:
-        raise HTTPException(status_code=404, detail=f"Device '{device_id}' is not configured")
 
-    try:
-        upstream_client = simulator_client if device.get("simulation_mode") else thinq_client
-        snapshot = await upstream_client.fetch_device_snapshot(
-            access_token=device["access_token"],
-            country_code=device["country_code"],
-            device_id=device["device_id"],
-            device_type=device["device_type"],
-            client_id=device.get("client_id"),
-        )
-    except ThinQClientError as exc:
-        raise HTTPException(status_code=502, detail=f"ThinQ state fetch failed: {exc}") from exc
-
+async def _fetch_normalized_state(device: dict[str, Any]) -> dict[str, Any]:
+    upstream_client = simulator_client if device.get("simulation_mode") else thinq_client
+    access_token = str(device.get("access_token") or get_credential(str(device.get("id") or "")))
+    snapshot = await upstream_client.fetch_device_snapshot(
+        access_token=access_token,
+        country_code=device["country_code"],
+        device_id=device["device_id"],
+        device_type=device["device_type"],
+        client_id=device.get("client_id"),
+    )
     normalized_state = normalize_device_snapshot(
         raw_device=snapshot["device"],
         raw_status=snapshot.get("status"),
@@ -216,9 +258,18 @@ async def fetch_and_store_state(*, device_id: str) -> dict[str, Any]:
         raw_available_controls=snapshot.get("available_controls"),
     )
     normalized_state["client_id"] = snapshot.get("client_id") or device.get("client_id")
-    device["client_id"] = normalized_state["client_id"]
-    latest_state = update_device_state(device_id=entry_id, state=normalized_state)
+    return normalized_state
 
+
+def _store_normalized_state(
+    *,
+    entry_id: str,
+    device: dict[str, Any],
+    normalized_state: dict[str, Any],
+) -> dict[str, Any]:
+    device["client_id"] = normalized_state.get("client_id")
+    device["lifecycle"] = {"status": "ready", "reauth_required": False}
+    latest_state = update_device_state(device_id=entry_id, state=normalized_state)
     resolved_container_id = device.get("container_id")
     if resolved_container_id:
         schedule_telemetry_delivery(
@@ -236,12 +287,38 @@ async def fetch_and_store_state(*, device_id: str) -> dict[str, Any]:
                 details.get("device_id") or str(device.get("device_id") or entry_id),
             ),
             on_error=lambda exc, details: logger.exception(
-                "telemetry_send_unexpected_error device_id=%s error=%s",
+                "telemetry_send_unexpected_error device_id=%s error_type=%s",
                 details.get("device_id") or str(device.get("device_id") or entry_id),
-                exc,
+                type(exc).__name__,
             ),
         )
     return latest_state
+
+
+async def fetch_and_store_state(*, device_id: str) -> dict[str, Any]:
+    entry_id = resolve_entry_id(device_id)
+    if entry_id is None:
+        raise HTTPException(status_code=404, detail=f"Device '{device_id}' is not configured")
+
+    device = registry.get(entry_id)
+    if device is None:
+        raise HTTPException(status_code=404, detail=f"Device '{device_id}' is not configured")
+
+    try:
+        normalized_state = await _fetch_normalized_state(device)
+    except ThinQClientError as exc:
+        device["lifecycle"] = {
+            "status": "reauth_required" if exc.category in {"invalid_pat", "authorization_required"} else "unavailable",
+            "reason": exc.category,
+            "retryable": exc.retryable,
+        }
+        raise _classified_http_error(exc, config_id=str(device.get("config_id") or entry_id)) from exc
+
+    return _store_normalized_state(
+        entry_id=entry_id,
+        device=device,
+        normalized_state=normalized_state,
+    )
 
 
 async def poll_device_state(*, device_id: str) -> None:
@@ -259,7 +336,11 @@ async def poll_device_state(*, device_id: str) -> None:
         except asyncio.CancelledError:
             raise
         except Exception as exc:  # noqa: BLE001 - keep polling other devices
-            logger.warning("state_poll_error device_id=%s error=%s", device_id, exc)
+            logger.warning(
+                "state_poll_error device_id=%s error_type=%s",
+                device_id,
+                type(exc).__name__,
+            )
 
         await asyncio.sleep(_poll_interval(entry))
 
@@ -469,6 +550,24 @@ async def run_command_for_device(
     if device is None:
         raise HTTPException(status_code=404, detail=f"Device '{device_id}' is not configured")
 
+    lifecycle = device.get("lifecycle") if isinstance(device.get("lifecycle"), dict) else {}
+    if lifecycle.get("status") == "reauth_required":
+        raise HTTPException(
+            status_code=401,
+            detail={
+                "code": str(lifecycle.get("reason") or "authorization_required"),
+                "message": "Replace the ThinQ PAT or reauthorize the account before sending commands.",
+                "action": "replace_pat",
+                "reauth_required": True,
+                "credential_replacement": {
+                    "endpoint": "/config",
+                    "config_id": str(device.get("config_id") or entry_id),
+                    "field": "access_token",
+                    "preserves_identity": True,
+                },
+            },
+        )
+
     latest_state = device.get("latest_state") if isinstance(device.get("latest_state"), dict) else {}
     command_map = latest_state.get("command_map") if isinstance(latest_state.get("command_map"), dict) else {}
     mapping = command_map.get(command)
@@ -504,7 +603,7 @@ async def run_command_for_device(
     try:
         upstream_client = simulator_client if device.get("simulation_mode") else thinq_client
         result = await upstream_client.execute_device_command(
-            access_token=device["access_token"],
+            access_token=get_credential(entry_id),
             country_code=device["country_code"],
             device_id=device["device_id"],
             device_type=device["device_type"],
@@ -514,6 +613,11 @@ async def run_command_for_device(
             client_id=device.get("client_id"),
         )
     except ThinQClientError as exc:
+        device["lifecycle"] = {
+            "status": "reauth_required" if exc.category in {"invalid_pat", "authorization_required"} else "unavailable",
+            "reason": exc.category,
+            "retryable": exc.retryable,
+        }
         schedule_event_send(
             event_type="device.command.failed",
             device=device,
@@ -521,11 +625,15 @@ async def run_command_for_device(
                 "command": command,
                 "control_method": control_method,
                 "args": args,
-                "error": str(exc),
+                "error_code": exc.category,
+                "retryable": exc.retryable,
             },
             severity="error",
         )
-        raise HTTPException(status_code=502, detail=f"ThinQ command failed: {exc}") from exc
+        raise _classified_http_error(
+            exc,
+            config_id=str(device.get("config_id") or entry_id),
+        ) from exc
 
     schedule_event_send(
         event_type="device.command.executed",
@@ -540,7 +648,7 @@ async def run_command_for_device(
     return result
 
 
-async def remove_device_config(device_id: str) -> bool:
+async def remove_device_config(device_id: str, *, emit_event: bool = True) -> bool:
     entry_id = resolve_entry_id(device_id)
     if entry_id is None:
         return False
@@ -556,7 +664,7 @@ async def remove_device_config(device_id: str) -> bool:
             pass
 
     removed = registry.get(entry_id) is not None
-    if existing_entry is not None:
+    if existing_entry is not None and emit_event:
         schedule_event_send(
             event_type="device.deconfigured",
             device=existing_entry,
@@ -566,6 +674,7 @@ async def remove_device_config(device_id: str) -> bool:
             },
         )
     registry.remove(entry_id)
+    remove_credential(entry_id)
     return removed
 
 
@@ -578,51 +687,62 @@ async def apply_device_config(payload: ThinQDeviceConfig) -> dict[str, Any]:
         device_id=payload.device_id,
     )
 
-    await remove_device_config(payload.id)
-    registry.set(
-        payload.id,
-        {
+    existing_entry = registry.get(payload.id)
+    candidate = {
             "id": payload.id,
             "task": None,
             "config_id": payload.config_id or payload.id,
             "container_id": resolved_container_id,
             "device_id": payload.device_id,
-            "device_name": payload.device_name,
+            "device_name": None,
             "device_type": payload.device_type,
             "access_token": payload.access_token,
             "country_code": payload.country_code.upper(),
             "client_id": resolved_client_id,
-            "alias": payload.alias,
+            "alias": None,
             "integration_id": payload.integration_id or INTEGRATION_ID,
             "simulation_mode": payload.simulation_mode,
             "poll_interval_seconds": payload.poll_interval_seconds or POLL_INTERVAL_SECONDS,
             "push_events_enabled": payload.push_events_enabled,
-        },
+            "lifecycle": {"status": "validating", "reauth_required": False},
+        }
+
+    try:
+        initial_state = await _fetch_normalized_state(candidate)
+    except ThinQClientError as exc:
+        raise _classified_http_error(
+            exc,
+            config_id=payload.config_id or payload.id,
+            existing_config_preserved=existing_entry is not None,
+        ) from exc
+
+    if existing_entry is not None:
+        await remove_device_config(payload.id, emit_event=False)
+    candidate.pop("access_token", None)
+    registry.set(payload.id, candidate)
+    set_credential(payload.id, payload.access_token)
+    _store_normalized_state(
+        entry_id=payload.id,
+        device=candidate,
+        normalized_state=initial_state,
     )
     try:
         task = start_device_poll_task(device_id=payload.id)
     except Exception:
         registry.remove(payload.id)
+        remove_credential(payload.id)
         raise
     device_entry = registry.get(payload.id)
     if device_entry is None:
         await _cancel_poll_task(task)
+        remove_credential(payload.id)
         raise RuntimeError("Configured ThinQ device disappeared before polling started")
     device_entry["task"] = task
 
-    try:
-        await trigger_refresh(payload.id)
-    except HTTPException as exc:
-        logger.warning("thinq_initial_refresh_failed device_id=%s detail=%s", payload.id, exc.detail)
-    except asyncio.CancelledError:
-        await remove_device_config(payload.id)
-        raise
-    except Exception:
-        await remove_device_config(payload.id)
-        raise
-
     if payload.push_events_enabled and not payload.simulation_mode:
-        await get_push_supervisor().add_device(device_entry)
+        await get_push_supervisor().add_device(
+            {**device_entry, "access_token": get_credential(payload.id)}
+        )
 
     device_entry = registry.get(payload.id) or {}
     schedule_event_send(
@@ -643,6 +763,9 @@ async def apply_device_config(payload: ThinQDeviceConfig) -> dict[str, Any]:
             "device_type": payload.device_type,
             "poll_interval_seconds": payload.poll_interval_seconds or POLL_INTERVAL_SECONDS,
             "push_events_enabled": payload.push_events_enabled,
+            "identity_preserved": existing_entry is not None,
+            "credential_update": "replace_in_place",
+            "lifecycle_status": "ready",
         },
     ).model_dump()
 

@@ -23,8 +23,15 @@ async def health():
 async def diagnostics():
     return starter.diagnostics_response(
         diagnostics={
-            "active_config_ids": registry.ids(),
-            "poll_status": solaredge_service.poll_status,
+            "active_config_count": len(registry.ids()),
+            "poll_status": {
+                "read_failure_count": solaredge_service.freshness_summary()["read_failure_count"],
+                "last_error_classes": sorted({
+                    str(status["last_error"])
+                    for status in solaredge_service.poll_status.values()
+                    if status.get("last_error")
+                }),
+            },
             "freshness": solaredge_service.freshness_summary(),
             "recent_event_count": len(registry.recent_events),
             "kind": PROJECT_KIND,

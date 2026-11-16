@@ -321,6 +321,7 @@ def test_ui_config_exposes_tuya_credentials_and_cloud_discovery_fields() -> None
         set(body["schema"]["properties"]["device_type"]["enum"])
     )
     assert body["uiSchema"]["local_key"]["ui:widget"] == "password"
+    assert body["uiSchema"]["api_key"]["ui:widget"] == "password"
     assert body["uiSchema"]["api_secret"]["ui:widget"] == "password"
     assert body["uiSchema"]["switch"]["ui:help"].startswith(
         "For switches, plugs, and many fans"
@@ -455,8 +456,9 @@ def test_behaviors_route_reports_plug_light_fan_cover_climate_humidifier_and_air
     }
 
     assert {"set_mode", "refresh"}.issubset(light_action_ids)
-    assert {"set_mode", "refresh"}.issubset(fan_action_ids)
+    assert fan_action_ids == {"turn_on", "turn_off", "refresh"}
     assert "refresh" in cover_action_ids
+    assert cover_action_ids == {"refresh"}
     assert {"fan_speed", "power_state", "connected"}.issubset(purifier_condition_ids)
     assert {"target_temperature", "power_state", "connected"}.issubset(
         climate_condition_ids
@@ -664,11 +666,9 @@ def test_discover_can_return_tinytuya_lan_scan_results(monkeypatch) -> None:
         "refresh",
         "turn_on",
         "turn_off",
-        "set_fan_speed",
-        "set_oscillate",
-        "set_mode",
-        "set_dp",
     ]
+    assert fan_devices[0]["hardware_certification"] == "uncertified"
+    assert fan_devices[0]["consequential_writes_enabled"] is False
 
     cover_devices = asyncio.run(
         discovery_module.discover_devices(
@@ -685,9 +685,7 @@ def test_discover_can_return_tinytuya_lan_scan_results(monkeypatch) -> None:
     assert cover_devices[0]["entity_type"] == "cover"
     assert cover_devices[0]["suggested_config"]["cover_control_dp"] == 1
     assert cover_devices[0]["suggested_config"]["cover_position_dp"] == 2
-    assert {"open_cover", "close_cover", "stop_cover", "set_cover_position"}.issubset(
-        set(cover_devices[0]["supported_commands"])
-    )
+    assert cover_devices[0]["supported_commands"] == ["refresh"]
 
     climate_devices = asyncio.run(
         discovery_module.discover_devices(
@@ -721,9 +719,7 @@ def test_discover_can_return_tinytuya_lan_scan_results(monkeypatch) -> None:
     )
     assert climate_devices[0]["resolved_config_preview"]["climate_mode_dp"] == 4
     assert climate_devices[0]["resolved_config_preview"]["climate_temp_scale"] == 10.0
-    assert {"set_temperature", "set_mode"}.issubset(
-        set(climate_devices[0]["supported_commands"])
-    )
+    assert climate_devices[0]["supported_commands"] == ["refresh"]
 
     humidifier_devices = asyncio.run(
         discovery_module.discover_devices(
@@ -780,9 +776,11 @@ def test_discover_can_return_tinytuya_lan_scan_results(monkeypatch) -> None:
         humidifier_devices[0]["resolved_config_preview"]["humidifier_humidity_scale"]
         == 1.0
     )
-    assert {"set_humidity", "set_mode"}.issubset(
-        set(humidifier_devices[0]["supported_commands"])
-    )
+    assert humidifier_devices[0]["supported_commands"] == [
+        "refresh",
+        "turn_on",
+        "turn_off",
+    ]
 
     purifier_devices = asyncio.run(
         discovery_module.discover_devices(
@@ -817,9 +815,11 @@ def test_discover_can_return_tinytuya_lan_scan_results(monkeypatch) -> None:
     assert purifier_devices[0]["resolved_config_preview"]["purifier_mode_dp"] == 2
     assert purifier_devices[0]["resolved_config_preview"]["purifier_aqi_dp"] == 22
     assert purifier_devices[0]["resolved_config_preview"]["purifier_aqi_scale"] == 1.0
-    assert {"set_fan_speed", "set_mode"}.issubset(
-        set(purifier_devices[0]["supported_commands"])
-    )
+    assert purifier_devices[0]["supported_commands"] == [
+        "refresh",
+        "turn_on",
+        "turn_off",
+    ]
 
 
 def test_discover_can_return_tinytuya_cloud_results_with_category_mapping(
@@ -900,13 +900,16 @@ def test_discover_can_return_tinytuya_cloud_results_with_category_mapping(
         discovery_module.discover_devices(
             {
                 "api_region": "us",
-                "api_key": "key",
-                "api_secret": "secret",
+                "api_key": "successful-cloud-key-canary",
+                "api_secret": "successful-cloud-secret-canary",
             }
         )
     )
 
     assert len(devices) == 6
+    serialized_devices = json.dumps(devices)
+    assert "successful-cloud-key-canary" not in serialized_devices
+    assert "successful-cloud-secret-canary" not in serialized_devices
     by_id = {device["tuya_device_id"]: device for device in devices}
 
     switch_device = by_id["cloud-switch-1"]
@@ -919,7 +922,6 @@ def test_discover_can_return_tinytuya_cloud_results_with_category_mapping(
         "refresh",
         "turn_on",
         "turn_off",
-        "set_dp",
     ]
 
     light_device = by_id["cloud-light-1"]
@@ -1147,7 +1149,7 @@ def test_entities_reflect_configured_tuya_fan(monkeypatch) -> None:
     assert entity["entity_type"] == "fan"
     assert "fan_speed_percent" in entity["capabilities"]
     command_ids = {command["id"] for command in entity["available_commands"]}
-    assert {"set_fan_speed", "set_oscillate", "set_mode"}.issubset(command_ids)
+    assert command_ids == {"refresh", "turn_on", "turn_off"}
 
 
 def test_entities_reflect_configured_tuya_cover(monkeypatch) -> None:
@@ -1181,9 +1183,8 @@ def test_entities_reflect_configured_tuya_cover(monkeypatch) -> None:
     assert entity["entity_type"] == "cover"
     assert "position_percent" in entity["capabilities"]
     command_ids = {command["id"] for command in entity["available_commands"]}
-    assert {"open_cover", "close_cover", "stop_cover", "set_cover_position"}.issubset(
-        command_ids
-    )
+    assert command_ids == {"refresh"}
+    assert entity["metadata"]["hardware_certification"] == "uncertified"
 
 
 def test_entities_reflect_configured_tuya_climate(monkeypatch) -> None:
@@ -1220,7 +1221,7 @@ def test_entities_reflect_configured_tuya_climate(monkeypatch) -> None:
     assert "temperature_c" in entity["capabilities"]
     assert "target_temperature_c" in entity["capabilities"]
     command_ids = {command["id"] for command in entity["available_commands"]}
-    assert {"set_temperature", "set_mode", "turn_on", "turn_off"}.issubset(command_ids)
+    assert command_ids == {"refresh"}
 
 
 def test_entities_reflect_configured_tuya_humidifier(monkeypatch) -> None:
@@ -1257,7 +1258,7 @@ def test_entities_reflect_configured_tuya_humidifier(monkeypatch) -> None:
     assert "humidity_percent" in entity["capabilities"]
     assert "target_humidity_percent" in entity["capabilities"]
     command_ids = {command["id"] for command in entity["available_commands"]}
-    assert {"set_humidity", "set_mode", "turn_on", "turn_off"}.issubset(command_ids)
+    assert command_ids == {"refresh", "turn_on", "turn_off"}
 
 
 def test_entities_reflect_configured_tuya_air_purifier(monkeypatch) -> None:
@@ -1298,7 +1299,7 @@ def test_entities_reflect_configured_tuya_air_purifier(monkeypatch) -> None:
     assert "fan_speed_percent" in entity["capabilities"]
     assert "air_quality_index" in entity["capabilities"]
     command_ids = {command["id"] for command in entity["available_commands"]}
-    assert {"set_fan_speed", "set_mode", "turn_on", "turn_off"}.issubset(command_ids)
+    assert command_ids == {"refresh", "turn_on", "turn_off"}
 
 
 def test_health_diagnostics_and_state_redact_runtime_details(monkeypatch) -> None:
@@ -1341,10 +1342,203 @@ def test_health_diagnostics_and_state_redact_runtime_details(monkeypatch) -> Non
     assert state_response.status_code == 200
     state_body = state_response.json()
     assert state_body["summary"]["poll_task_count"] == 1
-    assert (
-        state_body["entries"]["tuya-health-1"]["config"]["local_key"]
-        == "***redacted***"
+    state_entry = state_body["entries"]["tuya-health-1"]
+    assert "config" not in state_entry
+    assert "host" not in state_entry
+    assert "alias" not in state_entry
+    assert "latest_raw" not in state_entry
+
+
+def test_recursive_redaction_covers_nested_values_events_and_errors(monkeypatch) -> None:
+    reset_runtime_state()
+    canary = "tuya-local-key-canary-7f31"
+
+    async def leaking_failure(config, *, device=None):
+        raise discovery_module.TuyaClientError(
+            f"authentication failed for {canary}: {{'localKey': '{canary}'}}"
+        )
+
+    monkeypatch.setattr(state_module, "read_device_status", leaking_failure)
+    payload = build_config_payload(
+        config_id="tuya-redaction-1",
+        integration_id="piphi-network-tuya",
+        extra={
+            "host": "10.0.0.90",
+            "tuya_device_id": "bfredact",
+            "local_key": canary,
+            "alias": "Redaction Plug",
+            "device_type": "plug",
+        },
     )
+
+    with TestClient(app) as client:
+        response = client.post("/config", json=payload)
+
+    serialized = json.dumps(response.json()) + json.dumps(registry.recent_events)
+    assert response.status_code == 502
+    assert canary not in serialized
+
+
+def test_success_events_use_minimal_device_identity_and_no_config_canaries(
+    mock_core, monkeypatch
+) -> None:
+    reset_runtime_state()
+    monkeypatch.setattr(state_module, "read_device_status", fake_read_plug_status)
+
+    async def fake_execute_command(config, command, args, *, device=None):
+        return SimpleNamespace(raw={"ok": True, "command": command})
+
+    monkeypatch.setattr(state_module, "execute_command", fake_execute_command)
+    telemetry.core_base_url = mock_core.base_url
+    event_client.core_base_url = mock_core.base_url
+
+    canaries = {
+        "host": "10.77.66.55",
+        "alias": "private-alias-canary",
+        "tuya_device_id": "private-tuya-id-canary",
+        "local_key": "private-local-key-canary",
+        "api_key": "private-cloud-key-canary",
+        "api_secret": "private-cloud-secret-canary",
+        "api_device_id": "private-cloud-device-canary",
+    }
+    payload = build_config_payload(
+        config_id="tuya-event-privacy-1",
+        container_id="runtime-event-privacy",
+        integration_id="piphi-network-tuya",
+        extra={
+            **canaries,
+            "api_region": "us",
+            "device_type": "plug",
+            "poll_interval_seconds": 300,
+        },
+    )
+    headers = build_runtime_headers(
+        container_id="runtime-event-privacy", internal_token="event-token"
+    )
+
+    with TestClient(app) as client:
+        assert client.post("/config", json=payload, headers=headers).status_code == 200
+        wait_for(lambda: len(mock_core.event_requests) >= 2)
+
+        assert (
+            client.post(
+                "/command",
+                json={
+                    "command": "turn_on",
+                    "config_id": "tuya-event-privacy-1",
+                    "args": {
+                        "host": canaries["host"],
+                        "note": canaries["alias"],
+                    },
+                },
+                headers=headers,
+            ).status_code
+            == 200
+        )
+        wait_for(lambda: len(mock_core.event_requests) >= 4)
+
+        assert (
+            client.post(
+                "/command",
+                json={
+                    "command": "refresh",
+                    "config_id": "tuya-event-privacy-1",
+                },
+                headers=headers,
+            ).status_code
+            == 200
+        )
+        wait_for(lambda: len(mock_core.event_requests) >= 6)
+
+        assert (
+            client.post(
+                "/deconfigure",
+                json={"config_id": "tuya-event-privacy-1"},
+            ).status_code
+            == 200
+        )
+        wait_for(lambda: len(mock_core.event_requests) >= 7)
+
+    local_events = list(registry.recent_events)
+    delivered_events = [request.json_body for request in mock_core.event_requests]
+    event_types = {event["event_type"] for event in local_events}
+    assert {
+        "tuya.config.applied",
+        "tuya.status.refreshed",
+        "tuya.command.executed",
+        "tuya.config.removed",
+    }.issubset(event_types)
+
+    forbidden_values = set(canaries.values())
+    forbidden_keys = {
+        "config",
+        "local_key",
+        "localKey",
+        "api_key",
+        "apiKey",
+        "api_secret",
+        "apiSecret",
+        "host",
+        "alias",
+        "tuya_device_id",
+    }
+
+    def assert_private_values_absent(value):
+        serialized = json.dumps(value)
+        for canary in forbidden_values:
+            assert canary not in serialized
+        if isinstance(value, dict):
+            assert forbidden_keys.isdisjoint(value)
+            for item in value.values():
+                assert_private_values_absent(item)
+        elif isinstance(value, list):
+            for item in value:
+                assert_private_values_absent(item)
+
+    assert_private_values_absent(local_events)
+    assert_private_values_absent(delivered_events)
+
+
+def test_raw_and_uncertified_consequential_commands_fail_closed(monkeypatch) -> None:
+    reset_runtime_state()
+    monkeypatch.setattr(state_module, "read_device_status", fake_read_climate_status)
+    payload = build_config_payload(
+        config_id="tuya-safe-climate-1",
+        integration_id="piphi-network-tuya",
+        extra={
+            "host": "10.0.0.91",
+            "tuya_device_id": "bfsafeclimate",
+            "local_key": "safe-secret",
+            "device_type": "climate",
+            "climate_target_temp_dp": 16,
+            "certified_mapping_id": "user-invented-id",
+        },
+    )
+    with TestClient(app) as client:
+        assert client.post("/config", json=payload).status_code == 200
+        for command in ("set_dp", "set_temperature"):
+            response = client.post(
+                "/command",
+                json={
+                    "command": command,
+                    "config_id": "tuya-safe-climate-1",
+                    "args": {"dp": "16", "value": 350, "temperature_c": 35},
+                },
+            )
+            assert response.status_code == 400
+        inferred_write = client.post(
+            "/command",
+            json={
+                "command": "set_mode",
+                "config_id": "tuya-safe-climate-1",
+                "args": {"mode": "heat"},
+            },
+        )
+        assert inferred_write.status_code == 409
+        entities = client.get("/entities").json()["entities"]
+
+    assert entities[0]["metadata"]["hardware_certification"] == "uncertified"
+    assert entities[0]["metadata"]["consequential_writes_enabled"] is False
 
 
 def test_config_apply_fails_fast_when_initial_validation_fails(monkeypatch) -> None:
@@ -1372,6 +1566,53 @@ def test_config_apply_fails_fast_when_initial_validation_fails(monkeypatch) -> N
     assert body["error"]["type"] == "tuya_client_error"
     assert "Config validation failed" in body["error"]["message"]
     assert "tuya-invalid-1" not in registry.ids()
+
+
+def test_local_key_rotation_recovers_without_delete_and_rolls_back_bad_key(
+    monkeypatch,
+) -> None:
+    reset_runtime_state()
+
+    async def key_aware_status(config, *, device=None):
+        if config.local_key == "bad-rotated-key":
+            raise discovery_module.TuyaClientError(
+                f"authentication rejected local key {config.local_key}"
+            )
+        return await fake_read_plug_status(config, device=device)
+
+    monkeypatch.setattr(state_module, "read_device_status", key_aware_status)
+
+    def payload(local_key: str) -> dict:
+        return build_config_payload(
+            config_id="tuya-key-recovery-1",
+            integration_id="piphi-network-tuya",
+            extra={
+                "host": "10.0.0.92",
+                "tuya_device_id": "bfkeyrecovery",
+                "local_key": local_key,
+                "alias": "Recovery Plug",
+                "device_type": "plug",
+            },
+        )
+
+    with TestClient(app) as client:
+        assert client.post("/config", json=payload("old-valid-key")).status_code == 200
+        rejected = client.post("/config", json=payload("bad-rotated-key"))
+        assert rejected.status_code == 502
+        assert "bad-rotated-key" not in json.dumps(rejected.json())
+        assert registry.get("tuya-key-recovery-1")["config"]["local_key"] == (
+            "old-valid-key"
+        )
+
+        recovered = client.post("/config", json=payload("new-valid-key"))
+        assert recovered.status_code == 200
+        state_response = client.get("/state")
+
+    assert registry.get("tuya-key-recovery-1")["config"]["local_key"] == "new-valid-key"
+    serialized_state = json.dumps(state_response.json())
+    assert "old-valid-key" not in serialized_state
+    assert "new-valid-key" not in serialized_state
+    assert "bad-rotated-key" not in serialized_state
 
 
 def test_config_rejects_duplicate_tuya_identity(monkeypatch) -> None:
@@ -1439,6 +1680,42 @@ def test_discover_rejects_invalid_scan_seconds() -> None:
         )
 
     assert response.status_code == 422
+
+
+def test_discovery_errors_redact_cloud_credentials(monkeypatch) -> None:
+    reset_runtime_state()
+    api_key = "cloud-key-canary"
+    api_secret = "cloud-secret-canary"
+
+    class _LeakingCloud:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+        def getdevices(self):
+            raise RuntimeError(f"bad credentials {api_key} / {api_secret}")
+
+    monkeypatch.setattr(
+        discovery_module,
+        "tinytuya",
+        type("LeakingTinyTuya", (), {"Cloud": _LeakingCloud}),
+    )
+    with TestClient(app) as client:
+        response = client.post(
+            "/discover",
+            json={
+                "inputs": {
+                    "api_region": "us",
+                    "api_key": api_key,
+                    "api_secret": api_secret,
+                }
+            },
+        )
+
+    serialized = json.dumps(response.json())
+    assert response.status_code == 200
+    assert api_key not in serialized
+    assert api_secret not in serialized
+    assert "***redacted***" in serialized
 
 
 def test_command_turn_on_returns_refreshed_state(monkeypatch) -> None:

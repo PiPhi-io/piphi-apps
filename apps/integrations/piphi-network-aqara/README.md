@@ -21,7 +21,9 @@ This first pass supports Aqara Open API access in two ways:
 - supply an existing `access_token` and `open_id`
 - supply `account` plus `auth_code` so the runtime can exchange it for tokens
 
-If a `refresh_token` is provided, the runtime will attempt one token refresh when Aqara rejects an expired token.
+If a `refresh_token` is provided, the runtime will attempt one token refresh when Aqara rejects an expired token. Rotated refresh tokens replace the previous token atomically in the active config. A rejected refresh token, changed account identity, or credentials rejected immediately after refresh moves the device to `auth_state: reauth_required`; replacing the credentials on the existing config restores the same device identity without delete/re-add.
+
+The configured region is part of the account identity boundary. An existing config cannot be moved to another region or `did` in place, and duplicate account/region/device tuples are rejected. Runtime configuration cannot override the API domain: each region is pinned to Aqara's official endpoint allowlist.
 
 ## Aqara Console HTTP Push
 
@@ -39,14 +41,18 @@ Notes:
 - The webhook currently handles `resource_report`, online/offline, name-change, and `control_fail` messages.
 - Repeated push messages with the same `msgId` are ignored to avoid replaying state and events.
 - Older `resource_report` updates are ignored when Aqara delivers them out of order for a resource that already has a newer timestamp.
+- Push authentication is possession-based: Aqara's `token` header must match a configured access token. PiPhi compares it in constant time and, when `openId` is present, also requires the configured account identity to match.
+- Replay keys are scoped to the token/account and reserved atomically before processing. They are retained in a bounded in-memory window, so polling remains the authoritative recovery path across process restarts. TLS termination and request-size/rate limits must be enforced by the deployment ingress; Aqara does not provide a separate request signature in this HTTP Push flow.
 
 ## Diagnostics
 
 `GET /diagnostics` includes:
 
-- active subscription count and subscribed config ids
+- active configuration, poll-task, subscription, connectivity, error, and reauthentication counts
 - last push received, processed, duplicate, and error information
 - tracked push `msgId` count for dedupe visibility
+
+Diagnostics and public state are recursively scrubbed for configured credentials. Diagnostics additionally redact account/device PII and raw error text is scrubbed before it is exposed or emitted as an event.
 
 `GET /ui-config` includes the same webhook path/header details in a setup-friendly format.
 
