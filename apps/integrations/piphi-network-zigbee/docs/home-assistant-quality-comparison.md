@@ -65,6 +65,23 @@ start/restart/unplug recovery, encrypted restore, and migration must pass on
 released Core and sidecar artifacts first. The listing therefore remains
 `unrated`.
 
+Released-artifact qualification on 2026-11-16 covered one ITead Sonoff Zigbee
+3.0 USB Dongle Plus (`10c4:ea60`, stable serial-by-id identity), identified by
+Zigbee2MQTT as `ZStack3x0` firmware revision `20210708`. Core/helper commit
+`703a7142` (Core `sha256:893cdd035c48bc9bea4633fc2e7f873c6fd4e0e6fcfee741090df5c522572a25`,
+helper `sha256:c98c0adcacc0073ee06caa126f05cd6b60cc7eb6838dce4e2edea453cd29256e`)
+and sidecar `0.1.22`
+(`sha256:4a5e409d61c4063b2dff849b57e848638764d6283bf2e787af0daa13980e96a5`)
+passed stable discovery, non-root start, fenced restart, physical unplug/clean
+offline handling, replug recovery, AES-256-GCM export/import, stopped-workload
+restore, and post-restore radio startup. The Zigbee2MQTT workload received only
+the selected serial node and its derived `dialout` GID; the sidecar retained no
+device, Docker socket, capabilities, or privileged mode. Same-family migration
+planning/apply and rollback passed against a disposable clone of the qualified
+ZStack data. This is useful P0 evidence, but it is still a single physical
+coordinator and does not qualify a second physical migration target or another
+adapter family. Marketplace quality therefore remains `unrated`.
+
 The right near-term product claim is: **“PiPhi-managed Zigbee2MQTT bridge setup plus a tested basic MQTT device-state/control adapter for a constrained set of exposes.”**
 
 ## Comparison model and source baseline
