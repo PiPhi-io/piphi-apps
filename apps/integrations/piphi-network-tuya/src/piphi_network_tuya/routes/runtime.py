@@ -16,7 +16,14 @@ from ..settings import (
     PROJECT_KIND,
     PROJECT_PRESET,
 )
-from ..state import device_sessions, poll_tasks, registry, sanitize_entry, starter
+from ..state import (
+    device_sessions,
+    poll_tasks,
+    redact_sensitive,
+    registry,
+    sanitize_entry,
+    starter,
+)
 
 router = APIRouter(tags=["runtime"])
 _MANIFEST_PATH = Path(__file__).resolve().parents[2] / "manifest.json"
@@ -70,7 +77,7 @@ async def state(
     }
     if "refresh" in state_payload:
         payload["refresh"] = state_payload["refresh"]
-    return payload
+    return redact_sensitive(payload)
 
 
 @router.get("/contract")

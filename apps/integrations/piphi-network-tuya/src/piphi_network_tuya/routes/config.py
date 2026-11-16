@@ -25,9 +25,6 @@ async def configure(payload: TuyaDeviceConfig, request: Request):
         config_id=payload.config_id or payload.id,
         container_id=payload.container_id,
         metadata={
-            "host": payload.host,
-            "alias": payload.alias,
-            "tuya_device_id": payload.tuya_device_id,
             "device_type": payload.device_type,
         },
     )

@@ -25,7 +25,13 @@ from ..contract import (
     PLUG_FALLBACK_ENTITY,
     SWITCH_ENTITY_CAPABILITIES,
 )
-from ..state import registry
+from ..schemas import TuyaDeviceConfig
+from ..state import (
+    TuyaClientError,
+    certified_mapping_for,
+    ensure_command_allowed,
+    registry,
+)
 
 router = APIRouter(tags=["entities"])
 
@@ -33,7 +39,9 @@ router = APIRouter(tags=["entities"])
 def _command_definitions(names: list[str]) -> list[dict[str, Any]]:
     commands: list[dict[str, Any]] = []
     for name in names:
-        definition = COMMANDS.get(name, {})
+        definition = COMMANDS.get(name)
+        if definition is None:
+            continue
         command = {
             "id": name,
             "label": name.replace("_", " ").title(),
@@ -61,7 +69,6 @@ def _entity_profile(device_type: str) -> dict[str, Any]:
                     "set_color_temp",
                     "set_color_rgb",
                     "set_mode",
-                    "set_dp",
                 ]
             ),
             "dashboard": LIGHT_FALLBACK_ENTITY["dashboard"],
@@ -72,7 +79,7 @@ def _entity_profile(device_type: str) -> dict[str, Any]:
             "entity_type": "switch",
             "capabilities": PLUG_ENTITY_CAPABILITIES,
             "available_commands": _command_definitions(
-                ["refresh", "turn_on", "turn_off", "set_dp"]
+                ["refresh", "turn_on", "turn_off"]
             ),
             "dashboard": PLUG_FALLBACK_ENTITY["dashboard"],
         }
@@ -89,7 +96,6 @@ def _entity_profile(device_type: str) -> dict[str, Any]:
                     "set_fan_speed",
                     "set_oscillate",
                     "set_mode",
-                    "set_dp",
                 ]
             ),
             "dashboard": FAN_FALLBACK_ENTITY["dashboard"],
@@ -106,7 +112,6 @@ def _entity_profile(device_type: str) -> dict[str, Any]:
                     "close_cover",
                     "stop_cover",
                     "set_cover_position",
-                    "set_dp",
                 ]
             ),
             "dashboard": COVER_FALLBACK_ENTITY["dashboard"],
@@ -123,7 +128,6 @@ def _entity_profile(device_type: str) -> dict[str, Any]:
                     "turn_off",
                     "set_temperature",
                     "set_mode",
-                    "set_dp",
                 ]
             ),
             "dashboard": CLIMATE_FALLBACK_ENTITY["dashboard"],
@@ -140,7 +144,6 @@ def _entity_profile(device_type: str) -> dict[str, Any]:
                     "turn_off",
                     "set_humidity",
                     "set_mode",
-                    "set_dp",
                 ]
             ),
             "dashboard": HUMIDIFIER_FALLBACK_ENTITY["dashboard"],
@@ -157,7 +160,6 @@ def _entity_profile(device_type: str) -> dict[str, Any]:
                     "turn_off",
                     "set_fan_speed",
                     "set_mode",
-                    "set_dp",
                 ]
             ),
             "dashboard": AIR_PURIFIER_FALLBACK_ENTITY["dashboard"],
@@ -168,7 +170,7 @@ def _entity_profile(device_type: str) -> dict[str, Any]:
             "entity_type": "switch",
             "capabilities": SWITCH_ENTITY_CAPABILITIES,
             "available_commands": _command_definitions(
-                ["refresh", "turn_on", "turn_off", "set_dp"]
+                ["refresh", "turn_on", "turn_off"]
             ),
             "dashboard": PLUG_FALLBACK_ENTITY["dashboard"],
         }
@@ -177,7 +179,7 @@ def _entity_profile(device_type: str) -> dict[str, Any]:
         "entity_type": "device",
         "capabilities": SWITCH_ENTITY_CAPABILITIES,
         "available_commands": _command_definitions(
-            ["refresh", "turn_on", "turn_off", "set_dp"]
+            ["refresh", "turn_on", "turn_off"]
         ),
         "dashboard": GENERIC_FALLBACK_ENTITY["dashboard"],
     }
@@ -192,6 +194,26 @@ def _entity_for_entry(entry: dict[str, Any]) -> dict[str, Any]:
     snapshot = registry.state_snapshots.get(config_id, {})
     latest_state = snapshot.get("state") if isinstance(snapshot, dict) else {}
     profile = _entity_profile(str(entry.get("device_type") or "device"))
+    config = entry.get("config") if isinstance(entry.get("config"), dict) else {}
+    typed_config = TuyaDeviceConfig.model_validate(config)
+    certified_mapping = certified_mapping_for(typed_config)
+    mapping_id = str(typed_config.certified_mapping_id or "").strip()
+    available_commands = []
+    for command in profile["available_commands"]:
+        try:
+            ensure_command_allowed(typed_config, str(command["id"]))
+        except TuyaClientError:
+            continue
+        available_commands.append(command)
+    advertised_capabilities = [
+        capability
+        for capability in profile["capabilities"]
+        if capability in CAPABILITIES
+        and (
+            CAPABILITIES[capability].get("kind") != "action"
+            or any(command["id"] == capability for command in available_commands)
+        )
+    ]
     return {
         "id": str(entry.get("device_id") or entry.get("tuya_device_id") or config_id),
         "name": str(entry.get("alias") or entry.get("tuya_device_id") or "Tuya Device"),
@@ -200,14 +222,17 @@ def _entity_for_entry(entry: dict[str, Any]) -> dict[str, Any]:
         "device_type": str(entry.get("device_type") or "device"),
         "device_class": profile["device_class"],
         "entity_type": profile["entity_type"],
-        "capabilities": profile["capabilities"],
-        "available_commands": profile["available_commands"],
+        "capabilities": advertised_capabilities,
+        "available_commands": available_commands,
         "dashboard": profile["dashboard"],
         "metadata": {
-            "host": entry.get("host"),
-            "tuya_device_id": entry.get("tuya_device_id"),
             "protocol_version": entry.get("protocol_version"),
             "latest_state": latest_state or {},
+            "hardware_certification": "certified"
+            if certified_mapping
+            else "uncertified",
+            "certified_mapping_id": mapping_id or None,
+            "consequential_writes_enabled": bool(certified_mapping),
         },
     }
 

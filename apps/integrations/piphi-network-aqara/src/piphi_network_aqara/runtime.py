@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import hmac
 import json
 import logging
+import math
 import os
 from collections import deque
 from datetime import UTC, datetime
@@ -56,6 +59,7 @@ from .cloud.client import (
 from .cloud.models import AqaraAuthTokens, AqaraCloudCredentials, AqaraCloudDevice, AqaraResourceInfo, AqaraResourceValue
 from .cloud.registry import capability_for_resource, command_bindings_for_capabilities
 from .manifest import load_manifest
+from .security import redact_recursive
 
 
 manifest = load_manifest()
@@ -103,6 +107,7 @@ poll_tasks: dict[str, asyncio.Task[Any]] = {}
 poll_status: dict[str, dict[str, Any]] = {}
 processed_push_msg_ids: deque[str] = deque()
 processed_push_msg_id_set: set[str] = set()
+push_dedupe_lock = asyncio.Lock()
 push_status: dict[str, Any] = {
     "last_received_at": None,
     "last_processed_at": None,
@@ -235,8 +240,17 @@ async def _resolve_credentials(
     auth_code: str | None = None,
     custom_api_domain: str | None = None,
 ) -> tuple[AqaraCloudCredentials, AqaraAuthTokens | None]:
+    normalized_region = str(region or "").strip().lower()
+    normalized_custom_domain = str(custom_api_domain or "").strip() or None
+    if normalized_custom_domain:
+        raise HTTPException(
+            status_code=400,
+            detail="custom_api_domain is not supported; Aqara traffic is restricted to the official endpoint for the selected region.",
+        )
+    if normalized_region not in {"cn", "us", "eu", "kr", "ru", "sg"}:
+        raise HTTPException(status_code=400, detail="Unsupported Aqara region. Choose cn, us, eu, kr, ru, or sg.")
     credentials = AqaraCloudCredentials(
-        region=str(region or "").strip().lower(),
+        region=normalized_region,
         app_id=str(app_id or "").strip(),
         key_id=str(key_id or "").strip(),
         app_key=str(app_key or "").strip(),
@@ -245,7 +259,7 @@ async def _resolve_credentials(
         open_id=str(open_id or "").strip(),
         account=str(account or "").strip() or None,
         account_type=int(account_type or 0),
-        custom_api_domain=str(custom_api_domain or "").strip() or None,
+        custom_api_domain=normalized_custom_domain,
     )
     if not credentials.region or not credentials.app_id or not credentials.key_id or not credentials.app_key:
         raise HTTPException(status_code=400, detail="region, app_id, key_id, and app_key are required.")
@@ -289,12 +303,82 @@ def _entry_name(entry: dict[str, Any]) -> str:
     return str(entry.get("device_name") or entry.get("did") or entry.get("config_id"))
 
 
-def _entry_log_label(entry: dict[str, Any]) -> str:
-    return f"config_id={entry.get('config_id')} did={entry.get('did')} model={entry.get('device_model') or 'unknown'}"
+def _correlation_ref(*values: Any) -> str:
+    material = "\x1f".join(str(value or "") for value in values)
+    return hashlib.sha256(material.encode("utf-8")).hexdigest()[:12]
 
 
-def _config_log_label(config: AqaraCloudConfig) -> str:
-    return f"config_id={_config_id(config)} did={config.did} region={config.region} poll_interval_seconds={config.poll_interval_seconds}"
+def _entry_log_ref(entry: dict[str, Any]) -> str:
+    return _correlation_ref(entry.get("config_id"), entry.get("did"), entry.get("open_id"))
+
+
+def _known_private_values() -> set[str]:
+    values: set[str] = set()
+    for entry in registry.entries.values():
+        for key in (
+            "app_key",
+            "access_token",
+            "refresh_token",
+            "auth_code",
+            "config_id",
+            "did",
+            "device_id",
+            "device_name",
+            "open_id",
+            "account",
+        ):
+            value = str(entry.get(key) or "")
+            if value:
+                values.add(value)
+        config = entry.get("config")
+        if isinstance(config, dict):
+            for key in (
+                "app_key",
+                "access_token",
+                "refresh_token",
+                "auth_code",
+                "config_id",
+                "did",
+                "device_id",
+                "device_name",
+                "open_id",
+                "account",
+            ):
+                value = str(config.get(key) or "")
+                if value:
+                    values.add(value)
+    return values
+
+
+def _safe_error(exc: Exception | str) -> str:
+    return str(redact_recursive(str(exc), secret_values=_known_private_values()))
+
+
+def _safe_event_device(device: dict[str, Any]) -> dict[str, Any]:
+    return {
+        key: device.get(key)
+        for key in (
+            "config_id",
+            "container_id",
+            "integration_id",
+            "device_id",
+            "did",
+            "device_model",
+        )
+        if device.get(key) is not None
+    }
+
+
+def _public_state_snapshots(*, diagnostics: bool = False) -> dict[str, Any]:
+    return redact_recursive(
+        registry.state_snapshots,
+        secret_values=_known_private_values(),
+        redact_pii=diagnostics,
+    )
+
+
+def _config_log_ref(config: AqaraCloudConfig) -> str:
+    return _correlation_ref(_config_id(config), config.did, config.open_id, config.account)
 
 
 def _append_runtime_event(
@@ -304,11 +388,13 @@ def _append_runtime_event(
     payload: dict[str, Any] | None = None,
     severity: str = "info",
 ) -> None:
+    safe_device = _safe_event_device(device)
+    safe_payload = redact_recursive(payload, secret_values=_known_private_values())
     registry.append_event(
         build_local_event_record(
             event_type=event_type,
-            device=device,
-            payload=payload,
+            device=safe_device,
+            payload=safe_payload,
             source=INTEGRATION_ID,
             severity=severity,
         )
@@ -317,9 +403,9 @@ def _append_runtime_event(
 
 def _handle_event_delivery_error(exc: Exception, context: dict[str, Any]) -> None:
     if isinstance(exc, CoreDeliveryError):
-        logger.warning("Aqara cloud event delivery failed event=%s error=%s", context.get("event_type"), exc)
+        logger.warning("Aqara cloud event delivery failed event=%s error=%s", context.get("event_type"), _safe_error(exc))
         return
-    logger.warning("Aqara cloud event delivery raised error event=%s error=%r", context.get("event_type"), exc)
+    logger.warning("Aqara cloud event delivery raised event=%s error_type=%s", context.get("event_type"), type(exc).__name__)
 
 
 def _handle_event_delivery_skipped(reason: str, context: dict[str, Any]) -> None:
@@ -328,13 +414,25 @@ def _handle_event_delivery_skipped(reason: str, context: dict[str, Any]) -> None
 
 def _handle_telemetry_delivery_error(exc: Exception, context: dict[str, Any]) -> None:
     if isinstance(exc, CoreDeliveryError):
-        logger.warning("Aqara cloud telemetry delivery failed device=%s error=%s", context.get("device_id"), exc)
+        logger.warning(
+            "Aqara cloud telemetry delivery failed ref=%s error=%s",
+            _correlation_ref(context.get("device_id")),
+            _safe_error(exc),
+        )
         return
-    logger.warning("Aqara cloud telemetry delivery raised error device=%s error=%r", context.get("device_id"), exc)
+    logger.warning(
+        "Aqara cloud telemetry delivery raised ref=%s error_type=%s",
+        _correlation_ref(context.get("device_id")),
+        type(exc).__name__,
+    )
 
 
 def _handle_telemetry_delivery_skipped(reason: str, context: dict[str, Any]) -> None:
-    logger.warning("Aqara cloud telemetry delivery skipped device=%s reason=%s", context.get("device_id"), reason)
+    logger.warning(
+        "Aqara cloud telemetry delivery skipped ref=%s reason=%s",
+        _correlation_ref(context.get("device_id")),
+        reason,
+    )
 
 
 def _schedule_runtime_event_delivery(
@@ -344,14 +442,16 @@ def _schedule_runtime_event_delivery(
     payload: dict[str, Any] | None = None,
     severity: str = "info",
 ) -> None:
-    _append_runtime_event(event_type=event_type, device=device, payload=payload, severity=severity)
+    safe_device = _safe_event_device(device)
+    safe_payload = redact_recursive(payload, secret_values=_known_private_values())
+    _append_runtime_event(event_type=event_type, device=safe_device, payload=safe_payload, severity=severity)
     schedule_event_delivery(
         process_state=runtime.process_state,
         event_client=event_client,
         auth_context=runtime.auth,
         event_type=event_type,
-        device=device,
-        payload=payload,
+        device=safe_device,
+        payload=safe_payload,
         source=INTEGRATION_ID,
         severity=severity,
         on_error=_handle_event_delivery_error,
@@ -372,10 +472,23 @@ async def _call_with_entry_refresh(
     credentials = _entry_credentials(entry)
     try:
         return await operation(credentials)
-    except AqaraCloudAuthError:
+    except AqaraCloudAuthError as initial_exc:
         if not credentials.refresh_token:
+            _mark_reauth_required(entry, reason="missing_refresh_token", error=initial_exc)
             raise
-        tokens = await cloud_client.refresh_access_token(credentials)
+        try:
+            tokens = await cloud_client.refresh_access_token(credentials)
+        except AqaraCloudAuthError as refresh_exc:
+            _mark_reauth_required(entry, reason="refresh_token_rejected", error=refresh_exc)
+            raise AqaraCloudAuthError(
+                "Aqara authorization expired or was revoked. Replace the account credentials to reauthenticate."
+            ) from refresh_exc
+        if tokens.open_id and credentials.open_id and not hmac.compare_digest(tokens.open_id, credentials.open_id):
+            identity_error = AqaraCloudAuthError(
+                "Aqara token refresh returned a different account identity. Reauthenticate and verify the configured region."
+            )
+            _mark_reauth_required(entry, reason="account_identity_changed", error=identity_error)
+            raise identity_error
         refreshed = credentials.with_tokens(tokens)
         entry["access_token"] = refreshed.access_token
         entry["refresh_token"] = refreshed.refresh_token
@@ -389,7 +502,42 @@ async def _call_with_entry_refresh(
             }
         )
         entry["config"] = config
-        return await operation(refreshed)
+        entry.update({"auth_state": "authenticated", "reauth_reason": None, "reauth_required_at": None})
+        try:
+            return await operation(refreshed)
+        except AqaraCloudAuthError as retry_exc:
+            _mark_reauth_required(entry, reason="refreshed_credentials_rejected", error=retry_exc)
+            raise AqaraCloudAuthError(
+                "Aqara rejected the refreshed credentials. Replace the account credentials to reauthenticate."
+            ) from retry_exc
+
+
+def _mark_reauth_required(entry: dict[str, Any], *, reason: str, error: Exception) -> None:
+    timestamp = datetime.now(tz=UTC).isoformat()
+    message = _safe_error(error)
+    entry.update(
+        {
+            "auth_state": "reauth_required",
+            "reauth_reason": reason,
+            "reauth_required_at": timestamp,
+        }
+    )
+    config_id = str(entry.get("config_id") or "")
+    if config_id:
+        current = _existing_state(config_id)
+        current.update(
+            {
+                "connected": False,
+                "auth_state": "reauth_required",
+                "reauth_reason": reason,
+                "last_error": message,
+                "did": entry.get("did"),
+                "device_model": entry.get("device_model"),
+                "name": _entry_name(entry),
+            }
+        )
+        registry.update_state(config_id, current)
+        _update_poll_status(config_id, auth_state="reauth_required", reauth_reason=reason, last_poll_error=message)
 
 
 def _capability_widgets(capabilities: list[str]) -> list[str]:
@@ -563,6 +711,11 @@ def _remember_push_msg_id(msg_id: str) -> None:
         processed_push_msg_id_set.discard(expired)
 
 
+def _push_dedupe_key(*, token: str, open_id: str, msg_id: str) -> str:
+    token_fingerprint = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    return f"{token_fingerprint}:{open_id}:{msg_id}"
+
+
 async def _sync_resource_subscription(entry: dict[str, Any], *, subscribe: bool) -> None:
     resources = _resource_bindings_for_subscription(entry)
     if not resources:
@@ -582,10 +735,10 @@ async def _sync_resource_subscription(entry: dict[str, Any], *, subscribe: bool)
             await cloud_client.unsubscribe_resources(credentials, resources=unsubscribe_payload)
     except AqaraCloudError as exc:
         logger.warning(
-            "Aqara resource subscription sync failed subscribe=%s %s error=%s",
+            "Aqara resource subscription sync failed subscribe=%s ref=%s error=%s",
             subscribe,
-            _entry_log_label(entry),
-            exc,
+            _entry_log_ref(entry),
+            _safe_error(exc),
         )
 
 
@@ -769,8 +922,8 @@ def _persist_state(
     emit_resource_events: list[dict[str, Any]] | None = None,
 ) -> None:
     previous_state = _existing_state(config_id)
-    registry.update_state(config_id, state)
-    current_state = dict(state)
+    current_state = redact_recursive(state, secret_values=_known_private_values())
+    registry.update_state(config_id, current_state)
     if emit_camera_events and {"privacy_mode", "recording_enabled", "motion_detected", "person_detected", "audio_detected", "doorbell_pressed"} & set(current_state):
         _emit_camera_transition_events(entry=entry, previous_state=previous_state, current_state=current_state)
     _emit_security_transition_events(
@@ -927,6 +1080,8 @@ async def _poll_config(config_id: str, interval_seconds: int) -> None:
         except Exception as exc:
             entry = registry.get(config_id)
             if entry is not None:
+                error_message = _safe_error(exc)
+                auth_state = str(entry.get("auth_state") or "authenticated")
                 registry.update_state(
                     config_id,
                     {
@@ -934,7 +1089,9 @@ async def _poll_config(config_id: str, interval_seconds: int) -> None:
                         "did": entry["did"],
                         "device_model": entry.get("device_model"),
                         "name": _entry_name(entry),
-                        "last_error": str(exc),
+                        "last_error": error_message,
+                        "auth_state": auth_state,
+                        "reauth_reason": entry.get("reauth_reason"),
                     },
                 )
                 schedule_telemetry_delivery(
@@ -952,35 +1109,59 @@ async def _poll_config(config_id: str, interval_seconds: int) -> None:
                 _schedule_runtime_event_delivery(
                     event_type="aqara.cloud.snapshot.failed",
                     device=entry,
-                    payload={"error": str(exc)},
+                    payload={"error": error_message, "auth_state": auth_state},
                     severity="warning",
                 )
-                _update_poll_status(config_id, last_poll_error=str(exc))
+                _update_poll_status(config_id, last_poll_error=error_message, auth_state=auth_state)
         await asyncio.sleep(interval_seconds)
 
 
-async def _list_devices_with_credentials(credentials: AqaraCloudCredentials) -> list[AqaraCloudDevice]:
+async def _list_devices_with_credentials(
+    credentials: AqaraCloudCredentials,
+) -> tuple[list[AqaraCloudDevice], AqaraCloudCredentials]:
     try:
-        return await cloud_client.list_devices(credentials)
+        return await cloud_client.list_devices(credentials), credentials
     except AqaraCloudAuthError:
         if not credentials.refresh_token:
             raise
-        refreshed = credentials.with_tokens(await cloud_client.refresh_access_token(credentials))
-        return await cloud_client.list_devices(refreshed)
+        tokens = await cloud_client.refresh_access_token(credentials)
+        if tokens.open_id and credentials.open_id and not hmac.compare_digest(tokens.open_id, credentials.open_id):
+            raise AqaraCloudAuthError(
+                "Aqara token refresh returned a different account identity. Reauthenticate and verify the configured region."
+            )
+        refreshed = credentials.with_tokens(tokens)
+        return await cloud_client.list_devices(refreshed), refreshed
 
 
-async def _ensure_known_device(config: AqaraCloudConfig, credentials: AqaraCloudCredentials) -> AqaraCloudDevice:
-    devices = await _list_devices_with_credentials(credentials)
+async def _ensure_known_device(
+    config: AqaraCloudConfig,
+    credentials: AqaraCloudCredentials,
+) -> tuple[AqaraCloudDevice, AqaraCloudCredentials]:
+    devices, active_credentials = await _list_devices_with_credentials(credentials)
     for device in devices:
         if device.did == config.did:
-            return device
+            return device, active_credentials
     raise HTTPException(status_code=404, detail=f"Aqara device {config.did} was not found for the provided credentials.")
 
 
 async def apply_config(config: AqaraCloudConfig) -> dict[str, Any]:
     config_id = _config_id(config)
-    logger.info("aqara_config_apply_started %s", _config_log_label(config))
-    await remove_config(config_id)
+    logger.info(
+        "aqara_config_apply_started ref=%s region=%s poll_interval_seconds=%s",
+        _config_log_ref(config),
+        config.region,
+        config.poll_interval_seconds,
+    )
+    existing = registry.get(config_id)
+    if existing is not None:
+        existing_region = str(existing.get("region") or "").strip().lower()
+        if existing_region != str(config.region or "").strip().lower():
+            raise HTTPException(
+                status_code=409,
+                detail="Changing an Aqara config region in place is not allowed because region scopes account identity. Create a new config after verifying the account region.",
+            )
+        if str(existing.get("did") or "") != str(config.did or ""):
+            raise HTTPException(status_code=409, detail="Changing the Aqara device identity (did) in place is not allowed.")
     credentials, exchanged_tokens = await _resolve_credentials(
         region=config.region,
         app_id=config.app_id,
@@ -994,7 +1175,17 @@ async def apply_config(config: AqaraCloudConfig) -> dict[str, Any]:
         auth_code=config.auth_code,
         custom_api_domain=config.custom_api_domain,
     )
-    device = await _ensure_known_device(config, credentials)
+    device, credentials = await _ensure_known_device(config, credentials)
+    for candidate_id, candidate in registry.entries.items():
+        if candidate_id == config_id:
+            continue
+        same_device = str(candidate.get("did") or "") == config.did
+        same_region = str(candidate.get("region") or "") == credentials.region
+        same_account = str(candidate.get("open_id") or "") == credentials.open_id
+        if same_device and same_region and same_account:
+            raise HTTPException(status_code=409, detail="This Aqara account, region, and device identity is already configured.")
+    if existing is not None:
+        await remove_config(config_id)
     entry = {
         "config_id": config_id,
         "device_id": config.did,
@@ -1010,12 +1201,14 @@ async def apply_config(config: AqaraCloudConfig) -> dict[str, Any]:
         "open_id": credentials.open_id,
         "account": credentials.account,
         "account_type": credentials.account_type,
-        "custom_api_domain": credentials.custom_api_domain,
         "did": config.did,
         "device_name": config.device_name or device.name,
         "device_model": config.device_model or device.model,
         "device_state": device.state,
         "poll_interval_seconds": config.poll_interval_seconds,
+        "auth_state": "authenticated",
+        "reauth_reason": None,
+        "reauth_required_at": None,
         "config": {
             **config.model_dump(),
             "access_token": credentials.access_token,
@@ -1040,7 +1233,8 @@ async def apply_config(config: AqaraCloudConfig) -> dict[str, Any]:
         await _read_and_store(config_id)
         await _sync_resource_subscription(entry, subscribe=True)
     except Exception as exc:
-        initial_error = str(exc)
+        initial_error = _safe_error(exc)
+        auth_state = str(entry.get("auth_state") or "authenticated")
         registry.update_state(
             config_id,
             {
@@ -1049,6 +1243,8 @@ async def apply_config(config: AqaraCloudConfig) -> dict[str, Any]:
                 "device_model": entry.get("device_model"),
                 "name": _entry_name(entry),
                 "last_error": initial_error,
+                "auth_state": auth_state,
+                "reauth_reason": entry.get("reauth_reason"),
             },
         )
         _schedule_runtime_event_delivery(
@@ -1123,19 +1319,23 @@ async def _discover_devices(
         auth_code=auth_code,
         custom_api_domain=custom_api_domain,
     )
-    devices = await _list_devices_with_credentials(credentials)
+    devices, credentials = await _list_devices_with_credentials(credentials)
     if did:
         devices = [device for device in devices if device.did == did]
     return [device.to_discovery_record(credentials=credentials) for device in devices]
 
 
 def _raise_http_for_cloud_error(exc: AqaraCloudError) -> None:
+    message = _safe_error(exc)
     if isinstance(exc, AqaraCloudAuthError):
-        raise HTTPException(status_code=401, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=401,
+            detail="Aqara credentials were rejected. Replace the credentials and verify the configured account region.",
+        ) from exc
     if isinstance(exc, AqaraCloudRateLimitError):
-        raise HTTPException(status_code=429, detail=str(exc)) from exc
+        raise HTTPException(status_code=429, detail=message) from exc
     if isinstance(exc, AqaraCloudRequestError):
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
+        raise HTTPException(status_code=502, detail=message) from exc
     raise exc
 
 
@@ -1196,13 +1396,30 @@ async def health() -> RuntimeHealthResponse:
 
 @router.get("/diagnostics")
 async def diagnostics(request: Request) -> RuntimeDiagnosticsResponse:
+    states = [
+        snapshot.get("state")
+        for snapshot in registry.state_snapshots.values()
+        if isinstance(snapshot, dict) and isinstance(snapshot.get("state"), dict)
+    ]
+    push_diagnostics_status = {key: value for key, value in push_status.items() if key != "last_msg_id"}
     return starter.diagnostics_response(
         diagnostics={
-            "active_config_ids": registry.ids(),
+            "active_config_count": len(registry.ids()),
             "recent_event_count": len(registry.recent_events),
-            "poll_task_ids": sorted(poll_tasks.keys()),
-            "poll_status": poll_status,
-            "state_snapshots": registry.state_snapshots,
+            "poll_task_count": len(poll_tasks),
+            "poll_summary": {
+                "tracked_config_count": len(poll_status),
+                "error_count": sum(1 for status in poll_status.values() if status.get("last_poll_error")),
+                "reauth_required_count": sum(
+                    1 for status in poll_status.values() if status.get("auth_state") == "reauth_required"
+                ),
+            },
+            "state_summary": {
+                "snapshot_count": len(states),
+                "connected_count": sum(1 for state in states if state.get("connected") is True),
+                "disconnected_count": sum(1 for state in states if state.get("connected") is False),
+                "reauth_required_count": sum(1 for state in states if state.get("auth_state") == "reauth_required"),
+            },
             "push": {
                 "webhook_path": _push_webhook_path(),
                 "webhook_url": _push_webhook_url(request),
@@ -1210,10 +1427,7 @@ async def diagnostics(request: Request) -> RuntimeDiagnosticsResponse:
                 "active_subscription_count": sum(
                     1 for entry in registry.entries.values() if _resource_bindings_for_subscription(entry)
                 ),
-                "subscribed_config_ids": sorted(
-                    config_id for config_id, entry in registry.entries.items() if _resource_bindings_for_subscription(entry)
-                ),
-                "status": dict(push_status),
+                "status": push_diagnostics_status,
                 "tracked_msg_id_count": len(processed_push_msg_id_set),
             },
         }
@@ -1240,7 +1454,6 @@ async def ui_config(request: Request) -> dict[str, Any]:
                 "account": {"type": "string", "title": "Aqara Account"},
                 "account_type": {"type": "integer", "title": "Account Type", "default": 0},
                 "auth_code": {"type": "string", "title": "Auth Code"},
-                "custom_api_domain": {"type": "string", "title": "Custom API Domain"},
                 "did": {"type": "string", "title": "Device ID (did)"},
                 "device_name": {"type": "string", "title": "Display Name"},
                 "device_model": {"type": "string", "title": "Device Model"},
@@ -1361,11 +1574,12 @@ async def state(
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    safe_state_payload = redact_recursive(state_payload, secret_values=_known_private_values())
     return {
-        **state_payload,
+        **safe_state_payload,
         # Keep the established public shape while the SDK-owned ``entries``
         # field provides the normalized cross-integration representation.
-        "state": registry.state_snapshots,
+        "state": _public_state_snapshots(),
     }
 
 
@@ -1380,7 +1594,8 @@ def _matching_entries_for_push_token(token: str) -> list[tuple[str, dict[str, An
         return []
     matches: list[tuple[str, dict[str, Any]]] = []
     for config_id, entry in registry.entries.items():
-        if str(entry.get("access_token") or "").strip() == normalized:
+        configured = str(entry.get("access_token") or "").strip()
+        if configured and hmac.compare_digest(configured, normalized):
             matches.append((config_id, entry))
     return matches
 
@@ -1409,9 +1624,26 @@ async def aqara_push(request: Request) -> dict[str, Any]:
     event_type = str(payload.get("eventType") or "").strip()
     message_type = msg_type or event_type or "unknown"
     _mark_push_received(msg_id=msg_id, message_type=message_type)
-    if msg_id and _is_duplicate_push(msg_id):
-        _mark_push_duplicate()
-        return {"status": "ok", "handled": 0, "duplicate": True, "message_type": message_type}
+    if not msg_id or len(msg_id) > 256:
+        _mark_push_error("missing or invalid msgId")
+        raise HTTPException(status_code=400, detail="Aqara push payload must include a msgId of at most 256 characters.")
+    payload_open_id = str(payload.get("openId") or "").strip()
+    if payload_open_id:
+        matches = [
+            (config_id, entry)
+            for config_id, entry in matches
+            if str(entry.get("open_id") or "").strip()
+            and hmac.compare_digest(str(entry.get("open_id") or "").strip(), payload_open_id)
+        ]
+        if not matches:
+            _mark_push_error("push account identity did not match token owner")
+            raise HTTPException(status_code=403, detail="Aqara push account identity did not match the configured token owner.")
+    dedupe_key = _push_dedupe_key(token=token, open_id=payload_open_id, msg_id=msg_id)
+    async with push_dedupe_lock:
+        if _is_duplicate_push(dedupe_key):
+            _mark_push_duplicate()
+            return {"status": "ok", "handled": 0, "duplicate": True, "message_type": message_type}
+        _remember_push_msg_id(dedupe_key)
     handled = 0
 
     if msg_type == "resource_report":
@@ -1483,8 +1715,6 @@ async def aqara_push(request: Request) -> dict[str, Any]:
                 ],
             )
             handled += 1
-        if msg_id:
-            _remember_push_msg_id(msg_id)
         _mark_push_processed(handled=handled)
         return {"status": "ok", "handled": handled, "duplicate": False, "message_type": msg_type}
 
@@ -1505,8 +1735,6 @@ async def aqara_push(request: Request) -> dict[str, Any]:
                     severity="warning",
                 )
                 handled += 1
-        if msg_id:
-            _remember_push_msg_id(msg_id)
         _mark_push_processed(handled=handled)
         return {"status": "ok", "handled": handled, "duplicate": False, "message_type": event_type}
 
@@ -1572,8 +1800,6 @@ async def aqara_push(request: Request) -> dict[str, Any]:
                 )
             _schedule_runtime_event_delivery(event_type="aqara.dev_name_change", device=entry, payload=payload)
             handled += 1
-    if msg_id:
-        _remember_push_msg_id(msg_id)
     _mark_push_processed(handled=handled)
     return {"status": "ok", "handled": handled, "duplicate": False, "message_type": event_type or msg_type or "unknown"}
 
@@ -1612,6 +1838,24 @@ def _validate_command_request(
         requested_value = payload.args.get("position") if payload.command == "set_position" else payload.args.get("value")
         if requested_value is None:
             raise HTTPException(status_code=400, detail=f"{payload.command} requires args.position or args.value.")
+        _bounded_dynamic_value(requested_value, binding=binding, command=payload.command)
+
+
+def _bounded_dynamic_value(value: Any, *, binding: dict[str, Any], command: str) -> str:
+    if isinstance(value, bool):
+        raise HTTPException(status_code=400, detail=f"{command} requires a finite numeric percentage.")
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=f"{command} requires a finite numeric percentage.") from exc
+    if not math.isfinite(numeric) or not numeric.is_integer():
+        raise HTTPException(status_code=400, detail=f"{command} requires a whole-number percentage.")
+    minimum = int(binding.get("min_value", 0))
+    maximum = int(binding.get("max_value", 100))
+    integer = int(numeric)
+    if integer < minimum or integer > maximum:
+        raise HTTPException(status_code=400, detail=f"{command} must be between {minimum} and {maximum}.")
+    return str(integer)
 
 
 async def _execute_registered_command(
@@ -1634,12 +1878,22 @@ async def _execute_registered_command(
                 retryable=exc.status_code >= 500,
                 metadata={"status_code": exc.status_code},
             )
+        except AqaraCloudError as exc:
+            status_code = 401 if isinstance(exc, AqaraCloudAuthError) else 429 if isinstance(exc, AqaraCloudRateLimitError) else 502
+            return AutomationActionResult.failure(
+                _safe_error(exc),
+                retryable=status_code in {429, 502},
+                metadata={"status_code": status_code},
+            )
         return AutomationActionResult.success(
             {
                 "status": "ok",
                 "config_id": config_id,
                 "sampled_at": snapshot["state"]["sampled_at"],
-                "state": registry.state_snapshots.get(config_id, {}).get("state"),
+                "state": redact_recursive(
+                    registry.state_snapshots.get(config_id, {}).get("state"),
+                    secret_values=_known_private_values(),
+                ),
             }
         )
 
@@ -1657,7 +1911,10 @@ async def _execute_registered_command(
                 f"{action_request.command} requires args.position or args.value.",
                 metadata={"status_code": 400},
             )
-        value = str(int(float(requested_value)))
+        try:
+            value = _bounded_dynamic_value(requested_value, binding=binding, command=action_request.command)
+        except HTTPException as exc:
+            return AutomationActionResult.failure(str(exc.detail), metadata={"status_code": exc.status_code})
 
     async def operation(credentials: AqaraCloudCredentials):
         await cloud_client.write_resource(
@@ -1678,13 +1935,13 @@ async def _execute_registered_command(
                 retryable=http_exc.status_code >= 500 or http_exc.status_code == 429,
                 metadata={"status_code": http_exc.status_code},
             )
-        return AutomationActionResult.failure(str(exc), metadata={"status_code": 500})
+        return AutomationActionResult.failure(_safe_error(exc), metadata={"status_code": 500})
     return AutomationActionResult.success(
         {
             "status": "ok",
             "config_id": config_id,
             "command": action_request.command,
-            "state": snapshot["state"],
+            "state": redact_recursive(snapshot["state"], secret_values=_known_private_values()),
         }
     )
 

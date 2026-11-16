@@ -9,7 +9,11 @@
     "generator": "zed-agent",
     "preset": "local-device-runtime",
     "domain": "lan",
-    "vendor_library": "tinytuya"
+    "vendor_library": "tinytuya",
+    "architecture": "lan_first",
+    "cloud_scope": "optional_discovery_and_local_key_assistance_only",
+    "hardware_certification": "none",
+    "consequential_writes": "default_deny_without_certified_mapping"
   },
   "maintainer": {
     "name": "PiPhi Integrations Team",
@@ -100,7 +104,8 @@
           {
             "name": "api_key",
             "label": "Tuya Cloud API Key",
-            "type": "text",
+            "type": "password",
+            "secret": true,
             "required": false
           },
           {
@@ -180,6 +185,7 @@
       "purifier_aqi_dp",
       "purifier_aqi_scale",
       "poll_interval_seconds",
+      "certified_mapping_id",
       "api_region",
       "api_key",
       "api_secret",
@@ -296,9 +302,6 @@
     "turn_off": {
       "kind": "action"
     },
-    "set_dp": {
-      "kind": "action"
-    },
     "set_brightness": {
       "kind": "action"
     },
@@ -309,30 +312,6 @@
       "kind": "action"
     },
     "set_mode": {
-      "kind": "action"
-    },
-    "set_fan_speed": {
-      "kind": "action"
-    },
-    "set_oscillate": {
-      "kind": "action"
-    },
-    "open_cover": {
-      "kind": "action"
-    },
-    "close_cover": {
-      "kind": "action"
-    },
-    "stop_cover": {
-      "kind": "action"
-    },
-    "set_cover_position": {
-      "kind": "action"
-    },
-    "set_temperature": {
-      "kind": "action"
-    },
-    "set_humidity": {
       "kind": "action"
     }
   },
@@ -348,24 +327,6 @@
     "turn_off": {
       "description": "Turn the Tuya device off.",
       "timeout_ms": 5000
-    },
-    "set_dp": {
-      "description": "Set a raw Tuya data point value.",
-      "timeout_ms": 5000,
-      "args_schema": {
-        "dp": {
-          "type": "string",
-          "label": "Data Point",
-          "description": "Tuya DPS key, for example 1 or 20.",
-          "required": true
-        },
-        "value": {
-          "type": "string",
-          "label": "Value",
-          "description": "JSON-ish scalar or string value to send to the device.",
-          "required": true
-        }
-      }
     },
     "set_brightness": {
       "description": "Set a Tuya light brightness percentage.",
@@ -459,93 +420,6 @@
           ]
         }
       }
-    },
-    "set_fan_speed": {
-      "description": "Set a Tuya fan or air purifier speed percentage.",
-      "timeout_ms": 5000,
-      "args_schema": {
-        "speed": {
-          "type": "number",
-          "label": "Fan Speed Percent",
-          "description": "Requested fan speed from 0 to 100 percent.",
-          "required": true,
-          "minimum": 0,
-          "maximum": 100,
-          "step": 1,
-          "unit": "%"
-        }
-      }
-    },
-    "set_oscillate": {
-      "description": "Enable or disable Tuya fan oscillation.",
-      "timeout_ms": 5000,
-      "args_schema": {
-        "oscillating": {
-          "type": "boolean",
-          "label": "Oscillating",
-          "required": true
-        }
-      }
-    },
-    "open_cover": {
-      "description": "Open a Tuya curtain, blind, or shade.",
-      "timeout_ms": 5000
-    },
-    "close_cover": {
-      "description": "Close a Tuya curtain, blind, or shade.",
-      "timeout_ms": 5000
-    },
-    "stop_cover": {
-      "description": "Stop a moving Tuya curtain, blind, or shade.",
-      "timeout_ms": 5000
-    },
-    "set_cover_position": {
-      "description": "Set a Tuya cover position percentage.",
-      "timeout_ms": 5000,
-      "args_schema": {
-        "position": {
-          "type": "number",
-          "label": "Position Percent",
-          "description": "Requested cover position from 0 to 100 percent.",
-          "required": true,
-          "minimum": 0,
-          "maximum": 100,
-          "step": 1,
-          "unit": "%"
-        }
-      }
-    },
-    "set_temperature": {
-      "description": "Set a Tuya climate target temperature in Celsius.",
-      "timeout_ms": 5000,
-      "args_schema": {
-        "temperature_c": {
-          "type": "number",
-          "label": "Target Temperature \u00b0C",
-          "description": "Requested target temperature in degrees Celsius.",
-          "required": true,
-          "minimum": 5,
-          "maximum": 35,
-          "step": 0.5,
-          "unit": "C"
-        }
-      }
-    },
-    "set_humidity": {
-      "description": "Set a Tuya humidifier target humidity percentage.",
-      "timeout_ms": 5000,
-      "args_schema": {
-        "humidity_percent": {
-          "type": "number",
-          "label": "Target Humidity Percent",
-          "description": "Requested target humidity percentage from 0 to 100.",
-          "required": true,
-          "minimum": 0,
-          "maximum": 100,
-          "step": 1,
-          "unit": "%"
-        }
-      }
     }
   },
   "entities": [
@@ -567,8 +441,7 @@
         "voltage_v",
         "refresh",
         "turn_on",
-        "turn_off",
-        "set_dp"
+        "turn_off"
       ],
       "available_commands": [
         {
@@ -585,25 +458,6 @@
           "id": "turn_off",
           "label": "Turn Off",
           "kind": "action"
-        },
-        {
-          "id": "set_dp",
-          "label": "Set DP",
-          "kind": "action",
-          "args_schema": {
-            "dp": {
-              "type": "string",
-              "label": "Data Point",
-              "description": "Tuya DPS key, for example 1 or 20.",
-              "required": true
-            },
-            "value": {
-              "type": "string",
-              "label": "Value",
-              "description": "JSON-ish scalar or string value to send to the device.",
-              "required": true
-            }
-          }
         }
       ],
       "dashboard": {
@@ -643,8 +497,7 @@
         "set_brightness",
         "set_color_temp",
         "set_color_rgb",
-        "set_mode",
-        "set_dp"
+        "set_mode"
       ],
       "available_commands": [
         {
@@ -758,25 +611,6 @@
               ]
             }
           }
-        },
-        {
-          "id": "set_dp",
-          "label": "Set DP",
-          "kind": "action",
-          "args_schema": {
-            "dp": {
-              "type": "string",
-              "label": "Data Point",
-              "description": "Tuya DPS key, for example 1 or 20.",
-              "required": true
-            },
-            "value": {
-              "type": "string",
-              "label": "Value",
-              "description": "JSON-ish scalar or string value to send to the device.",
-              "required": true
-            }
-          }
         }
       ],
       "dashboard": {
@@ -811,11 +645,7 @@
         "oscillating",
         "refresh",
         "turn_on",
-        "turn_off",
-        "set_fan_speed",
-        "set_oscillate",
-        "set_mode",
-        "set_dp"
+        "turn_off"
       ],
       "available_commands": [
         {
@@ -832,86 +662,6 @@
           "id": "turn_off",
           "label": "Turn Off",
           "kind": "action"
-        },
-        {
-          "id": "set_fan_speed",
-          "label": "Set Fan Speed",
-          "kind": "action",
-          "args_schema": {
-            "speed": {
-              "type": "number",
-              "label": "Fan Speed Percent",
-              "description": "Requested fan speed from 0 to 100 percent.",
-              "required": true,
-              "minimum": 0,
-              "maximum": 100,
-              "step": 1,
-              "unit": "%"
-            }
-          }
-        },
-        {
-          "id": "set_oscillate",
-          "label": "Set Oscillate",
-          "kind": "action",
-          "args_schema": {
-            "oscillating": {
-              "type": "boolean",
-              "label": "Oscillating",
-              "required": true
-            }
-          }
-        },
-        {
-          "id": "set_mode",
-          "label": "Set Mode",
-          "kind": "action",
-          "args_schema": {
-            "mode": {
-              "type": "string",
-              "label": "Mode",
-              "description": "Typical light modes are white, colour, scene, or music. Fan, climate, humidifier, and air purifier modes depend on the device and often include values like normal, sleep, auto, manual, heat, cool, eco, mist, low, medium, high, or off.",
-              "required": true,
-              "options": [
-                "white",
-                "colour",
-                "scene",
-                "music",
-                "normal",
-                "sleep",
-                "nature",
-                "auto",
-                "manual",
-                "heat",
-                "cool",
-                "eco",
-                "off",
-                "mist",
-                "low",
-                "medium",
-                "high"
-              ]
-            }
-          }
-        },
-        {
-          "id": "set_dp",
-          "label": "Set DP",
-          "kind": "action",
-          "args_schema": {
-            "dp": {
-              "type": "string",
-              "label": "Data Point",
-              "description": "Tuya DPS key, for example 1 or 20.",
-              "required": true
-            },
-            "value": {
-              "type": "string",
-              "label": "Value",
-              "description": "JSON-ish scalar or string value to send to the device.",
-              "required": true
-            }
-          }
         }
       ],
       "dashboard": {
@@ -942,69 +692,13 @@
         "protocol_version",
         "position_percent",
         "motion_state",
-        "refresh",
-        "open_cover",
-        "close_cover",
-        "stop_cover",
-        "set_cover_position",
-        "set_dp"
+        "refresh"
       ],
       "available_commands": [
         {
           "id": "refresh",
           "label": "Refresh",
           "kind": "action"
-        },
-        {
-          "id": "open_cover",
-          "label": "Open Cover",
-          "kind": "action"
-        },
-        {
-          "id": "close_cover",
-          "label": "Close Cover",
-          "kind": "action"
-        },
-        {
-          "id": "stop_cover",
-          "label": "Stop Cover",
-          "kind": "action"
-        },
-        {
-          "id": "set_cover_position",
-          "label": "Set Cover Position",
-          "kind": "action",
-          "args_schema": {
-            "position": {
-              "type": "number",
-              "label": "Position Percent",
-              "description": "Requested cover position from 0 to 100 percent.",
-              "required": true,
-              "minimum": 0,
-              "maximum": 100,
-              "step": 1,
-              "unit": "%"
-            }
-          }
-        },
-        {
-          "id": "set_dp",
-          "label": "Set DP",
-          "kind": "action",
-          "args_schema": {
-            "dp": {
-              "type": "string",
-              "label": "Data Point",
-              "description": "Tuya DPS key, for example 1 or 20.",
-              "required": true
-            },
-            "value": {
-              "type": "string",
-              "label": "Value",
-              "description": "JSON-ish scalar or string value to send to the device.",
-              "required": true
-            }
-          }
         }
       ],
       "dashboard": {
@@ -1037,96 +731,13 @@
         "mode",
         "temperature_c",
         "target_temperature_c",
-        "refresh",
-        "turn_on",
-        "turn_off",
-        "set_temperature",
-        "set_mode",
-        "set_dp"
+        "refresh"
       ],
       "available_commands": [
         {
           "id": "refresh",
           "label": "Refresh",
           "kind": "action"
-        },
-        {
-          "id": "turn_on",
-          "label": "Turn On",
-          "kind": "action"
-        },
-        {
-          "id": "turn_off",
-          "label": "Turn Off",
-          "kind": "action"
-        },
-        {
-          "id": "set_temperature",
-          "label": "Set Temperature",
-          "kind": "action",
-          "args_schema": {
-            "temperature_c": {
-              "type": "number",
-              "label": "Target Temperature \u00b0C",
-              "description": "Requested target temperature in degrees Celsius.",
-              "required": true,
-              "minimum": 5,
-              "maximum": 35,
-              "step": 0.5,
-              "unit": "C"
-            }
-          }
-        },
-        {
-          "id": "set_mode",
-          "label": "Set Mode",
-          "kind": "action",
-          "args_schema": {
-            "mode": {
-              "type": "string",
-              "label": "Mode",
-              "description": "Typical light modes are white, colour, scene, or music. Fan, climate, humidifier, and air purifier modes depend on the device and often include values like normal, sleep, auto, manual, heat, cool, eco, mist, low, medium, high, or off.",
-              "required": true,
-              "options": [
-                "white",
-                "colour",
-                "scene",
-                "music",
-                "normal",
-                "sleep",
-                "nature",
-                "auto",
-                "manual",
-                "heat",
-                "cool",
-                "eco",
-                "off",
-                "mist",
-                "low",
-                "medium",
-                "high"
-              ]
-            }
-          }
-        },
-        {
-          "id": "set_dp",
-          "label": "Set DP",
-          "kind": "action",
-          "args_schema": {
-            "dp": {
-              "type": "string",
-              "label": "Data Point",
-              "description": "Tuya DPS key, for example 1 or 20.",
-              "required": true
-            },
-            "value": {
-              "type": "string",
-              "label": "Value",
-              "description": "JSON-ish scalar or string value to send to the device.",
-              "required": true
-            }
-          }
         }
       ],
       "dashboard": {
@@ -1161,10 +772,7 @@
         "target_humidity_percent",
         "refresh",
         "turn_on",
-        "turn_off",
-        "set_humidity",
-        "set_mode",
-        "set_dp"
+        "turn_off"
       ],
       "available_commands": [
         {
@@ -1181,74 +789,6 @@
           "id": "turn_off",
           "label": "Turn Off",
           "kind": "action"
-        },
-        {
-          "id": "set_humidity",
-          "label": "Set Humidity",
-          "kind": "action",
-          "args_schema": {
-            "humidity_percent": {
-              "type": "number",
-              "label": "Target Humidity Percent",
-              "description": "Requested target humidity percentage from 0 to 100.",
-              "required": true,
-              "minimum": 0,
-              "maximum": 100,
-              "step": 1,
-              "unit": "%"
-            }
-          }
-        },
-        {
-          "id": "set_mode",
-          "label": "Set Mode",
-          "kind": "action",
-          "args_schema": {
-            "mode": {
-              "type": "string",
-              "label": "Mode",
-              "description": "Typical light modes are white, colour, scene, or music. Fan, climate, humidifier, and air purifier modes depend on the device and often include values like normal, sleep, auto, manual, heat, cool, eco, mist, low, medium, high, or off.",
-              "required": true,
-              "options": [
-                "white",
-                "colour",
-                "scene",
-                "music",
-                "normal",
-                "sleep",
-                "nature",
-                "auto",
-                "manual",
-                "heat",
-                "cool",
-                "eco",
-                "off",
-                "mist",
-                "low",
-                "medium",
-                "high"
-              ]
-            }
-          }
-        },
-        {
-          "id": "set_dp",
-          "label": "Set DP",
-          "kind": "action",
-          "args_schema": {
-            "dp": {
-              "type": "string",
-              "label": "Data Point",
-              "description": "Tuya DPS key, for example 1 or 20.",
-              "required": true
-            },
-            "value": {
-              "type": "string",
-              "label": "Value",
-              "description": "JSON-ish scalar or string value to send to the device.",
-              "required": true
-            }
-          }
         }
       ],
       "dashboard": {
@@ -1283,10 +823,7 @@
         "air_quality_index",
         "refresh",
         "turn_on",
-        "turn_off",
-        "set_fan_speed",
-        "set_mode",
-        "set_dp"
+        "turn_off"
       ],
       "available_commands": [
         {
@@ -1303,74 +840,6 @@
           "id": "turn_off",
           "label": "Turn Off",
           "kind": "action"
-        },
-        {
-          "id": "set_fan_speed",
-          "label": "Set Fan Speed",
-          "kind": "action",
-          "args_schema": {
-            "speed": {
-              "type": "number",
-              "label": "Fan Speed Percent",
-              "description": "Requested fan speed from 0 to 100 percent.",
-              "required": true,
-              "minimum": 0,
-              "maximum": 100,
-              "step": 1,
-              "unit": "%"
-            }
-          }
-        },
-        {
-          "id": "set_mode",
-          "label": "Set Mode",
-          "kind": "action",
-          "args_schema": {
-            "mode": {
-              "type": "string",
-              "label": "Mode",
-              "description": "Typical light modes are white, colour, scene, or music. Fan, climate, humidifier, and air purifier modes depend on the device and often include values like normal, sleep, auto, manual, heat, cool, eco, mist, low, medium, high, or off.",
-              "required": true,
-              "options": [
-                "white",
-                "colour",
-                "scene",
-                "music",
-                "normal",
-                "sleep",
-                "nature",
-                "auto",
-                "manual",
-                "heat",
-                "cool",
-                "eco",
-                "off",
-                "mist",
-                "low",
-                "medium",
-                "high"
-              ]
-            }
-          }
-        },
-        {
-          "id": "set_dp",
-          "label": "Set DP",
-          "kind": "action",
-          "args_schema": {
-            "dp": {
-              "type": "string",
-              "label": "Data Point",
-              "description": "Tuya DPS key, for example 1 or 20.",
-              "required": true
-            },
-            "value": {
-              "type": "string",
-              "label": "Value",
-              "description": "JSON-ish scalar or string value to send to the device.",
-              "required": true
-            }
-          }
         }
       ],
       "dashboard": {
@@ -1398,5 +867,11 @@
   },
   "onboarding": {
     "mode": "discovery"
+  },
+  "support_status": {
+    "architecture": "local_lan",
+    "cloud_runtime_parity": false,
+    "certified_model_count": 0,
+    "consequential_writes": "disabled_until_model_certified"
   }
 }

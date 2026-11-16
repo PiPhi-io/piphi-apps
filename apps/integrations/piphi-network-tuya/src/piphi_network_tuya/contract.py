@@ -48,7 +48,6 @@ CAPABILITIES: dict[str, dict[str, Any]] = {
     "refresh": {"kind": "action"},
     "turn_on": {"kind": "action"},
     "turn_off": {"kind": "action"},
-    "set_dp": {"kind": "action"},
     "set_brightness": {"kind": "action"},
     "set_color_temp": {"kind": "action"},
     "set_color_rgb": {"kind": "action"},
@@ -75,24 +74,6 @@ COMMANDS: dict[str, dict[str, Any]] = {
     "turn_off": {
         "description": "Turn the Tuya device off.",
         "timeout_ms": 5000,
-    },
-    "set_dp": {
-        "description": "Set a raw Tuya data point value.",
-        "timeout_ms": 5000,
-        "args_schema": {
-            "dp": {
-                "type": "string",
-                "label": "Data Point",
-                "description": "Tuya DPS key, for example 1 or 20.",
-                "required": True,
-            },
-            "value": {
-                "type": "string",
-                "label": "Value",
-                "description": "JSON-ish scalar or string value to send to the device.",
-                "required": True,
-            },
-        },
     },
     "set_brightness": {
         "description": "Set a Tuya light brightness percentage.",
@@ -284,7 +265,6 @@ PLUG_ENTITY_CAPABILITIES = [
     "refresh",
     "turn_on",
     "turn_off",
-    "set_dp",
 ]
 
 LIGHT_ENTITY_CAPABILITIES = [
@@ -304,7 +284,6 @@ LIGHT_ENTITY_CAPABILITIES = [
     "set_color_temp",
     "set_color_rgb",
     "set_mode",
-    "set_dp",
 ]
 
 FAN_ENTITY_CAPABILITIES = [
@@ -322,7 +301,6 @@ FAN_ENTITY_CAPABILITIES = [
     "set_fan_speed",
     "set_oscillate",
     "set_mode",
-    "set_dp",
 ]
 
 COVER_ENTITY_CAPABILITIES = [
@@ -337,7 +315,6 @@ COVER_ENTITY_CAPABILITIES = [
     "close_cover",
     "stop_cover",
     "set_cover_position",
-    "set_dp",
 ]
 
 CLIMATE_ENTITY_CAPABILITIES = [
@@ -354,7 +331,6 @@ CLIMATE_ENTITY_CAPABILITIES = [
     "turn_off",
     "set_temperature",
     "set_mode",
-    "set_dp",
 ]
 
 HUMIDIFIER_ENTITY_CAPABILITIES = [
@@ -371,7 +347,6 @@ HUMIDIFIER_ENTITY_CAPABILITIES = [
     "turn_off",
     "set_humidity",
     "set_mode",
-    "set_dp",
 ]
 
 AIR_PURIFIER_ENTITY_CAPABILITIES = [
@@ -388,7 +363,6 @@ AIR_PURIFIER_ENTITY_CAPABILITIES = [
     "turn_off",
     "set_fan_speed",
     "set_mode",
-    "set_dp",
 ]
 
 SWITCH_ENTITY_CAPABILITIES = [
@@ -400,7 +374,6 @@ SWITCH_ENTITY_CAPABILITIES = [
     "refresh",
     "turn_on",
     "turn_off",
-    "set_dp",
 ]
 
 CONFIG_SCHEMA: dict[str, Any] = {
@@ -590,6 +563,11 @@ CONFIG_SCHEMA: dict[str, Any] = {
                 "minimum": 10,
                 "description": "Background polling interval for the configured Tuya device.",
             },
+            "certified_mapping_id": {
+                "type": "string",
+                "title": "Certified Hardware Mapping",
+                "description": "Optional registered mapping id from SUPPORTED_DEVICES.md. Unknown or absent ids keep consequential inferred writes disabled.",
+            },
             "api_region": {
                 "type": "string",
                 "title": "Tuya Cloud API Region",
@@ -652,8 +630,15 @@ CONFIG_SCHEMA: dict[str, Any] = {
         "purifier_aqi_dp": {"placeholder": "22"},
         "purifier_aqi_scale": {"placeholder": "1 or 10"},
         "poll_interval_seconds": {"placeholder": "60"},
+        "certified_mapping_id": {
+            "placeholder": "No certified mappings are currently registered",
+            "ui:help": "This does not opt a device into control by itself. The id must match a mapping shipped by this runtime for the exact certified model.",
+        },
         "api_region": {"placeholder": "us, eu, eu-w, in, cn"},
-        "api_key": {"placeholder": "Optional: used for cloud-backed discovery"},
+        "api_key": {
+            "placeholder": "Optional: used for cloud-backed discovery",
+            "ui:widget": "password",
+        },
         "api_secret": {"placeholder": "Optional cloud secret", "ui:widget": "password"},
         "api_device_id": {"placeholder": "Optional seed device id for cloud discovery"},
     },
@@ -754,12 +739,6 @@ PLUG_FALLBACK_ENTITY: dict[str, Any] = {
         {"id": "refresh", "label": "Refresh", "kind": "action"},
         {"id": "turn_on", "label": "Turn On", "kind": "action"},
         {"id": "turn_off", "label": "Turn Off", "kind": "action"},
-        {
-            "id": "set_dp",
-            "label": "Set DP",
-            "kind": "action",
-            "args_schema": COMMANDS["set_dp"]["args_schema"],
-        },
     ],
     "dashboard": {
         "allowed_widgets": ["switch", "tile", "stat", "button"],
@@ -804,12 +783,6 @@ LIGHT_FALLBACK_ENTITY: dict[str, Any] = {
             "kind": "action",
             "args_schema": COMMANDS["set_mode"]["args_schema"],
         },
-        {
-            "id": "set_dp",
-            "label": "Set DP",
-            "kind": "action",
-            "args_schema": COMMANDS["set_dp"]["args_schema"],
-        },
     ],
     "dashboard": {
         "allowed_widgets": ["light", "tile", "button", "stat"],
@@ -848,12 +821,6 @@ FAN_FALLBACK_ENTITY: dict[str, Any] = {
             "kind": "action",
             "args_schema": COMMANDS["set_mode"]["args_schema"],
         },
-        {
-            "id": "set_dp",
-            "label": "Set DP",
-            "kind": "action",
-            "args_schema": COMMANDS["set_dp"]["args_schema"],
-        },
     ],
     "dashboard": {
         "allowed_widgets": ["fan", "tile", "button", "stat"],
@@ -880,12 +847,6 @@ COVER_FALLBACK_ENTITY: dict[str, Any] = {
             "label": "Set Cover Position",
             "kind": "action",
             "args_schema": COMMANDS["set_cover_position"]["args_schema"],
-        },
-        {
-            "id": "set_dp",
-            "label": "Set DP",
-            "kind": "action",
-            "args_schema": COMMANDS["set_dp"]["args_schema"],
         },
     ],
     "dashboard": {
@@ -919,12 +880,6 @@ CLIMATE_FALLBACK_ENTITY: dict[str, Any] = {
             "kind": "action",
             "args_schema": COMMANDS["set_mode"]["args_schema"],
         },
-        {
-            "id": "set_dp",
-            "label": "Set DP",
-            "kind": "action",
-            "args_schema": COMMANDS["set_dp"]["args_schema"],
-        },
     ],
     "dashboard": {
         "allowed_widgets": ["climate", "tile", "button", "stat"],
@@ -956,12 +911,6 @@ HUMIDIFIER_FALLBACK_ENTITY: dict[str, Any] = {
             "label": "Set Mode",
             "kind": "action",
             "args_schema": COMMANDS["set_mode"]["args_schema"],
-        },
-        {
-            "id": "set_dp",
-            "label": "Set DP",
-            "kind": "action",
-            "args_schema": COMMANDS["set_dp"]["args_schema"],
         },
     ],
     "dashboard": {
@@ -995,12 +944,6 @@ AIR_PURIFIER_FALLBACK_ENTITY: dict[str, Any] = {
             "kind": "action",
             "args_schema": COMMANDS["set_mode"]["args_schema"],
         },
-        {
-            "id": "set_dp",
-            "label": "Set DP",
-            "kind": "action",
-            "args_schema": COMMANDS["set_dp"]["args_schema"],
-        },
     ],
     "dashboard": {
         "allowed_widgets": ["tile", "stat", "button"],
@@ -1021,12 +964,6 @@ GENERIC_FALLBACK_ENTITY: dict[str, Any] = {
         {"id": "refresh", "label": "Refresh", "kind": "action"},
         {"id": "turn_on", "label": "Turn On", "kind": "action"},
         {"id": "turn_off", "label": "Turn Off", "kind": "action"},
-        {
-            "id": "set_dp",
-            "label": "Set DP",
-            "kind": "action",
-            "args_schema": COMMANDS["set_dp"]["args_schema"],
-        },
     ],
     "dashboard": {
         "allowed_widgets": ["tile", "stat", "button"],
@@ -1034,3 +971,77 @@ GENERIC_FALLBACK_ENTITY: dict[str, Any] = {
         "recommended_widgets": ["tile"],
     },
 }
+
+# No hardware model is certified in SUPPORTED_DEVICES.md yet. Keep inferred
+# state readable, but remove raw and heuristic DP mutations from every ordinary
+# runtime-facing contract until exact model mappings ship with certification.
+UNCERTIFIED_WRITE_COMMANDS = {
+    "set_dp",
+    "set_fan_speed",
+    "set_oscillate",
+    "open_cover",
+    "close_cover",
+    "stop_cover",
+    "set_cover_position",
+    "set_temperature",
+    "set_humidity",
+}
+for _name in UNCERTIFIED_WRITE_COMMANDS:
+    CAPABILITIES.pop(_name, None)
+    COMMANDS.pop(_name, None)
+for _capabilities in (
+    PLUG_ENTITY_CAPABILITIES,
+    LIGHT_ENTITY_CAPABILITIES,
+    FAN_ENTITY_CAPABILITIES,
+    COVER_ENTITY_CAPABILITIES,
+    CLIMATE_ENTITY_CAPABILITIES,
+    HUMIDIFIER_ENTITY_CAPABILITIES,
+    AIR_PURIFIER_ENTITY_CAPABILITIES,
+    SWITCH_ENTITY_CAPABILITIES,
+):
+    _capabilities[:] = [
+        name for name in _capabilities if name not in UNCERTIFIED_WRITE_COMMANDS
+    ]
+for _entity in (
+    PLUG_FALLBACK_ENTITY,
+    LIGHT_FALLBACK_ENTITY,
+    FAN_FALLBACK_ENTITY,
+    COVER_FALLBACK_ENTITY,
+    CLIMATE_FALLBACK_ENTITY,
+    HUMIDIFIER_FALLBACK_ENTITY,
+    AIR_PURIFIER_FALLBACK_ENTITY,
+    GENERIC_FALLBACK_ENTITY,
+):
+    _entity["available_commands"] = [
+        command
+        for command in _entity["available_commands"]
+        if command["id"] not in UNCERTIFIED_WRITE_COMMANDS
+    ]
+
+_ENTITY_CERTIFICATION_REQUIRED = {
+    "fan": {"set_mode"},
+    "cover": {"set_mode"},
+    "climate": {"turn_on", "turn_off", "set_mode"},
+    "humidifier": {"set_mode"},
+    "air_purifier": {"set_mode"},
+    "device": {"turn_on", "turn_off", "set_mode"},
+}
+for _entity in (
+    FAN_FALLBACK_ENTITY,
+    COVER_FALLBACK_ENTITY,
+    CLIMATE_FALLBACK_ENTITY,
+    HUMIDIFIER_FALLBACK_ENTITY,
+    AIR_PURIFIER_FALLBACK_ENTITY,
+    GENERIC_FALLBACK_ENTITY,
+):
+    _blocked = _ENTITY_CERTIFICATION_REQUIRED.get(_entity["device_type"], set())
+    _entity["available_commands"] = [
+        command
+        for command in _entity["available_commands"]
+        if command["id"] not in _blocked
+    ]
+    _entity["capabilities"] = [
+        capability
+        for capability in _entity["capabilities"]
+        if capability not in _blocked
+    ]

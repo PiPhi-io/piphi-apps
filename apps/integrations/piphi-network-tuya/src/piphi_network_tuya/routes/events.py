@@ -39,9 +39,6 @@ async def device_event_example(config_id: str):
     event = emit_runtime_event(
         "tuya.device.checked",
         entry,
-        {
-            "message": "Example local runtime event for a configured Tuya device",
-            "host": entry.get("host"),
-        },
+        {"message": "Example local runtime event for a configured Tuya device"},
     )
     return build_event_ingest_response(event)

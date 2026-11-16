@@ -192,6 +192,38 @@ async def test_exchange_and_refresh_token_support_auth_payloads() -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "result",
+    (
+        {"accessToken": "", "refreshToken": "refresh-token", "openId": "open-id"},
+        {"accessToken": "access-token", "refreshToken": "refresh-token", "openId": ""},
+    ),
+)
+async def test_refresh_rejects_incomplete_token_payload_as_reauthentication_error(result) -> None:
+    transport = httpx.MockTransport(
+        lambda _request: httpx.Response(200, json={"code": 0, "message": "Success", "result": result})
+    )
+    async with httpx.AsyncClient(transport=transport) as http_client:
+        client = AqaraCloudClient(http_client=http_client)
+        with pytest.raises(AqaraCloudAuthError, match="Reauthenticate"):
+            await client.refresh_access_token(build_credentials())
+
+
+@pytest.mark.asyncio
+async def test_request_classifies_invalid_grant_as_auth_error() -> None:
+    transport = httpx.MockTransport(
+        lambda _request: httpx.Response(
+            200,
+            json={"code": 4001, "message": "invalid_grant: refresh credential rotated"},
+        )
+    )
+    async with httpx.AsyncClient(transport=transport) as http_client:
+        client = AqaraCloudClient(http_client=http_client)
+        with pytest.raises(AqaraCloudAuthError):
+            await client.refresh_access_token(build_credentials())
+
+
+@pytest.mark.asyncio
 async def test_subscribe_and_unsubscribe_resources_use_expected_intents() -> None:
     intents: list[str] = []
 
@@ -223,11 +255,36 @@ async def test_refresh_requires_refresh_token() -> None:
         await client.refresh_access_token(build_credentials(refresh_token=None))
 
 
-def test_base_url_uses_region_mapping_and_custom_domain() -> None:
+@pytest.mark.parametrize(
+    ("region", "expected"),
+    (
+        ("cn", "https://open-cn.aqara.com"),
+        ("us", "https://open-usa.aqara.com"),
+        ("eu", "https://open-ger.aqara.com"),
+        ("kr", "https://open-kr.aqara.com"),
+        ("ru", "https://open-ru.aqara.com"),
+        ("sg", "https://open-sg.aqara.com"),
+    ),
+)
+def test_base_url_uses_official_region_allowlist(region: str, expected: str) -> None:
     client = AqaraCloudClient(http_client=httpx.AsyncClient(transport=httpx.MockTransport(lambda _request: httpx.Response(200))))
-    assert client._base_url(build_credentials(region="us")) == "https://open-usa.aqara.com"
-    assert client._base_url(build_credentials(custom_api_domain="api.example.test")) == "https://api.example.test"
-    assert client._base_url(build_credentials(custom_api_domain="https://api.example.test")) == "https://api.example.test"
+    assert client._base_url(build_credentials(region=region)) == expected
+
+
+def test_base_url_rejects_attacker_custom_domain() -> None:
+    client = AqaraCloudClient(http_client=httpx.AsyncClient(transport=httpx.MockTransport(lambda _request: httpx.Response(200))))
+    with pytest.raises(AqaraCloudRequestError, match="not permitted"):
+        client._base_url(build_credentials(custom_api_domain="https://attacker.example"))
+
+
+def test_test_api_override_requires_injected_client_and_is_not_configurable() -> None:
+    with pytest.raises(ValueError, match="injected test HTTP client"):
+        AqaraCloudClient(test_api_base_url="https://mock.test")
+    client = AqaraCloudClient(
+        http_client=httpx.AsyncClient(transport=httpx.MockTransport(lambda _request: httpx.Response(200))),
+        test_api_base_url="https://mock.test",
+    )
+    assert client._base_url(build_credentials()) == "https://mock.test"
 
 
 def test_base_url_rejects_unknown_region_without_custom_domain() -> None:

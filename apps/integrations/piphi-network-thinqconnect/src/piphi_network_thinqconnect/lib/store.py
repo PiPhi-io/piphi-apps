@@ -10,6 +10,7 @@ from piphi_runtime_kit_python import (
 )
 
 from piphi_network_thinqconnect import __version__
+from piphi_network_thinqconnect.lib.privacy import redact_sensitive
 
 INTEGRATION_ID = "lg-thinq-connect-api"
 INTEGRATION_NAME = "LG ThinQ Connect"
@@ -23,6 +24,7 @@ starter = create_runtime_starter(
     core_base_url=CORE_BASE_URL,
 )
 registry = starter.registry
+credential_store: dict[str, str] = {}
 runtime_context = starter.runtime
 telemetry_client = starter.telemetry_client
 event_client = starter.event_client
@@ -37,6 +39,18 @@ def get_registry() -> RuntimeRegistry[dict[str, Any], dict[str, Any], dict[str, 
     return registry
 
 
+def set_credential(config_id: str, access_token: str) -> None:
+    credential_store[config_id] = access_token
+
+
+def get_credential(config_id: str) -> str:
+    return credential_store.get(config_id, "")
+
+
+def remove_credential(config_id: str) -> None:
+    credential_store.pop(config_id, None)
+
+
 def set_core_http_client(client) -> None:
     runtime_context.set_core_http_client(client)
 
@@ -46,11 +60,11 @@ def get_core_http_client():
 
 
 def append_event(event: dict[str, Any]) -> dict[str, Any]:
-    return registry.append_event(event)
+    return registry.append_event(redact_sensitive(event))
 
 
 def update_device_state(device_id: str, state: dict[str, Any]) -> dict[str, Any]:
-    return registry.update_state(device_id, state)
+    return registry.update_state(device_id, redact_sensitive(state))
 
 
 def get_primary_device() -> dict[str, Any] | None:

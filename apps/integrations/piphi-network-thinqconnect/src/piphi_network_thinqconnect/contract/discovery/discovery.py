@@ -49,7 +49,23 @@ async def _run_discovery(
             client_id=resolved_client_id,
         )
     except ThinQClientError as exc:
-        raise HTTPException(status_code=500, detail=f"ThinQ discovery failed: {exc}") from exc
+        statuses = {
+            "invalid_pat": 401,
+            "authorization_required": 403,
+            "invalid_region": 422,
+            "unsupported_device": 422,
+            "rate_limited": 429,
+            "transient_outage": 503,
+        }
+        raise HTTPException(
+            status_code=statuses.get(exc.category, 503),
+            detail={
+                "code": exc.category,
+                "action": "replace_pat" if exc.category == "invalid_pat" else "retry",
+                "retryable": exc.retryable,
+                "reauth_required": exc.category in {"invalid_pat", "authorization_required"},
+            },
+        ) from exc
 
     return build_discovery_response(devices).model_dump()
 

@@ -45,7 +45,10 @@ async def startup_sync(_runtime, core_http_client: AsyncClient) -> None:
         return
 
     if result.core_error:
-        logger.warning("thinq_startup_core_rehydrate_failed error=%s", result.core_error)
+        logger.warning(
+            "thinq_startup_core_rehydrate_failed error_type=%s",
+            type(result.core_error).__name__,
+        )
     elif result.missing_runtime_auth:
         logger.warning("thinq_startup_missing_runtime_credentials standalone_mode=true")
     elif result.core_attempted:

@@ -225,5 +225,16 @@ def command_bindings_for_capabilities(
         for command_id, value in rule.commands.items():
             bindings[command_id] = {"resource_id": resource_id, "value": value}
         if rule.dynamic_command:
-            bindings[rule.dynamic_command] = {"resource_id": resource_id, "dynamic": True}
+            minimum = resource.min_value if resource.min_value is not None else 0
+            maximum = resource.max_value if resource.max_value is not None else 100
+            # PiPhi's normalized brightness and position contracts are percentages.
+            minimum = max(minimum, 0)
+            maximum = min(maximum, 100)
+            if minimum <= maximum:
+                bindings[rule.dynamic_command] = {
+                    "resource_id": resource_id,
+                    "dynamic": True,
+                    "min_value": minimum,
+                    "max_value": maximum,
+                }
     return bindings
