@@ -16,8 +16,8 @@
     {
       "id": "runtime-foundation", "status": "implemented", "scope": ["all-configurations"],
       "source_refs": ["core_vocabulary"],
-      "reason": "The Remote v2 vertical slice implements authenticated availability, stable opaque identity metadata, push-backed power/app/volume state, refresh, and conservative short key presses.",
-      "state": ["connected", "authenticated", "reauth_required", "power_on", "current_app_id", "volume_level_percent", "muted", "manufacturer", "model", "software_version"], "events": ["runtime.config.applied"], "conditions": ["state_matches"], "actions": ["refresh", "send_key"]
+      "reason": "The runtime implements explicit transport selection, authenticated availability, honest transport-specific state, refresh, and conservative short key presses. Remote v2 remains the default; unsupported ADB state stays unknown.",
+      "state": ["connected", "authenticated", "reauth_required", "power_on", "current_app_id", "volume_level_percent", "muted", "manufacturer", "model", "software_version", "transport_type", "adb_authorized", "android_version", "android_api_level", "sidecar_queue_depth", "sidecar_queue_capacity", "sidecar_reconnect_count", "sidecar_command_timeout_count", "sidecar_last_error_code"], "events": ["runtime.config.applied"], "conditions": ["state_matches"], "actions": ["refresh", "send_key"]
     },
     {
       "id": "remote-v2-pairing-and-discovery", "status": "implemented", "scope": ["android-tv-and-google-tv-with-remote-service"],
@@ -29,7 +29,7 @@
       "id": "device-identity-and-transport", "status": "planned", "scope": ["android-tv-google-tv-and-fire-tv-devices"],
       "source_refs": ["android_adb", "androidtv_python", "ha_androidtv", "adb_sidecar"],
       "reason": "ADB authentication, platform-specific parsing, device identity, reconnect, and credential isolation need implementation and representative fixtures.",
-      "state": ["platform", "device_serial_suffix", "android_version", "android_api_level", "build_fingerprint_redacted", "transport_type", "adb_authorized", "last_seen_at", "command_latency_ms"],
+      "state": ["platform", "device_serial_suffix", "build_fingerprint_redacted", "last_seen_at", "command_latency_ms"],
       "events": ["television.online", "television.offline", "adb.authorization_required", "transport.degraded", "transport.recovered"],
       "conditions": ["television_is_online", "television_is_stale", "adb_is_authorized", "platform_is"],
       "actions": ["reconnect_device"]
@@ -64,8 +64,8 @@
     {
       "id": "managed-adb-sidecar-operations", "status": "planned", "scope": ["piphi-managed-adb-sidecar"],
       "source_refs": ["adb_sidecar", "android_adb", "core_vocabulary"],
-      "reason": "The sidecar must own ADB keys, connection lifecycle, bounded queues, backpressure, timeouts, and recovery without exposing shell access.",
-      "state": ["sidecar_connected", "sidecar_device_count", "sidecar_queue_depth", "sidecar_queue_capacity", "sidecar_reconnect_count", "sidecar_command_timeout_count", "sidecar_last_error_code"],
+      "reason": "The bounded queue and recovery counters are implemented; sidecar-level aggregate health, device count, administrative recovery actions, and behavior events remain planned.",
+      "state": ["sidecar_connected", "sidecar_device_count"],
       "events": ["sidecar.connected", "sidecar.disconnected", "sidecar.queue_saturated", "sidecar.command_timed_out", "sidecar.recovered"],
       "conditions": ["sidecar_is_healthy", "sidecar_queue_below", "sidecar_has_device_capacity"],
       "actions": ["restart_device_session", "clear_failed_session"]

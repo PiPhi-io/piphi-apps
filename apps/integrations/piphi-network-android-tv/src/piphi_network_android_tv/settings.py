@@ -4,7 +4,7 @@ import os
 
 INTEGRATION_ID = "piphi-network-android-tv"
 INTEGRATION_NAME = "Piphi Network Android Tv"
-INTEGRATION_VERSION = "0.2.0-rc.1"
+INTEGRATION_VERSION = "0.3.0-rc.1"
 PROJECT_KIND = "integration"
 PROJECT_PRESET = "protocol-bridge"
 PROJECT_DOMAIN = "bridge"
