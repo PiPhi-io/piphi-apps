@@ -51,8 +51,8 @@
       {
         "id": "piphi.service.webrtc-sidecar",
         "kind": "platform_service",
-        "version_range": ">=0.3.0,<0.4.0",
-        "recommended_version": "0.3.0",
+        "version_range": ">=0.3.6-beta.1,<0.4.0",
+        "recommended_version": "0.3.6-beta.1",
         "required": true,
         "shared": true,
         "auto_install": true,
