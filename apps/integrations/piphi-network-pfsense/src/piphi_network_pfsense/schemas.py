@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+from pathlib import PurePosixPath
 from typing import Literal
 
 from piphi_runtime_kit_python import RuntimeConfig
@@ -44,6 +46,7 @@ class DeviceConfig(RuntimeConfig):
     port: int = Field(default=443, ge=1, le=65535)
     scheme: Literal["https", "http"] = "https"
     verify_tls: bool = True
+    allow_insecure_transport: bool = False
     ca_bundle_path: str | None = None
     poll_interval_seconds: int = Field(default=60, ge=30, le=3600)
     collect_dhcp_leases: bool = False
@@ -98,6 +101,18 @@ class DeviceConfig(RuntimeConfig):
             raise ValueError("verify_tls must be false when scheme is http")
         if self.ca_bundle_path and not self.verify_tls:
             raise ValueError("ca_bundle_path requires verify_tls=true")
+        if (self.scheme == "http" or not self.verify_tls) and not self.allow_insecure_transport:
+            raise ValueError(
+                "allow_insecure_transport must be explicitly enabled for lab-only insecure transport"
+            )
+        if (
+            self.scheme == "http" or not self.verify_tls
+        ) and os.getenv("PIPHI_PFSENSE_LAB_ALLOW_INSECURE") != "true":
+            raise ValueError(
+                "insecure transport is disabled by the deployment; set the lab-only environment gate"
+            )
+        if self.ca_bundle_path and not _approved_ca_path(self.ca_bundle_path):
+            raise ValueError("ca_bundle_path must use an approved read-only certificate mount")
         if self.enable_diagnostic_ping and not self.allowed_ping_hosts:
             raise ValueError(
                 "allowed_ping_hosts must not be empty when diagnostic ping is enabled"
@@ -127,3 +142,24 @@ class DeviceConfig(RuntimeConfig):
 
     def secret_api_key(self) -> str:
         return self.api_key.get_secret_value()
+
+    @property
+    def read_only(self) -> bool:
+        return not any(
+            (
+                self.enable_diagnostic_ping,
+                self.enable_service_restart,
+                self.enable_service_start,
+                self.enable_wake_on_lan,
+            )
+        )
+
+
+def _approved_ca_path(value: str) -> bool:
+    path = PurePosixPath(value)
+    if not path.is_absolute() or ".." in path.parts:
+        return False
+    return any(
+        path != root and path.is_relative_to(root)
+        for root in (PurePosixPath("/etc/ssl/certs"), PurePosixPath("/run/secrets"))
+    )

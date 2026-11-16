@@ -6,13 +6,19 @@ from typing import Any
 
 import httpx
 import pytest
+from piphi_network_mikrotik_router import state
+from piphi_network_mikrotik_router.routeros import RouterResources
 from piphi_network_mikrotik_router.main import app
 
 FIXTURES = json.loads((Path(__file__).parent / "fixtures" / "contract-conformance.json").read_text())
 
 
 @pytest.mark.anyio
-async def test_runtime_conforms_to_shared_contract_fixtures() -> None:
+async def test_runtime_conforms_to_shared_contract_fixtures(monkeypatch) -> None:
+    async def resources(*_args, **_kwargs):
+        return RouterResources(10, 20, "conformance-device", "7.20")
+
+    monkeypatch.setattr(state, "fetch_resources", resources)
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
         try:
@@ -27,7 +33,7 @@ async def test_runtime_conforms_to_shared_contract_fixtures() -> None:
                 _assert_required_keys(body, fixture.get("required_keys", []), fixture["id"])
                 _assert_required_any_keys(body, fixture.get("required_any_keys", []), fixture["id"])
         finally:
-            await client.post("/deconfigure/demo-device")
+            await client.post("/deconfigure/configured-router")
 
 
 def _assert_required_keys(body: dict[str, Any], keys: list[str], fixture_id: str) -> None:

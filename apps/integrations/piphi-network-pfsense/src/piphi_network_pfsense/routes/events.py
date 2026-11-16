@@ -43,7 +43,6 @@ async def device_event_example(config_id: str) -> Any:
         entry,
         {
             "message": "Example local runtime event for a configured device",
-            "host": entry.get("host"),
         },
     )
     return build_event_ingest_response(event)

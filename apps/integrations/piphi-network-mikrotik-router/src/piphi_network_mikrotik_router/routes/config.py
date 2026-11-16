@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 from piphi_runtime_kit_python import (
     RuntimeConfigSnapshot,
     build_config_apply_response,
@@ -11,6 +11,7 @@ from piphi_runtime_kit_python import (
 )
 from piphi_runtime_kit_python.fastapi import sync_runtime_auth_from_fastapi_payload
 
+from ..routeros import RouterOSError
 from ..schemas import DeviceConfig
 from ..state import (
     apply_config,
@@ -26,7 +27,21 @@ router = APIRouter(tags=["config"])
 @router.post("/config")
 async def configure(payload: DeviceConfig, request: Request):
     sync_runtime_auth_from_fastapi_payload(runtime, request, payload)
-    await apply_config(payload)
+    try:
+        await apply_config(payload)
+    except RouterOSError as exc:
+        status = {
+            "authentication_failed": 401,
+            "permission_denied": 403,
+            "rate_limited": 429,
+        }.get(exc.reason, 503 if exc.retryable else 422)
+        raise HTTPException(status_code=status, detail=exc.reason) from exc
+    except ValueError as exc:
+        if "already configured" in str(exc) or "different RouterOS appliance" in str(
+            exc
+        ):
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        raise
     return build_config_apply_response(
         config_id=payload.config_id or payload.id,
         container_id=payload.container_id,

@@ -35,7 +35,12 @@ class SequencedPfSenseClient:
     def __init__(self) -> None:
         self._snapshots = [
             PfSenseSnapshot(
-                system={"platform": "pfSense", "cpu_usage": 11, "mem_usage": 22},
+                system={
+                    "platform": "pfSense",
+                    "serial": "TESTKIT-123",
+                    "cpu_usage": 11,
+                    "mem_usage": 22,
+                },
                 gateways=[{"name": "WAN", "status": "online", "delay": 8}],
                 dhcp_leases=[
                     {
@@ -54,7 +59,12 @@ class SequencedPfSenseClient:
                 ],
             ),
             PfSenseSnapshot(
-                system={"platform": "pfSense", "cpu_usage": 12, "mem_usage": 23},
+                system={
+                    "platform": "pfSense",
+                    "serial": "TESTKIT-123",
+                    "cpu_usage": 12,
+                    "mem_usage": 23,
+                },
                 gateways=[{"name": "WAN", "status": "down", "delay": 0}],
                 dhcp_leases=[
                     {
@@ -117,6 +127,7 @@ async def test_testkit_captures_runtime_telemetry_entities_and_transition_events
         container_id="testkit-container", internal_token="fake-runtime-token"
     )
     transport = httpx.ASGITransport(app=app)
+    appliance_device_id = "pfsense-90c1da8afadbafe2d8422d38"
 
     try:
         async with httpx.AsyncClient(
@@ -127,7 +138,7 @@ async def test_testkit_captures_runtime_telemetry_entities_and_transition_events
             await wait_for(lambda: bool(mock_core.telemetry_requests))
 
             telemetry_request = mock_core.assert_telemetry_sent(
-                device_id="testkit-firewall"
+                device_id=appliance_device_id
             )
             assert telemetry_request.json_body["config_id"] == "testkit-firewall"
             assert telemetry_request.json_body["metrics"]["cpu_usage_percent"] == 11
@@ -136,7 +147,8 @@ async def test_testkit_captures_runtime_telemetry_entities_and_transition_events
             assert entities_response.status_code == 200
             entities = assert_entities_response(entities_response.json())["entities"]
             assert any(
-                entity["device_id"] == "testkit-firewall:client:aa:bb:cc:dd:ee:ff"
+                entity["device_id"]
+                == f"{appliance_device_id}:client:aa:bb:cc:dd:ee:ff"
                 for entity in entities
             )
 
@@ -159,7 +171,7 @@ async def test_testkit_captures_runtime_telemetry_entities_and_transition_events
             await wait_for(lambda: bool(mock_core.event_requests))
 
             event_request = mock_core.assert_event_sent(
-                device_id="testkit-firewall:gateway:WAN",
+                device_id=f"{appliance_device_id}:gateway:WAN",
                 config_id="testkit-firewall",
                 event_type="network.gateway.offline",
             )

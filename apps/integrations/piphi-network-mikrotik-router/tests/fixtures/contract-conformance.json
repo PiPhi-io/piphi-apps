@@ -45,9 +45,11 @@
       "path": "/config",
       "status": 200,
       "body": {
-        "id": "demo-device",
+        "id": "configured-router",
         "host": "127.0.0.1",
-        "alias": "Demo Device"
+        "alias": "Configured Router",
+        "username": "monitor",
+        "password": "test-password"
       },
       "required_any_keys": [
         [
@@ -80,8 +82,8 @@
         "contract_version": "automation.runtime.command.v1",
         "command": "refresh",
         "target": {
-          "device_id": "demo-device",
-          "config_id": "demo-device"
+          "device_id": "configured-router",
+          "config_id": "configured-router"
         },
         "params": {},
         "capability": "device.refresh",

@@ -150,6 +150,14 @@ class PfRestV2Client:
             else:
                 values[name] = result
 
+        essential = {"version", "api_version", "interfaces", "gateways", "services"}
+        denied_or_invalid = sorted(essential & endpoint_errors.keys())
+        if denied_or_invalid:
+            raise PfSenseError(
+                "pfSense baseline profile is unavailable: "
+                + ", ".join(denied_or_invalid)
+            )
+
         certificates = [
             {
                 key: item.get(key)
@@ -182,7 +190,7 @@ class PfRestV2Client:
                 for key in ("pfsyncenabled", "pfsyncpeerip", "pfsyncinterface")
             },
             logs={
-                name: values.get(f"log_{name}", [])
+                name: values.get(f"log_{name}", [])[:200]
                 for name in ("firewall", "auth", "dhcp", "system")
                 if f"log_{name}" in values
             },

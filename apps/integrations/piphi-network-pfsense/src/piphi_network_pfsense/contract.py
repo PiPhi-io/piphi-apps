@@ -168,6 +168,11 @@ CONFIG_SCHEMA: dict[str, Any] = {
                 "title": "Verify TLS certificate",
                 "default": True,
             },
+            "allow_insecure_transport": {
+                "type": "boolean",
+                "title": "Allow insecure transport (isolated lab only)",
+                "default": False,
+            },
             "ca_bundle_path": {"type": "string", "title": "Custom CA bundle path"},
             "poll_interval_seconds": {
                 "type": "integer",

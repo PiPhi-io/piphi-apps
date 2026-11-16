@@ -1,6 +1,8 @@
 {
-  "id": "demo-device",
-  "host": "127.0.0.1",
-  "alias": "Demo Device",
-  "poll_interval_seconds": 5
+  "id": "configured-router",
+  "host": "192.168.88.1",
+  "alias": "RouterOS Health",
+  "username": "piphi-monitor",
+  "password": "replace-with-router-password",
+  "poll_interval_seconds": 300
 }

@@ -99,6 +99,7 @@ def make_entry(config: DeviceConfig) -> dict[str, Any]:
             "base_url": config.base_url,
             "simulation_mode": config.simulation_mode,
             "verify_tls": config.verify_tls,
+            "insecure_transport": config.allow_insecure_transport,
             "custom_ca": bool(config.ca_bundle_path),
             "collect_dhcp_leases": config.collect_dhcp_leases,
             "collect_vpn_status": config.collect_vpn_status,
@@ -110,6 +111,7 @@ def make_entry(config: DeviceConfig) -> dict[str, Any]:
             "service_restart_enabled": config.enable_service_restart,
             "service_start_enabled": config.enable_service_start,
             "wake_on_lan_enabled": config.enable_wake_on_lan,
+            "read_only": config.read_only,
         },
     }
 
@@ -139,21 +141,11 @@ def get_entry_or_404(config_id: str) -> dict[str, Any]:
 
 async def apply_config(config: DeviceConfig) -> None:
     entry = make_entry(config)
-    config_id = str(entry["config_id"])
-    previous = registry.get(config_id)
-    registry.set(config_id, entry)
-    try:
-        await pfsense_service.configure(config, entry)
-    except Exception:
-        if previous is None:
-            registry.remove(config_id)
-        else:
-            registry.set(config_id, previous)
-        raise
+    await pfsense_service.configure(config, entry)
     append_runtime_event(
         "runtime.config.applied",
         entry,
-        {"host": config.host, "alias": config.alias, "read_only": True},
+        {"read_only": config.read_only},
     )
 
 
@@ -165,7 +157,7 @@ async def remove_config(config_id: str) -> bool:
     append_runtime_event(
         "runtime.config.removed",
         entry,
-        {"host": entry.get("host"), "alias": entry.get("alias")},
+        {},
     )
     return True
 

@@ -4,7 +4,7 @@
   "id": "piphi-network-mikrotik-router",
   "name": "MikroTik RouterOS",
   "version": "0.1.0",
-  "description": "Monitor RouterOS health, interfaces, clients, and explicitly enabled controls.",
+  "description": "Read-only CPU and memory health monitoring for RouterOS 7 over authenticated HTTPS REST.",
   "metadata": {
     "generator": "piphi-network-create",
     "scaffold_version": "0.3.0",
@@ -39,9 +39,6 @@
           "name": "unless-stopped",
           "maximum_retry_count": 0
         }
-      },
-      "discovery": {
-        "method": "passive"
       }
     }
   },
@@ -75,9 +72,13 @@
       "host",
       "alias",
       "username",
-      "api_key",
+      "password",
       "ca_bundle_path",
       "poll_interval_seconds"
+    ],
+    "secret_fields": [
+      "password",
+      "api_key"
     ],
     "runtime_fields": [
       "id",
@@ -85,14 +86,10 @@
       "container_id",
       "device_id"
     ],
-    "identity_fields": [
-      "host"
-    ]
+    "identity_fields": ["device_id"]
   },
   "identity": {
-    "fields": [
-      "host"
-    ]
+    "fields": ["device_id"]
   },
   "capabilities": {
     "connected": {
@@ -113,9 +110,9 @@
   },
   "entities": [
     {
-      "id": "demo-device",
-      "name": "Demo Device",
-      "device_id": "demo-device",
+      "id": "routeros-health",
+      "name": "Configured RouterOS Health",
+      "device_id": "routeros-health",
       "entity_type": "router",
       "capabilities": [
         "connected",
@@ -148,7 +145,7 @@
   "marketplace": {
     "metadata_version": 2,
     "display_name": "MikroTik RouterOS",
-    "summary": "Monitor RouterOS health, interfaces, clients, and explicitly enabled controls.",
+    "summary": "Monitor CPU and memory health on a manually configured RouterOS 7 device over read-only HTTPS REST.",
     "category": "networking",
     "regions": [
       "WW"
@@ -167,7 +164,7 @@
       {
         "id": "local_network",
         "label": "Local network access",
-        "reason": "Discovers or communicates with supported services and devices on the homeowner's local network.",
+        "reason": "Communicates only with the manually configured RouterOS HTTPS REST endpoint.",
         "required": true
       },
       {
@@ -180,7 +177,7 @@
     "compatibility": [
       {
         "brand": "MikroTik",
-        "model": "Supported RouterOS devices and API versions"
+        "model": "Unverified RouterOS 7 devices exposing HTTPS REST and a software ID"
       }
     ],
     "documentation_url": "https://github.com/PiPhi-io/piphi-network-mikrotik-router",
@@ -202,17 +199,15 @@
       "wireless access point"
     ],
     "protocols": [
-      "RouterOS API",
-      "HTTPS"
+      "RouterOS 7 HTTPS REST"
     ],
     "discovery_methods": [
-      "manual",
-      "local network discovery"
+      "manual"
     ],
     "connectivity": "local",
-    "offline_support": "full"
+    "offline_support": "none"
   },
   "onboarding": {
-    "mode": "discovery"
+    "mode": "manual"
   }
 }

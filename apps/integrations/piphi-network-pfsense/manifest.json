@@ -132,9 +132,6 @@
           "name": "unless-stopped",
           "maximum_retry_count": 0
         }
-      },
-      "discovery": {
-        "method": "passive"
       }
     }
   },
@@ -171,6 +168,7 @@
       "port",
       "scheme",
       "verify_tls",
+      "allow_insecure_transport",
       "ca_bundle_path",
       "poll_interval_seconds",
       "collect_dhcp_leases",
@@ -197,14 +195,10 @@
       "container_id",
       "device_id"
     ],
-    "identity_fields": [
-      "host"
-    ]
+    "identity_fields": ["device_id"]
   },
   "identity": {
-    "fields": [
-      "host"
-    ]
+    "fields": ["device_id"]
   },
   "capabilities": {
     "connected": {"kind": "sensor", "unit": "bool"},

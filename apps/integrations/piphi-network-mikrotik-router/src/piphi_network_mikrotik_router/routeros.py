@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import ipaddress
 import math
 import re
@@ -17,6 +18,17 @@ HOSTNAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9.-]{0,251}\Z")
 class RouterResources:
     cpu_load_percent: float
     memory_used_percent: float
+    appliance_identifier: str = ""
+    routeros_version: str | None = None
+
+
+class RouterOSError(RuntimeError):
+    """Credential-free, classified RouterOS failure."""
+
+    def __init__(self, reason: str, *, retryable: bool) -> None:
+        super().__init__(reason)
+        self.reason = reason
+        self.retryable = retryable
 
 
 def _resource_url(host: str) -> str:
@@ -40,6 +52,10 @@ def _resource_url(host: str) -> str:
     suffix = f":{port}" if port is not None else ""
     authority = f"[{hostname}]" if ":" in hostname else hostname
     return f"https://{authority}{suffix}/rest/system/resource"
+
+
+def _license_url(host: str) -> str:
+    return _resource_url(host).removesuffix("resource") + "license"
 
 
 def parse_resources(payload: object) -> RouterResources:
@@ -78,6 +94,60 @@ async def fetch_resources(
         verify=ca_bundle_path or True,
         transport=transport,
     ) as client:
-        response = await client.get(url)
-        response.raise_for_status()
-        return parse_resources(response.json())
+        try:
+            resource_response, license_response = await asyncio.gather(
+                client.get(url), client.get(_license_url(host))
+            )
+            for response in (resource_response, license_response):
+                response.raise_for_status()
+            resources = parse_resources(resource_response.json())
+            license_payload = license_response.json()
+        except httpx.HTTPStatusError as exc:
+            status = exc.response.status_code
+            if status == 401:
+                raise RouterOSError("authentication_failed", retryable=False) from exc
+            if status == 403:
+                raise RouterOSError("permission_denied", retryable=False) from exc
+            if status == 404:
+                raise RouterOSError("routeros_rest_unsupported", retryable=False) from exc
+            if status == 429:
+                raise RouterOSError("rate_limited", retryable=True) from exc
+            raise RouterOSError(
+                "routeros_server_error" if status >= 500 else "routeros_request_rejected",
+                retryable=status >= 500,
+            ) from exc
+        except httpx.TimeoutException as exc:
+            raise RouterOSError("connection_timeout", retryable=True) from exc
+        except httpx.TransportError as exc:
+            reason = (
+                "tls_validation_failed"
+                if "certificate" in str(exc).casefold()
+                else "connection_failed"
+            )
+            raise RouterOSError(reason, retryable=reason == "connection_failed") from exc
+        except (TypeError, ValueError) as exc:
+            raise RouterOSError("invalid_routeros_response", retryable=False) from exc
+
+        license_row = (
+            license_payload[0]
+            if isinstance(license_payload, list) and license_payload
+            else license_payload
+        )
+        if not isinstance(license_row, dict):
+            raise RouterOSError("invalid_routeros_identity", retryable=False)
+        software_id = str(license_row.get("software-id") or "").strip()
+        if not software_id:
+            raise RouterOSError("missing_routeros_identity", retryable=False)
+        resource_row = resource_response.json()
+        resource_row = (
+            resource_row[0]
+            if isinstance(resource_row, list) and resource_row
+            else resource_row
+        )
+        version = resource_row.get("version") if isinstance(resource_row, dict) else None
+        return RouterResources(
+            resources.cpu_load_percent,
+            resources.memory_used_percent,
+            appliance_identifier=software_id,
+            routeros_version=str(version) if version else None,
+        )

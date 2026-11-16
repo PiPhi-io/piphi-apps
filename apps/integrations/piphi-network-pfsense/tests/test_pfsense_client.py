@@ -49,7 +49,7 @@ async def test_reads_and_unwraps_pfrest_v2_snapshot() -> None:
 
 
 @pytest.mark.anyio
-async def test_optional_endpoint_failure_does_not_drop_system_state() -> None:
+async def test_baseline_permission_failure_fails_the_snapshot() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/api/v2/status/system":
             return httpx.Response(200, json={"data": {"platform": "pfSense"}})
@@ -59,13 +59,10 @@ async def test_optional_endpoint_failure_does_not_drop_system_state() -> None:
 
     client = PfRestV2Client(config(), transport=httpx.MockTransport(handler))
     try:
-        snapshot = await client.read_snapshot()
+        with pytest.raises(PfSenseError, match="baseline profile.*gateways"):
+            await client.read_snapshot()
     finally:
         await client.close()
-
-    assert snapshot.system["platform"] == "pfSense"
-    assert "HTTP 403" in snapshot.endpoint_errors["gateways"]
-
 
 @pytest.mark.anyio
 async def test_optional_inventory_certificates_ha_and_logs_are_collected_safely() -> (
@@ -73,6 +70,8 @@ async def test_optional_inventory_certificates_ha_and_logs_are_collected_safely(
 ):
     responses = {
         "/api/v2/status/system": {"data": {"platform": "pfSense"}},
+        "/api/v2/system/version": {"data": {"version": "2.8.1"}},
+        "/api/v2/system/restapi/version": {"data": {"current_version": "2.9.0"}},
         "/api/v2/status/dhcp_server/leases": {"data": [{"ip": "192.0.2.10"}]},
         "/api/v2/diagnostics/arp_table": {"data": [{"ip_address": "192.0.2.10"}]},
         "/api/v2/system/certificates": {
@@ -137,6 +136,38 @@ async def test_required_auth_failure_is_safe_and_actionable() -> None:
 
     assert "check API-key privileges" in str(exc_info.value)
     assert "secret-key" not in str(exc_info.value)
+
+
+def test_insecure_transport_requires_config_and_deployment_lab_gates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("PIPHI_PFSENSE_LAB_ALLOW_INSECURE", raising=False)
+    with pytest.raises(ValueError, match="allow_insecure_transport"):
+        config(scheme="http", verify_tls=False)
+    with pytest.raises(ValueError, match="disabled by the deployment"):
+        config(
+            scheme="http",
+            port=80,
+            verify_tls=False,
+            allow_insecure_transport=True,
+        )
+    monkeypatch.setenv("PIPHI_PFSENSE_LAB_ALLOW_INSECURE", "true")
+    insecure = config(
+        scheme="http", port=80, verify_tls=False, allow_insecure_transport=True
+    )
+    assert insecure.base_url == "http://pfsense.test"
+
+
+def test_custom_ca_is_confined_to_approved_mounts() -> None:
+    for path in (
+        "/tmp/router-ca.pem",
+        "/etc/ssl/certs-evil/router-ca.pem",
+        "/run/secrets/../outside/router-ca.pem",
+        "run/secrets/router-ca.pem",
+    ):
+        with pytest.raises(ValueError, match="approved read-only"):
+            config(ca_bundle_path=path)
+    assert config(ca_bundle_path="/run/secrets/router-ca.pem").ca_bundle_path
 
 
 @pytest.mark.anyio
