@@ -12,15 +12,21 @@
     "python": "3.12"
   },
   "ci": {
-    "enforcement": "legacy-static",
-    "commands": [],
-    "build_container": false
+    "enforcement": "full",
+    "commands": [
+      "pdm install --check",
+      "pdm run pip-audit",
+      "pdm run ruff check .",
+      "pdm run pytest",
+      "pdm run python scripts/validate.py"
+    ],
+    "build_container": true
   },
   "packages": [
     {
       "id": "piphi-camera-stream",
       "type": "integration",
-      "version": "0.1.5",
+      "version": "0.1.6-beta.1",
       "manifest": "manifest.json",
       "release": {
         "tag": "apps/{package_id}/v{version}",

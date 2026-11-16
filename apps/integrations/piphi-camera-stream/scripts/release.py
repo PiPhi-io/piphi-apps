@@ -334,6 +334,6 @@ def main() -> int:
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - CLI boundary renders unexpected failures safely.
         print(f"release.py failed: {exc}", file=sys.stderr)
         raise SystemExit(1)

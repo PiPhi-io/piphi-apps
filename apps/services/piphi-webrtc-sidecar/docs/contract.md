@@ -22,7 +22,13 @@ Other signaling failures fail closed without changing transport.
 - `GET /contract`
 - `GET /v1/camera-media/status`
 - `POST /v1/camera-media/sessions`
+- `PUT /v1/camera-media/sessions/{session_id}/keepalive`
 - `DELETE /v1/camera-media/sessions/{session_id}`
+
+Sessions expire after their requested idle timeout. Core renews active viewers through the
+authenticated keepalive endpoint and explicitly closes sessions when viewing ends. Audio is
+disabled unless the offer requests it; requested FFmpeg relay audio is normalized to Opus for
+browser WebRTC compatibility.
 
 The service intentionally has no discovery, config, entity, state, event, or device-command
 endpoints. Those belong to the camera integration that consumes this service.

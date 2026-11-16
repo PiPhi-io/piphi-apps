@@ -32,7 +32,6 @@ def test_managed_service_uses_core_allocated_primary_port() -> None:
     assert container["ports"][0] == {"container": 8090}
     assert container["ports"][1] == {
         "container": 8554,
-        "host": 18554,
         "protocol": "tcp",
     }
 

@@ -38,9 +38,9 @@
     },
     {
       "input": "audio-normalization",
-      "primary_strategy": "copy",
-      "status": "planned",
-      "reason": "The camera card is video-only by default; audio negotiation remains opt-in."
+      "primary_strategy": "opus-when-requested",
+      "status": "implemented",
+      "reason": "Audio is disabled by default and normalized to Opus only when requested."
     },
     {
       "input": "hls-browser-fallback",

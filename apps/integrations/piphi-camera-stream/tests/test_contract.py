@@ -6,7 +6,6 @@ from pathlib import Path
 from piphi_camera_stream.contract import COMMANDS, CONFIG_SCHEMA, REQUIRED_ENDPOINTS
 from piphi_camera_stream.main import app
 
-
 ROOT = Path(__file__).parents[1]
 
 

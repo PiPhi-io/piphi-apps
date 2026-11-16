@@ -4,7 +4,7 @@ import os
 
 INTEGRATION_ID = "piphi.service.wyze-camera-bridge"
 INTEGRATION_NAME = "PiPhi Wyze Camera Bridge"
-INTEGRATION_VERSION = "0.1.3"
+INTEGRATION_VERSION = "0.1.4-beta.1"
 PROJECT_KIND = "platform_service"
 PROJECT_PRESET = "platform-service"
 PROJECT_DOMAIN = "camera-bridge"
@@ -12,7 +12,7 @@ DEFAULT_PORT = 8090
 UPSTREAM_VERSION = "2.10.3"
 UPSTREAM_CONTROL_URL = "http://127.0.0.1:5000"
 INTERNAL_RTSP_PORT = 8554
-DEFAULT_HOST_RTSP_PORT = 18554
+DEFAULT_RTSP_SERVICE_PORT = INTERNAL_RTSP_PORT
 
 
 def runtime_port() -> int:
@@ -24,10 +24,12 @@ def runtime_port() -> int:
     return port if 1 <= port <= 65535 else DEFAULT_PORT
 
 
-def host_rtsp_port() -> int:
-    raw_port = os.getenv("PIPHI_WYZE_RTSP_HOST_PORT", str(DEFAULT_HOST_RTSP_PORT))
+def rtsp_service_port() -> int:
+    raw_port = os.getenv("PIPHI_WYZE_RTSP_PORT") or os.getenv(
+        "PIPHI_WYZE_RTSP_HOST_PORT", str(DEFAULT_RTSP_SERVICE_PORT)
+    )
     try:
         port = int(raw_port)
     except ValueError:
-        return DEFAULT_HOST_RTSP_PORT
-    return port if 1 <= port <= 65535 else DEFAULT_HOST_RTSP_PORT
+        return DEFAULT_RTSP_SERVICE_PORT
+    return port if 1 <= port <= 65535 else DEFAULT_RTSP_SERVICE_PORT

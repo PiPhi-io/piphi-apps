@@ -4,7 +4,7 @@ import asyncio
 import hashlib
 import os
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from time import monotonic
 from typing import Literal
@@ -23,6 +23,7 @@ class ActiveMediaSession:
     stream_name: str
     expires_at: datetime
     strategy: MediaStrategy
+    idle_timeout_seconds: int
 
 
 class CameraMediaSessionBroker:
@@ -57,6 +58,7 @@ class CameraMediaSessionBroker:
         idle_timeout_seconds: int,
         preferred_transport: PreferredTransport = "auto",
         connect_timeout_seconds: int = 10,
+        include_audio: bool = False,
     ) -> tuple[ActiveMediaSession, str]:
         source = validate_source_url(source_url)
         normalized_offer = offer_sdp if offer_sdp.endswith("\n") else f"{offer_sdp}\r\n"
@@ -81,12 +83,14 @@ class CameraMediaSessionBroker:
                 source=source,
                 offer_sdp=normalized_offer,
                 strategies=strategies,
+                include_audio=include_audio,
             )
             active = ActiveMediaSession(
                 session_id=session_id,
                 stream_name=stream_name,
                 expires_at=datetime.now(UTC) + timedelta(seconds=idle_timeout_seconds),
                 strategy=selected_strategy,
+                idle_timeout_seconds=idle_timeout_seconds,
             )
             self._sessions[session_id] = active
             self._expiry_tasks[session_id] = asyncio.create_task(
@@ -125,9 +129,15 @@ class CameraMediaSessionBroker:
         source: str,
         offer_sdp: str,
         strategies: tuple[MediaStrategy, ...],
+        include_audio: bool,
     ) -> tuple[str, MediaStrategy]:
         for index, strategy in enumerate(strategies):
-            await self._configure_stream(stream_name, source, strategy)
+            await self._configure_stream(
+                stream_name,
+                source,
+                strategy,
+                include_audio=include_audio,
+            )
             try:
                 return await self.client.exchange_offer(stream_name, offer_sdp), strategy
             except Go2RtcError as exc:
@@ -140,14 +150,46 @@ class CameraMediaSessionBroker:
         raise RuntimeError("camera media strategy selection failed")
 
     async def _configure_stream(
-        self, stream_name: str, source: str, strategy: MediaStrategy
+        self,
+        stream_name: str,
+        source: str,
+        strategy: MediaStrategy,
+        *,
+        include_audio: bool,
     ) -> None:
         if strategy == "ffmpeg-copy":
-            await self.client.upsert_ffmpeg_stream(stream_name, source)
+            await self.client.upsert_ffmpeg_stream(
+                stream_name,
+                source,
+                include_audio=include_audio,
+            )
         elif strategy == "ffmpeg-h264":
-            await self.client.upsert_browser_compatible_ffmpeg_stream(stream_name, source)
+            await self.client.upsert_browser_compatible_ffmpeg_stream(
+                stream_name,
+                source,
+                include_audio=include_audio,
+            )
         else:
             await self.client.upsert_stream(stream_name, source)
+
+    async def touch(self, session_id: str) -> ActiveMediaSession | None:
+        async with self._lock:
+            active = self._sessions.get(session_id)
+            if active is None:
+                return None
+            refreshed = replace(
+                active,
+                expires_at=datetime.now(UTC) + timedelta(seconds=active.idle_timeout_seconds),
+            )
+            self._sessions[session_id] = refreshed
+            expiry_task = self._expiry_tasks.pop(session_id, None)
+            if expiry_task is not None and expiry_task is not asyncio.current_task():
+                expiry_task.cancel()
+            self._expiry_tasks[session_id] = asyncio.create_task(
+                self._expire_after(session_id, active.idle_timeout_seconds),
+                name=f"camera-media-expiry:{session_id}",
+            )
+            return refreshed
 
     async def close(self, session_id: str) -> bool:
         async with self._lock:

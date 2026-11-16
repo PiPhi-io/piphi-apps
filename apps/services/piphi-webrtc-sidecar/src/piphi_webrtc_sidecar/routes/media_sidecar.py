@@ -90,6 +90,7 @@ async def open_camera_session(request: OpenCameraSession) -> dict[str, object]:
             idle_timeout_seconds=request.idle_timeout_seconds,
             preferred_transport=request.source.preferred_transport,
             connect_timeout_seconds=request.source.connect_timeout_seconds,
+            include_audio=request.offer.include_audio,
         )
     except CameraMediaCapacityError as exc:
         raise HTTPException(
@@ -122,6 +123,20 @@ async def open_camera_session(request: OpenCameraSession) -> dict[str, object]:
 async def close_camera_session(session_id: str) -> Response:
     await media_session_broker.close(session_id)
     return Response(status_code=204)
+
+
+@router.put("/sessions/{session_id}/keepalive")
+async def keep_camera_session_alive(session_id: str) -> dict[str, object]:
+    active = await media_session_broker.touch(session_id)
+    if active is None:
+        raise HTTPException(status_code=404, detail="Camera media session was not found.")
+    return {
+        "contract_version": CAMERA_MEDIA_CONTRACT_VERSION,
+        "message_type": "camera.session.refreshed",
+        "audience": "core-sidecar",
+        "session_id": active.session_id,
+        "expires_at": active.expires_at.isoformat().replace("+00:00", "Z"),
+    }
 
 
 @router.get("/status")
