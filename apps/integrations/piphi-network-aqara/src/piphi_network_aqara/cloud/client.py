@@ -9,7 +9,16 @@ from typing import Any
 
 import httpx
 
-from .models import AqaraAuthTokens, AqaraCloudCredentials, AqaraCloudDevice, AqaraResourceInfo, AqaraResourceValue
+from .models import (
+    AqaraAuthTokens,
+    AqaraCloudCredentials,
+    AqaraCloudDevice,
+    AqaraResourceInfo,
+    AqaraResourceValue,
+    AqaraScene,
+    AqaraTraitInfo,
+    AqaraTraitValue,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -62,6 +71,7 @@ class AqaraCloudClient:
         if self._test_api_base_url and http_client is None:
             raise ValueError("test_api_base_url requires an injected test HTTP client.")
         self._resource_cache: dict[str, list[AqaraResourceInfo]] = {}
+        self._trait_cache: dict[str, list[AqaraTraitInfo]] = {}
 
     async def aclose(self) -> None:
         if self._http_client is not None and self._owns_http_client:
@@ -405,6 +415,220 @@ class AqaraCloudClient:
             ],
         )
 
+    async def trait_info(
+        self,
+        credentials: AqaraCloudCredentials,
+        *,
+        model: str,
+        device_id: str,
+    ) -> list[AqaraTraitInfo]:
+        cache_key = f"{credentials.region}:{model}:{device_id if str(model).lower().startswith('aqara.matter') else ''}"
+        cached = self._trait_cache.get(cache_key)
+        if cached is not None:
+            return cached
+        if str(model).lower().startswith("aqara.matter"):
+            result = await self._request_intent(
+                credentials,
+                intent="spec.query.specdevice.config",
+                data={"dids": [device_id]},
+            )
+            data = result.get("data") if isinstance(result, dict) else None
+            configs = data if isinstance(data, list) else []
+        else:
+            result = await self._request_intent(
+                credentials,
+                intent="spec.query.qlinkmodel.config",
+                data={"models": [model]},
+            )
+            data = result.get("data") if isinstance(result, dict) else None
+            config = data.get(model) if isinstance(data, dict) else None
+            configs = [config] if isinstance(config, dict) else []
+
+        traits: list[AqaraTraitInfo] = []
+        for config in configs:
+            for endpoint in config.get("endpoints") if isinstance(config.get("endpoints"), list) else []:
+                if not isinstance(endpoint, dict):
+                    continue
+                endpoint_id = _coerce_int(endpoint.get("endpointId"))
+                if endpoint_id is None:
+                    continue
+                for function in endpoint.get("functions") if isinstance(endpoint.get("functions"), list) else []:
+                    if not isinstance(function, dict):
+                        continue
+                    function_code = str(function.get("functionCode") or "").strip()
+                    for item in function.get("traits") if isinstance(function.get("traits"), list) else []:
+                        if not isinstance(item, dict):
+                            continue
+                        trait_code = str(item.get("traitCode") or "").strip()
+                        parameter = item.get("parameter") or item.get("attribute")
+                        if not trait_code or not isinstance(parameter, dict):
+                            continue
+                        raw_values = parameter.get("supportedValues") or parameter.get("enums")
+                        supported_values: dict[str, str] = {}
+                        if isinstance(raw_values, list):
+                            for enum_item in raw_values:
+                                if not isinstance(enum_item, dict):
+                                    continue
+                                key = str(enum_item.get("key") or "").strip()
+                                raw_value = enum_item.get("value")
+                                value = str(raw_value).strip() if raw_value is not None else ""
+                                if key and value and key not in supported_values:
+                                    supported_values[key] = value
+                        traits.append(
+                            AqaraTraitInfo(
+                                endpoint_id=endpoint_id,
+                                function_code=function_code,
+                                trait_code=trait_code,
+                                readable=bool(parameter.get("readable")),
+                                writable=bool(parameter.get("writable")),
+                                subscribable=bool(parameter.get("subscribable") or parameter.get("reportable")),
+                                value_type=str(parameter.get("type") or parameter.get("format") or "").strip() or None,
+                                unit=str(parameter.get("unit") or "").strip() or None,
+                                min_value=_coerce_number(parameter.get("min")),
+                                max_value=_coerce_number(parameter.get("max")),
+                                step=_coerce_number(parameter.get("step")),
+                                default_value=parameter.get("defaultValue"),
+                                supported_values=supported_values,
+                            )
+                        )
+        self._trait_cache[cache_key] = traits
+        return traits
+
+    async def trait_values(
+        self,
+        credentials: AqaraCloudCredentials,
+        *,
+        device_id: str,
+        traits: list[AqaraTraitInfo],
+    ) -> list[AqaraTraitValue]:
+        readable = [trait for trait in traits if trait.readable][:50]
+        if not readable:
+            return []
+        result = await self._request_intent(
+            credentials,
+            intent="spec.query.trait",
+            data={
+                "traits": [
+                    {
+                        "deviceId": device_id,
+                        "endpointId": trait.endpoint_id,
+                        "functionCode": trait.function_code,
+                        "traitCode": trait.trait_code,
+                    }
+                    for trait in readable
+                ]
+            },
+        )
+        data = result.get("data") if isinstance(result, dict) else None
+        values: list[AqaraTraitValue] = []
+        for item in data if isinstance(data, list) else []:
+            if not isinstance(item, dict) or str(item.get("deviceId") or "").strip() != device_id:
+                continue
+            values.append(
+                AqaraTraitValue(
+                    endpoint_id=_coerce_int(item.get("endpointId")) or 0,
+                    function_code=str(item.get("functionCode") or "").strip(),
+                    trait_code=str(item.get("traitCode") or "").strip(),
+                    value=item.get("value"),
+                    timestamp_ms=_coerce_int(item.get("time")),
+                )
+            )
+        return values
+
+    async def write_trait(
+        self,
+        credentials: AqaraCloudCredentials,
+        *,
+        device_id: str,
+        endpoint_id: int,
+        function_code: str,
+        trait_code: str,
+        value: Any,
+    ) -> None:
+        await self._request_intent(
+            credentials,
+            intent="spec.write.trait",
+            data={
+                "traits": [
+                    {
+                        "deviceId": device_id,
+                        "endpointId": endpoint_id,
+                        "functionCode": function_code,
+                        "traitCode": trait_code,
+                        "value": value,
+                    }
+                ]
+            },
+        )
+
+    async def subscribe_traits(
+        self,
+        credentials: AqaraCloudCredentials,
+        *,
+        traits: list[dict[str, Any]],
+    ) -> None:
+        await self._request_intent(
+            credentials,
+            intent="spec.config.trait.subscribe",
+            data={"traits": traits},
+        )
+
+    async def unsubscribe_traits(
+        self,
+        credentials: AqaraCloudCredentials,
+        *,
+        traits: list[dict[str, Any]],
+    ) -> None:
+        await self._request_intent(
+            credentials,
+            intent="spec.config.trait.unsubscribe",
+            data={"traits": traits},
+        )
+
+    async def list_scenes(
+        self,
+        credentials: AqaraCloudCredentials,
+        *,
+        subject_id: str,
+    ) -> list[AqaraScene]:
+        result = await self._request_intent(
+            credentials,
+            intent="query.scene.listBySubjectId",
+            data={"subjectId": subject_id},
+        )
+        raw_items = result.get("data") if isinstance(result, dict) else result
+        scenes: list[AqaraScene] = []
+        seen_ids: set[str] = set()
+        for item in raw_items if isinstance(raw_items, list) else []:
+            if not isinstance(item, dict):
+                continue
+            scene_id = str(item.get("sceneId") or "").strip()
+            name = str(item.get("name") or "").strip()
+            if not scene_id or not name or scene_id in seen_ids:
+                continue
+            seen_ids.add(scene_id)
+            scenes.append(
+                AqaraScene(
+                    scene_id=scene_id,
+                    name=name,
+                    model=str(item.get("model") or "").strip() or None,
+                    localize=_coerce_int(item.get("localize") if item.get("localize") is not None else item.get("localizd")),
+                )
+            )
+        return scenes
+
+    async def run_scene(
+        self,
+        credentials: AqaraCloudCredentials,
+        *,
+        scene_id: str,
+    ) -> None:
+        await self._request_intent(
+            credentials,
+            intent="config.scene.run",
+            data={"sceneId": scene_id},
+        )
+
     async def subscribe_resources(
         self,
         credentials: AqaraCloudCredentials,
@@ -437,6 +661,16 @@ def _coerce_int(value: Any) -> int | None:
         return int(str(value).strip())
     except (TypeError, ValueError):
         return None
+
+
+def _coerce_number(value: Any) -> int | float | None:
+    if value is None:
+        return None
+    try:
+        numeric = float(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+    return int(numeric) if numeric.is_integer() else numeric
 
 
 def _validate_token_response(tokens: AqaraAuthTokens, *, operation: str) -> None:

@@ -1,0 +1,127 @@
+{
+  "schema_version": 1,
+  "sources": {
+    "aqara_traits": "https://opendoc.aqara.com/en/docs/developmanual/apiDocument/trait-codes.html",
+    "aqara_resources": "https://opendoc.aqara.com/en/docs/developmanual/apiDocument/ResourceManagement.html",
+    "aqara_scenes": "https://opendoc.aqara.com/en/docs/developmanual/apiDocument/SceneManagement.html"
+  },
+  "families": [
+    {
+      "id": "environment-and-safety",
+      "status": "implemented",
+      "scope": ["climate-sensors", "air-quality-monitors", "motion-and-presence", "contact", "leak", "smoke", "gas", "carbon-monoxide"],
+      "source_refs": ["aqara_traits", "aqara_resources"],
+      "state": ["temperature_c", "humidity_percent", "pressure_hpa", "battery_percent", "battery_low", "illuminance_lux", "motion_detected", "presence_detected", "contact_open", "leak_detected", "smoke_alarm", "gas_alarm", "carbon_monoxide_detected", "co2_ppm", "voc_ppb", "pm1_ugm3", "pm25_ugm3", "pm10_ugm3"],
+      "actions": [],
+      "reason": "Readable resources are negotiated per model and normalized only when Aqara advertises matching resource metadata."
+    },
+    {
+      "id": "switches-plugs-and-energy",
+      "status": "implemented",
+      "scope": ["switches", "plugs", "relays", "energy-reporting-loads"],
+      "source_refs": ["aqara_traits", "aqara_resources"],
+      "state": ["switch_on", "power_w", "energy_kwh", "voltage_v", "current_a", "frequency_hz", "power_factor"],
+      "actions": ["turn_on", "turn_off"],
+      "reason": "Writes are exposed only for resources whose Aqara access metadata marks them writable."
+    },
+    {
+      "id": "lighting",
+      "status": "implemented",
+      "scope": ["on-off", "dimmable", "tunable-white", "color-light"],
+      "source_refs": ["aqara_traits", "aqara_resources"],
+      "state": ["switch_on", "brightness_percent", "color_temperature", "hue_degrees", "saturation_percent"],
+      "actions": ["turn_on", "turn_off", "set_brightness", "set_color_temperature", "set_hue", "set_saturation"],
+      "reason": "Aqara documents OnOff, CurrentLevel, ColorTemperature, Hue, and Saturation as readable, writable, and reportable traits. Color-temperature writes additionally require device-advertised bounds."
+    },
+    {
+      "id": "covers",
+      "status": "implemented",
+      "scope": ["curtains", "shades", "window-openers"],
+      "source_refs": ["aqara_traits", "aqara_resources"],
+      "state": ["cover_position", "cover_movement_state"],
+      "actions": ["open", "close", "set_position", "stop_cover"],
+      "reason": "Position writes are bounded to the writable resource range. Stop is exposed only when resource enum metadata explicitly advertises stop, pause, or hold."
+    },
+    {
+      "id": "thermostats",
+      "status": "implemented",
+      "scope": ["thermostats", "radiator-thermostats"],
+      "source_refs": ["aqara_traits", "aqara_resources"],
+      "state": ["temperature_c", "target_temperature_c", "humidity_percent", "battery_percent", "hvac_mode", "fan_mode", "swing_mode", "airflow_direction"],
+      "actions": ["set_temperature", "set_hvac_mode", "set_fan_mode", "set_swing_mode", "set_airflow_direction"],
+      "reason": "SetTemperature requires explicit resource bounds. Modes and airflow controls are exposed only from writable trait definitions with unambiguous supportedValues metadata."
+    },
+    {
+      "id": "fans-and-air-purifiers",
+      "status": "implemented",
+      "scope": ["fans", "air-purifiers"],
+      "source_refs": ["aqara_traits", "aqara_resources"],
+      "state": ["switch_on", "fan_speed_percent", "filter_life_percent", "pm25_ugm3", "fan_mode", "swing_mode", "airflow_direction"],
+      "actions": ["turn_on", "turn_off", "set_fan_speed", "set_fan_mode", "set_swing_mode", "set_airflow_direction"],
+      "reason": "FanSpeed is bounded as a percentage. Enum controls require writable trait definitions with unambiguous supportedValues metadata."
+    },
+    {
+      "id": "locks-and-access-observation",
+      "status": "implemented",
+      "scope": ["door-locks"],
+      "source_refs": ["aqara_traits"],
+      "state": ["locked", "contact_open", "tamper_detected", "lock_jammed", "battery_percent"],
+      "actions": [],
+      "reason": "Read-only state and security events are implemented."
+    },
+    {
+      "id": "remote-unlock",
+      "status": "excluded",
+      "scope": ["door-locks"],
+      "source_refs": ["aqara_traits"],
+      "state": [],
+      "actions": ["remote_unlock"],
+      "reason": "RemoteUnlock requires a dedicated authorization, confirmation, anti-replay, and audit review."
+    },
+    {
+      "id": "camera-and-doorbell-observation",
+      "status": "implemented",
+      "scope": ["camera-hubs", "doorbell-cameras"],
+      "source_refs": ["aqara_traits"],
+      "state": ["motion_detected", "person_detected", "audio_detected", "doorbell_pressed", "privacy_mode", "recording_enabled"],
+      "actions": [],
+      "reason": "Observation and events are implemented through readable resources and push reports."
+    },
+    {
+      "id": "camera-control-and-media",
+      "status": "planned",
+      "scope": ["camera-hubs", "doorbell-cameras"],
+      "source_refs": ["aqara_traits"],
+      "state": [],
+      "actions": ["stream", "snapshot", "two_way_talk", "set_recording", "set_privacy_mode"],
+      "reason": "Streaming, snapshots, talk, recording control, and privacy control require the separate Aqara camera SDK/API surface."
+    },
+    {
+      "id": "buttons-remotes-and-scenes",
+      "status": "implemented",
+      "scope": ["buttons", "rotary-controls", "cubes", "vibration-sensors", "device-associated-scenes"],
+      "source_refs": ["aqara_traits", "aqara_scenes"],
+      "state": [],
+      "actions": ["run_scene"],
+      "reason": "Button, rotation, cube, and vibration events are subscribed only from reportable model traits and decoded only through vendor-advertised enum values. Scene execution accepts only opaque selectors mapped to scene IDs returned by Aqara for the configured device."
+    },
+    {
+      "id": "dynamic-endpoint-gating",
+      "status": "implemented",
+      "scope": ["non-matter-devices-advertising-SupportedEndpointDynamic"],
+      "source_refs": ["aqara_traits"],
+      "state": [],
+      "actions": [],
+      "reason": "When enabled by model metadata, EndpointArrayDynamic filters state and controls to currently available endpoints; malformed non-empty endpoint lists and commands that remain ambiguous across multiple endpoints fail closed."
+    },
+    {
+      "id": "enum-and-complex-traits",
+      "status": "planned",
+      "scope": ["robot-vacuums", "media", "ir", "pet-feeders", "garage-doors"],
+      "source_refs": ["aqara_traits"],
+      "state": [],
+      "actions": [],
+      "reason": "These remaining traits require additional per-model enum, command, complex-value, or dynamic-endpoint handling and must not be guessed."
+    }
+  ]
+}

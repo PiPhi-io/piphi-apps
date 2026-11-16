@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 import httpx
 import pytest
 
@@ -103,6 +105,139 @@ async def test_list_devices_and_resource_reads_are_signed() -> None:
     assert values[0].value == "22.5"
     assert all("appid" in headers and "keyid" in headers and "sign" in headers for headers in seen_headers)
     assert all(headers.get("accesstoken") == "access-token-1" for headers in seen_headers)
+
+
+@pytest.mark.asyncio
+async def test_trait_metadata_values_and_writes_use_documented_intents() -> None:
+    seen_intents: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        payload = request.read().decode("utf-8").replace(" ", "")
+        if '"intent":"spec.query.qlinkmodel.config"' in payload:
+            seen_intents.append("spec.query.qlinkmodel.config")
+            result = {
+                "data": {
+                    "lumi.airrtc.test": {
+                        "model": "lumi.airrtc.test",
+                        "endpoints": [
+                            {
+                                "endpointId": 1,
+                                "functions": [
+                                    {
+                                        "functionCode": "Thermostat",
+                                        "traits": [
+                                            {
+                                                "traitCode": "HeaterCoolerMode",
+                                                "parameter": {
+                                                    "readable": True,
+                                                    "writable": True,
+                                                    "reportable": True,
+                                                    "type": "Enum",
+                                                    "supportedValues": [
+                                                        {"key": "Off", "value": "0"},
+                                                        {"key": "Heat", "value": "1"},
+                                                    ],
+                                                },
+                                            }
+                                        ],
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                }
+            }
+        elif '"intent":"spec.query.trait"' in payload:
+            seen_intents.append("spec.query.trait")
+            result = {
+                "data": [
+                    {
+                        "deviceId": "lumi.airrtc.1",
+                        "endpointId": 1,
+                        "functionCode": "Thermostat",
+                        "traitCode": "HeaterCoolerMode",
+                        "value": "1",
+                        "time": 1710000000000,
+                    }
+                ]
+            }
+        elif '"intent":"spec.write.trait"' in payload:
+            seen_intents.append("spec.write.trait")
+            result = {"data": []}
+        else:
+            raise AssertionError(payload)
+        return httpx.Response(200, json={"code": 0, "message": "Success", "result": result})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http_client:
+        client = AqaraCloudClient(http_client=http_client)
+        traits = await client.trait_info(
+            build_credentials(),
+            model="lumi.airrtc.test",
+            device_id="lumi.airrtc.1",
+        )
+        values = await client.trait_values(
+            build_credentials(),
+            device_id="lumi.airrtc.1",
+            traits=traits,
+        )
+        await client.write_trait(
+            build_credentials(),
+            device_id="lumi.airrtc.1",
+            endpoint_id=1,
+            function_code="Thermostat",
+            trait_code="HeaterCoolerMode",
+            value="0",
+        )
+
+    assert traits[0].supported_values == {"Off": "0", "Heat": "1"}
+    assert traits[0].writable is True
+    assert traits[0].subscribable is True
+    assert values[0].value == "1"
+    assert seen_intents == ["spec.query.qlinkmodel.config", "spec.query.trait", "spec.write.trait"]
+
+
+@pytest.mark.asyncio
+async def test_trait_subscriptions_and_scene_intents_use_documented_payloads() -> None:
+    seen: list[tuple[str, dict]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.read().decode("utf-8"))
+        seen.append((body["intent"], body["data"]))
+        if body["intent"] == "query.scene.listBySubjectId":
+            result = [
+                {
+                    "sceneId": "AL.829804945617997824",
+                    "name": "Movie Time",
+                    "model": "app.scene.v1",
+                    "localize": 0,
+                }
+            ]
+        else:
+            result = None
+        return httpx.Response(200, json={"code": 0, "message": "Success", "result": result})
+
+    traits = [{"deviceId": "lumi.remote.1", "codePaths": ["1.Button.ButtonEvent"], "attach": "cfg-1"}]
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http_client:
+        client = AqaraCloudClient(http_client=http_client)
+        credentials = build_credentials()
+        await client.subscribe_traits(credentials, traits=traits)
+        await client.unsubscribe_traits(
+            credentials,
+            traits=[{"deviceId": "lumi.remote.1", "codePaths": ["1.Button.ButtonEvent"]}],
+        )
+        scenes = await client.list_scenes(credentials, subject_id="lumi.remote.1")
+        await client.run_scene(credentials, scene_id=scenes[0].scene_id)
+
+    assert scenes[0].name == "Movie Time"
+    assert seen == [
+        ("spec.config.trait.subscribe", {"traits": traits}),
+        (
+            "spec.config.trait.unsubscribe",
+            {"traits": [{"deviceId": "lumi.remote.1", "codePaths": ["1.Button.ButtonEvent"]}]},
+        ),
+        ("query.scene.listBySubjectId", {"subjectId": "lumi.remote.1"}),
+        ("config.scene.run", {"sceneId": "AL.829804945617997824"}),
+    ]
 
 
 @pytest.mark.asyncio

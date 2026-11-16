@@ -18,8 +18,57 @@ def test_manifest_and_behaviors_align() -> None:
     assert manifest["id"] == "aqara-open-api"
     assert manifest["api"]["endpoints"]["config_sync"] == "/configs/sync"
     assert behavior_capabilities == manifest_capabilities
-    assert {"refresh", "turn_on", "turn_off", "open", "close", "set_position", "set_brightness"} <= behavior_actions
-    assert "stop" not in behavior_actions
+    assert {
+        "refresh",
+        "turn_on",
+        "turn_off",
+        "open",
+        "close",
+        "set_position",
+        "set_brightness",
+        "set_color_temperature",
+        "set_hue",
+        "set_saturation",
+        "set_temperature",
+        "set_fan_speed",
+        "set_hvac_mode",
+        "set_fan_mode",
+        "set_swing_mode",
+        "set_airflow_direction",
+        "stop_cover",
+        "run_scene",
+    } == behavior_actions
+    behavior_triggers = {
+        item["runtime"]["event"]
+        for item in behaviors["devices"][0]["triggers"]
+    }
+    assert {
+        "device.state_changed",
+        "aqara.button.event",
+        "aqara.rotation.event",
+        "aqara.cube.event",
+        "aqara.vibration.event",
+    } == behavior_triggers
+
+
+def test_capability_catalog_matches_runtime_contract() -> None:
+    package_root = Path(__file__).resolve().parents[1]
+    source_root = package_root / "src"
+    catalog = json.loads((package_root / "capability-catalog.json").read_text())
+    manifest = json.loads((source_root / "manifest.json").read_text())
+    behaviors = json.loads((source_root / "behaviors.json").read_text())
+
+    manifest_capabilities = set(manifest["entities"][0]["capabilities"])
+    behavior_actions = {action["id"] for action in behaviors["devices"][0]["actions"]}
+    family_ids = [family["id"] for family in catalog["families"]]
+
+    assert len(family_ids) == len(set(family_ids))
+    for family in catalog["families"]:
+        if family["status"] == "implemented":
+            assert set(family["state"]) <= manifest_capabilities
+            assert set(family["actions"]) <= behavior_actions
+        else:
+            assert not set(family["actions"]) & behavior_actions
 
 
 def test_manifest_declares_auditable_core_security_event_coverage() -> None:

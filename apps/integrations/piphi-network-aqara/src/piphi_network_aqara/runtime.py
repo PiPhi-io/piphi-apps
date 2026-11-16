@@ -56,7 +56,16 @@ from .cloud.client import (
     AqaraCloudRateLimitError,
     AqaraCloudRequestError,
 )
-from .cloud.models import AqaraAuthTokens, AqaraCloudCredentials, AqaraCloudDevice, AqaraResourceInfo, AqaraResourceValue
+from .cloud.models import (
+    AqaraAuthTokens,
+    AqaraCloudCredentials,
+    AqaraCloudDevice,
+    AqaraResourceInfo,
+    AqaraResourceValue,
+    AqaraScene,
+    AqaraTraitInfo,
+    AqaraTraitValue,
+)
 from .cloud.registry import capability_for_resource, command_bindings_for_capabilities
 from .manifest import load_manifest
 from .security import redact_recursive
@@ -92,7 +101,26 @@ config_sync = starter.config_sync
 cloud_client = AqaraCloudClient()
 router = APIRouter()
 AUTOMATION_COMMANDS = frozenset(
-    {"close", "open", "refresh", "set_brightness", "set_position", "turn_off", "turn_on"}
+    {
+        "close",
+        "open",
+        "refresh",
+        "run_scene",
+        "set_brightness",
+        "set_color_temperature",
+        "set_fan_speed",
+        "set_fan_mode",
+        "set_hvac_mode",
+        "set_hue",
+        "set_position",
+        "set_saturation",
+        "set_swing_mode",
+        "set_temperature",
+        "set_airflow_direction",
+        "stop_cover",
+        "turn_off",
+        "turn_on",
+    }
 )
 _automation_ledger_path = Path(
     os.getenv(
@@ -131,12 +159,19 @@ CAPABILITY_UNITS = {
     "co2_ppm": "ppm",
     "voc_ppb": "ppb",
     "pm25_ugm3": "ug/m3",
+    "pm1_ugm3": "ug/m3",
+    "pm10_ugm3": "ug/m3",
     "power_w": "W",
     "energy_kwh": "kWh",
     "voltage_v": "V",
     "current_a": "A",
     "frequency_hz": "Hz",
     "brightness_percent": "%",
+    "hue_degrees": "deg",
+    "saturation_percent": "%",
+    "target_temperature_c": "C",
+    "fan_speed_percent": "%",
+    "filter_life_percent": "%",
     "cover_position": "%",
 }
 BOOLEAN_CAPABILITIES = {
@@ -156,12 +191,32 @@ BOOLEAN_CAPABILITIES = {
     "battery_low",
     "tamper_detected",
     "lock_jammed",
+    "carbon_monoxide_detected",
     "connected",
 }
 DEFAULT_ALLOWED_WIDGETS = ["sensor-card", "stat", "line-chart", "tile"]
 ELECTRICAL_CAPABILITIES = {"power_w", "energy_kwh", "voltage_v", "current_a", "frequency_hz", "power_factor"}
 CAMERA_WIDGET_CAPABILITIES = {"privacy_mode", "recording_enabled", "person_detected", "audio_detected", "doorbell_pressed"}
 CAMERA_EVENT_CAPABILITIES = {"motion_detected", "person_detected", "audio_detected", "doorbell_pressed"}
+TRAIT_CAPABILITIES = {
+    "HeaterCoolerMode": "hvac_mode",
+    "FanMode": "fan_mode",
+    "RockSetting": "swing_mode",
+    "AirflowDirection": "airflow_direction",
+    "MotorOperationStatus": "cover_movement_state",
+}
+TRAIT_COMMANDS = {
+    "HeaterCoolerMode": ("set_hvac_mode", "mode"),
+    "FanMode": ("set_fan_mode", "mode"),
+    "RockSetting": ("set_swing_mode", "mode"),
+    "AirflowDirection": ("set_airflow_direction", "direction"),
+}
+TRAIT_EVENT_TYPES = {
+    "ButtonEvent": "aqara.button.event",
+    "RotationEvent": "aqara.rotation.event",
+    "CubeEvent": "aqara.cube.event",
+    "VibrationEvent": "aqara.vibration.event",
+}
 
 
 class AqaraCloudConfig(RuntimeConfig):
@@ -555,8 +610,12 @@ def _capability_widgets(capabilities: list[str]) -> list[str]:
 
     if "cover_position" in capability_set:
         return ordered("cover-card", "tile", "sensor-card")
-    if "switch_on" in capability_set and "brightness_percent" in capability_set:
+    if capability_set & {"brightness_percent", "color_temperature", "hue_degrees", "saturation_percent"}:
         return ordered("light-card", "tile", "sensor-card")
+    if capability_set & {"target_temperature_c", "hvac_mode"}:
+        return ordered("thermostat", "room-climate-card", "tile", "sensor-card")
+    if capability_set & {"fan_speed_percent", "filter_life_percent"}:
+        return ordered("fan", "air-quality-card", "tile", "sensor-card")
     if "switch_on" in capability_set:
         if capability_set & ELECTRICAL_CAPABILITIES:
             return ordered("tile", "stat", "line-chart", "sensor-card")
@@ -573,13 +632,13 @@ def _capability_widgets(capabilities: list[str]) -> list[str]:
         return ordered("access-control-card", "tile", "sensor-card")
     if "battery_low" in capability_set:
         return ordered("device-health-card", "maintenance-card", "tile", "sensor-card")
-    if capability_set & {"leak_detected", "smoke_alarm", "gas_alarm"}:
+    if capability_set & {"leak_detected", "smoke_alarm", "gas_alarm", "carbon_monoxide_detected"}:
         return ordered("safety-overview-card", "sensor-card", "tile")
-    if capability_set & {"temperature_c", "humidity_percent", "co2_ppm", "voc_ppb", "pm25_ugm3"}:
+    if capability_set & {"temperature_c", "humidity_percent", "co2_ppm", "voc_ppb", "pm1_ugm3", "pm25_ugm3", "pm10_ugm3"}:
         widgets: list[str] = []
         if capability_set & {"temperature_c", "humidity_percent"}:
             widgets.append("room-climate-card")
-        if capability_set & {"co2_ppm", "voc_ppb", "pm25_ugm3"}:
+        if capability_set & {"co2_ppm", "voc_ppb", "pm1_ugm3", "pm25_ugm3", "pm10_ugm3"}:
             widgets.append("air-quality-card")
         widgets.extend(["sensor-card", "stat", "line-chart"])
         return ordered(*widgets)
@@ -618,6 +677,202 @@ def _normalize_capability_value(capability: str, raw_value: str) -> Any:
     return raw_value
 
 
+def _normalized_enum_label(value: Any) -> str:
+    text = "".join(character.lower() if character.isalnum() else "_" for character in str(value).strip())
+    return "_".join(part for part in text.split("_") if part)
+
+
+def _trait_enum_values(trait: AqaraTraitInfo) -> dict[str, str]:
+    values: dict[str, str] = {}
+    for label, raw_value in trait.supported_values.items():
+        normalized = _normalized_enum_label(label)
+        raw_text = str(raw_value)
+        if not normalized or normalized in values or raw_text in values.values():
+            return {}
+        values[normalized] = raw_text
+    return values
+
+
+def _trait_code_path(trait: AqaraTraitInfo) -> str:
+    return f"{trait.endpoint_id}.{trait.function_code}.{trait.trait_code}"
+
+
+def _serialize_trait_info(trait: AqaraTraitInfo) -> dict[str, Any]:
+    return {
+        "endpoint_id": trait.endpoint_id,
+        "function_code": trait.function_code,
+        "trait_code": trait.trait_code,
+        "readable": trait.readable,
+        "writable": trait.writable,
+        "subscribable": trait.subscribable,
+        "value_type": trait.value_type,
+        "unit": trait.unit,
+        "min_value": trait.min_value,
+        "max_value": trait.max_value,
+        "step": trait.step,
+        "default_value": trait.default_value,
+        "supported_values": dict(trait.supported_values),
+    }
+
+
+def _build_trait_push_bindings(traits: list[AqaraTraitInfo]) -> dict[str, dict[str, Any]]:
+    state_sources: dict[str, list[AqaraTraitInfo]] = {}
+    for trait in traits:
+        capability = TRAIT_CAPABILITIES.get(trait.trait_code)
+        if trait.subscribable and capability:
+            state_sources.setdefault(capability, []).append(trait)
+
+    bindings: dict[str, dict[str, Any]] = {}
+    for capability, candidates in state_sources.items():
+        if len(candidates) != 1:
+            continue
+        trait = candidates[0]
+        enum_values = _trait_enum_values(trait)
+        if not enum_values:
+            continue
+        bindings[_trait_code_path(trait)] = {
+            "endpoint_id": trait.endpoint_id,
+            "function_code": trait.function_code,
+            "trait_code": trait.trait_code,
+            "capability": capability,
+            "enum_values": enum_values,
+        }
+
+    for trait in traits:
+        event_type = TRAIT_EVENT_TYPES.get(trait.trait_code)
+        if not trait.subscribable or not event_type:
+            continue
+        enum_values = _trait_enum_values(trait)
+        if not enum_values:
+            continue
+        path = _trait_code_path(trait)
+        if path in bindings:
+            continue
+        bindings[path] = {
+            "endpoint_id": trait.endpoint_id,
+            "function_code": trait.function_code,
+            "trait_code": trait.trait_code,
+            "event_type": event_type,
+            "enum_values": enum_values,
+        }
+    return bindings
+
+
+def _scene_selector(scene_id: str) -> str:
+    return f"scene_{hashlib.sha256(scene_id.encode('utf-8')).hexdigest()[:16]}"
+
+
+def _cache_discovered_scenes(entry: dict[str, Any], scenes: list[AqaraScene]) -> None:
+    candidates: dict[str, list[AqaraScene]] = {}
+    for scene in scenes:
+        candidates.setdefault(_scene_selector(scene.scene_id), []).append(scene)
+    cached = {
+        selector: {
+            "scene_id": items[0].scene_id,
+            "name": items[0].name,
+            "model": items[0].model,
+            "localize": items[0].localize,
+        }
+        for selector, items in candidates.items()
+        if len(items) == 1
+    }
+    entry["scenes"] = cached
+    command_bindings = dict(entry.get("command_bindings") or {})
+    if cached:
+        command_bindings["run_scene"] = {
+            "transport": "scene",
+            "argument": "scene",
+            "scenes": cached,
+        }
+    else:
+        command_bindings.pop("run_scene", None)
+    entry["command_bindings"] = command_bindings
+
+
+def _build_trait_snapshot(
+    *,
+    traits: list[AqaraTraitInfo],
+    values: list[AqaraTraitValue],
+) -> dict[str, Any]:
+    info_by_key = {
+        (trait.endpoint_id, trait.function_code, trait.trait_code): trait
+        for trait in traits
+    }
+    state: dict[str, Any] = {}
+    capabilities: set[str] = set()
+    command_bindings: dict[str, dict[str, Any]] = {}
+    capability_sources: dict[str, set[tuple[int, str, str]]] = {}
+    for trait in traits:
+        capability = TRAIT_CAPABILITIES.get(trait.trait_code)
+        if capability:
+            capability_sources.setdefault(capability, set()).add(
+                (trait.endpoint_id, trait.function_code, trait.trait_code)
+            )
+    ambiguous_capabilities = {
+        capability for capability, sources in capability_sources.items() if len(sources) > 1
+    }
+    for value in values:
+        info = info_by_key.get((value.endpoint_id, value.function_code, value.trait_code))
+        capability = TRAIT_CAPABILITIES.get(value.trait_code)
+        if info is None or capability is None or capability in state or capability in ambiguous_capabilities:
+            continue
+        enum_values = _trait_enum_values(info)
+        if not enum_values:
+            continue
+        raw_value = str(value.value)
+        label = next((candidate for candidate, raw in enum_values.items() if raw == raw_value), None)
+        if label is None:
+            continue
+        state[capability] = label
+        capabilities.add(capability)
+
+    command_candidates: dict[str, list[dict[str, Any]]] = {}
+    for trait in traits:
+        command = TRAIT_COMMANDS.get(trait.trait_code)
+        if command is None or not trait.writable:
+            continue
+        enum_values = _trait_enum_values(trait)
+        if not enum_values:
+            continue
+        command_id, argument = command
+        command_candidates.setdefault(command_id, []).append({
+            "transport": "trait",
+            "endpoint_id": trait.endpoint_id,
+            "function_code": trait.function_code,
+            "trait_code": trait.trait_code,
+            "argument": argument,
+            "enum_values": enum_values,
+        })
+    for command_id, candidates in command_candidates.items():
+        if len(candidates) == 1:
+            command_bindings[command_id] = candidates[0]
+    return {
+        "state": state,
+        "capabilities": sorted(capabilities),
+        "command_bindings": command_bindings,
+    }
+
+
+def _filter_available_dynamic_endpoints(
+    traits: list[AqaraTraitInfo],
+    values: list[AqaraTraitValue],
+) -> list[AqaraTraitInfo]:
+    dynamic_support = next((trait for trait in traits if trait.trait_code == "SupportedEndpointDynamic"), None)
+    if dynamic_support is None or str(dynamic_support.default_value).strip().lower() not in {"1", "true"}:
+        return traits
+    dynamic_value = next((value for value in values if value.trait_code == "EndpointArrayDynamic"), None)
+    if dynamic_value is None or dynamic_value.value in (None, ""):
+        return traits
+    try:
+        decoded = json.loads(str(dynamic_value.value))
+        available = {int(item) for item in decoded} if isinstance(decoded, list) else set()
+    except (TypeError, ValueError, json.JSONDecodeError):
+        available = set()
+    if not available:
+        return [trait for trait in traits if trait.endpoint_id == 0]
+    return [trait for trait in traits if trait.endpoint_id in available]
+
+
 def _filtered_telemetry_payload(
     *,
     metrics: dict[str, Any],
@@ -643,8 +898,15 @@ def _resource_bindings_for_subscription(entry: dict[str, Any]) -> list[dict[str,
     resource_ids = sorted(
         {
             str(resource_id).strip()
-            for resource_id in (entry.get("capability_bindings") or {}).values()
-            if str(resource_id).strip()
+            for resource_id in [
+                *(entry.get("capability_bindings") or {}).values(),
+                *(
+                    binding.get("resource_id")
+                    for binding in (entry.get("command_bindings") or {}).values()
+                    if isinstance(binding, dict)
+                ),
+            ]
+            if resource_id is not None and str(resource_id).strip()
         }
     )
     if not resource_ids:
@@ -653,6 +915,26 @@ def _resource_bindings_for_subscription(entry: dict[str, Any]) -> list[dict[str,
         {
             "subjectId": str(entry["did"]),
             "resourceIds": resource_ids,
+            "attach": str(entry.get("config_id") or ""),
+        }
+    ]
+
+
+def _trait_bindings_for_subscription(entry: dict[str, Any]) -> list[dict[str, Any]]:
+    bindings = entry.get("trait_bindings")
+    if not isinstance(bindings, dict) or not bindings:
+        return []
+    code_paths = sorted(
+        path
+        for path, binding in bindings.items()
+        if isinstance(path, str) and path.strip() and isinstance(binding, dict)
+    )
+    if not code_paths:
+        return []
+    return [
+        {
+            "deviceId": str(entry["did"]),
+            "codePaths": code_paths,
             "attach": str(entry.get("config_id") or ""),
         }
     ]
@@ -742,6 +1024,45 @@ async def _sync_resource_subscription(entry: dict[str, Any], *, subscribe: bool)
         )
 
 
+async def _sync_trait_subscription(entry: dict[str, Any], *, subscribe: bool) -> None:
+    traits = _trait_bindings_for_subscription(entry)
+    if not traits:
+        return
+    credentials = _entry_credentials(entry)
+    try:
+        if subscribe:
+            await cloud_client.subscribe_traits(credentials, traits=traits)
+        else:
+            unsubscribe_payload = [
+                {"deviceId": item["deviceId"], "codePaths": item["codePaths"]}
+                for item in traits
+            ]
+            await cloud_client.unsubscribe_traits(credentials, traits=unsubscribe_payload)
+    except AqaraCloudError as exc:
+        logger.warning(
+            "Aqara trait subscription sync failed subscribe=%s ref=%s error=%s",
+            subscribe,
+            _entry_log_ref(entry),
+            _safe_error(exc),
+        )
+
+
+async def _refresh_scene_bindings(entry: dict[str, Any]) -> None:
+    async def operation(credentials: AqaraCloudCredentials) -> list[AqaraScene]:
+        return await cloud_client.list_scenes(credentials, subject_id=str(entry["did"]))
+
+    try:
+        scenes = await _call_with_entry_refresh(entry, operation)
+    except AqaraCloudRequestError as exc:
+        logger.warning(
+            "Aqara scene discovery unavailable ref=%s error=%s",
+            _entry_log_ref(entry),
+            _safe_error(exc),
+        )
+        return
+    _cache_discovered_scenes(entry, scenes)
+
+
 def _schedule_state_telemetry(
     *,
     entry: dict[str, Any],
@@ -774,6 +1095,17 @@ def _iso_timestamp_from_millis(raw_time: Any) -> str:
     if millis <= 0:
         return datetime.now(tz=UTC).isoformat()
     return datetime.fromtimestamp(millis / 1000.0, tz=UTC).isoformat()
+
+
+def _sanitized_trigger_source(value: Any) -> dict[str, Any] | None:
+    if not isinstance(value, dict):
+        return None
+    result = {
+        key: value[key]
+        for key in ("type", "time")
+        if key in value and isinstance(value[key], (str, int, float, bool))
+    }
+    return result or None
 
 
 def _emit_transition_event(
@@ -897,9 +1229,10 @@ def _emit_device_attribute_event(
     resource_id: str,
     sampled_at: str | None,
     trigger_source: dict[str, Any] | None = None,
+    event_type: str = "aqara.resource_report",
 ) -> None:
     _schedule_runtime_event_delivery(
-        event_type="aqara.resource_report",
+        event_type=event_type,
         device=entry,
         payload={
             "capability": capability,
@@ -947,6 +1280,7 @@ def _persist_state(
             resource_id=str(resource_event.get("resource_id") or ""),
             sampled_at=str(resource_event.get("sampled_at") or current_state.get("sampled_at") or ""),
             trigger_source=resource_event.get("trigger_source") if isinstance(resource_event.get("trigger_source"), dict) else None,
+            event_type=str(resource_event.get("event_type") or "aqara.resource_report"),
         )
     _schedule_state_telemetry(
         entry=entry,
@@ -978,6 +1312,8 @@ def _build_snapshot(
     entry: dict[str, Any],
     resources: list[AqaraResourceInfo],
     values: list[AqaraResourceValue],
+    traits: list[AqaraTraitInfo] | None = None,
+    trait_values: list[AqaraTraitValue] | None = None,
 ) -> dict[str, Any]:
     capability_bindings: dict[str, str] = {}
     state: dict[str, Any] = {}
@@ -1018,20 +1354,52 @@ def _build_snapshot(
         resource_map=resource_by_id,
         capability_bindings=capability_bindings,
     )
+    trait_snapshot = _build_trait_snapshot(traits=list(traits or []), values=list(trait_values or []))
+    state.update(trait_snapshot["state"])
+    capabilities = sorted(set(capabilities) | set(trait_snapshot["capabilities"]))
+    command_bindings.update(trait_snapshot["command_bindings"])
     return {
         "state": state,
         "units": units,
         "capabilities": capabilities,
         "capability_bindings": capability_bindings,
         "command_bindings": command_bindings,
+        "trait_definitions": [_serialize_trait_info(trait) for trait in traits or []],
+        "trait_bindings": _build_trait_push_bindings(list(traits or [])),
     }
 
 
-async def _fetch_device_snapshot(entry: dict[str, Any]) -> tuple[list[AqaraResourceInfo], list[AqaraResourceValue]]:
+async def _fetch_device_snapshot(
+    entry: dict[str, Any],
+) -> tuple[list[AqaraResourceInfo], list[AqaraResourceValue], list[AqaraTraitInfo], list[AqaraTraitValue]]:
     async def operation(credentials: AqaraCloudCredentials):
         resources = await cloud_client.resource_info(credentials, model=str(entry["device_model"]))
         values = await cloud_client.resource_values(credentials, subject_id=str(entry["did"]))
-        return resources, values
+        traits: list[AqaraTraitInfo] = []
+        trait_values: list[AqaraTraitValue] = []
+        try:
+            traits = await cloud_client.trait_info(
+                credentials,
+                model=str(entry["device_model"]),
+                device_id=str(entry["did"]),
+            )
+            trait_values = await cloud_client.trait_values(
+                credentials,
+                device_id=str(entry["did"]),
+                traits=[
+                    trait
+                    for trait in traits
+                    if trait.trait_code in TRAIT_CAPABILITIES or trait.trait_code == "EndpointArrayDynamic"
+                ],
+            )
+            traits = _filter_available_dynamic_endpoints(traits, trait_values)
+        except AqaraCloudRequestError as exc:
+            logger.warning(
+                "Aqara trait negotiation unavailable ref=%s error=%s",
+                _entry_log_ref(entry),
+                _safe_error(exc),
+            )
+        return resources, values, traits, trait_values
 
     return await _call_with_entry_refresh(entry, operation)
 
@@ -1040,6 +1408,8 @@ def _update_state_snapshot(*, config_id: str, entry: dict[str, Any], snapshot: d
     entry["capabilities"] = list(snapshot["capabilities"])
     entry["capability_bindings"] = dict(snapshot["capability_bindings"])
     entry["command_bindings"] = dict(snapshot["command_bindings"])
+    entry["trait_definitions"] = list(snapshot.get("trait_definitions") or [])
+    entry["trait_bindings"] = dict(snapshot.get("trait_bindings") or {})
     _persist_state(
         config_id=config_id,
         entry=entry,
@@ -1053,9 +1423,16 @@ async def _read_and_store(config_id: str) -> dict[str, Any]:
     if entry is None:
         raise HTTPException(status_code=404, detail=f"unknown config_id={config_id}")
     _update_poll_status(config_id, last_poll_started=asyncio.get_running_loop().time())
-    resources, values = await _fetch_device_snapshot(entry)
-    snapshot = _build_snapshot(entry=entry, resources=resources, values=values)
+    resources, values, traits, trait_values = await _fetch_device_snapshot(entry)
+    snapshot = _build_snapshot(
+        entry=entry,
+        resources=resources,
+        values=values,
+        traits=traits,
+        trait_values=trait_values,
+    )
     _update_state_snapshot(config_id=config_id, entry=entry, snapshot=snapshot)
+    await _refresh_scene_bindings(entry)
     _update_poll_status(config_id, last_poll_succeeded=snapshot["state"]["sampled_at"], last_poll_error=None)
     return snapshot
 
@@ -1232,6 +1609,7 @@ async def apply_config(config: AqaraCloudConfig) -> dict[str, Any]:
     try:
         await _read_and_store(config_id)
         await _sync_resource_subscription(entry, subscribe=True)
+        await _sync_trait_subscription(entry, subscribe=True)
     except Exception as exc:
         initial_error = _safe_error(exc)
         auth_state = str(entry.get("auth_state") or "authenticated")
@@ -1283,6 +1661,7 @@ async def remove_config(config_id: str) -> bool:
     if removed is None:
         return False
     await _sync_resource_subscription(removed, subscribe=False)
+    await _sync_trait_subscription(removed, subscribe=False)
     _schedule_runtime_event_delivery(
         event_type="device.deconfigured",
         device=removed,
@@ -1361,9 +1740,38 @@ def _build_entities_payload() -> list[dict[str, Any]]:
         widgets = _capability_widgets(capabilities)
         command_bindings = entry.get("command_bindings") or {}
         commands = [{"id": "refresh", "label": "Refresh", "kind": "action"}]
-        for command_id in ("turn_on", "turn_off", "open", "close", "set_position", "set_brightness"):
+        for command_id in (
+            "turn_on",
+            "turn_off",
+            "open",
+            "close",
+            "set_position",
+            "set_brightness",
+            "set_color_temperature",
+            "set_hue",
+            "set_saturation",
+            "set_temperature",
+            "set_fan_speed",
+            "set_hvac_mode",
+            "set_fan_mode",
+            "set_swing_mode",
+            "set_airflow_direction",
+            "stop_cover",
+            "run_scene",
+        ):
             if command_id in command_bindings:
-                commands.append({"id": command_id, "label": command_id.replace("_", " ").title(), "kind": "action"})
+                command = {"id": command_id, "label": command_id.replace("_", " ").title(), "kind": "action"}
+                if command_id == "run_scene":
+                    scenes = command_bindings[command_id].get("scenes") or {}
+                    command["options"] = [
+                        {"value": selector, "label": str(scene.get("name") or selector)}
+                        for selector, scene in sorted(
+                            scenes.items(),
+                            key=lambda item: (str(item[1].get("name") or "").lower(), item[0]),
+                        )
+                        if isinstance(scene, dict)
+                    ]
+                commands.append(command)
         entities.append(
             {
                 "id": f"device:{config_id}",
@@ -1425,7 +1833,9 @@ async def diagnostics(request: Request) -> RuntimeDiagnosticsResponse:
                 "webhook_url": _push_webhook_url(request),
                 "header_name": "token",
                 "active_subscription_count": sum(
-                    1 for entry in registry.entries.values() if _resource_bindings_for_subscription(entry)
+                    1
+                    for entry in registry.entries.values()
+                    if _resource_bindings_for_subscription(entry) or _trait_bindings_for_subscription(entry)
                 ),
                 "status": push_diagnostics_status,
                 "tracked_msg_id_count": len(processed_push_msg_id_set),
@@ -1474,11 +1884,11 @@ async def ui_config(request: Request) -> dict[str, Any]:
             "webhook_path": _push_webhook_path(),
             "webhook_url": _push_webhook_url(request),
             "header_name": "token",
-            "subscription_intent": "config.resource.subscribe",
+            "subscription_intents": ["config.resource.subscribe", "spec.config.trait.subscribe"],
             "instructions": [
                 "In Aqara Developer Console, enable HTTP Push and point the push address to the webhook URL below.",
                 "Aqara will send the authorized account accessToken in the token header for each push request.",
-                "PiPhi subscribes the mapped device resources automatically after config succeeds.",
+                "PiPhi subscribes mapped resources and metadata-negotiated reportable traits automatically after config succeeds.",
             ],
         },
     }
@@ -1645,6 +2055,114 @@ async def aqara_push(request: Request) -> dict[str, Any]:
             return {"status": "ok", "handled": 0, "duplicate": True, "message_type": message_type}
         _remember_push_msg_id(dedupe_key)
     handled = 0
+
+    if msg_type == "spec_report":
+        data_items = payload.get("data")
+        if not isinstance(data_items, list):
+            _mark_push_error("spec_report missing data array")
+            raise HTTPException(status_code=400, detail="Aqara spec_report payload must contain a data array.")
+        entries_by_did = {str(entry.get("did")): (config_id, entry) for config_id, entry in matches}
+        for item in data_items:
+            if not isinstance(item, dict):
+                continue
+            device_id = str(item.get("deviceId") or "").strip()
+            function_code = str(item.get("functionCode") or "").strip()
+            trait_code = str(item.get("traitCode") or "").strip()
+            raw_endpoint_id = item.get("endpointId")
+            try:
+                endpoint_id = int(str(raw_endpoint_id).strip()) if raw_endpoint_id is not None else -1
+            except (TypeError, ValueError):
+                continue
+            if endpoint_id < 0 or not device_id or not function_code or not trait_code:
+                continue
+            status_code = item.get("statusCode")
+            if status_code is not None and str(status_code).strip():
+                try:
+                    if float(status_code) != 0:
+                        continue
+                except (TypeError, ValueError):
+                    continue
+            match = entries_by_did.get(device_id)
+            if match is None:
+                continue
+            config_id, entry = match
+            code_path = f"{endpoint_id}.{function_code}.{trait_code}"
+            binding = (entry.get("trait_bindings") or {}).get(code_path)
+            if not isinstance(binding, dict):
+                continue
+            enum_values = binding.get("enum_values")
+            if not isinstance(enum_values, dict):
+                continue
+            raw_value = str(item.get("value"))
+            action = next(
+                (str(label) for label, negotiated_value in enum_values.items() if str(negotiated_value) == raw_value),
+                None,
+            )
+            if action is None:
+                continue
+            current_state = _existing_state(config_id)
+            incoming_timestamp_ms = _timestamp_millis(item.get("time") or payload.get("time"))
+            trait_timestamps = dict(current_state.get("raw_trait_timestamps_ms") or {})
+            existing_timestamp_ms = _timestamp_millis(trait_timestamps.get(code_path))
+            if (
+                incoming_timestamp_ms is not None
+                and existing_timestamp_ms is not None
+                and incoming_timestamp_ms < existing_timestamp_ms
+            ):
+                _mark_push_stale()
+                continue
+            if incoming_timestamp_ms is not None:
+                trait_timestamps[code_path] = incoming_timestamp_ms
+            current_state["raw_trait_timestamps_ms"] = trait_timestamps
+            sampled_at = _iso_timestamp_from_millis(item.get("time") or payload.get("time"))
+            capability = str(binding.get("capability") or "").strip()
+            if capability:
+                current_state.update(
+                    {
+                        "sampled_at": sampled_at,
+                        "connected": True,
+                        "last_error": None,
+                        "did": entry["did"],
+                        "device_model": entry.get("device_model"),
+                        "name": _entry_name(entry),
+                        capability: action,
+                    }
+                )
+                _persist_state(
+                    config_id=config_id,
+                    entry=entry,
+                    state=current_state,
+                    units={key: CAPABILITY_UNITS[key] for key in entry.get("capabilities") or [] if key in CAPABILITY_UNITS},
+                    emit_resource_events=[
+                        {
+                            "capability": capability,
+                            "resource_id": code_path,
+                            "sampled_at": sampled_at,
+                            "trigger_source": _sanitized_trigger_source(item.get("triggerSource")),
+                            "event_type": "aqara.trait_report",
+                        }
+                    ],
+                )
+            else:
+                event_type = str(binding.get("event_type") or "").strip()
+                if not event_type:
+                    continue
+                registry.update_state(config_id, current_state)
+                _schedule_runtime_event_delivery(
+                    event_type=event_type,
+                    device=entry,
+                    payload={
+                        "action": action,
+                        "endpoint_id": endpoint_id,
+                        "function_code": function_code,
+                        "trait_code": trait_code,
+                        "sampled_at": sampled_at,
+                        "trigger_source": _sanitized_trigger_source(item.get("triggerSource")),
+                    },
+                )
+            handled += 1
+        _mark_push_processed(handled=handled)
+        return {"status": "ok", "handled": handled, "duplicate": False, "message_type": msg_type}
 
     if msg_type == "resource_report":
         data_items = payload.get("data")
@@ -1834,28 +2352,63 @@ def _validate_command_request(
     binding = (entry.get("command_bindings") or {}).get(payload.command)
     if not binding:
         raise HTTPException(status_code=400, detail=f"Unsupported command: {payload.command}")
+    if binding.get("transport") == "scene":
+        if "scene_id" in payload.args:
+            raise HTTPException(status_code=400, detail="run_scene does not accept vendor scene IDs.")
+        _discovered_scene(binding=binding, value=payload.args.get("scene"))
+        return
+    if binding.get("enum_values"):
+        argument = str(binding.get("argument") or "mode")
+        if argument not in payload.args:
+            raise HTTPException(status_code=400, detail=f"{payload.command} requires args.{argument}.")
+        _bounded_enum_value(payload.args[argument], binding=binding, command=payload.command)
     if binding.get("dynamic"):
-        requested_value = payload.args.get("position") if payload.command == "set_position" else payload.args.get("value")
+        argument = str(binding.get("argument") or "value")
+        requested_value = payload.args.get(argument)
         if requested_value is None:
-            raise HTTPException(status_code=400, detail=f"{payload.command} requires args.position or args.value.")
+            raise HTTPException(status_code=400, detail=f"{payload.command} requires args.{argument}.")
         _bounded_dynamic_value(requested_value, binding=binding, command=payload.command)
 
 
 def _bounded_dynamic_value(value: Any, *, binding: dict[str, Any], command: str) -> str:
     if isinstance(value, bool):
-        raise HTTPException(status_code=400, detail=f"{command} requires a finite numeric percentage.")
+        raise HTTPException(status_code=400, detail=f"{command} requires a finite numeric value.")
     try:
         numeric = float(value)
     except (TypeError, ValueError) as exc:
-        raise HTTPException(status_code=400, detail=f"{command} requires a finite numeric percentage.") from exc
-    if not math.isfinite(numeric) or not numeric.is_integer():
-        raise HTTPException(status_code=400, detail=f"{command} requires a whole-number percentage.")
-    minimum = int(binding.get("min_value", 0))
-    maximum = int(binding.get("max_value", 100))
-    integer = int(numeric)
-    if integer < minimum or integer > maximum:
+        raise HTTPException(status_code=400, detail=f"{command} requires a finite numeric value.") from exc
+    if not math.isfinite(numeric):
+        raise HTTPException(status_code=400, detail=f"{command} requires a finite numeric value.")
+    if binding.get("whole_number", True) and not numeric.is_integer():
+        raise HTTPException(status_code=400, detail=f"{command} requires a whole-number value.")
+    minimum = float(binding["min_value"])
+    maximum = float(binding["max_value"])
+    if numeric < minimum or numeric > maximum:
         raise HTTPException(status_code=400, detail=f"{command} must be between {minimum} and {maximum}.")
-    return str(integer)
+    return str(int(numeric)) if numeric.is_integer() else format(numeric, "g")
+
+
+def _bounded_enum_value(value: Any, *, binding: dict[str, Any], command: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise HTTPException(status_code=400, detail=f"{command} requires a supported string value.")
+    enum_values = binding.get("enum_values")
+    if not isinstance(enum_values, dict):
+        raise HTTPException(status_code=400, detail=f"{command} has no negotiated values.")
+    normalized = _normalized_enum_label(value)
+    if normalized not in enum_values:
+        allowed = ", ".join(sorted(str(item) for item in enum_values))
+        raise HTTPException(status_code=400, detail=f"{command} must be one of: {allowed}.")
+    return str(enum_values[normalized])
+
+
+def _discovered_scene(*, binding: dict[str, Any], value: Any) -> dict[str, Any]:
+    if not isinstance(value, str) or not value.strip():
+        raise HTTPException(status_code=400, detail="run_scene requires args.scene.")
+    scenes = binding.get("scenes")
+    scene = scenes.get(value.strip()) if isinstance(scenes, dict) else None
+    if not isinstance(scene, dict) or not str(scene.get("scene_id") or "").strip():
+        raise HTTPException(status_code=400, detail="run_scene requires a currently discovered scene selector.")
+    return scene
 
 
 async def _execute_registered_command(
@@ -1903,12 +2456,68 @@ async def _execute_registered_command(
             f"Unsupported command: {action_request.command}",
             metadata={"status_code": 400},
         )
+    if binding.get("transport") == "scene":
+        if "scene_id" in action_request.args:
+            return AutomationActionResult.failure(
+                "run_scene does not accept vendor scene IDs.",
+                metadata={"status_code": 400},
+            )
+        try:
+            scene = _discovered_scene(binding=binding, value=action_request.args.get("scene"))
+        except HTTPException as exc:
+            return AutomationActionResult.failure(str(exc.detail), metadata={"status_code": exc.status_code})
+
+        async def run_scene_operation(credentials: AqaraCloudCredentials) -> None:
+            await cloud_client.run_scene(credentials, scene_id=str(scene["scene_id"]))
+
+        try:
+            await _call_with_entry_refresh(entry, run_scene_operation)
+        except AqaraCloudError as exc:
+            try:
+                _raise_http_for_cloud_error(exc)
+            except HTTPException as http_exc:
+                return AutomationActionResult.failure(
+                    str(http_exc.detail),
+                    retryable=http_exc.status_code >= 500 or http_exc.status_code == 429,
+                    metadata={"status_code": http_exc.status_code},
+                )
+            return AutomationActionResult.failure(_safe_error(exc), metadata={"status_code": 500})
+        _schedule_runtime_event_delivery(
+            event_type="aqara.scene.executed",
+            device=entry,
+            payload={"scene": str(action_request.args.get("scene") or ""), "name": scene.get("name")},
+        )
+        return AutomationActionResult.success(
+            {
+                "status": "ok",
+                "config_id": config_id,
+                "command": action_request.command,
+                "scene": str(action_request.args.get("scene") or ""),
+                "name": scene.get("name"),
+            }
+        )
     value = str(binding.get("value") or "")
+    if binding.get("enum_values"):
+        argument = str(binding.get("argument") or "mode")
+        if argument not in action_request.args:
+            return AutomationActionResult.failure(
+                f"{action_request.command} requires args.{argument}.",
+                metadata={"status_code": 400},
+            )
+        try:
+            value = _bounded_enum_value(
+                action_request.args[argument],
+                binding=binding,
+                command=action_request.command,
+            )
+        except HTTPException as exc:
+            return AutomationActionResult.failure(str(exc.detail), metadata={"status_code": exc.status_code})
     if binding.get("dynamic"):
-        requested_value = action_request.args.get("position") if action_request.command == "set_position" else action_request.args.get("value")
+        argument = str(binding.get("argument") or "value")
+        requested_value = action_request.args.get(argument)
         if requested_value is None:
             return AutomationActionResult.failure(
-                f"{action_request.command} requires args.position or args.value.",
+                f"{action_request.command} requires args.{argument}.",
                 metadata={"status_code": 400},
             )
         try:
@@ -1917,12 +2526,22 @@ async def _execute_registered_command(
             return AutomationActionResult.failure(str(exc.detail), metadata={"status_code": exc.status_code})
 
     async def operation(credentials: AqaraCloudCredentials):
-        await cloud_client.write_resource(
-            credentials,
-            subject_id=str(entry["did"]),
-            resource_id=str(binding["resource_id"]),
-            value=value,
-        )
+        if binding.get("transport") == "trait":
+            await cloud_client.write_trait(
+                credentials,
+                device_id=str(entry["did"]),
+                endpoint_id=int(binding["endpoint_id"]),
+                function_code=str(binding["function_code"]),
+                trait_code=str(binding["trait_code"]),
+                value=value,
+            )
+        else:
+            await cloud_client.write_resource(
+                credentials,
+                subject_id=str(entry["did"]),
+                resource_id=str(binding["resource_id"]),
+                value=value,
+            )
     try:
         await _call_with_entry_refresh(entry, operation)
         snapshot = await _read_and_store(config_id)

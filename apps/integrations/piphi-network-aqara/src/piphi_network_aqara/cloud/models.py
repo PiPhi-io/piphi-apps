@@ -97,6 +97,40 @@ class AqaraResourceValue:
 
 
 @dataclass(slots=True)
+class AqaraTraitInfo:
+    endpoint_id: int
+    function_code: str
+    trait_code: str
+    readable: bool = False
+    writable: bool = False
+    subscribable: bool = False
+    value_type: str | None = None
+    unit: str | None = None
+    min_value: int | float | None = None
+    max_value: int | float | None = None
+    step: int | float | None = None
+    default_value: Any = None
+    supported_values: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class AqaraTraitValue:
+    endpoint_id: int
+    function_code: str
+    trait_code: str
+    value: Any
+    timestamp_ms: int | None = None
+
+
+@dataclass(slots=True)
+class AqaraScene:
+    scene_id: str
+    name: str
+    model: str | None = None
+    localize: int | None = None
+
+
+@dataclass(slots=True)
 class AqaraCloudDevice:
     did: str
     name: str
