@@ -180,16 +180,6 @@ CONFIG_SCHEMA: dict[str, Any] = {
                 "type": "string",
                 "title": "Vendor"
             },
-            "mqtt_server": {
-                "type": "string",
-                "title": "MQTT Server",
-                "default": "mqtt://127.0.0.1:1883"
-            },
-            "mqtt_base_topic": {
-                "type": "string",
-                "title": "MQTT Base Topic",
-                "default": "zigbee2mqtt"
-            },
             "sidecar_base_url": {
                 "type": "string",
                 "title": "Zigbee2MQTT Sidecar URL"
@@ -205,12 +195,6 @@ CONFIG_SCHEMA: dict[str, Any] = {
         },
         "ieee_address": {
             "placeholder": "0x00158d0000000000"
-        },
-        "mqtt_server": {
-            "placeholder": "mqtt://127.0.0.1:1883"
-        },
-        "mqtt_base_topic": {
-            "placeholder": "zigbee2mqtt"
         },
         "sidecar_base_url": {
             "placeholder": "http://127.0.0.1:8720"

@@ -26,7 +26,7 @@
     {
       "id": "piphi.service.zigbee2mqtt-sidecar",
       "type": "platform_service",
-      "version": "0.1.22",
+      "version": "0.1.23",
       "manifest": "src/manifest.json",
       "release": {
         "tag": "apps/{package_id}/v{version}",

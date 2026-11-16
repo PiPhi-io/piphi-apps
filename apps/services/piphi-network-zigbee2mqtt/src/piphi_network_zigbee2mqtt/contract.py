@@ -103,18 +103,6 @@ CONFIG_SCHEMA: dict[str, Any] = {
                 "description": "Leave blank only if Zigbee2MQTT can auto-detect your coordinator adapter.",
                 "enum": ["zstack", "ember", "deconz", "zigate", "zboss"]
             },
-            "mqtt_server": {
-                "type": "string",
-                "title": "MQTT Server",
-                "default": "mqtt://127.0.0.1:1883",
-                "description": "MQTT broker URL used by Zigbee2MQTT. PiPhi preselects the required MQTT Broker sidecar when it is installed."
-            },
-            "mqtt_base_topic": {
-                "type": "string",
-                "title": "MQTT Base Topic",
-                "default": "zigbee2mqtt",
-                "description": "Root MQTT topic Zigbee2MQTT uses for bridge and device messages."
-            },
             "data_path": {
                 "type": "string",
                 "title": "Zigbee2MQTT Data Path",
@@ -132,12 +120,6 @@ CONFIG_SCHEMA: dict[str, Any] = {
         },
         "adapter": {
             "placeholder": "ember"
-        },
-        "mqtt_server": {
-            "placeholder": "mqtt://127.0.0.1:1883"
-        },
-        "mqtt_base_topic": {
-            "placeholder": "zigbee2mqtt"
         },
         "data_path": {
             "placeholder": "/app/data"

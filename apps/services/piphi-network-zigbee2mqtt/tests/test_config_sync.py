@@ -67,3 +67,40 @@ async def test_apply_config_writes_zigbee2mqtt_configuration(tmp_path, monkeypat
     assert 'port: "/dev/ttyZigbee"' in yaml
     assert sidecar_store.config_path == str(config_path)
     assert sidecar_store.config_hash
+
+
+@pytest.mark.anyio
+async def test_apply_config_uses_managed_mqtt_identity_and_namespace(
+    tmp_path, monkeypatch
+) -> None:
+    monkeypatch.setenv("PIPHI_ZIGBEE2MQTT_ALLOWED_DATA_ROOTS", str(tmp_path))
+    monkeypatch.setattr(state, "claim_store", CoordinatorClaimStore(tmp_path / "claims.json"))
+    monkeypatch.setattr(
+        state,
+        "probe_coordinator",
+        lambda _port: SimpleNamespace(available=True, message=None),
+    )
+    configured = []
+    monkeypatch.setattr(state.mqtt_gateway, "configure", configured.append)
+    config = DeviceConfig(
+        id="managed-bridge",
+        config_id="managed-bridge",
+        container_id="runtime-container",
+        serial_port="/dev/ttyUSB0",
+        coordinator_identity="usb:sonoff:managed-123",
+        mqtt_server="mqtt://broker.internal:1883",
+        mqtt_base_topic="zigbee2mqtt",
+        mqtt_username="managed-user",
+        mqtt_password="managed-password",
+        mqtt_topic_prefix="piphi/managed-principal",
+        data_path=str(tmp_path),
+    )
+
+    await apply_config(config)
+
+    yaml = (tmp_path / "configuration.yaml").read_text(encoding="utf-8")
+    assert 'base_topic: "piphi/managed-principal/zigbee2mqtt"' in yaml
+    assert 'user: "managed-user"' in yaml
+    assert 'password: "managed-password"' in yaml
+    assert configured[0].base_topic == "piphi/managed-principal/zigbee2mqtt"
+    assert "mqtt_password" not in state.registry.get("managed-bridge")["config"]

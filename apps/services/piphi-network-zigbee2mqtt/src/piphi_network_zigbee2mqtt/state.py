@@ -20,6 +20,7 @@ from .coordinator_claims import (
     stable_coordinator_identity,
 )
 from .coordinator_probe import probe_coordinator
+from .mqtt_gateway import mqtt_gateway
 from .schemas import DeviceConfig
 from .settings import INTEGRATION_ID, INTEGRATION_NAME, INTEGRATION_VERSION
 
@@ -44,7 +45,7 @@ def make_entry(config: DeviceConfig) -> dict[str, Any]:
         **identity,
         "host": config.host,
         "alias": config.alias,
-        "config": config.model_dump(),
+        "config": config.model_dump(exclude={"mqtt_password"}),
     }
 
 
@@ -89,8 +90,17 @@ async def apply_config(config: DeviceConfig) -> None:
             claim_store.claim(coordinator_identity, owner_id)
         except CoordinatorClaimConflict as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
+        mqtt_base_topic = config.mqtt_base_topic.strip().strip("/")
+        topic_prefix = str(config.mqtt_topic_prefix or "").strip().strip("/")
+        if topic_prefix and not mqtt_base_topic.startswith(f"{topic_prefix}/"):
+            mqtt_base_topic = f"{topic_prefix}/{mqtt_base_topic}"
         bridge_config = Zigbee2MqttBridgeConfig(
-            mqtt=MqttSettings(server=config.mqtt_server, base_topic=config.mqtt_base_topic),
+            mqtt=MqttSettings(
+                server=config.mqtt_server,
+                user=config.mqtt_username,
+                password=config.mqtt_password,
+                base_topic=mqtt_base_topic,
+            ),
             serial=SerialSettings(port=config.serial_port, adapter=config.adapter),
             data_path=config.data_path,
         )
@@ -106,6 +116,8 @@ async def apply_config(config: DeviceConfig) -> None:
         rendered.config_path = write_result.config_path
         rendered.config_hash = write_result.config_hash
         sidecar_store.current_config = bridge_config
+        if topic_prefix:
+            mqtt_gateway.configure(bridge_config.mqtt)
         sidecar_store.current_render = rendered
         sidecar_store.config_path = write_result.config_path
         sidecar_store.config_hash = write_result.config_hash

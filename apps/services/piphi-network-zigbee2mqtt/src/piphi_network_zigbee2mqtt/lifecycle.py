@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from piphi_runtime_kit_python import runtime_lifespan
 
 from .coordinator_claims import claim_store
+from .mqtt_gateway import mqtt_gateway
 from .state import runtime, sidecar_store
 
 
@@ -21,6 +22,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         try:
             yield
         finally:
+            mqtt_gateway.stop()
             if sidecar_store.coordinator_identity and sidecar_store.coordinator_owner_id:
                 claim_store.release(
                     sidecar_store.coordinator_identity,

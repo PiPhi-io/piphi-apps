@@ -4,7 +4,7 @@
   "kind": "platform_service",
   "id": "piphi.service.zigbee2mqtt-sidecar",
   "name": "Zigbee2MQTT Sidecar",
-  "version": "0.1.22",
+  "version": "0.1.23",
   "description": "PiPhi sidecar service for detecting Zigbee coordinators and rendering Zigbee2MQTT bridge configuration.",
   "metadata": {
     "generator": "piphi-network-create",
@@ -51,7 +51,7 @@
     "website": "https://piphi.io"
   },
   "license": "Apache-2.0",
-  "image": "ghcr.io/piphi-io/zigbee2mqtt-sidecar:0.1.22",
+  "image": "ghcr.io/piphi-io/zigbee2mqtt-sidecar:0.1.23",
   "platforms": [
     "linux",
     "windows",
@@ -61,7 +61,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "ghcr.io/piphi-io/zigbee2mqtt-sidecar:0.1.22",
+        "image": "ghcr.io/piphi-io/zigbee2mqtt-sidecar:0.1.23",
         "ports": [
           {
             "container": 8720
@@ -217,13 +217,25 @@
       {
         "id": "piphi.service.mqtt-broker",
         "kind": "platform_service",
-        "version_range": ">=0.1.0,<1.0.0",
+        "version_range": ">=0.3.0,<1.0.0",
         "required": true,
         "shared": true,
         "auto_install": true,
         "reason": "Provides the MQTT broker Zigbee2MQTT uses for device state, availability, and control topics."
       }
-    ]
+    ],
+    "mqtt": {
+      "contract_version": "1",
+      "publish": [
+        "zigbee2mqtt/#"
+      ],
+      "receive": [
+        "zigbee2mqtt/#"
+      ],
+      "retain": [
+        "zigbee2mqtt/#"
+      ]
+    }
   },
   "api": {
     "required": [
@@ -260,6 +272,8 @@
       "bridge_supervisor_logs": "/v1/supervisor/logs",
       "bridge_prerequisites": "/v1/prerequisites",
       "bridge_mqtt_check": "/v1/mqtt/check",
+      "managed_mqtt_messages": "/v1/mqtt/messages",
+      "managed_mqtt_publish": "/v1/mqtt/publish",
       "bridge_devices": "/v1/devices",
       "bridge_permit_join": "/v1/permit-join",
       "bridge_network_map": "/v1/network-map"
@@ -272,15 +286,19 @@
     "editable_fields": [
       "serial_port",
       "adapter",
-      "mqtt_server",
-      "mqtt_base_topic",
       "data_path"
     ],
     "runtime_fields": [
       "id",
       "config_id",
       "container_id",
-      "device_id"
+      "device_id",
+      "mqtt_server",
+      "mqtt_username",
+      "mqtt_password",
+      "mqtt_topic_prefix",
+      "mqtt_credential_generation",
+      "mqtt_binding"
     ],
     "identity_fields": [
       "serial_port"

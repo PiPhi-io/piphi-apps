@@ -14,6 +14,8 @@ from ..bridge_models import (
     EncryptedBackupExportRequest,
     EncryptedBackupImportRequest,
     MqttCheckRequest,
+    MqttMessagesRequest,
+    MqttPublishRequest,
     NetworkBackupRequest,
     NetworkMapRequest,
     NetworkRestoreRequest,
@@ -35,6 +37,7 @@ from ..coordinator_claims import (
 )
 from ..coordinator_migration import migration_plan_id, plan_coordinator_migration
 from ..coordinator_probe import probe_coordinator
+from ..mqtt_gateway import mqtt_gateway
 from ..network_backup import (
     create_network_backup,
     export_encrypted_backup,
@@ -55,7 +58,47 @@ router = APIRouter(prefix="/v1", tags=["zigbee2mqtt-bridge"])
 
 @router.get("/snapshot")
 async def snapshot():
-    return sidecar_store.snapshot()
+    payload = sidecar_store.snapshot().model_dump(mode="json")
+    payload["managed_mqtt"] = mqtt_gateway.snapshot()
+    return payload
+
+
+@router.post("/mqtt/messages")
+async def mqtt_messages(payload: MqttMessagesRequest):
+    try:
+        messages = mqtt_gateway.messages(
+            payload.topics,
+            after_sequence=payload.after_sequence,
+        )
+    except (ValueError, Zigbee2MqttMqttError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {
+        "messages": [
+            {
+                "sequence": message.sequence,
+                "topic": message.topic,
+                "payload": message.payload,
+            }
+            for message in messages
+        ],
+        "sequence": max(
+            [payload.after_sequence, *(message.sequence for message in messages)]
+        ),
+    }
+
+
+@router.post("/mqtt/publish")
+async def mqtt_publish(payload: MqttPublishRequest):
+    try:
+        return mqtt_gateway.publish_json(
+            payload.topic,
+            payload.payload,
+            dry_run=payload.dry_run,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Zigbee2MqttMqttError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
 @router.get("/adapters")
