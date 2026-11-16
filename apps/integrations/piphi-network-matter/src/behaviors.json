@@ -1,0 +1,28 @@
+{
+  "behaviorSchemaVersion": "integration.behaviors.v2",
+  "devices": [{
+    "id": "matter_on_off_endpoint", "name": "Matter switch", "description": "A negotiated Matter On/Off endpoint",
+    "deviceClass": "switch", "entityType": "switch", "capabilities": ["connected", "switch_on", "turn_on", "turn_off", "toggle"],
+    "conditions": [{
+      "id": "is_on", "label": "Is on", "type": "boolean", "capability": "sensor.switch_on", "operators": ["eq"],
+      "runtime": { "source": "state", "field": "switch_on", "operator": "eq" },
+      "freshness": { "maxAgeSeconds": 60, "staleDataMode": "block" }, "ui": { "group": "only_if" }
+    }],
+    "actions": [
+      { "id": "turn_on", "label": "Turn on", "capability": "action.turn_on", "runtime": { "command": "turn_on" }, "safety": { "riskLevel": "low" } },
+      { "id": "turn_off", "label": "Turn off", "capability": "action.turn_off", "runtime": { "command": "turn_off" }, "safety": { "riskLevel": "low" } },
+      { "id": "toggle", "label": "Toggle", "capability": "action.toggle", "runtime": { "command": "toggle" }, "safety": { "riskLevel": "low" } }
+    ],
+    "triggers": [{
+      "id": "state_changed", "label": "Switch state changes", "capability": "telemetry.state",
+      "runtime": { "event": "device.state_changed", "source": "integration" },
+      "freshness": { "maxAgeSeconds": 60, "staleDataMode": "block" }, "ui": { "group": "when" }
+    }],
+    "ui": { "icon": "power", "category": "switch" }
+  }],
+  "templates": [],
+  "telemetry": { "capabilityMappings": [
+    { "nativeMetric": "connected", "capability": "sensor.connected" },
+    { "nativeMetric": "switch_on", "capability": "sensor.switch_on" }
+  ] }
+}

@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "release": "0.2.0-alpha.4",
+  "profile_id": "wifi_on_off_plug",
+  "result": "qualified",
+  "device": {
+    "vendor": "TP Link",
+    "model": "KP125M",
+    "hardware_revision": "1.0",
+    "firmware_version": "1.0.0",
+    "transport": "wifi_on_network"
+  },
+  "environment": {
+    "image_digest": "sha256:c2fac74dab0f357a8343da19b653344cb8f106de3fa2491ab4a8fac0b4b2bdfc",
+    "host_os": "Linux 7.0.0-43-generic x86_64 GNU/Linux",
+    "network_summary": "BLE-to-Wi-Fi qualification on hci0 and wlo1; addresses and credentials redacted"
+  },
+  "controller_identity_hash": "370c94f7032b0a3b",
+  "run": {
+    "operator": "kelvinfor3xzorin",
+    "started_at": "2026-11-16T16:19:27.000Z",
+    "completed_at": "2026-11-16T16:30:01.000Z"
+  },
+  "steps": [
+    {
+      "id": "network_preflight",
+      "status": "pass",
+      "evidence": "See docs/qualification/20261116T161927Z-wifi_on_off_plug redacted artifacts"
+    },
+    {
+      "id": "ble_wifi_provisioning",
+      "status": "pass",
+      "evidence": "See docs/qualification/20261116T161927Z-wifi_on_off_plug redacted artifacts"
+    },
+    {
+      "id": "commission",
+      "status": "pass",
+      "evidence": "See docs/qualification/20261116T161927Z-wifi_on_off_plug redacted artifacts"
+    },
+    {
+      "id": "capability_negotiation",
+      "status": "pass",
+      "evidence": "See docs/qualification/20261116T161927Z-wifi_on_off_plug redacted artifacts"
+    },
+    {
+      "id": "turn_on",
+      "status": "pass",
+      "evidence": "See docs/qualification/20261116T161927Z-wifi_on_off_plug redacted artifacts"
+    },
+    {
+      "id": "subscription_state_on",
+      "status": "pass",
+      "evidence": "See docs/qualification/20261116T161927Z-wifi_on_off_plug redacted artifacts"
+    },
+    {
+      "id": "turn_off",
+      "status": "pass",
+      "evidence": "See docs/qualification/20261116T161927Z-wifi_on_off_plug redacted artifacts"
+    },
+    {
+      "id": "subscription_state_off",
+      "status": "pass",
+      "evidence": "See docs/qualification/20261116T161927Z-wifi_on_off_plug redacted artifacts"
+    },
+    {
+      "id": "sidecar_restart_recovery",
+      "status": "pass",
+      "evidence": "See docs/qualification/20261116T161927Z-wifi_on_off_plug redacted artifacts"
+    },
+    {
+      "id": "controller_restore_recovery",
+      "status": "pass",
+      "evidence": "See docs/qualification/20261116T161927Z-wifi_on_off_plug redacted artifacts"
+    },
+    {
+      "id": "decommission",
+      "status": "pass",
+      "evidence": "See docs/qualification/20261116T161927Z-wifi_on_off_plug redacted artifacts"
+    }
+  ],
+  "evidence_artifacts": [
+    "docs/qualification/20261116T161927Z-wifi_on_off_plug/preflight.json",
+    "docs/qualification/20261116T161927Z-wifi_on_off_plug/commission.json",
+    "docs/qualification/20261116T161927Z-wifi_on_off_plug/restored-snapshot.json",
+    "docs/qualification/20261116T161927Z-wifi_on_off_plug/decommission.json",
+    "docs/qualification/20261116T161927Z-wifi_on_off_plug/post-decommission-discovery.json"
+  ]
+}

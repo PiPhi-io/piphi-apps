@@ -1,0 +1,25 @@
+{
+  "name": "piphi-network-matter-integration",
+  "version": "0.1.0",
+  "description": "PiPhi Core-facing Matter integration backed by the managed Matter sidecar",
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "check": "tsc --noEmit -p tsconfig.json",
+    "qualify:release-image": "node scripts/qualify-release-image.mjs",
+    "start": "node dist/main.js",
+    "test": "tsc -p tsconfig.json && NODE_ENV=test node --test dist/tests/**/*.test.js",
+    "test:coverage": "tsc -p tsconfig.json && NODE_ENV=test node --test --experimental-test-coverage --test-coverage-include='dist/src/**/*.js' --test-coverage-lines=95 dist/tests/**/*.test.js"
+  },
+  "dependencies": {
+    "fastify": "^5.6.2",
+    "piphi-runtime-kit-node": "^0.5.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "piphi-runtime-testkit-node": "^0.1.0",
+    "typescript": "^5.9.3"
+  },
+  "license": "Apache-2.0"
+}

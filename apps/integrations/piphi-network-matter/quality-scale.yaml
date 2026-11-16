@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "standard": "Home Assistant Integration Quality Scale",
+  "standard_url": "https://developers.home-assistant.io/docs/core/integration-quality-scale/rules/",
+  "reviewed_at": "2026-11-15",
+  "target_tier": "unrated",
+  "comment": "This ledger records evidence without claiming a marketplace tier. The initial On/Off slice has tested repair contracts, removal APIs, and >95% production line coverage, but still lacks private-Core onboarding/removal presentation and representative physical hardware evidence.",
+  "rules": {
+    "action-setup": {"status": "done", "evidence": ["src/app.ts", "tests/integration.test.ts"]},
+    "appropriate-polling": {"status": "done", "evidence": ["src/reconciler.ts", "tests/integration.test.ts", "tests/two-process.test.ts"]},
+    "brands": {"status": "exempt", "comment": "This is an out-of-process PiPhi package; publisher and support metadata are in manifest.json."},
+    "common-modules": {"status": "done", "evidence": ["src/sidecar-client.ts", "src/reconciler.ts", "src/capabilities.ts"]},
+    "config-flow": {"status": "pending", "comment": "The API workflow is specified in docs/core-workflows.md, but Core onboarding and commissioning UI are not implemented in the available repository."},
+    "config-flow-test-coverage": {"status": "pending", "comment": "API configuration is tested and Core acceptance cases are specified in docs/core-workflows.md, but the private Core user flow is unavailable."},
+    "dependency-transparency": {"status": "done", "evidence": ["package.json", "package-lock.json", "piphi-app.json"]},
+    "docs-actions": {"status": "done", "evidence": ["README.md"]},
+    "docs-conditions": {"status": "done", "evidence": ["README.md"]},
+    "docs-high-level-description": {"status": "done", "evidence": ["README.md"]},
+    "docs-installation-instructions": {"status": "pending", "comment": "The managed install/readiness contract is documented in docs/core-workflows.md, but executable Core installation and sidecar orchestration are not available here."},
+    "docs-removal-instructions": {"status": "done", "evidence": ["README.md"]},
+    "docs-triggers": {"status": "done", "evidence": ["README.md"]},
+    "entity-event-setup": {"status": "done", "evidence": ["src/reconciler.ts", "tests/integration.test.ts", "tests/two-process.test.ts"]},
+    "entity-unique-id": {"status": "done", "evidence": ["src/capabilities.ts", "tests/integration.test.ts"]},
+    "has-entity-name": {"status": "done", "evidence": ["src/capabilities.ts", "src/config-store.ts"]},
+    "runtime-data": {"status": "done", "evidence": ["src/reconciler.ts", "src/config-store.ts"]},
+    "test-before-configure": {"status": "done", "evidence": ["src/app.ts", "tests/integration.test.ts"]},
+    "test-before-setup": {"status": "done", "evidence": ["src/reconciler.ts", "tests/integration.test.ts"]},
+    "unique-config-entry": {"status": "pending", "comment": "Core-level singleton and duplicate-controller orchestration must be implemented outside this package."}
+  }
+}

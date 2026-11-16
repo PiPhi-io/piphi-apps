@@ -1,0 +1,66 @@
+{
+  "manifest_version": "1.0",
+  "id": "piphi-network-matter-integration",
+  "name": "Matter",
+  "version": "0.1.0",
+  "description": "Projects commissioned Matter endpoints from the authenticated managed sidecar into PiPhi Core.",
+  "maintainer": { "name": "PiPhi Network", "website": "https://piphi.io" },
+  "license": "Apache-2.0",
+  "image": "ghcr.io/piphi-io/piphi-network-matter-integration:0.1.0",
+  "platforms": ["linux"],
+  "runtime": { "linux": { "type": "container", "container": {
+    "image": "ghcr.io/piphi-io/piphi-network-matter-integration:0.1.0",
+    "ports": [{ "container": 4221 }],
+    "network_mode": "host",
+    "privileged": false,
+    "environment": { "PIPHI_MATTER_SIDECAR_URL": "http://127.0.0.1:8710", "PIPHI_MATTER_RECONCILE_INTERVAL_MS": "5000" },
+    "restart_policy": { "name": "unless-stopped", "maximum_retry_count": 0 },
+    "volumes": [{ "host": "/var/lib/piphi/matter-integration", "container": "/app/data", "mode": "rw" }]
+  }, "discovery": { "method": "passive" } } },
+  "api": { "required": ["health", "entities", "command", "config"], "endpoints": {
+    "health": "/health", "entities": "/entities", "state": "/state", "config": "/config", "command": "/command", "events": "/events", "diagnostics": "/diagnostics", "repairs": "/repairs", "preflight": "/preflight", "commissionables": "/commissioning/commissionables", "commission": "/commissioning/code", "commission_wifi": "/commissioning/wifi", "decommission_node": "/nodes/:nodeId/decommission", "backup_quiesce": "/backup/quiesce", "backup_resume": "/backup/resume"
+  } },
+  "config": {
+    "source": "endpoint", "endpoint": "/config", "required": true,
+    "editable_fields": ["node_id", "endpoint_id", "alias", "enabled"],
+    "runtime_fields": ["config_id", "container_id", "device_id"],
+    "identity_fields": ["controller_identity_hash", "node_id", "endpoint_id"]
+  },
+  "identity": { "fields": ["controller_identity_hash", "node_id", "endpoint_id"] },
+  "capabilities": {
+    "connected": { "kind": "sensor", "unit": "bool" },
+    "switch_on": { "kind": "sensor", "unit": "bool" },
+    "turn_on": { "kind": "action" },
+    "turn_off": { "kind": "action" },
+    "toggle": { "kind": "action" }
+  },
+  "commands": {
+    "turn_on": { "description": "Turn on an On/Off endpoint.", "timeout_ms": 30000 },
+    "turn_off": { "description": "Turn off an On/Off endpoint.", "timeout_ms": 30000 },
+    "toggle": { "description": "Toggle an On/Off endpoint.", "timeout_ms": 30000 }
+  },
+  "entities": [{
+    "id": "matter-on-off-endpoint", "name": "Matter On/Off endpoint", "device_id": "matter-endpoint",
+    "entity_type": "switch", "capabilities": ["connected", "switch_on", "turn_on", "turn_off", "toggle"],
+    "available_commands": [
+      { "id": "turn_on", "label": "Turn on", "kind": "action" },
+      { "id": "turn_off", "label": "Turn off", "kind": "action" },
+      { "id": "toggle", "label": "Toggle", "kind": "action" }
+    ],
+    "dashboard": { "allowed_widgets": ["tile", "button"], "default_widget": "tile" }
+  }],
+  "marketplace": {
+    "metadata_version": 2, "display_name": "Matter", "summary": "Core projection for the managed Matter sidecar.",
+    "category": "other", "regions": ["WW"], "languages": ["en"],
+    "publisher": { "name": "PiPhi Network", "website_url": "https://piphi.io", "support_url": "https://github.com/PiPhi-io/piphi-apps/issues", "security_contact": "support@piphi.io" },
+    "access": [{ "id": "sidecar_runtime", "label": "Managed Matter sidecar", "reason": "Reads endpoint snapshots and invokes negotiated commands.", "required": true }],
+    "compatibility": [{ "brand": "Connectivity Standards Alliance", "model": "Matter On/Off endpoints" }],
+    "documentation_url": "https://github.com/PiPhi-io/piphi-apps/tree/main/apps/integrations/piphi-network-matter",
+    "support_url": "https://github.com/PiPhi-io/piphi-apps/issues", "quality_tier": "unrated",
+    "governance": { "schema_version": 1, "publication_status": "draft", "rollout_percent": 0, "lifecycle_status": "active", "qualification": { "status": "unverified" } },
+    "device_types": ["switch", "light", "plug"], "protocols": ["Matter sidecar HTTP contract"],
+    "discovery_methods": ["sidecar snapshot"], "connectivity": "local", "offline_support": "partial"
+  },
+  "onboarding": { "mode": "discovery" },
+  "runtime_contract": { "version": 1, "port_binding": "core_allocated", "port_env": "PORT" }
+}
