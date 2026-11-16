@@ -8,7 +8,9 @@ class WyzeBridgeConfig(BaseModel):
     wyze_password: SecretStr = Field(min_length=1, max_length=512)
     api_id: SecretStr = Field(min_length=1, max_length=512)
     api_key: SecretStr = Field(min_length=1, max_length=1024)
-    advertised_host: str = Field(default="127.0.0.1", min_length=1, max_length=255)
+    advertised_host: str = Field(
+        default="piphi-wyze-camera-service", min_length=1, max_length=255
+    )
     enabled_camera_names: list[str] = Field(default_factory=list, max_length=128)
 
     @field_validator("wyze_email", "advertised_host")

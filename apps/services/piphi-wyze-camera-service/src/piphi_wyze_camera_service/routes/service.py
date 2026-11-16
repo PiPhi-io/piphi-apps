@@ -1,11 +1,16 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 from ..bridge import BridgeUnavailableError, bridge_supervisor
 from ..schemas import WyzeBridgeConfig
+from .auth import require_wyze_bridge_authorization
 
-router = APIRouter(prefix="/v1/wyze-bridge", tags=["wyze-bridge"])
+router = APIRouter(
+    prefix="/v1/wyze-bridge",
+    tags=["wyze-bridge"],
+    dependencies=[Depends(require_wyze_bridge_authorization)],
+)
 
 
 @router.put("/config")

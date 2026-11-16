@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from .commands import router as command_router
 from .camera import router as camera_router
+from .commands import router as command_router
 from .config import router as config_router
 from .entities import router as entity_router
 from .events import router as event_router

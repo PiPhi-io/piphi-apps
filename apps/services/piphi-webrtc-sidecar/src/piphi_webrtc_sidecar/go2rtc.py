@@ -5,6 +5,7 @@ import os
 import re
 from collections.abc import Mapping
 from pathlib import Path
+from time import monotonic
 from urllib.parse import urlsplit, urlunsplit
 
 import httpx
@@ -95,7 +96,13 @@ class Go2RtcClient:
         source = validate_source_url(source_url)
         await self._upsert_stream(name, source)
 
-    async def upsert_ffmpeg_stream(self, name: str, source_url: str) -> None:
+    async def upsert_ffmpeg_stream(
+        self,
+        name: str,
+        source_url: str,
+        *,
+        include_audio: bool = False,
+    ) -> None:
         """Relay through FFmpeg without changing camera codecs."""
         source = validate_source_url(source_url)
         parsed = urlsplit(source)
@@ -104,10 +111,16 @@ class Go2RtcClient:
         )
         await self._upsert_stream(
             name,
-            f"ffmpeg:{source_without_fragment}#video=copy#audio=copy",
+            f"ffmpeg:{source_without_fragment}#video=copy#audio={'opus' if include_audio else '0'}",
         )
 
-    async def upsert_browser_compatible_ffmpeg_stream(self, name: str, source_url: str) -> None:
+    async def upsert_browser_compatible_ffmpeg_stream(
+        self,
+        name: str,
+        source_url: str,
+        *,
+        include_audio: bool = False,
+    ) -> None:
         """Transcode video only after copied H.264 cannot match the WebRTC offer."""
         source = validate_source_url(source_url)
         parsed = urlsplit(source)
@@ -116,7 +129,7 @@ class Go2RtcClient:
         )
         await self._upsert_stream(
             name,
-            f"ffmpeg:{source_without_fragment}#video=h264#audio=copy",
+            f"ffmpeg:{source_without_fragment}#video=h264#audio={'opus' if include_audio else '0'}",
         )
 
     async def _upsert_stream(self, name: str, source: str) -> None:
@@ -192,7 +205,8 @@ class Go2RtcProcess:
             stderr=asyncio.subprocess.STDOUT,
         )
         client = Go2RtcClient()
-        for _ in range(50):
+        deadline = monotonic() + _startup_timeout_seconds()
+        while monotonic() < deadline:
             if self.process.returncode is not None:
                 raise RuntimeError(
                     f"go2rtc exited during startup with code {self.process.returncode}"
@@ -203,7 +217,7 @@ class Go2RtcProcess:
             except (Go2RtcError, httpx.HTTPError):
                 await asyncio.sleep(0.1)
         await self.stop()
-        raise RuntimeError("go2rtc did not become ready within 5 seconds")
+        raise RuntimeError("go2rtc did not become ready before the startup deadline")
 
     async def stop(self) -> None:
         if self.process is None or self.process.returncode is not None:
@@ -214,6 +228,13 @@ class Go2RtcProcess:
         except TimeoutError:
             self.process.kill()
             await self.process.wait()
+
+
+def _startup_timeout_seconds() -> float:
+    try:
+        return max(5.0, min(float(os.getenv("GO2RTC_STARTUP_TIMEOUT_SECONDS", "15")), 30.0))
+    except ValueError:
+        return 15.0
 
 
 go2rtc = Go2RtcClient()

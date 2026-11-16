@@ -13,7 +13,9 @@ router = APIRouter(tags=["health"])
 async def health() -> dict[str, object]:
     status = bridge_supervisor.status()
     return {
-        "status": "healthy" if not status["configured"] or status["running"] else "degraded",
+        "status": (
+            "healthy" if not status["configured"] or status["state"] == "running" else "degraded"
+        ),
         "integration_id": INTEGRATION_ID,
         "name": INTEGRATION_NAME,
         "version": INTEGRATION_VERSION,
