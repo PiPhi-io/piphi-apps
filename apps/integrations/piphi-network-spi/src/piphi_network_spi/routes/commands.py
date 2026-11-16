@@ -20,6 +20,7 @@ from ..state import (
     primary_config,
     registry,
     read_state,
+    run_hardware_operation,
     schedule_state_telemetry,
 )
 
@@ -46,7 +47,8 @@ async def _refresh_sensor(
     entry = registry.get(config_id) or registry.primary_entry()
     config = SPISensorRuntimeConfig.model_validate(entry["config"]) if entry else primary_config()
     try:
-        state_payload = read_state(config_to_sensor_config(config))
+        sensor_config = config_to_sensor_config(config)
+        state_payload = await run_hardware_operation(sensor_config, read_state)
     except Exception as exc:
         if entry:
             registry.update_state(

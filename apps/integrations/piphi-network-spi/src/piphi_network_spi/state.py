@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import asyncio
 import json
+import threading
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import HTTPException
+from pydantic import Field, model_validator
 from piphi_runtime_kit_python import (
     RuntimeConfig,
     RuntimeConfigSnapshot,
@@ -15,7 +18,15 @@ from piphi_runtime_kit_python import (
     validate_typed_configs,
 )
 
-from .sensors import SensorConfig, discover_devices, hardware_diagnostics, normalize_config, read_state
+from .sensors import (
+    OPERATION_TIMEOUT_SECONDS,
+    SensorConfig,
+    hardware_diagnostics,
+    normalize_config,
+    read_state,
+    run_serialized,
+    target_key,
+)
 
 INTEGRATION_ID = "piphi-network-spi"
 INTEGRATION_NAME = "PiPhi Network SPI Sensors"
@@ -37,13 +48,18 @@ UI_CONFIG_SCHEMA = {
 
 
 class SPISensorRuntimeConfig(RuntimeConfig):
-    adapter: str = "linux_spi"
-    bus: int = 0
-    chip_select: int = 0
-    sensor_model: str = "auto"
-    baudrate: int = 100000
-    poll_interval_seconds: int = 30
-    alias: str | None = None
+    adapter: Literal["linux_spi", "ft232h", "mock"] = "linux_spi"
+    bus: int = Field(default=0, ge=0, le=0, strict=True)
+    chip_select: int = Field(default=0, ge=0, le=1, strict=True)
+    sensor_model: Literal["auto", "bme680", "bme280", "bmp280"] = "auto"
+    baudrate: int = Field(default=100000, ge=10_000, le=1_000_000, strict=True)
+    poll_interval_seconds: int = Field(default=30, ge=5, le=3600, strict=True)
+    alias: str | None = Field(default=None, max_length=128)
+
+    @model_validator(mode="after")
+    def validate_hardware_target(self) -> "SPISensorRuntimeConfig":
+        normalize_config(self.model_dump())
+        return self
 
 
 starter = create_runtime_starter(
@@ -82,7 +98,7 @@ def typed_snapshot_configs(snapshot: RuntimeConfigSnapshot) -> list[SPISensorRun
 def primary_config() -> SPISensorRuntimeConfig:
     entry = registry.primary_entry()
     if entry is None:
-        return SPISensorRuntimeConfig(id="spi-dev", adapter="linux_spi")
+        return SPISensorRuntimeConfig(id="spi-dev", adapter="linux_spi", sensor_model="bme280")
     return SPISensorRuntimeConfig.model_validate(entry["config"])
 
 
@@ -95,18 +111,16 @@ def get_entry_or_404(config_id: str) -> dict[str, Any]:
 
 def entry_for_config(config: SPISensorRuntimeConfig) -> dict[str, Any]:
     sensor_config = config_to_sensor_config(config)
-    try:
-        devices = discover_devices(sensor_config)
-    except Exception:
-        devices = []
-    device = devices[0] if devices else {
-        "id": config.device_id or config.id,
+    model = "bme280" if sensor_config.adapter == "mock" and sensor_config.sensor_model == "auto" else sensor_config.sensor_model
+    device = {
+        "id": config.device_id or f"spi-{sensor_config.adapter}-{sensor_config.bus}-{sensor_config.chip_select}",
         "name": config.alias or "SPI Sensor",
-        "device_id": config.device_id or config.id,
+        "device_id": config.device_id or f"spi-{sensor_config.adapter}-{sensor_config.bus}-{sensor_config.chip_select}",
         "adapter": sensor_config.adapter,
         "bus": sensor_config.bus,
         "chip_select": sensor_config.chip_select,
-        "model": sensor_config.sensor_model,
+        "model": model,
+        "baudrate": sensor_config.baudrate,
     }
     identity = build_runtime_identity(config, integration_id=INTEGRATION_ID)
     return {
@@ -179,14 +193,60 @@ def schedule_state_telemetry(entry: dict[str, Any], state: dict[str, Any]) -> No
     )
 
 
+_claims_guard = threading.Lock()
+_operation_slots = threading.BoundedSemaphore(8)
+
+
+def _register_claim_and_state(
+    config: SPISensorRuntimeConfig,
+    entry: dict[str, Any],
+    state: dict[str, Any],
+) -> None:
+    requested = target_key(config_to_sensor_config(config))
+    with _claims_guard:
+        for existing_id, existing in registry.entries.items():
+            if existing_id == config.id:
+                continue
+            existing_config = SPISensorRuntimeConfig.model_validate(existing["config"])
+            if target_key(config_to_sensor_config(existing_config)) == requested:
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"SPI target is already claimed by config_id={existing_id}",
+                )
+        registry.set(config.id, entry)
+        registry.update_state(config.id, state, device_id=entry["device_id"])
+
+
+async def run_hardware_operation(config: SensorConfig, operation: Any) -> Any:
+    if not _operation_slots.acquire(blocking=False):
+        raise RuntimeError("SPI operation queue is full")
+
+    def execute() -> Any:
+        try:
+            return run_serialized(config, operation)
+        finally:
+            _operation_slots.release()
+
+    try:
+        return await asyncio.wait_for(
+            asyncio.to_thread(execute),
+            timeout=OPERATION_TIMEOUT_SECONDS,
+        )
+    except TimeoutError as exc:
+        raise RuntimeError("SPI operation exceeded its service deadline") from exc
+
+
 async def apply_config(config: SPISensorRuntimeConfig) -> None:
     entry = entry_for_config(config)
-    registry.set(config.id, entry)
     try:
-        state = read_state(config_to_sensor_config(config))
+        sensor_config = config_to_sensor_config(config)
+        state = await run_hardware_operation(sensor_config, read_state)
     except Exception as exc:
-        state = {"connected": False, "error": str(exc)}
-    registry.update_state(config.id, state, device_id=entry["device_id"])
+        raise HTTPException(
+            status_code=503,
+            detail=f"SPI setup validation failed: {exc}",
+        ) from exc
+    _register_claim_and_state(config, entry, state)
     schedule_state_telemetry(entry, state)
     append_runtime_event("spi.config.applied", entry, {"sensor_model": config.sensor_model})
 
@@ -201,19 +261,15 @@ async def remove_config(config_id: str) -> bool:
 
 def read_current_state() -> dict[str, Any]:
     if not registry.ids():
-        config = primary_config()
-        try:
-            return {"state": read_state(config_to_sensor_config(config))}
-        except Exception as exc:
-            return {"state": {"connected": False, "error": str(exc)}}
+        return {"entries": {}, "state_snapshots": {}}
     return {"entries": registry.entries, "state_snapshots": registry.state_snapshots}
 
 
-def refresh_all_state() -> None:
+async def refresh_all_state() -> None:
     for config_id in registry.ids():
         entry = get_entry_or_404(config_id)
         config = SPISensorRuntimeConfig.model_validate(entry["config"])
-        state_payload = read_state(config_to_sensor_config(config))
+        state_payload = await run_hardware_operation(config_to_sensor_config(config), read_state)
         registry.update_state(config_id, state_payload)
 
 

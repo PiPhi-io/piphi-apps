@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import asyncio
 import json
+import threading
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import HTTPException
+from pydantic import Field, model_validator
 from piphi_runtime_kit_python import (
     RuntimeConfig,
     RuntimeConfigSnapshot,
@@ -15,7 +18,15 @@ from piphi_runtime_kit_python import (
     validate_typed_configs,
 )
 
-from .sensors import SensorConfig, discover_devices, hardware_diagnostics, normalize_config, read_state
+from .sensors import (
+    OPERATION_TIMEOUT_SECONDS,
+    SensorConfig,
+    hardware_diagnostics,
+    normalize_config,
+    read_state,
+    run_serialized,
+    target_key,
+)
 
 INTEGRATION_ID = "piphi-network-i2c"
 INTEGRATION_NAME = "PiPhi Network I2C Sensors"
@@ -36,12 +47,19 @@ UI_CONFIG_SCHEMA = {
 
 
 class I2CSensorRuntimeConfig(RuntimeConfig):
-    adapter: str = "linux_i2c"
-    bus: int = 1
+    adapter: Literal["linux_i2c", "mcp2221a", "ft232h", "mock"] = "linux_i2c"
+    bus: int = Field(default=1, ge=0, le=255, strict=True)
     address: str | int | None = None
-    sensor_model: str = "auto"
-    poll_interval_seconds: int = 30
-    alias: str | None = None
+    sensor_model: Literal["auto", "bme680", "bme280", "bmp280", "aht20", "pmsa003i", "generic"] = "auto"
+    poll_interval_seconds: int = Field(default=30, ge=5, le=3600, strict=True)
+    alias: str | None = Field(default=None, max_length=128)
+
+    @model_validator(mode="after")
+    def validate_hardware_target(self) -> "I2CSensorRuntimeConfig":
+        config = normalize_config(self.model_dump())
+        if config.adapter != "mock" and config.address is None:
+            raise ValueError("A physical I2C configuration requires an explicit address")
+        return self
 
 
 starter = create_runtime_starter(
@@ -80,7 +98,7 @@ def typed_snapshot_configs(snapshot: RuntimeConfigSnapshot) -> list[I2CSensorRun
 def primary_config() -> I2CSensorRuntimeConfig:
     entry = registry.primary_entry()
     if entry is None:
-        return I2CSensorRuntimeConfig(id="i2c-dev", adapter="linux_i2c")
+        return I2CSensorRuntimeConfig(id="i2c-dev", adapter="linux_i2c", address=0x76)
     return I2CSensorRuntimeConfig.model_validate(entry["config"])
 
 
@@ -93,17 +111,25 @@ def get_entry_or_404(config_id: str) -> dict[str, Any]:
 
 def entry_for_config(config: I2CSensorRuntimeConfig) -> dict[str, Any]:
     sensor_config = config_to_sensor_config(config)
-    try:
-        devices = discover_devices(sensor_config)
-    except Exception:
-        devices = []
-    device = devices[0] if devices else {
-        "id": config.device_id or config.id,
+    default_addresses = {
+        "aht20": 0x38,
+        "pmsa003i": 0x12,
+        "bme680": 0x76,
+        "bme280": 0x76,
+        "bmp280": 0x76,
+        "auto": 0x76,
+        "generic": 0x76,
+    }
+    address = sensor_config.address or default_addresses[sensor_config.sensor_model]
+    model = "bme280" if sensor_config.adapter == "mock" and sensor_config.sensor_model == "auto" else sensor_config.sensor_model
+    device = {
+        "id": config.device_id or f"i2c-{sensor_config.adapter}-{sensor_config.bus}-{address:02x}",
         "name": config.alias or "I2C Sensor",
-        "device_id": config.device_id or config.id,
+        "device_id": config.device_id or f"i2c-{sensor_config.adapter}-{sensor_config.bus}-{address:02x}",
         "adapter": sensor_config.adapter,
         "bus": sensor_config.bus,
-        "model": sensor_config.sensor_model,
+        "address": f"0x{address:02X}",
+        "model": model,
     }
     identity = build_runtime_identity(config, integration_id=INTEGRATION_ID)
     device_id = config.device_id or device.get("device_id") or identity["device_id"]
@@ -194,14 +220,60 @@ def schedule_state_telemetry(entry: dict[str, Any], state: dict[str, Any]) -> No
     )
 
 
+_claims_guard = threading.Lock()
+_operation_slots = threading.BoundedSemaphore(8)
+
+
+def _register_claim_and_state(
+    config: I2CSensorRuntimeConfig,
+    entry: dict[str, Any],
+    state: dict[str, Any],
+) -> None:
+    requested = target_key(config_to_sensor_config(config))
+    with _claims_guard:
+        for existing_id, existing in registry.entries.items():
+            if existing_id == config.id:
+                continue
+            existing_config = I2CSensorRuntimeConfig.model_validate(existing["config"])
+            if target_key(config_to_sensor_config(existing_config)) == requested:
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"I2C target is already claimed by config_id={existing_id}",
+                )
+        registry.set(config.id, entry)
+        registry.update_state(config.id, state, device_id=entry["device_id"])
+
+
+async def run_hardware_operation(config: SensorConfig, operation: Any) -> Any:
+    if not _operation_slots.acquire(blocking=False):
+        raise RuntimeError("I2C operation queue is full")
+
+    def execute() -> Any:
+        try:
+            return run_serialized(config, operation)
+        finally:
+            _operation_slots.release()
+
+    try:
+        return await asyncio.wait_for(
+            asyncio.to_thread(execute),
+            timeout=OPERATION_TIMEOUT_SECONDS,
+        )
+    except TimeoutError as exc:
+        raise RuntimeError("I2C operation exceeded its service deadline") from exc
+
+
 async def apply_config(config: I2CSensorRuntimeConfig) -> None:
     entry = entry_for_config(config)
-    registry.set(config.id, entry)
     try:
-        state = read_state(config_to_sensor_config(config))
+        sensor_config = config_to_sensor_config(config)
+        state = await run_hardware_operation(sensor_config, read_state)
     except Exception as exc:
-        state = {"connected": False, "error": str(exc)}
-    registry.update_state(config.id, state, device_id=entry["device_id"])
+        raise HTTPException(
+            status_code=503,
+            detail=f"I2C setup validation failed: {exc}",
+        ) from exc
+    _register_claim_and_state(config, entry, state)
     schedule_state_telemetry(entry, state)
     append_runtime_event("i2c.config.applied", entry, {"sensor_model": config.sensor_model})
 
@@ -216,24 +288,23 @@ async def remove_config(config_id: str) -> bool:
 
 def read_current_state() -> dict[str, Any]:
     if not registry.ids():
-        config = primary_config()
-        try:
-            return {"state": read_state(config_to_sensor_config(config))}
-        except Exception as exc:
-            return {"state": {"connected": False, "error": str(exc)}}
+        return {"entries": {}, "state_snapshots": {}}
     return {"entries": registry.entries, "state_snapshots": registry.state_snapshots}
 
 
-def refresh_state_for_config(config: I2CSensorRuntimeConfig) -> dict[str, Any]:
-    state_payload = read_state(config_to_sensor_config(config))
+async def refresh_state_for_config(config: I2CSensorRuntimeConfig) -> dict[str, Any]:
+    sensor_config = config_to_sensor_config(config)
+    state_payload = await run_hardware_operation(sensor_config, read_state)
     registry.update_state(config.id, state_payload)
     return state_payload
 
 
-def refresh_all_state() -> None:
+async def refresh_all_state() -> None:
     for config_id in registry.ids():
         entry = get_entry_or_404(config_id)
-        refresh_state_for_config(I2CSensorRuntimeConfig.model_validate(entry["config"]))
+        config = I2CSensorRuntimeConfig.model_validate(entry["config"])
+        state_payload = await run_hardware_operation(config_to_sensor_config(config), read_state)
+        registry.update_state(config_id, state_payload)
 
 
 starter.state.provide(refresh_all_state, source=INTEGRATION_ID)

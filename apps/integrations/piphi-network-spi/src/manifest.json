@@ -28,7 +28,7 @@
           "PIPHI_SPI_PORT": "3675",
           "PIPHI_ALLOW_MOCK_HARDWARE": "false"
         },
-        "privileged": true,
+        "privileged": false,
         "restart_policy": {
           "name": "unless-stopped",
           "maximum_retry_count": 0
@@ -47,7 +47,7 @@
               "ft232h",
               "mock"
             ],
-            "description": "Use linux_spi for direct GPIO headers, ft232h for the Adafruit USB bridge, or mock only when PIPHI_ALLOW_MOCK_HARDWARE=true."
+            "description": "Uses Blinka's default SPI controller (bus 0 only), FT232H's default controller, or mock only when PIPHI_ALLOW_MOCK_HARDWARE=true. Physical targets require an explicit sensor model and a successful driver chip-ID probe."
           },
           {
             "name": "bus",
@@ -124,16 +124,14 @@
     "identity_fields": [
       "adapter",
       "bus",
-      "chip_select",
-      "sensor_model"
+      "chip_select"
     ]
   },
   "identity": {
     "fields": [
       "adapter",
       "bus",
-      "chip_select",
-      "sensor_model"
+      "chip_select"
     ]
   },
   "capabilities": {
