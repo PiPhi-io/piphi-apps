@@ -1,0 +1,120 @@
+{
+  "schema_version": 1,
+  "reviewed_at": "2026-11-16",
+  "release": "0.2.0-alpha.5",
+  "policy": {
+    "supported_transports": [
+      "ethernet",
+      "wifi_on_network"
+    ],
+    "experimental_transports": [
+      "ble",
+      "thread"
+    ],
+    "required_profiles": [
+      "ethernet_on_off_plug",
+      "wifi_on_off_light",
+      "wifi_on_off_plug"
+    ],
+    "qualification_steps": [
+      "network_preflight",
+      "commission",
+      "capability_negotiation",
+      "turn_on",
+      "subscription_state_on",
+      "turn_off",
+      "subscription_state_off",
+      "sidecar_restart_recovery",
+      "controller_restore_recovery",
+      "decommission"
+    ],
+    "optional_qualification_steps": [
+      "ble_wifi_provisioning"
+    ]
+  },
+  "profiles": [
+    {
+      "id": "ethernet_on_off_plug",
+      "transport": "ethernet",
+      "device_class": "plug",
+      "status": "pending_hardware",
+      "evidence": [],
+      "blocker": "No representative physical Ethernet Matter plug is available in this checkout."
+    },
+    {
+      "id": "wifi_on_off_light",
+      "transport": "wifi_on_network",
+      "device_class": "light",
+      "status": "pending_hardware",
+      "evidence": [],
+      "blocker": "No representative physical Wi-Fi Matter light is available in this checkout."
+    },
+    {
+      "id": "wifi_on_off_plug",
+      "transport": "wifi_on_network",
+      "device_class": "plug",
+      "status": "qualified",
+      "evidence": [
+        {
+          "report": "docs/qualification/20261116T161927Z-wifi_on_off_plug/report.json",
+          "vendor": "TP Link",
+          "model": "KP125M",
+          "firmware_version": "1.0.0",
+          "image_digest": "sha256:c2fac74dab0f357a8343da19b653344cb8f106de3fa2491ab4a8fac0b4b2bdfc",
+          "completed_at": "2026-11-16T16:30:01.000Z",
+          "steps": [
+            "network_preflight",
+            "ble_wifi_provisioning",
+            "commission",
+            "capability_negotiation",
+            "turn_on",
+            "subscription_state_on",
+            "turn_off",
+            "subscription_state_off",
+            "sidecar_restart_recovery",
+            "controller_restore_recovery",
+            "decommission"
+          ]
+        },
+        {
+          "report": "docs/qualification/20261116T170230Z-wifi_on_off_plug/report.json",
+          "vendor": "TP Link",
+          "model": "KP125M",
+          "firmware_version": "1.0.0",
+          "image_digest": "sha256:a288c5e1fefe43a737d0b5d4981c5db7c405bcdfd82f38f4d716b98db4d35f35",
+          "completed_at": "2026-11-16T17:08:27.000Z",
+          "steps": [
+            "network_preflight",
+            "ble_wifi_provisioning",
+            "commission",
+            "capability_negotiation",
+            "turn_on",
+            "subscription_state_on",
+            "turn_off",
+            "subscription_state_off",
+            "sidecar_restart_recovery",
+            "controller_restore_recovery",
+            "decommission"
+          ]
+        }
+      ]
+    }
+  ],
+  "simulated_evidence": {
+    "profile": "virtual_on_off_light",
+    "status": "qualified",
+    "command": "npm run qualify:virtual-device",
+    "covers": [
+      "network_preflight",
+      "commission",
+      "capability_negotiation",
+      "turn_on",
+      "subscription_state_on",
+      "turn_off",
+      "subscription_state_off",
+      "controller_restore_recovery",
+      "decommission"
+    ],
+    "limitations": "Simulation does not establish physical Ethernet/Wi-Fi radio, firmware, vendor, or long-running recovery compatibility."
+  }
+}

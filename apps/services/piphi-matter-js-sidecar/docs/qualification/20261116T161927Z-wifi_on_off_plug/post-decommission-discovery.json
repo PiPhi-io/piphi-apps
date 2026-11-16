@@ -1,0 +1,12 @@
+[
+  {
+    "instance_name": "1BE160571E8074E5",
+    "vendor_id": 5009,
+    "product_id": 257,
+    "device_type": 266,
+    "long_discriminator": 3503,
+    "commissioning_mode": 1,
+    "address_count": 4,
+    "metadata": {}
+  }
+]

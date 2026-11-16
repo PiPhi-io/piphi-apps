@@ -1,0 +1,43 @@
+{
+  "schema_version": "piphi.matter.snapshot.v1",
+  "generated_at": "<generated-at>",
+  "stream_id": "<stream-id>",
+  "latest_sequence": 0,
+  "dropped_event_count": 0,
+  "controller": {
+    "connected": true,
+    "identity_hash": "fabric-test",
+    "sdk_version": "matter-server/1.6.0",
+    "schema_version": 15
+  },
+  "nodes": [
+    {
+      "node_id": "1234",
+      "available": true,
+      "date_commissioned": null,
+      "matter_version": "1.4.0",
+      "attributes": {
+        "0/40/1": "PiPhi Labs",
+        "0/40/2": 4660,
+        "0/40/3": "Climate Light",
+        "0/40/4": 1,
+        "0/40/5": "Office Matter Device",
+        "0/40/7": 1,
+        "0/40/8": "1.0",
+        "0/40/9": 100,
+        "0/40/10": "1.0.0",
+        "1/29/0": [
+          { "deviceType": 257, "revision": 3 },
+          { "deviceType": 770, "revision": 2 }
+        ],
+        "1/29/1": [6, 8, 47, 1026, 1029, 1030],
+        "1/6/0": true,
+        "1/8/0": 127,
+        "1/47/12": 170,
+        "1/1026/0": 2245,
+        "1/1029/0": 4150,
+        "1/1030/0": 1
+      }
+    }
+  ]
+}
