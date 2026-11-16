@@ -23,6 +23,7 @@ from .coordinator_probe import probe_coordinator
 from .mqtt_gateway import mqtt_gateway
 from .schemas import DeviceConfig
 from .settings import INTEGRATION_ID, INTEGRATION_NAME, INTEGRATION_VERSION
+from .stopped_coordinator_evidence import verify_stopped_coordinator_evidence
 
 starter = create_runtime_starter(
     integration_id=INTEGRATION_ID,
@@ -77,9 +78,25 @@ async def apply_config(config: DeviceConfig) -> None:
     if config.serial_port:
         if not config.coordinator_identity:
             raise HTTPException(status_code=400, detail="A stable coordinator_identity is required.")
-        coordinator_identity = stable_coordinator_identity(config.coordinator_identity)
+        selected_coordinator_identity = config.coordinator_identity.strip()
+        coordinator_identity = stable_coordinator_identity(selected_coordinator_identity)
         owner_id = claim_owner_id()
-        if sidecar_store.coordinator_identity != coordinator_identity:
+        if config.coordinator_stop_authority == "core_managed_helper":
+            evidence = config.stopped_coordinator_evidence
+            if evidence is None:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Core-managed config sync is missing stopped-coordinator evidence.",
+                )
+            try:
+                verify_stopped_coordinator_evidence(
+                    evidence,
+                    operation="config_sync",
+                    coordinator_identity=selected_coordinator_identity,
+                )
+            except ValueError as exc:
+                raise HTTPException(status_code=409, detail=str(exc)) from exc
+        elif sidecar_store.coordinator_identity != coordinator_identity:
             probe = probe_coordinator(config.serial_port)
             if not probe.available:
                 raise HTTPException(
