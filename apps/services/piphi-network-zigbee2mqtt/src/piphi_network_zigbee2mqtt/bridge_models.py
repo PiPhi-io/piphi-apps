@@ -15,6 +15,7 @@ from pydantic import (
 )
 
 from .settings import DEFAULT_ZIGBEE2MQTT_IMAGE
+from .stopped_coordinator_evidence import StoppedCoordinatorEvidence
 
 AdapterTransport = Literal["serial", "tcp", "socket"]
 AdapterRuntime = Literal["docker", "native"]
@@ -167,6 +168,17 @@ class NetworkRestoreRequest(BaseModel):
     coordinator_identity: str = Field(min_length=1, max_length=256)
     coordinator_port: str
     confirm_restore: bool = False
+    coordinator_stop_authority: Literal["local", "core_managed_helper"] = "local"
+    stopped_coordinator_evidence: StoppedCoordinatorEvidence | None = None
+
+    @model_validator(mode="after")
+    def require_managed_stop_evidence(self) -> NetworkRestoreRequest:
+        if (
+            self.coordinator_stop_authority == "core_managed_helper"
+            and self.stopped_coordinator_evidence is None
+        ):
+            raise ValueError("Core-managed restore requires stopped-coordinator evidence.")
+        return self
 
 
 class NetworkRestoreResponse(BaseModel):
@@ -205,6 +217,8 @@ class CoordinatorMigrationPlanRequest(BaseModel):
     target_coordinator_port: str = Field(min_length=1, max_length=512)
     target_adapter: str | None = Field(default=None, min_length=1, max_length=64)
     compatibility_evidence: str | None = Field(default=None, min_length=1, max_length=512)
+    coordinator_stop_authority: Literal["local", "core_managed_helper"] = "local"
+    stopped_coordinator_evidence: StoppedCoordinatorEvidence | None = None
 
     @field_validator("source_adapter_family", "target_adapter_family")
     @classmethod
@@ -213,6 +227,15 @@ class CoordinatorMigrationPlanRequest(BaseModel):
         if not token:
             raise ValueError("Adapter family is required.")
         return token
+
+    @model_validator(mode="after")
+    def require_managed_stop_evidence(self) -> CoordinatorMigrationPlanRequest:
+        if (
+            self.coordinator_stop_authority == "core_managed_helper"
+            and self.stopped_coordinator_evidence is None
+        ):
+            raise ValueError("Core-managed migration requires stopped-coordinator evidence.")
+        return self
 
 
 class CoordinatorMigrationPlanResponse(BaseModel):

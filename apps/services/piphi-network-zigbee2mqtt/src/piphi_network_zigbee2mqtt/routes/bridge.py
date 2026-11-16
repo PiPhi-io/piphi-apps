@@ -46,6 +46,7 @@ from ..network_backup import (
     verify_network_backup,
 )
 from ..state import sidecar_store
+from ..stopped_coordinator_evidence import verify_stopped_coordinator_evidence
 from ..supervisor import check_prerequisites, supervise, supervisor_logs
 from ..zigbee2mqtt_mqtt import (
     Zigbee2MqttMqttClient,
@@ -150,7 +151,14 @@ async def network_backup_import(payload: EncryptedBackupImportRequest):
 @router.post("/coordinator-migration/plan")
 async def coordinator_migration_plan(payload: CoordinatorMigrationPlanRequest):
     try:
-        return plan_coordinator_migration(payload, probe=probe_coordinator)
+        return plan_coordinator_migration(
+            payload,
+            probe=lambda port: _probe_or_verify_managed_stop(
+                payload,
+                port=port,
+                operation="coordinator_migration_plan",
+            ),
+        )
     except (OSError, ValueError) as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
@@ -165,7 +173,14 @@ async def coordinator_migration_apply(payload: CoordinatorMigrationApplyRequest)
     if migration_plan_id(plan_request) != payload.plan_id:
         raise HTTPException(status_code=409, detail="Coordinator migration plan no longer matches the request.")
     try:
-        plan_coordinator_migration(plan_request, probe=probe_coordinator)
+        plan_coordinator_migration(
+            plan_request,
+            probe=lambda port: _probe_or_verify_managed_stop(
+                payload,
+                port=port,
+                operation="coordinator_migration_apply",
+            ),
+        )
     except (OSError, ValueError) as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
@@ -247,7 +262,14 @@ async def coordinator_migration_apply(payload: CoordinatorMigrationApplyRequest)
 async def network_restore(payload: NetworkRestoreRequest):
     if not payload.confirm_restore:
         raise HTTPException(status_code=400, detail="Network restore requires explicit confirmation.")
-    probe = probe_coordinator(payload.coordinator_port)
+    try:
+        probe = _probe_or_verify_managed_stop(
+            payload,
+            port=payload.coordinator_port,
+            operation="network_restore",
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     if not probe.available:
         raise HTTPException(
             status_code=409,
@@ -280,6 +302,33 @@ async def network_restore(payload: NetworkRestoreRequest):
     finally:
         if not already_owned:
             claim_store.release(identity, owner_id)
+
+
+def _probe_or_verify_managed_stop(payload, *, port: str, operation: str):
+    if payload.coordinator_stop_authority == "local":
+        return probe_coordinator(port)
+    evidence = payload.stopped_coordinator_evidence
+    if evidence is None:
+        raise ValueError("Core-managed operation is missing stopped-coordinator evidence.")
+    identity = (
+        payload.coordinator_identity
+        if hasattr(payload, "coordinator_identity")
+        else payload.target_coordinator_identity
+    )
+    verify_stopped_coordinator_evidence(
+        evidence,
+        operation=operation,
+        coordinator_identity=identity,
+    )
+    from ..bridge_models import CoordinatorProbeResponse
+
+    return CoordinatorProbeResponse(
+        available=True,
+        in_use=False,
+        method="core_managed_helper_evidence",
+        exclusive_verified=True,
+        message="Core confirmed the managed Zigbee2MQTT workload is stopped.",
+    )
 
 
 @router.post("/devices")

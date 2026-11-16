@@ -64,7 +64,10 @@ def plan_coordinator_migration(
 
 
 def migration_plan_id(request: CoordinatorMigrationPlanRequest) -> str:
-    payload = request.model_dump(mode="json")
+    payload = request.model_dump(
+        mode="json",
+        exclude={"coordinator_stop_authority", "stopped_coordinator_evidence"},
+    )
     payload["compatibility_evidence"] = (request.compatibility_evidence or "").strip() or None
     for field in ("target_coordinator_identity", "target_coordinator_port"):
         payload[field] = str(payload[field]).strip()
