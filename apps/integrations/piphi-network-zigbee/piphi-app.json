@@ -24,7 +24,7 @@
     {
       "id": "piphi-network-zigbee",
       "type": "integration",
-      "version": "0.1.11",
+      "version": "0.1.12",
       "manifest": "src/manifest.json",
       "release": {
         "tag": "apps/{package_id}/v{version}",

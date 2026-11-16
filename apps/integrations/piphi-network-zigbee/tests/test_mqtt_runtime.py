@@ -15,8 +15,8 @@ from piphi_network_zigbee.mqtt_runtime import (
     decode_zigbee2mqtt_message,
     normalize_state_payload,
 )
-from piphi_network_zigbee.schemas import DeviceConfig
 from piphi_network_zigbee.routes import commands as command_routes
+from piphi_network_zigbee.schemas import DeviceConfig
 
 
 @pytest.mark.anyio
@@ -125,7 +125,7 @@ def test_security_event_worker_delivers_from_an_mqtt_callback_thread(monkeypatch
 
 
 class FakeMqttModule:
-    instances: list["FakeMqttClient"] = []
+    instances: list[FakeMqttClient] = []
 
     class Client:
         def __init__(self, client_id: str) -> None:
@@ -353,10 +353,10 @@ async def test_command_route_replays_key_without_repeating_mqtt_effect(
     published: list[tuple[str, dict[str, object], bool]] = []
 
     class FakePublishingClient:
-        def __init__(self, *, server: str) -> None:
-            self.server = server
+        def __init__(self, *, base_url: str) -> None:
+            self.base_url = base_url
 
-        async def publish_json(
+        async def mqtt_publish(
             self,
             topic: str,
             payload: dict[str, object],
@@ -371,7 +371,7 @@ async def test_command_route_replays_key_without_repeating_mqtt_effect(
                 "payload": payload,
             }
 
-    monkeypatch.setattr(command_routes, "ZigbeeMqttClient", FakePublishingClient)
+    monkeypatch.setattr(command_routes, "Zigbee2MqttSidecarClient", FakePublishingClient)
     runtime_state.registry.set(
         "idempotent-light",
         {
@@ -496,38 +496,34 @@ async def test_config_sync_prefers_physical_zigbee_identity_over_uuid_device_id(
 
 @pytest.mark.anyio
 async def test_apply_config_starts_subscription_and_ingests_state(monkeypatch) -> None:
-    started: list["FakeSubscriber"] = []
+    started: list[FakeSubscriber] = []
     telemetry_deliveries: list[dict] = []
 
     class FakeSubscriber:
-        def __init__(self, *, server, subscriptions, on_payload):
-            self.server = server
-            self.subscriptions = subscriptions
-            self.on_payload = on_payload
+        def __init__(self, *, base_url, topics, on_message):
+            self.base_url = base_url
+            self.topics = topics
+            self.on_message = on_message
             self.status = "stopped"
             self.message = None
             self.started_at = None
             started.append(self)
 
-        @property
-        def topics(self):
-            return [subscription.topic for subscription in self.subscriptions]
-
         def start(self):
             self.status = "running"
-            for subscription in self.subscriptions:
-                if subscription.kind == "state":
-                    self.on_payload(subscription, {"state": "ON", "brightness": 254})
-                if subscription.kind == "availability":
-                    self.on_payload(subscription, {"availability": "online"})
+            for topic in self.topics:
+                if topic.endswith("/availability"):
+                    self.on_message(topic, "online")
+                else:
+                    self.on_message(topic, {"state": "ON", "brightness": 254})
 
         def stop(self):
             self.status = "stopped"
 
         def snapshot(self):
-            return {"server": self.server, "status": self.status, "topics": self.topics}
+            return {"sidecar_url": self.base_url, "status": self.status, "topics": self.topics}
 
-    monkeypatch.setattr(runtime_state, "ZigbeeMqttSubscriber", FakeSubscriber)
+    monkeypatch.setattr(runtime_state, "SidecarMessageSubscriber", FakeSubscriber)
     monkeypatch.setattr(
         runtime_state,
         "schedule_telemetry_delivery",
@@ -542,8 +538,8 @@ async def test_apply_config_starts_subscription_and_ingests_state(monkeypatch) -
             config_id=config_id,
             device_id="0xb40e060fffe7068b",
             friendly_name="Motion Sensor 1 In Bedroom",
-            mqtt_server="mqtt://broker.local:1883",
             mqtt_topic="zigbee2mqtt/0xb40e060fffe7068b",
+            sidecar_base_url="http://sidecar.local:8720",
             capabilities=["state", "brightness_percent"],
         )
     )

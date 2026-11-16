@@ -5,7 +5,7 @@ from urllib.parse import urlparse
 
 INTEGRATION_ID = "piphi-network-zigbee"
 INTEGRATION_NAME = "PiPhi Network Zigbee"
-INTEGRATION_VERSION = "0.1.11"
+INTEGRATION_VERSION = "0.1.12"
 PROJECT_KIND = "integration"
 PROJECT_PRESET = "protocol-bridge"
 PROJECT_DOMAIN = "bridge"
@@ -21,11 +21,6 @@ def _normalize_sidecar_base_url(value: str | None) -> str:
 
 
 DEFAULT_SIDECAR_BASE_URL = _normalize_sidecar_base_url(os.getenv("ZIGBEE2MQTT_SIDECAR_URL"))
-DEFAULT_MQTT_SERVER = (
-    os.getenv("MQTT_URL")
-    or os.getenv("MQTT_SERVER")
-    or "mqtt://127.0.0.1:1883"
-).strip()
 DEFAULT_MQTT_BASE_TOPIC = os.getenv("MQTT_BASE_TOPIC", "zigbee2mqtt").strip().strip("/") or "zigbee2mqtt"
 
 

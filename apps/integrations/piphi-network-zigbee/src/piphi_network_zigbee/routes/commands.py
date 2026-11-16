@@ -17,7 +17,9 @@ from piphi_runtime_kit_python.fastapi import (
     sync_runtime_auth_from_fastapi_request,
 )
 
-from ..mqtt_runtime import ZigbeeMqttClient, ZigbeeMqttError, command_to_mqtt
+from ..mqtt_runtime import command_to_mqtt
+from ..settings import DEFAULT_SIDECAR_BASE_URL
+from ..sidecar_client import SidecarUnavailable, Zigbee2MqttSidecarClient
 from ..state import append_runtime_event, commands, registry, runtime
 from ..zigbee_devices import available_commands_for
 
@@ -44,8 +46,8 @@ async def _execute_registered_command(
         entry = {
             "device_id": device_id,
             "config_id": config_id,
-            "mqtt_server": "mqtt://127.0.0.1:1883",
             "mqtt_topic": f"zigbee2mqtt/{device_id}",
+            "sidecar_base_url": DEFAULT_SIDECAR_BASE_URL,
             "capabilities": ["refresh"],
         }
         dry_run = True
@@ -72,9 +74,9 @@ async def _execute_registered_command(
             action_request.command,
             action_request.args,
         )
-        mqtt_result = await ZigbeeMqttClient(
-            server=str(entry.get("mqtt_server") or "mqtt://127.0.0.1:1883"),
-        ).publish_json(
+        mqtt_result = await Zigbee2MqttSidecarClient(
+            base_url=str(entry.get("sidecar_base_url") or DEFAULT_SIDECAR_BASE_URL),
+        ).mqtt_publish(
             mqtt_command["topic"],
             mqtt_command["payload"],
             dry_run=dry_run,
@@ -84,7 +86,7 @@ async def _execute_registered_command(
             str(exc),
             metadata={"status_code": 400},
         )
-    except ZigbeeMqttError as exc:
+    except SidecarUnavailable as exc:
         if action_request.command == "refresh":
             mqtt_result = {
                 "ok": False,

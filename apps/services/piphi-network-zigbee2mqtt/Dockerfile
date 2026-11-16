@@ -6,7 +6,7 @@ COPY pyproject.toml pdm.lock ./
 RUN pdm export --prod --without-hashes --output requirements.txt
 
 FROM python:3.12-slim@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b
-ARG APP_VERSION=0.1.22
+ARG APP_VERSION=0.1.23
 LABEL org.opencontainers.image.title="PiPhi Zigbee2MQTT Sidecar" \
       org.opencontainers.image.description="Managed Zigbee2MQTT bridge helper for PiPhi" \
       org.opencontainers.image.source="https://github.com/PiPhi-io/piphi-apps" \

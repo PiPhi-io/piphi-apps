@@ -274,8 +274,8 @@ Windows/macOS:
 ## Docker Build
 
 ```bash
-docker build -t ghcr.io/piphi-io/zigbee2mqtt-sidecar:0.1.22 .
-docker run --rm -p 8720:8720 ghcr.io/piphi-io/zigbee2mqtt-sidecar:0.1.22
+docker build -t ghcr.io/piphi-io/zigbee2mqtt-sidecar:0.1.23 .
+docker run --rm -p 8720:8720 ghcr.io/piphi-io/zigbee2mqtt-sidecar:0.1.23
 ```
 
 For Linux, deploy through Core's managed-runtime helper contract. Running the

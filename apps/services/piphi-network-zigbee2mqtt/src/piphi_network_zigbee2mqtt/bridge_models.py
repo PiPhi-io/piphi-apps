@@ -59,6 +59,17 @@ class MqttSettings(BaseModel):
         return token
 
 
+class MqttMessagesRequest(BaseModel):
+    topics: list[str] = Field(min_length=1, max_length=256)
+    after_sequence: int = Field(default=0, ge=0)
+
+
+class MqttPublishRequest(BaseModel):
+    topic: str
+    payload: dict[str, Any]
+    dry_run: bool = False
+
+
 class SerialSettings(BaseModel):
     port: str
     adapter: str | None = None

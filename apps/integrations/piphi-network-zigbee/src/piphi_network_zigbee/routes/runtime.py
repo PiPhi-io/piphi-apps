@@ -5,8 +5,9 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query
 
 from ..contract import ENDPOINTS, REQUIRED_ENDPOINTS
-from ..mqtt_runtime import ZigbeeMqttClient, ZigbeeMqttError, normalize_state_payload
+from ..mqtt_runtime import normalize_state_payload
 from ..settings import (
+    DEFAULT_SIDECAR_BASE_URL,
     INTEGRATION_ID,
     INTEGRATION_NAME,
     INTEGRATION_VERSION,
@@ -14,6 +15,7 @@ from ..settings import (
     PROJECT_KIND,
     PROJECT_PRESET,
 )
+from ..sidecar_client import SidecarUnavailable, Zigbee2MqttSidecarClient
 from ..state import mqtt_subscription_snapshot, registry, starter
 
 router = APIRouter(tags=["runtime"])
@@ -46,21 +48,27 @@ async def state(
 async def _refresh_mqtt_state(*, dry_run: bool = False) -> None:
     for config_id, entry in list(registry.entries.items()):
         topic = str(entry.get("mqtt_topic") or "").strip()
-        server = str(entry.get("mqtt_server") or "mqtt://127.0.0.1:1883")
         if not topic:
             continue
         try:
-            result = await ZigbeeMqttClient(server=server).read_json_topic(topic, dry_run=dry_run)
-        except ZigbeeMqttError as exc:
+            if dry_run:
+                messages: list[dict[str, Any]] = []
+            else:
+                result = await Zigbee2MqttSidecarClient(
+                    base_url=str(
+                        entry.get("sidecar_base_url") or DEFAULT_SIDECAR_BASE_URL
+                    )
+                ).mqtt_messages([topic])
+                messages = result.get("messages") if isinstance(result.get("messages"), list) else []
+        except SidecarUnavailable as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
-        payload = result.get("payload") if isinstance(result, dict) else {}
+        payload = messages[-1].get("payload") if messages and isinstance(messages[-1], dict) else {}
         if isinstance(payload, dict):
             registry.update_state(
                 config_id,
                 {
                     **normalize_state_payload(payload),
                     "mqtt_topic": topic,
-                    "mqtt_server": server,
                 },
                 device_id=str(entry.get("device_id") or config_id),
             )

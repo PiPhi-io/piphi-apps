@@ -7,7 +7,6 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import HTTPException
-
 from piphi_runtime_kit_python import (
     EventClient,
     RuntimeProcessState,
@@ -23,15 +22,25 @@ from piphi_runtime_kit_python import (
 
 from .contract import CAPABILITIES, COMMANDS
 from .mqtt_runtime import (
-    ZigbeeMqttError,
-    ZigbeeMqttSubscriber,
     ZigbeeMqttSubscription,
     normalize_state_payload,
     subscriptions_for_entry,
 )
 from .schemas import DeviceConfig
-from .settings import DEFAULT_MQTT_BASE_TOPIC, DEFAULT_MQTT_SERVER, INTEGRATION_ID, INTEGRATION_NAME, INTEGRATION_VERSION
-from .zigbee_devices import capability_metadata_from_exposes, infer_capabilities, normalize_device_id, normalize_exposes
+from .settings import (
+    DEFAULT_MQTT_BASE_TOPIC,
+    DEFAULT_SIDECAR_BASE_URL,
+    INTEGRATION_ID,
+    INTEGRATION_NAME,
+    INTEGRATION_VERSION,
+)
+from .sidecar_client import SidecarMessageSubscriber
+from .zigbee_devices import (
+    capability_metadata_from_exposes,
+    infer_capabilities,
+    normalize_device_id,
+    normalize_exposes,
+)
 
 starter = create_runtime_starter(
     integration_id=INTEGRATION_ID,
@@ -46,7 +55,7 @@ config_sync = starter.config_sync
 
 capabilities = CAPABILITIES
 commands = COMMANDS
-mqtt_subscribers: dict[str, ZigbeeMqttSubscriber] = {}
+mqtt_subscribers: dict[str, SidecarMessageSubscriber] = {}
 mqtt_subscription_errors: dict[str, str] = {}
 logger = logging.getLogger(__name__)
 
@@ -71,7 +80,6 @@ def make_entry(config: DeviceConfig) -> dict[str, Any]:
         "vendor": config.vendor,
         "description": config.description,
         "device_type": config.device_type,
-        "mqtt_server": config.mqtt_server or DEFAULT_MQTT_SERVER,
         "mqtt_base_topic": mqtt_base_topic,
         "mqtt_topic": mqtt_topic,
         "sidecar_base_url": config.sidecar_base_url,
@@ -265,7 +273,6 @@ async def apply_config(config: DeviceConfig) -> None:
             "ieee_address": config.ieee_address,
             "alias": config.alias,
             "config_id": entry["config_id"],
-            "mqtt_server": entry["mqtt_server"],
             "mqtt_topic": entry["mqtt_topic"],
         },
         device_id=entry["device_id"],
@@ -296,27 +303,28 @@ async def remove_config(config_id: str) -> bool:
 
 
 def reconcile_mqtt_subscriptions() -> None:
-    desired = _subscriptions_by_server()
-    for server in list(mqtt_subscribers):
-        if server not in desired:
-            mqtt_subscribers.pop(server).stop()
-            mqtt_subscription_errors.pop(server, None)
-    for server, subscriptions in desired.items():
-        existing = mqtt_subscribers.get(server)
-        if existing and set(existing.topics) == {subscription.topic for subscription in subscriptions}:
+    desired = _subscriptions_by_sidecar()
+    for sidecar_url in list(mqtt_subscribers):
+        if sidecar_url not in desired:
+            mqtt_subscribers.pop(sidecar_url).stop()
+            mqtt_subscription_errors.pop(sidecar_url, None)
+    for sidecar_url, subscriptions in desired.items():
+        topics = [subscription.topic for subscription in subscriptions]
+        existing = mqtt_subscribers.get(sidecar_url)
+        if existing and set(existing.topics) == set(topics):
             continue
         if existing:
             existing.stop()
-        subscriber = ZigbeeMqttSubscriber(
-            server=server,
-            subscriptions=subscriptions,
-            on_payload=_handle_mqtt_payload,
+        topic_map = {subscription.topic: subscription for subscription in subscriptions}
+        subscriber = SidecarMessageSubscriber(
+            base_url=sidecar_url,
+            topics=topics,
+            on_message=lambda topic, payload, mapping=topic_map: _handle_sidecar_message(
+                mapping, topic, payload
+            ),
         )
-        try:
-            subscriber.start()
-        except ZigbeeMqttError as exc:
-            mqtt_subscription_errors[server] = str(exc)
-        mqtt_subscribers[server] = subscriber
+        subscriber.start()
+        mqtt_subscribers[sidecar_url] = subscriber
 
 
 def stop_mqtt_subscriptions() -> None:
@@ -330,23 +338,44 @@ def mqtt_subscription_snapshot() -> dict[str, Any]:
     return {
         "running": any(subscriber.status in {"starting", "running"} for subscriber in mqtt_subscribers.values()),
         "servers": {
-            server: {
+            sidecar_url: {
                 **subscriber.snapshot(),
-                "error": mqtt_subscription_errors.get(server),
+                "error": mqtt_subscription_errors.get(sidecar_url),
             }
-            for server, subscriber in sorted(mqtt_subscribers.items())
+            for sidecar_url, subscriber in sorted(mqtt_subscribers.items())
         },
     }
 
 
-def _subscriptions_by_server() -> dict[str, list[ZigbeeMqttSubscription]]:
+def _subscriptions_by_sidecar() -> dict[str, list[ZigbeeMqttSubscription]]:
     grouped: dict[str, list[ZigbeeMqttSubscription]] = {}
     for entry in registry.entries.values():
-        server = str(entry.get("mqtt_server") or DEFAULT_MQTT_SERVER)
+        sidecar_url = str(entry.get("sidecar_base_url") or DEFAULT_SIDECAR_BASE_URL)
         subscriptions = subscriptions_for_entry(entry)
         if subscriptions:
-            grouped.setdefault(server, []).extend(subscriptions)
+            grouped.setdefault(sidecar_url, []).extend(subscriptions)
     return grouped
+
+
+def _handle_sidecar_message(
+    topic_map: dict[str, ZigbeeMqttSubscription],
+    topic: str,
+    payload: Any,
+) -> None:
+    subscription = topic_map.get(topic)
+    if subscription is None:
+        return
+    if subscription.kind == "availability":
+        if isinstance(payload, dict):
+            value = payload.get("state") or payload.get("availability") or payload.get("status")
+        else:
+            value = payload
+        normalized = {"availability": value}
+    elif isinstance(payload, dict):
+        normalized = payload
+    else:
+        return
+    _handle_mqtt_payload(subscription, normalized)
 
 
 def _handle_mqtt_payload(subscription: ZigbeeMqttSubscription, payload: dict[str, Any]) -> None:
@@ -365,7 +394,6 @@ def _handle_mqtt_payload(subscription: ZigbeeMqttSubscription, payload: dict[str
             **current_state,
             **state_update,
             "mqtt_topic": entry.get("mqtt_topic"),
-            "mqtt_server": entry.get("mqtt_server"),
         },
         device_id=subscription.device_id,
     )

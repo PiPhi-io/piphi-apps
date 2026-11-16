@@ -3,7 +3,7 @@
   "manifest_version": "1.0",
   "id": "piphi-network-zigbee",
   "name": "PiPhi Network Zigbee",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "description": "Generic Zigbee integration runtime backed by the shared Zigbee2MQTT sidecar.",
   "metadata": {
     "generator": "piphi-network-create",
@@ -17,7 +17,7 @@
     "website": "https://piphi.io"
   },
   "license": "Apache-2.0",
-  "image": "ghcr.io/piphi-io/zigbee-integration:0.1.11",
+  "image": "ghcr.io/piphi-io/zigbee-integration:0.1.12",
   "platforms": [
     "linux",
     "windows",
@@ -27,7 +27,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "ghcr.io/piphi-io/zigbee-integration:0.1.11",
+        "image": "ghcr.io/piphi-io/zigbee-integration:0.1.12",
         "ports": [
           {
             "container": 8730,
@@ -36,9 +36,7 @@
         ],
         "environment": {
           "LOG_LEVEL": "info",
-          "ZIGBEE2MQTT_SIDECAR_URL": "http://127.0.0.1:8720",
-          "MQTT_SERVER": "mqtt://127.0.0.1:1883",
-          "MQTT_BASE_TOPIC": "zigbee2mqtt"
+          "ZIGBEE2MQTT_SIDECAR_URL": "http://127.0.0.1:8720"
         },
         "restart_policy": {
           "name": "unless-stopped",
@@ -78,15 +76,6 @@
         "shared": true,
         "auto_install": true,
         "reason": "Detects Zigbee coordinators, renders Zigbee2MQTT configuration, and supervises the bridge used by this integration."
-      },
-      {
-        "id": "piphi.service.mqtt-broker",
-        "kind": "platform_service",
-        "version_range": ">=0.1.0,<1.0.0",
-        "required": true,
-        "shared": true,
-        "auto_install": true,
-        "reason": "Provides the shared MQTT broker used by Zigbee2MQTT topics and Zigbee device state/control traffic."
       }
     ]
   },
@@ -122,8 +111,6 @@
       "ieee_address",
       "model_id",
       "vendor",
-      "mqtt_server",
-      "mqtt_base_topic",
       "sidecar_base_url"
     ],
     "runtime_fields": [
