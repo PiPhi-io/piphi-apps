@@ -1,0 +1,1 @@
+{"schema_version":"piphi.matter.snapshot.v1","generated_at":"2026-11-16T16:24:12.139Z","stream_id":"252708d4-8b79-458b-89db-dccfb436fff3","latest_sequence":5,"dropped_event_count":0,"controller":{"connected":true,"identity_hash":"370c94f7032b0a3b","sdk_version":"matter-server/1.6.0 (matter.js/0.18.1-alpha.0-20261114-e4326a175)","schema_version":15},"nodes":[]}

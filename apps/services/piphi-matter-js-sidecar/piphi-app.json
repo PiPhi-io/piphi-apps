@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "$schema": "../../../contracts/piphi-app.schema.json",
+  "slug": "piphi-matter-js-sidecar",
+  "source": {
+    "imported_from": "https://github.com/PiPhi-io/piphi-network-matter"
+  },
+  "languages": [
+    "node"
+  ],
+  "toolchains": {
+    "node": "24"
+  },
+  "ci": {
+    "enforcement": "full",
+    "commands": [
+      "npm ci",
+      "npm audit --omit=dev --audit-level=high",
+      "npm run check",
+      "npm run check:e2e",
+      "npm run test",
+      "npm run test:coverage",
+      "npm run qualify:backup-restore",
+      "npm run validate",
+      "npm run build"
+    ],
+    "build_container": true
+  },
+  "packages": [
+    {
+      "id": "piphi.service.matter-sidecar",
+      "type": "platform_service",
+      "version": "0.2.0-alpha.4",
+      "manifest": "src/manifest.json",
+      "release": {
+        "tag": "apps/{package_id}/v{version}",
+        "commands": []
+      },
+      "artifact": {
+        "kind": "oci",
+        "context": ".",
+        "dockerfile": "Dockerfile",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ]
+      },
+      "publishing": {
+        "mode": "piphi_managed",
+        "environment": "release-ghcr-io",
+        "primary": {
+          "registry": "ghcr.io",
+          "repository": "piphi-io/matter-sidecar"
+        },
+        "mirrors": []
+      }
+    }
+  ]
+}

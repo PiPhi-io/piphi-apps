@@ -1,0 +1,44 @@
+{
+  "name": "piphi-matter-js-sidecar",
+  "version": "0.2.0-alpha.4",
+  "description": "Matter.js controller sidecar for PiPhi Network.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc --noEmit -p tsconfig.json",
+    "check:e2e": "tsc --ignoreConfig --noEmit --target ES2022 --module NodeNext --moduleResolution NodeNext --strict --skipLibCheck --types node src/jellybrick-dbus-next.d.ts src/proper-lockfile.d.ts scripts/qualify-backup-restore.ts scripts/qualify-release-image.ts tests/fixtures/virtual-onoff-light.ts tests/matter-server-virtual-e2e.test.ts",
+    "test": "node --test --import tsx tests/*.test.ts",
+    "test:coverage": "node --test --experimental-test-coverage --test-coverage-include='src/**/*.ts' --test-coverage-lines=95 --import tsx tests/*.test.ts",
+    "qualify:backup-restore": "node --import tsx scripts/qualify-backup-restore.ts",
+    "qualify:physical-hardware": "bash scripts/qualify-physical-hardware.sh",
+    "qualify:release-image": "node --import tsx scripts/qualify-release-image.ts",
+    "qualify:virtual-device": "MATTER_E2E=1 node --test --test-concurrency=1 --import tsx tests/matter-server-virtual-e2e.test.ts",
+    "validate:hardware-report": "node scripts/validate-hardware-report.mjs",
+    "validate": "node scripts/validate.mjs",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@alcalzone/proper-lockfile": "^4.1.3-0",
+    "@jellybrick/dbus-next": "0.10.3",
+    "@matter-server/ws-client": "1.6.0",
+    "@stoprocent/noble": "2.8.0",
+    "fastify": "^5.6.2",
+    "matter-server": "1.6.0",
+    "piphi-runtime-kit-node": "^0.5.1"
+  },
+  "optionalDependencies": {
+    "@matter/nodejs-ble": "0.18.1-alpha.0-20261114-e4326a175"
+  },
+  "devDependencies": {
+    "@matter/main": "0.18.1-alpha.0-20261114-e4326a175",
+    "@types/node": "^24.10.0",
+    "piphi-runtime-testkit-node": "^0.1.0",
+    "tsx": "^4.20.6",
+    "typescript": "^6.0.2"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "license": "MIT"
+}
