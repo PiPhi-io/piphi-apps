@@ -1,45 +1,23 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Request
-from piphi_runtime_kit_python import schedule_telemetry_delivery
-from piphi_runtime_kit_python.fastapi import sync_runtime_auth_from_fastapi_payload
+from fastapi import APIRouter
 
-from ..state import get_entry_or_404, registry, runtime, telemetry
+from ..state import get_entry_or_404, poll_once, registry
 
 router = APIRouter(tags=["telemetry"])
 
 
 @router.post("/telemetry/example")
-async def telemetry_example(request: Request):
+async def telemetry_example():
     entry = registry.primary_entry()
     if entry is None:
         return {"ok": False, "reason": "no configured devices"}
-    sync_runtime_auth_from_fastapi_payload(runtime, request, entry)
-    schedule_telemetry_delivery(
-        process_state=runtime.process_state,
-        telemetry_client=telemetry,
-        auth_context=runtime.auth,
-        config_id=str(entry["config_id"]),
-        device_id=str(entry["device_id"]),
-        container_id=entry.get("container_id"),
-        metrics={"connected": True},
-        units={},
-    )
-    return {"status": "queued"}
+    ok = await poll_once(str(entry["config_id"]))
+    return {"ok": ok, "status": "refreshed" if ok else "read_failed"}
 
 
 @router.post("/telemetry/device/{config_id}/example")
-async def telemetry_for_device(config_id: str, request: Request):
-    entry = get_entry_or_404(config_id)
-    sync_runtime_auth_from_fastapi_payload(runtime, request, entry)
-    schedule_telemetry_delivery(
-        process_state=runtime.process_state,
-        telemetry_client=telemetry,
-        auth_context=runtime.auth,
-        config_id=str(entry["config_id"]),
-        device_id=str(entry["device_id"]),
-        container_id=entry.get("container_id"),
-        metrics={"connected": True},
-        units={},
-    )
-    return {"status": "queued"}
+async def telemetry_for_device(config_id: str):
+    get_entry_or_404(config_id)
+    ok = await poll_once(config_id)
+    return {"ok": ok, "status": "refreshed" if ok else "read_failed"}

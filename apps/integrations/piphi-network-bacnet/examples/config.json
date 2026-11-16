@@ -1,7 +1,11 @@
 {
-  "id": "demo-device",
-  "host": "127.0.0.1",
-  "alias": "Demo Device",
-  "bridge_address": "tcp://127.0.0.1:9000",
-  "protocol": "mqtt"
+  "id": "office-senseedge",
+  "host": "192.168.1.50",
+  "port": 47808,
+  "device_instance": 1234,
+  "local_address": "192.168.1.20/24",
+  "local_device_instance": 4194000,
+  "profile": "kaiterra_sensedge_mini",
+  "alias": "Office SenseEdge Mini",
+  "poll_interval_seconds": 60
 }

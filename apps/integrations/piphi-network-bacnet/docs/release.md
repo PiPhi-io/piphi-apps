@@ -8,6 +8,9 @@ Before cutting a release:
 - Set `runtime.linux.container.image` to the final registry image.
 - Set `maintainer.name` and `maintainer.website` to the publishing owner.
 - Run the local validation and conformance tests.
+- Qualify the exact image against the committed BACpypes UDP simulator with `scripts/qualify_release_image.py`.
+- Treat physical SenseEdge testing as optional follow-up evidence, not a publication gate.
+- Keep marketplace governance at `draft`, `unverified`, rollout `0`; simulator evidence must not be presented as live-device qualification.
 - Run `piphi-network-create publish-check -C .` from this project.
 
 The generated workflow is triggered manually from GitHub Actions. It bumps the
@@ -18,8 +21,8 @@ Images starting with `ghcr.io/` publish to GitHub Container Registry. Images
 using `docker.io/org/image:tag` or `org/image:tag` publish to Docker Hub with
 the `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` repository secrets.
 
-Current image target:
+Current image target (not yet published):
 
 ```text
-docker.io/piphinetwork/piphi-network-bacnet:0.1.0
+ghcr.io/piphi-io/piphi-network-bacnet:0.1.0
 ```

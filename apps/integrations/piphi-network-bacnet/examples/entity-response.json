@@ -1,44 +1,26 @@
 {
-  "entities": [
-    {
-      "id": "demo-device",
-      "name": "Demo Device",
-      "device_id": "demo-device",
-      "entity_type": "bacnet_object",
-      "capabilities": [
-        "connected",
-        "refresh"
-      ],
-      "available_commands": [
-        {
-          "id": "refresh",
-          "label": "Refresh",
-          "kind": "action"
-        }
-      ],
-      "dashboard": {
-        "allowed_widgets": [
-          "tile",
-          "stat",
-          "button"
-        ],
-        "default_widget": "tile"
-      }
-    }
+  "id": "kaiterra-sensedge-mini",
+  "name": "Kaiterra SenseEdge Mini",
+  "device_id": "kaiterra-sensedge-mini",
+  "entity_type": "air_quality_sensor",
+  "capabilities": [
+    "connected",
+    "pm2_5_ug_m3",
+    "pm10_ug_m3",
+    "tvoc_ppb",
+    "tvoc_ug_m3",
+    "temperature_c",
+    "humidity_percent",
+    "co2_ppm",
+    "km20x_module_8_lifespan_percent",
+    "km20x_module_9_lifespan_percent",
+    "ozone_ppb",
+    "differential_pressure_pa",
+    "flow_speed_pressure_pa",
+    "in_duct_module_lifespan_percent",
+    "no2_ppb",
+    "co_ppm",
+    "refresh"
   ],
-  "capabilities": {
-    "connected": {
-      "kind": "sensor",
-      "unit": "bool"
-    },
-    "refresh": {
-      "kind": "action"
-    }
-  },
-  "commands": {
-    "refresh": {
-      "description": "Refresh the device state.",
-      "timeout_ms": 5000
-    }
-  }
+  "commands": ["refresh"]
 }

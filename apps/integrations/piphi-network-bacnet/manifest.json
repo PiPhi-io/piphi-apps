@@ -4,7 +4,7 @@
   "id": "piphi-network-bacnet",
   "name": "BACnet",
   "version": "0.1.0",
-  "description": "Discover and monitor capability-negotiated BACnet objects and properties.",
+  "description": "Read-only BACnet/IP monitoring for an explicitly configured Kaiterra SenseEdge Mini.",
   "metadata": {
     "generator": "piphi-network-create",
     "scaffold_version": "0.3.0",
@@ -17,7 +17,7 @@
     "website": "https://piphi.io"
   },
   "license": "Apache-2.0",
-  "image": "docker.io/piphinetwork/piphi-network-bacnet:0.1.0",
+  "image": "ghcr.io/piphi-io/piphi-network-bacnet:0.1.0",
   "platforms": [
     "linux"
   ],
@@ -25,7 +25,9 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "docker.io/piphinetwork/piphi-network-bacnet:0.1.0",
+        "image": "ghcr.io/piphi-io/piphi-network-bacnet:0.1.0",
+        "network_mode": "host",
+        "privileged": false,
         "ports": [
           {
             "container": 4224,
@@ -33,15 +35,19 @@
           }
         ],
         "environment": {
-          "LOG_LEVEL": "info"
+          "LOG_LEVEL": "info",
+          "PIPHI_AUTOMATION_LEDGER_PATH": "/app/data/automation-actions.sqlite3"
         },
+        "volumes": [
+          {"host": "/var/lib/piphi/bacnet", "container": "/app/data", "mode": "rw"}
+        ],
         "restart_policy": {
           "name": "unless-stopped",
           "maximum_retry_count": 0
         }
       },
       "discovery": {
-        "method": "passive"
+        "method": "manual"
       }
     }
   },
@@ -73,9 +79,13 @@
     "required": true,
     "editable_fields": [
       "host",
+      "port",
+      "device_instance",
+      "local_address",
+      "local_device_instance",
+      "profile",
       "alias",
-      "bridge_address",
-      "protocol"
+      "poll_interval_seconds"
     ],
     "runtime_fields": [
       "id",
@@ -84,12 +94,14 @@
       "device_id"
     ],
     "identity_fields": [
-      "host"
+      "host",
+      "device_instance"
     ]
   },
   "identity": {
     "fields": [
-      "host"
+      "host",
+      "device_instance"
     ]
   },
   "capabilities": {
@@ -97,56 +109,77 @@
       "kind": "sensor",
       "unit": "bool"
     },
+    "pm2_5_ug_m3": {"kind": "sensor", "unit": "µg/m³"},
+    "pm10_ug_m3": {"kind": "sensor", "unit": "µg/m³"},
+    "tvoc_ppb": {"kind": "sensor", "unit": "ppb"},
+    "tvoc_ug_m3": {"kind": "sensor", "unit": "µg/m³"},
+    "temperature_c": {"kind": "sensor", "unit": "°C"},
+    "humidity_percent": {"kind": "sensor", "unit": "%"},
+    "co2_ppm": {"kind": "sensor", "unit": "ppm"},
+    "km20x_module_8_lifespan_percent": {"kind": "sensor", "unit": "%"},
+    "km20x_module_9_lifespan_percent": {"kind": "sensor", "unit": "%"},
+    "ozone_ppb": {"kind": "sensor", "unit": "ppb"},
+    "differential_pressure_pa": {"kind": "sensor", "unit": "Pa"},
+    "flow_speed_pressure_pa": {"kind": "sensor", "unit": "Pa"},
+    "in_duct_module_lifespan_percent": {"kind": "sensor", "unit": "%"},
+    "no2_ppb": {"kind": "sensor", "unit": "ppb"},
+    "co_ppm": {"kind": "sensor", "unit": "ppm"},
     "refresh": {
       "kind": "action"
     }
   },
   "commands": {
     "refresh": {
-      "description": "Refresh the device state.",
-      "timeout_ms": 5000
+      "description": "Perform an immediate read-only refresh of allowlisted BACnet properties.",
+      "timeout_ms": 30000
     }
   },
   "entities": [
     {
-      "id": "demo-device",
-      "name": "Demo Device",
-      "device_id": "demo-device",
-      "entity_type": "bacnet_object",
+      "id": "kaiterra-sensedge-mini",
+      "name": "Kaiterra SenseEdge Mini",
+      "device_id": "kaiterra-sensedge-mini",
+      "entity_type": "air_quality_sensor",
       "capabilities": [
         "connected",
+        "pm2_5_ug_m3",
+        "pm10_ug_m3",
+        "tvoc_ppb",
+        "tvoc_ug_m3",
+        "temperature_c",
+        "humidity_percent",
+        "co2_ppm",
+        "km20x_module_8_lifespan_percent",
+        "km20x_module_9_lifespan_percent",
+        "ozone_ppb",
+        "differential_pressure_pa",
+        "flow_speed_pressure_pa",
+        "in_duct_module_lifespan_percent",
+        "no2_ppb",
+        "co_ppm",
         "refresh"
       ],
       "available_commands": [
         {
           "id": "refresh",
-          "label": "Refresh",
+          "label": "Refresh readings",
           "kind": "action"
         }
       ],
       "dashboard": {
         "allowed_widgets": [
           "tile",
-          "stat",
-          "button"
+          "stat"
         ],
         "default_widget": "tile"
       }
     }
   ],
-  "ui": {
-    "experience_packages": [
-      {
-        "registry_id": "io.piphi.bacnet-status",
-        "version_range": ">=0.1,<1",
-        "auto_install": true
-      }
-    ]
-  },
+  "ui": {"experience_packages": []},
   "marketplace": {
     "metadata_version": 2,
     "display_name": "BACnet",
-    "summary": "Discover and monitor capability-negotiated BACnet objects and properties.",
+    "summary": "Read-only indoor-air-quality telemetry from a Kaiterra SenseEdge Mini over BACnet/IP.",
     "category": "other",
     "regions": [
       "WW"
@@ -164,14 +197,14 @@
       {
         "id": "local_network",
         "label": "Local network access",
-        "reason": "Discovers or communicates with supported services and devices on the homeowner's local network.",
+        "reason": "Communicates with one explicitly configured SenseEdge Mini on the local network.",
         "required": true
       }
     ],
     "compatibility": [
       {
-        "brand": "Multi-vendor",
-        "model": "BACnet/IP devices exposing supported objects and properties"
+        "brand": "Kaiterra",
+        "model": "SenseEdge Mini SE-200 and SE-200P with BACnet firmware 2.1.1 or later"
       }
     ],
     "documentation_url": "https://github.com/PiPhi-io/piphi-network-bacnet",
@@ -188,21 +221,18 @@
       }
     },
     "device_types": [
-      "building automation controller",
-      "HVAC controller",
-      "sensor"
+      "air quality sensor"
     ],
     "protocols": [
       "BACnet/IP"
     ],
     "discovery_methods": [
-      "BACnet Who-Is/I-Am",
-      "manual"
+      "manual explicit target"
     ],
     "connectivity": "local",
     "offline_support": "full"
   },
   "onboarding": {
-    "mode": "discovery"
+    "mode": "manual"
   }
 }

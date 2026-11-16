@@ -47,6 +47,8 @@
       "body": {
         "id": "demo-device",
         "host": "127.0.0.1",
+        "device_instance": 1234,
+        "local_address": "127.0.0.1/8",
         "alias": "Demo Device"
       },
       "required_any_keys": [
@@ -95,8 +97,7 @@
           "status"
         ],
         [
-          "command",
-          "event"
+          "result"
         ]
       ]
     }

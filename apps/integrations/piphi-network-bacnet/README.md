@@ -1,60 +1,61 @@
-# Piphi Network Bacnet
+# piphi-network-bacnet
 
-Generated PiPhi integration runtime.
+Bounded, read-only BACnet/IP integration for a Kaiterra SenseEdge Mini SE-200 or SE-200P.
 
-## Run locally
+## Qualification status
+
+Release qualification uses deterministic fixtures plus a real BACpypes UDP simulator against the exact container image. Physical-device testing is optional follow-up evidence rather than a publication gate. Marketplace governance remains `draft`, `unverified`, and rollout `0`; do not represent simulator results as live-device interoperability evidence.
+
+## Implemented scope
+
+- Requires an explicit IPv4 address, UDP port, BACnet device instance, and local IPv4/CIDR.
+- Sends an instance-bounded, unicast `Who-Is` to verify the configured target.
+- Verifies Kaiterra vendor ID `1307` and the SenseEdge Mini model profile.
+- Reads an allowlist of Device metadata and the bounded `Object_List`.
+- Reads only installed, fixed-instance Analog Input objects documented by Kaiterra's September 2026 PICS.
+- Normalizes recognized engineering units and omits unknown unit/object combinations.
+- Polls on a bounded interval and supports one read-only `refresh` action.
+- Uses host networking so BACnet/IP addresses are not hidden behind container NAT.
+
+## Deliberately excluded
+
+The runtime exposes no property writes, arbitrary properties, raw APDUs, unbounded network scans, device administration, BBMD mutation, routing, foreign-device registration, BACnet/SC, or MS/TP. COV, alarms, schedules, trend logs, and other vendors remain deferred.
+
+## Configuration
+
+```json
+{
+  "id": "office-senseedge",
+  "host": "192.168.1.50",
+  "port": 47808,
+  "device_instance": 1234,
+  "local_address": "192.168.1.20/24",
+  "local_device_instance": 4194000,
+  "profile": "kaiterra_sensedge_mini",
+  "poll_interval_seconds": 60
+}
+```
+
+The local client instance must differ from the SenseEdge device instance. All active configurations in one runtime must share the same local address and client instance.
+
+## Local checks
 
 ```bash
-pdm install -G dev
-pdm run uvicorn piphi_network_bacnet.main:app --reload --port 4224
+pdm install --check
 pdm run pytest
 pdm run python scripts/validate.py
+docker build -t piphi-network-bacnet:local .
+pdm run python scripts/qualify_release_image.py --image piphi-network-bacnet:local
 ```
 
-The runtime listens on port `4224` by default and exposes the common PiPhi runtime route contract:
-
-- `GET /health`
-- `GET /diagnostics`
-- `POST /discover`
-- `POST /config`
-- `POST /config/sync`
-- `POST /deconfigure`
-- `POST /deconfigure/{config_id}`
-- `GET /state`
-- `GET /contract`
-- `GET /entities`
-- `GET /events`
-- `POST /events/device/{config_id}/example`
-- `POST /telemetry/example`
-- `POST /telemetry/device/{config_id}/example`
-- `POST /command`
-
-## Capability coverage
-
-`capability-catalog.json` inventories BACnet discovery, transports, devices,
-objects, properties, command priorities, specialized building systems, COV,
-alarms, schedules, trend logs, and managed transport behavior. Each candidate
-is implemented, planned, or excluded, and contract tests prevent unsupported
-property writes from being advertised.
-
-Protocol features remain planned until object/property discovery, writability
-and priority handling, COV renewal, alarm deduplication, segmentation, and
-representative device fixtures exist. Arbitrary APDUs, broad writes, device
-reinitialization, and safety bypasses are explicitly excluded.
-
-## Manifest
-
-`manifest.json` is a starter manifest. Before publishing, update:
-
-- `image`
-- `version`
-- capabilities and commands
-- config fields and identity fields
-- entity metadata
-
-## Docker
+Run the container with host networking for real BACnet/IP access:
 
 ```bash
-docker build -t docker.io/piphinetwork/piphi-network-bacnet:0.1.0 .
-docker run --rm -p 4224:4224 docker.io/piphinetwork/piphi-network-bacnet:0.1.0
+docker run --rm --network host piphi-network-bacnet:local
 ```
+
+Official profile sources:
+
+- [Kaiterra SenseEdge Mini BACnet manual and PICS](https://support.kaiterra.com/sensedge-mini-bacnet-user-manual)
+- Minimum BACnet firmware: `2.1.1`
+- PICS baseline reviewed: September 2026, application software `2.6.5`, protocol revision `14`

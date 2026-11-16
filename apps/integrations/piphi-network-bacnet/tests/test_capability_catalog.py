@@ -83,12 +83,21 @@ def test_implemented_behavior_events_and_conditions_are_declared() -> None:
 
 
 @pytest.mark.anyio
-async def test_config_apply_emits_the_implemented_behavior_event() -> None:
+async def test_config_apply_emits_the_implemented_behavior_event(fake_bacnet_reader) -> None:
     transport = httpx.ASGITransport(app=app)
     config_id = "capability-catalog-test"
     async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
         try:
-            response = await client.post("/config", json={"id": config_id, "host": "127.0.0.1", "alias": "Coverage Test"})
+            response = await client.post(
+                "/config",
+                json={
+                    "id": config_id,
+                    "host": "127.0.0.1",
+                    "device_instance": 1234,
+                    "local_address": "127.0.0.1/8",
+                    "alias": "Coverage Test",
+                },
+            )
             assert response.status_code == 200
             events = (await client.get("/events")).json()["events"]
             assert any(event["event_type"] == "runtime.config.applied" and event["config_id"] == config_id for event in events)
