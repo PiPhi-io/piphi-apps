@@ -1,7 +1,14 @@
 {
   "schema_version": 1,
   "reviewed_at": "2026-11-16",
-  "release": "0.2.0-alpha.5",
+  "release": "0.2.0-alpha.6",
+  "publication": {
+    "release": "0.2.0-alpha.5",
+    "image": "ghcr.io/piphi-io/matter-sidecar:0.2.0-alpha.5",
+    "index_digest": "sha256:074eceb7857a01328f4e4cbaec6973f1969d89e5057b33abf15da35b69930d51",
+    "source_revision": "e61dd3fe5966e751572adeaf3b2e3a75946bd0d4",
+    "release_url": "https://github.com/PiPhi-io/piphi-apps/releases/tag/apps/piphi.service.matter-sidecar/v0.2.0-alpha.5"
+  },
   "policy": {
     "supported_transports": [
       "ethernet",
@@ -29,7 +36,8 @@
       "decommission"
     ],
     "optional_qualification_steps": [
-      "ble_wifi_provisioning"
+      "ble_wifi_provisioning",
+      "control_soak"
     ]
   },
   "profiles": [
@@ -38,6 +46,8 @@
       "transport": "ethernet",
       "device_class": "plug",
       "status": "pending_hardware",
+      "production_status": "pending_hardware",
+      "production_blocker": "No representative physical Ethernet Matter plug is available in this checkout.",
       "evidence": [],
       "blocker": "No representative physical Ethernet Matter plug is available in this checkout."
     },
@@ -46,6 +56,8 @@
       "transport": "wifi_on_network",
       "device_class": "light",
       "status": "pending_hardware",
+      "production_status": "pending_hardware",
+      "production_blocker": "No representative physical Wi-Fi Matter light is available in this checkout.",
       "evidence": [],
       "blocker": "No representative physical Wi-Fi Matter light is available in this checkout."
     },
@@ -54,6 +66,8 @@
       "transport": "wifi_on_network",
       "device_class": "plug",
       "status": "qualified",
+      "production_status": "qualified",
+      "production_release": "0.2.0-alpha.5",
       "evidence": [
         {
           "report": "docs/qualification/20261116T161927Z-wifi_on_off_plug/report.json",
@@ -95,6 +109,30 @@
             "sidecar_restart_recovery",
             "controller_restore_recovery",
             "decommission"
+          ]
+        },
+        {
+          "report": "docs/qualification/20261116T190612Z-wifi_on_off_plug/report.json",
+          "vendor": "TP Link",
+          "model": "KP125M",
+          "firmware_version": "1.0.0",
+          "image_digest": "sha256:074eceb7857a01328f4e4cbaec6973f1969d89e5057b33abf15da35b69930d51",
+          "platform_manifest_digest": "sha256:45e5d05d7ec92870a801b8bda07ba1b6230ca0264f0be6875f2fd553f95a7d95",
+          "evidence_level": "published",
+          "completed_at": "2026-11-16T21:58:23.000Z",
+          "steps": [
+            "network_preflight",
+            "ble_wifi_provisioning",
+            "commission",
+            "capability_negotiation",
+            "turn_on",
+            "subscription_state_on",
+            "turn_off",
+            "subscription_state_off",
+            "sidecar_restart_recovery",
+            "controller_restore_recovery",
+            "decommission",
+            "control_soak"
           ]
         }
       ]

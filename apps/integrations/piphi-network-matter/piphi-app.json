@@ -13,7 +13,7 @@
   "packages": [{
     "id": "piphi-network-matter-integration",
     "type": "integration",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "manifest": "manifest.json",
     "release": { "tag": "apps/{package_id}/v{version}", "commands": [] },
     "artifact": {

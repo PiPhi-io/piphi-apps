@@ -208,6 +208,8 @@ RESTORE_VOLUME=""
 QUALIFICATION_COMPLETE=0
 GUI_MODE="${MATTER_GUI:-0}"
 BLE_WIFI_MODE="${MATTER_BLE_WIFI:-0}"
+SOAK_CYCLES="${MATTER_SOAK_CYCLES:-0}"
+RESTART_CYCLES="${MATTER_RESTART_CYCLES:-1}"
 DOCKER_BLE_ARGS=()
 
 stop_container() {
@@ -329,6 +331,8 @@ fi
 stage "Device and release metadata"
 say "This run targets the required Wi-Fi On/Off plug profile."
 for command in docker curl jq openssl node npm; do require_command "$command"; done
+[[ "$SOAK_CYCLES" =~ ^[0-9]+$ ]] && (( SOAK_CYCLES <= 10000 )) || { warn "MATTER_SOAK_CYCLES must be an integer from 0 to 10000."; exit 1; }
+[[ "$RESTART_CYCLES" =~ ^[1-9][0-9]*$ ]] && (( RESTART_CYCLES <= 100 )) || { warn "MATTER_RESTART_CYCLES must be an integer from 1 to 100."; exit 1; }
 [[ "$GUI_MODE" == "1" ]] && require_command zenity
 docker info >/dev/null
 if [[ "$BLE_WIFI_MODE" == "1" ]]; then
@@ -341,8 +345,41 @@ if [[ "$BLE_WIFI_MODE" == "1" ]]; then
   )
 fi
 IMAGE="${MATTER_IMAGE:-piphi-matter-js-sidecar:qualification}"
+EXPECTED_IMAGE_DIGEST="${MATTER_EXPECTED_IMAGE_DIGEST:-}"
+[[ -z "$EXPECTED_IMAGE_DIGEST" || "$EXPECTED_IMAGE_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]] || {
+  warn "MATTER_EXPECTED_IMAGE_DIGEST must be a sha256 digest."
+  exit 1
+}
+RESOLVED_IMAGE_DIGEST=$(docker buildx imagetools inspect "$IMAGE" --format '{{.Manifest.Digest}}')
+[[ "$RESOLVED_IMAGE_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]] || {
+  warn "The registry did not return an immutable image digest for $IMAGE."
+  exit 1
+}
+if [[ -n "$EXPECTED_IMAGE_DIGEST" && "$RESOLVED_IMAGE_DIGEST" != "$EXPECTED_IMAGE_DIGEST" ]]; then
+  warn "Published image digest mismatch: expected $EXPECTED_IMAGE_DIGEST, resolved $RESOLVED_IMAGE_DIGEST."
+  exit 1
+fi
+IMAGE_DIGEST="$RESOLVED_IMAGE_DIGEST"
+EVIDENCE_LEVEL="candidate"
+if [[ -n "$EXPECTED_IMAGE_DIGEST" ]]; then
+  IMAGE="$IMAGE@$EXPECTED_IMAGE_DIGEST"
+  EVIDENCE_LEVEL="published"
+fi
+docker pull "$IMAGE" >/dev/null
 docker image inspect "$IMAGE" >/dev/null
-IMAGE_DIGEST=$(docker image inspect --format '{{.Id}}' "$IMAGE")
+LOCAL_IMAGE_ID=$(docker image inspect --format '{{.Id}}' "$IMAGE")
+SERVER_ARCH=$(docker version --format '{{.Server.Arch}}')
+IMAGE_INDEX=$(docker buildx imagetools inspect --raw "$IMAGE")
+IMAGE_MEDIA_TYPE=$(jq -r '.mediaType' <<<"$IMAGE_INDEX")
+if [[ "$IMAGE_MEDIA_TYPE" == "application/vnd.oci.image.index.v1+json" || "$IMAGE_MEDIA_TYPE" == "application/vnd.docker.distribution.manifest.list.v2+json" ]]; then
+  PLATFORM_MANIFEST_DIGEST=$(jq -er --arg arch "$SERVER_ARCH" '.manifests[] | select(.platform.os == "linux" and .platform.architecture == $arch) | .digest' <<<"$IMAGE_INDEX" | head -n1)
+else
+  PLATFORM_MANIFEST_DIGEST="$IMAGE_DIGEST"
+fi
+[[ "$PLATFORM_MANIFEST_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]] || {
+  warn "No linux/$SERVER_ARCH platform manifest exists in $IMAGE_DIGEST."
+  exit 1
+}
 if [[ "$GUI_MODE" == "1" ]]; then
   OPERATOR="${QUAL_OPERATOR:?QUAL_OPERATOR is required in GUI mode}"
   DEVICE_VENDOR="${QUAL_VENDOR:?QUAL_VENDOR is required in GUI mode}"
@@ -363,7 +400,10 @@ RUN_ID=$(date -u +%Y%m%dT%H%M%SZ)
 WORKSPACE="$PACKAGE_ROOT/docs/qualification/${RUN_ID}-${PROFILE_ID}"
 mkdir -p "$WORKSPACE"
 chmod 700 "$WORKSPACE"
-note "image: $IMAGE ($IMAGE_DIGEST)"
+note "image: $IMAGE"
+note "index digest: $IMAGE_DIGEST"
+note "linux/$SERVER_ARCH manifest: $PLATFORM_MANIFEST_DIGEST (local image $LOCAL_IMAGE_ID)"
+note "evidence level: $EVIDENCE_LEVEL"
 note "evidence workspace: $WORKSPACE"
 
 stage "Physical readiness"
@@ -449,6 +489,8 @@ api_get "/v1/matter/snapshot" > "$WORKSPACE/commissioned-snapshot.json"
 CONTROLLER_IDENTITY_HASH=$(jq -er '.controller.identity_hash' "$WORKSPACE/commissioned-snapshot.json")
 DETECTED_HARDWARE_REVISION=$(jq -r --arg node "$NODE_ID" '.nodes[] | select(.node_id == $node) | (.attributes["0/40/8"] // .attributes["0/40/7"] // empty)' "$WORKSPACE/commissioned-snapshot.json")
 DETECTED_FIRMWARE_VERSION=$(jq -r --arg node "$NODE_ID" '.nodes[] | select(.node_id == $node) | (.attributes["0/40/10"] // .attributes["0/40/9"] // empty)' "$WORKSPACE/commissioned-snapshot.json")
+VENDOR_ID=$(jq -er --arg node "$NODE_ID" '.nodes[] | select(.node_id == $node) | .attributes["0/40/2"]' "$WORKSPACE/commissioned-snapshot.json")
+PRODUCT_ID=$(jq -er --arg node "$NODE_ID" '.nodes[] | select(.node_id == $node) | .attributes["0/40/4"]' "$WORKSPACE/commissioned-snapshot.json")
 if [[ "${HARDWARE_REVISION,,}" == *"don't know"* || "${HARDWARE_REVISION,,}" == "unknown" ]]; then
   HARDWARE_REVISION="$DETECTED_HARDWARE_REVISION"
 fi
@@ -470,17 +512,39 @@ invoke_command turn_off "$WORKSPACE/turn-off.json"
 wait_state false "$WORKSPACE/state-off.json"
 physical_confirm "The controller reports OFF. Is the physical plug visibly OFF?" || { warn "Physical state did not match subscribed state."; exit 1; }
 say "Both commands and subscription-backed state transitions passed."
+if (( SOAK_CYCLES > 0 )); then
+  SOAK_STARTED_AT=$(date -u +%Y-%m-%dT%H:%M:%S.000Z)
+  for cycle in $(seq 1 "$SOAK_CYCLES"); do
+    invoke_command turn_on /dev/null
+    wait_state true "$WORKSPACE/soak-state.json"
+    invoke_command turn_off /dev/null
+    wait_state false "$WORKSPACE/soak-state.json"
+  done
+  SOAK_COMPLETED_AT=$(date -u +%Y-%m-%dT%H:%M:%S.000Z)
+  jq -n --argjson cycles "$SOAK_CYCLES" --arg started "$SOAK_STARTED_AT" --arg completed "$SOAK_COMPLETED_AT" \
+    '{schema_version:1,cycles:$cycles,commands:($cycles*2),subscription_convergences:($cycles*2),final_state:false,started_at:$started,completed_at:$completed}' \
+    > "$WORKSPACE/control-soak.json"
+  physical_confirm "After $SOAK_CYCLES control cycles, is the physical device visibly OFF?" || { warn "Soak final state did not match the physical device."; exit 1; }
+  say "$SOAK_CYCLES repeated On/Off cycles and subscription convergences passed."
+fi
 
 stage "Sidecar restart recovery"
-docker restart "$SOURCE_CONTAINER" >/dev/null
-wait_health
-wait_state false "$WORKSPACE/restart-state.json"
-invoke_command turn_on "$WORKSPACE/restart-turn-on.json"
-wait_state true "$WORKSPACE/restart-state-on.json"
-physical_confirm "After sidecar restart, did the plug turn ON?" || { warn "Restart recovery failed physical confirmation."; exit 1; }
-invoke_command turn_off "$WORKSPACE/restart-turn-off.json"
-wait_state false "$WORKSPACE/restart-state-off.json"
-say "Sidecar restart preserved identity, subscription state, and control."
+RESTART_STARTED_AT=$(date -u +%Y-%m-%dT%H:%M:%S.000Z)
+for cycle in $(seq 1 "$RESTART_CYCLES"); do
+  docker restart "$SOURCE_CONTAINER" >/dev/null
+  wait_health
+  wait_state false "$WORKSPACE/restart-state.json"
+  invoke_command turn_on "$WORKSPACE/restart-turn-on.json"
+  wait_state true "$WORKSPACE/restart-state-on.json"
+  invoke_command turn_off "$WORKSPACE/restart-turn-off.json"
+  wait_state false "$WORKSPACE/restart-state-off.json"
+done
+RESTART_COMPLETED_AT=$(date -u +%Y-%m-%dT%H:%M:%S.000Z)
+jq -n --argjson cycles "$RESTART_CYCLES" --arg started "$RESTART_STARTED_AT" --arg completed "$RESTART_COMPLETED_AT" \
+  '{schema_version:1,cycles:$cycles,health_recoveries:$cycles,control_round_trips:$cycles,final_state:false,started_at:$started,completed_at:$completed}' \
+  > "$WORKSPACE/restart-soak.json"
+physical_confirm "After $RESTART_CYCLES sidecar restart and control cycles, is the physical device visibly OFF?" || { warn "Restart recovery failed physical confirmation."; exit 1; }
+say "$RESTART_CYCLES sidecar restarts preserved identity, subscription state, and control."
 
 stage "Restore controller and decommission"
 physical_confirm "Proceed with quiesced backup, empty-volume restore, and final fabric removal?" || {
@@ -513,10 +577,18 @@ wait_state false "$WORKSPACE/restored-state-off.json"
 physical_confirm "Decommission node $NODE_ID now? This removes the controller fabric from the plug." || exit 1
 api_post "/v1/nodes/$NODE_ID/decommission" "$(jq -cn --arg node "$NODE_ID" '{confirm_node_id:$node}')" > "$WORKSPACE/decommission.json"
 wait_node_absent "$WORKSPACE/final-snapshot.json"
-physical_confirm "Does the plug now indicate it is uncommissioned or ready to pair again?" || {
+physical_confirm "Power-cycle the device without factory-resetting it, wait for it to reconnect, then continue with on-network decommission verification." || exit 1
+api_get "/v1/discovery/commissionables?timeout_seconds=20" \
+  | jq 'map({instance_name,vendor_id,product_id,device_type,long_discriminator,commissioning_mode,address_count:(.addresses|length),metadata:{}})' \
+  > "$WORKSPACE/post-decommission-discovery.json"
+if jq -e --argjson vendor "$VENDOR_ID" --argjson product "$PRODUCT_ID" \
+  'any(.[]; .vendor_id == $vendor and .product_id == $product and .commissioning_mode == 1 and .address_count > 0)' \
+  "$WORKSPACE/post-decommission-discovery.json" >/dev/null; then
+  say "The device advertises on-network commissioning mode with no controller node remaining."
+elif ! physical_confirm "On-network discovery was inconclusive. Does the device physically indicate it is uncommissioned or ready to pair again?"; then
   warn "Controller removal completed, but physical decommissioning was not confirmed."
   exit 1
-}
+fi
 say "Restore identity, restored control, and node-scoped decommissioning passed."
 
 stage "Validate and record evidence"
@@ -527,32 +599,50 @@ if [[ "$BLE_WIFI_MODE" == "1" ]]; then
 else
   QUALIFICATION_STEPS='["network_preflight","commission","capability_negotiation","turn_on","subscription_state_on","turn_off","subscription_state_off","sidecar_restart_recovery","controller_restore_recovery","decommission"]'
 fi
+EVIDENCE_ARTIFACTS=$(jq -cn --arg workspace "docs/qualification/$(basename "$WORKSPACE")" \
+  '[$workspace+"/preflight.json",$workspace+"/commission.json",$workspace+"/restored-snapshot.json",$workspace+"/decommission.json",$workspace+"/post-decommission-discovery.json",$workspace+"/restart-soak.json"]')
+if (( SOAK_CYCLES > 0 )); then
+  QUALIFICATION_STEPS=$(jq -c '. + ["control_soak"]' <<<"$QUALIFICATION_STEPS")
+  EVIDENCE_ARTIFACTS=$(jq -c --arg workspace "docs/qualification/$(basename "$WORKSPACE")" '. + [$workspace+"/control-soak.json"]' <<<"$EVIDENCE_ARTIFACTS")
+fi
 jq -n \
   --arg release "$RELEASE_VERSION" --arg profile "$PROFILE_ID" \
   --arg vendor "$DEVICE_VENDOR" --arg model "$DEVICE_MODEL" \
   --arg hardware "$HARDWARE_REVISION" --arg firmware "$FIRMWARE_VERSION" \
-  --arg digest "$IMAGE_DIGEST" --arg host "$(uname -srmo)" --arg network "$NETWORK_SUMMARY" \
+  --arg evidence_level "$EVIDENCE_LEVEL" \
+  --arg digest "$IMAGE_DIGEST" --arg platform_digest "$PLATFORM_MANIFEST_DIGEST" \
+  --arg architecture "$SERVER_ARCH" --arg local_image_id "$LOCAL_IMAGE_ID" \
+  --arg host "$(uname -srmo)" --arg network "$NETWORK_SUMMARY" \
   --arg controller "$CONTROLLER_IDENTITY_HASH" --arg operator "$OPERATOR" \
   --arg started "$RUN_STARTED_AT" --arg completed "$RUN_COMPLETED_AT" \
   --arg workspace "docs/qualification/$(basename "$WORKSPACE")" \
   --argjson steps "$QUALIFICATION_STEPS" \
-  '{schema_version:1,release:$release,profile_id:$profile,result:"qualified",
+  --argjson artifacts "$EVIDENCE_ARTIFACTS" \
+  '{schema_version:1,release:$release,profile_id:$profile,result:"qualified",evidence_level:$evidence_level,
     device:{vendor:$vendor,model:$model,hardware_revision:$hardware,firmware_version:$firmware,transport:"wifi_on_network"},
-    environment:{image_digest:$digest,host_os:$host,network_summary:$network},
+    environment:{image_digest:$digest,platform_manifest_digest:$platform_digest,architecture:$architecture,local_image_id:$local_image_id,host_os:$host,network_summary:$network},
     controller_identity_hash:$controller,
     run:{operator:$operator,started_at:$started,completed_at:$completed},
     steps:$steps | map({id:.,status:"pass",evidence:("See "+$workspace+" redacted artifacts")}),
-    evidence_artifacts:[$workspace+"/preflight.json",$workspace+"/commission.json",$workspace+"/restored-snapshot.json",$workspace+"/decommission.json"]}' \
+    evidence_artifacts:$artifacts}' \
   > "$REPORT_PATH"
 npm --prefix "$PACKAGE_ROOT" run validate:hardware-report -- "$REPORT_PATH"
 REPORT_RELATIVE="docs/qualification/$(basename "$WORKSPACE")/report.json"
 LEDGER="$PACKAGE_ROOT/docs/hardware-qualification.json"
+PUBLICATION_DIGEST=$(jq -r '.publication.index_digest // empty' "$LEDGER")
 LEDGER_TMP=$(mktemp)
-jq --arg profile "$PROFILE_ID" --arg report "$REPORT_RELATIVE" \
-  --arg vendor "$DEVICE_VENDOR" --arg model "$DEVICE_MODEL" --arg firmware "$FIRMWARE_VERSION" \
-  --arg digest "$IMAGE_DIGEST" --arg completed "$RUN_COMPLETED_AT" \
-  --argjson steps "$QUALIFICATION_STEPS" \
-  '(.profiles[] | select(.id == $profile)) |= (.status = "qualified" | del(.blocker) | .evidence += [{report:$report,vendor:$vendor,model:$model,firmware_version:$firmware,image_digest:$digest,completed_at:$completed,steps:$steps}])' \
+  jq --arg profile "$PROFILE_ID" --arg report "$REPORT_RELATIVE" \
+    --arg vendor "$DEVICE_VENDOR" --arg model "$DEVICE_MODEL" --arg firmware "$FIRMWARE_VERSION" \
+    --arg digest "$IMAGE_DIGEST" --arg platform_digest "$PLATFORM_MANIFEST_DIGEST" \
+    --arg evidence_level "$EVIDENCE_LEVEL" --arg publication_digest "$PUBLICATION_DIGEST" --arg completed "$RUN_COMPLETED_AT" \
+    --argjson steps "$QUALIFICATION_STEPS" \
+  '(.profiles[] | select(.id == $profile)) |= (
+    .status = "qualified" | del(.blocker)
+    | .evidence += [{report:$report,vendor:$vendor,model:$model,firmware_version:$firmware,image_digest:$digest,platform_manifest_digest:$platform_digest,evidence_level:$evidence_level,completed_at:$completed,steps:$steps}]
+    | if $evidence_level == "published" and $digest == $publication_digest
+      then .production_status = "qualified" | del(.production_blocker)
+      else . end
+  )' \
   "$LEDGER" > "$LEDGER_TMP"
 cat "$LEDGER_TMP" > "$LEDGER"
 rm -f "$LEDGER_TMP"

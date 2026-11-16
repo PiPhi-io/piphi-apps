@@ -31,6 +31,7 @@ The original alpha used `chip-tool` subprocesses, regex parsing, and a manually 
 | `GET` | `/v1/discovery/commissionables` | Discover devices in commissioning mode |
 | `POST` | `/v1/commission/code` | Commission using a QR/manual setup payload |
 | `POST` | `/v1/commission/wifi` | Experimentally provision a factory-reset Wi-Fi device over BLE using write-only setup and network credentials |
+| `POST` | `/v1/commission/thread` | Experimentally commission a Thread device with a one-shot write-only operational dataset |
 | `GET` | `/v1/registry` | Matter.js-owned commissioned-node inventory |
 | `POST` | `/v1/nodes/:node/decommission` | Decommission a whole node after matching `confirm_node_id` |
 | `POST` | `/v1/admin/backup/quiesce` | Stop controller I/O while retaining its exclusive storage lease |
@@ -43,7 +44,7 @@ The original alpha used `chip-tool` subprocesses, regex parsing, and a manually 
 | `GET` | `/v1/preflight` | Read redacted controller, interface, and IPv6 readiness checks |
 | `POST` | `/v1/commands/invoke` | Invoke an allow-listed negotiated command |
 | `POST/DELETE` | `/v1/credentials/wifi` | Legacy persistent write is rejected; delete remains available to clear a pre-upgrade default credential |
-| `POST/DELETE` | `/v1/credentials/thread` | Set or clear the write-only Thread dataset |
+| `POST/DELETE` | `/v1/credentials/thread` | Persistent writes are rejected; delete remains available for defensive cleanup |
 
 Credentials and setup payloads are never returned by health, discovery, telemetry, events, or diagnostics.
 The legacy endpoint-shaped registry deletion route returns `410` and never removes a node.
@@ -120,6 +121,10 @@ The setup payload, SSID, and password are never returned. Startup deletes any or
 Controller storage remains owner-only because a crash can leave a credential on disk until that
 cleanup completes; storage encryption is still recommended before promoting BLE beyond experimental status.
 
+`POST /v1/commission/thread` similarly installs the operational dataset only for one serialized
+commissioning attempt and removes it in `finally` after success or failure. Startup also removes an
+orphaned Thread dataset before readiness. Persistent Thread dataset writes return `410`.
+
 Qualify the exact release image on a Linux Docker host before promotion:
 
 ```bash
@@ -149,7 +154,6 @@ Physical support evidence is governed by the machine-validated
 [`operator protocol`](docs/hardware-qualification.md). Simulated evidence cannot qualify a
 physical profile.
 
-`npm run test:coverage` enforces at least 95% line coverage over production `src` files. The
-current aggregate is 97.97%, and every production module exceeds 95% lines, including
-`matterjs-backend.ts` at 96.66%. The opt-in virtual-device qualification is separate and is not
-included in that ordinary unit/integration coverage figure.
+`npm run test:coverage` enforces at least 95% aggregate line coverage over production `src` files.
+The opt-in virtual-device qualification is separate and is not included in that ordinary
+unit/integration coverage figure.

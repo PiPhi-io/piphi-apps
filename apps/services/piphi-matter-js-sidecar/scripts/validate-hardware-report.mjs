@@ -14,9 +14,13 @@ const nonEmpty = (value, label) => {
 export function validateHardwareReport(report, ledger) {
   assert.ok(report && typeof report === "object" && !Array.isArray(report), "report must be an object");
   assert.equal(report.schema_version, 1, "unsupported hardware report schema");
-  assert.equal(report.release, ledger.release, "report release does not match the qualification ledger");
+  assert.ok(
+    report.release === ledger.release || report.release === ledger.publication?.release,
+    "report release is neither the current candidate nor the recorded published release",
+  );
   assert.ok(ledger.policy.required_profiles.includes(report.profile_id), "report profile is not required by the ledger");
   assert.ok(["qualified", "failed", "blocked"].includes(report.result), "invalid hardware qualification result");
+  assert.ok(["candidate", "published"].includes(report.evidence_level ?? "candidate"), "invalid evidence level");
 
   for (const [key] of walk(report)) {
     assert.ok(!FORBIDDEN_KEYS.test(key), `hardware report contains forbidden key: ${key}`);
@@ -35,6 +39,14 @@ export function validateHardwareReport(report, ledger) {
   nonEmpty(report.environment.host_os, "environment.host_os");
   nonEmpty(report.environment.network_summary, "environment.network_summary");
   assert.match(report.environment.image_digest ?? "", /^sha256:[a-f0-9]{64}$/, "invalid release image digest");
+  if (report.evidence_level === "published") {
+    assert.ok(ledger.publication, "published evidence requires publication metadata in the ledger");
+    assert.equal(report.release, ledger.publication.release, "report does not target the recorded published release");
+    assert.equal(report.environment.image_digest, ledger.publication.index_digest, "report does not target the published release digest");
+    assert.match(report.environment.platform_manifest_digest ?? "", /^sha256:[a-f0-9]{64}$/, "invalid platform manifest digest");
+    assert.match(report.environment.local_image_id ?? "", /^sha256:[a-f0-9]{64}$/, "invalid local image ID");
+    nonEmpty(report.environment.architecture, "environment.architecture");
+  }
   assert.match(report.controller_identity_hash ?? "", /^[a-f0-9]{16}$/, "invalid hashed controller identity");
 
   assert.ok(report.run && typeof report.run === "object", "run metadata is required");
@@ -110,6 +122,25 @@ export function selfTestHardwareReportValidator(ledger) {
     evidence_artifacts: ["docs/qualification/example-redacted.log"],
   };
   assert.equal(validateHardwareReport(report, ledger).result, "qualified");
+  if (ledger.publication) {
+    const published = {
+      ...report,
+      release: ledger.publication.release,
+      evidence_level: "published",
+      environment: {
+        ...report.environment,
+        image_digest: ledger.publication.index_digest,
+        platform_manifest_digest: `sha256:${"b".repeat(64)}`,
+        local_image_id: `sha256:${"c".repeat(64)}`,
+        architecture: "amd64",
+      },
+    };
+    assert.equal(validateHardwareReport(published, ledger).result, "qualified");
+    assert.throws(
+      () => validateHardwareReport({ ...published, environment: { ...published.environment, image_digest: `sha256:${"d".repeat(64)}` } }, ledger),
+      /published release digest/,
+    );
+  }
   assert.throws(() => validateHardwareReport({ ...report, setup_payload: "redacted" }, ledger), /forbidden key/);
   assert.throws(() => validateHardwareReport({ ...report, result: "qualified", steps: report.steps.slice(1) }, ledger), /missing step/);
 }

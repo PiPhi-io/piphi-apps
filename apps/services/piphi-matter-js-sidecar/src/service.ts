@@ -20,7 +20,7 @@ export class MatterSidecarService {
   #lastError: string | undefined;
   #unsubscribe: (() => void) | undefined;
   #backupQuiesced = false;
-  #wifiProvisioning = false;
+  #networkProvisioning = false;
 
   constructor(
     readonly backend: MatterBackend,
@@ -34,6 +34,7 @@ export class MatterSidecarService {
     try {
       await this.backend.start();
       await this.backend.clearTemporaryWifiCredentials("piphi-provision-");
+      await this.backend.clearThreadDataset();
       this.#startedAt = new Date().toISOString();
       this.#lastError = undefined;
     } catch (error) {
@@ -119,9 +120,9 @@ export class MatterSidecarService {
     if (!credentials || Buffer.byteLength(credentials, "utf8") > 256) {
       throw statusError(400, "wifi_credentials_invalid");
     }
-    if (this.#wifiProvisioning) throw statusError(409, "wifi_provisioning_in_progress");
+    if (this.#networkProvisioning) throw statusError(409, "network_provisioning_in_progress");
 
-    this.#wifiProvisioning = true;
+    this.#networkProvisioning = true;
     const credentialId = `piphi-provision-${randomUUID()}`;
     let stored = false;
     let operationFailed = false;
@@ -146,7 +147,41 @@ export class MatterSidecarService {
         this.#lastError = "Temporary Wi-Fi credential cleanup failed";
         if (!operationFailed) throw statusError(500, "wifi_credential_cleanup_failed");
       } finally {
-        this.#wifiProvisioning = false;
+        this.#networkProvisioning = false;
+      }
+    }
+  }
+
+  async provisionThread(setupCode: string, operationalDataset: string): Promise<MatterEndpoint[]> {
+    if (!setupCode.trim()) throw statusError(400, "setup_payload_required");
+    const dataset = operationalDataset.trim();
+    if (!validOperationalDataset(dataset)) throw statusError(400, "thread_operational_dataset_invalid");
+    if (this.#networkProvisioning) throw statusError(409, "network_provisioning_in_progress");
+
+    this.#networkProvisioning = true;
+    let stored = false;
+    let operationFailed = false;
+    try {
+      await this.backend.setThreadDataset(dataset);
+      stored = true;
+      const node = await this.backend.commissionWithCode(setupCode.trim(), false, {
+        discoveryTimeoutSeconds: 180,
+        timeoutMs: 300_000,
+      });
+      const endpoints = normalizeNode(node);
+      for (const endpoint of endpoints) await this.configure(endpoint.nodeId, endpoint.endpointId);
+      return endpoints;
+    } catch (error) {
+      operationFailed = true;
+      throw error;
+    } finally {
+      try {
+        if (stored) await this.backend.clearThreadDataset();
+      } catch {
+        this.#lastError = "Temporary Thread dataset cleanup failed";
+        if (!operationFailed) throw statusError(500, "thread_dataset_cleanup_failed");
+      } finally {
+        this.#networkProvisioning = false;
       }
     }
   }
@@ -347,6 +382,10 @@ function safeMessage(error: unknown): string {
 function validSsid(ssid: string): boolean {
   const bytes = Buffer.byteLength(ssid, "utf8");
   return ssid.trim() === ssid && bytes >= 1 && bytes <= 32;
+}
+
+function validOperationalDataset(dataset: string): boolean {
+  return dataset.length >= 32 && dataset.length <= 508 && dataset.length % 2 === 0 && /^[a-fA-F0-9]+$/.test(dataset);
 }
 
 function statusError(statusCode: number, message: string): Error & { statusCode: number } {

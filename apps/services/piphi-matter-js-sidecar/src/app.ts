@@ -182,6 +182,17 @@ export function createApp(service: MatterSidecarService, options: {
     });
   });
 
+  app.post<{ Body: { setup_payload?: string; operational_dataset?: string } }>("/v1/commission/thread", async (request, reply) => {
+    const endpoints = await service.provisionThread(
+      request.body?.setup_payload ?? "",
+      request.body?.operational_dataset ?? "",
+    );
+    return reply.code(201).send({
+      node_id: endpoints[0]?.nodeId ?? null,
+      endpoints: endpoints.map(discoveryRecord),
+    });
+  });
+
   app.post("/v1/credentials/wifi", async (_request, reply) => reply.code(410).send({
     ok: false,
     error: "persistent_wifi_credentials_removed",
@@ -191,12 +202,11 @@ export function createApp(service: MatterSidecarService, options: {
     await service.backend.clearWifiCredentials();
     return reply.code(204).send();
   });
-  app.post<{ Body: { operational_dataset?: string } }>("/v1/credentials/thread", async (request, reply) => {
-    const dataset = request.body?.operational_dataset?.trim();
-    if (!dataset) return reply.code(400).send({ ok: false, error: "operational_dataset is required" });
-    await service.backend.setThreadDataset(dataset);
-    return reply.code(204).send();
-  });
+  app.post("/v1/credentials/thread", async (_request, reply) => reply.code(410).send({
+    ok: false,
+    error: "persistent_thread_dataset_removed",
+    message: "Use /v1/commission/thread; PiPhi clears the dataset after that operation.",
+  }));
   app.delete("/v1/credentials/thread", async (_request, reply) => {
     await service.backend.clearThreadDataset();
     return reply.code(204).send();

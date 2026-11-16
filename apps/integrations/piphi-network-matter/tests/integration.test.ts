@@ -105,6 +105,28 @@ test("projects an authenticated On/Off snapshot, persists aliases, and forwards 
   assert.deepEqual(sidecar.wifiCommissioningBodies[0], {
     setup_payload: "MT:BLE-WRITE-ONLY", ssid: "Lab WiFi", credentials: "WIFI-WRITE-ONLY",
   });
+  const threadDenied = await app.inject({
+    method: "POST",
+    url: "/commissioning/thread",
+    payload: { setup_payload: "MT:THREAD-WRITE-ONLY", operational_dataset: "a".repeat(64) },
+  });
+  assert.equal(threadDenied.statusCode, 400);
+  assert.equal(sidecar.threadCommissioningBodies.length, 0);
+  const threadCommissioned = await app.inject({
+    method: "POST",
+    url: "/commissioning/thread",
+    payload: {
+      setup_payload: "MT:THREAD-WRITE-ONLY",
+      operational_dataset: "a".repeat(64),
+      experimental_acknowledgement: "thread",
+    },
+  });
+  assert.equal(threadCommissioned.statusCode, 201, threadCommissioned.body);
+  assert.equal(threadCommissioned.json().experimental, "thread");
+  assert.doesNotMatch(threadCommissioned.body, /THREAD-WRITE-ONLY|a{32}/);
+  assert.deepEqual(sidecar.threadCommissioningBodies[0], {
+    setup_payload: "MT:THREAD-WRITE-ONLY", operational_dataset: "a".repeat(64),
+  });
 
   const unconfirmed = await app.inject({ method: "POST", url: "/nodes/node-17/decommission", payload: { confirm_node_id: "wrong" } });
   assert.equal(unconfirmed.statusCode, 400);
@@ -175,6 +197,7 @@ interface SidecarFixture {
   snapshotRequests: number;
   commissioningBodies: Array<Record<string, unknown>>;
   wifiCommissioningBodies: Array<Record<string, unknown>>;
+  threadCommissioningBodies: Array<Record<string, unknown>>;
   decommissionedNodes: string[];
   nodePresent: boolean;
   backupQuiesceCount: number;
@@ -184,7 +207,7 @@ interface SidecarFixture {
 async function startSidecar(): Promise<SidecarFixture> {
   const fixture: SidecarFixture = {
     url: "", authorizationHeaders: [], commands: [], switchOn: false, expireCursor: false, snapshotRequests: 0,
-    commissioningBodies: [], wifiCommissioningBodies: [], decommissionedNodes: [], nodePresent: true,
+    commissioningBodies: [], wifiCommissioningBodies: [], threadCommissioningBodies: [], decommissionedNodes: [], nodePresent: true,
     backupQuiesceCount: 0, backupResumeCount: 0,
   };
   const sharedSnapshot = JSON.parse(await readFile(
@@ -251,6 +274,11 @@ async function startSidecar(): Promise<SidecarFixture> {
     }
     if (url.pathname === "/v1/commission/wifi") {
       fixture.wifiCommissioningBodies.push(await body(request));
+      fixture.nodePresent = true;
+      return json(response, 201, { node_id: "node-17", endpoints: [] });
+    }
+    if (url.pathname === "/v1/commission/thread") {
+      fixture.threadCommissioningBodies.push(await body(request));
       fixture.nodePresent = true;
       return json(response, 201, { node_id: "node-17", endpoints: [] });
     }

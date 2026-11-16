@@ -140,6 +140,7 @@ function startContainer(input: Parameters<typeof dockerRunArgs>[0]): void {
 }
 
 async function qualify(image: string, timeoutSeconds: number): Promise<void> {
+  if (!docker(["image", "inspect", image], false)) docker(["pull", image]);
   assertImageContract(parseImageInspect(docker(["image", "inspect", image])));
 
   const port = await allocatePort();
