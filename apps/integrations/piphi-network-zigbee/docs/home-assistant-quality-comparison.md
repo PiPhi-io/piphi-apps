@@ -49,6 +49,22 @@ automatic rollback backup. This closes the local-radio preflight and basic
 restore gaps but does not remove the remaining privilege, encrypted export, or
 guided migration blockers.
 
+The 0.1.22 release candidate removes those three implementation blockers. Linux
+sidecar deployment is non-root and no longer receives the Docker socket,
+`/dev/bus/usb`, privileged mode, or any coordinator device. Core's existing
+authenticated managed-runtime helper discovers read-only stable serial links,
+validates the selected discovery identity, and maps only that coordinator into
+the digest-pinned Zigbee2MQTT workload. Backups can be exported and imported in
+an authenticated, passphrase-derived AES-256-GCM format. Coordinator migration
+now has a deterministic plan/apply flow with compatibility validation, target
+exclusivity probe, explicit confirmation, restore, retargeting, and automatic
+rollback. Cross-family migration fails closed without an explicit evidence
+reference. These changes justify closing the code-level P0 items, but **do not
+justify a quality promotion**: representative USB coordinator discovery,
+start/restart/unplug recovery, encrypted restore, and migration must pass on
+released Core and sidecar artifacts first. The listing therefore remains
+`unrated`.
+
 The right near-term product claim is: **“PiPhi-managed Zigbee2MQTT bridge setup plus a tested basic MQTT device-state/control adapter for a constrained set of exposes.”**
 
 ## Comparison model and source baseline
@@ -190,7 +206,19 @@ These should be executable tests and product constraints, not just documentation
 
 ## Validation performed and limits
 
-Executed from this checkout on 2026-11-15:
+Original audit gates were executed from this checkout on 2026-11-15. The P0
+release-candidate reassessment on 2026-11-16 additionally recorded:
+
+- sidecar tests: **61 passed**;
+- sidecar validator and Ruff: **passed**;
+- production dependency audit: **no known vulnerabilities**;
+- local AMD64 container build: **passed**;
+- built container UID/GID and writable data check: **1000:1000, passed**;
+- integration tests: **210 passed**;
+- focused Core managed-runtime and Zigbee contract tests: **35 passed**;
+- Core Compose managed-helper configuration render: **passed**.
+
+Original audit results:
 
 - integration `scripts/validate.py`: **passed**;
 - sidecar `scripts/validate.py`: **passed**;
@@ -198,7 +226,13 @@ Executed from this checkout on 2026-11-15:
 - sidecar tests: **27 passed**;
 - integration tests initially reported **207 passed, 1 failed** because `tests/test_release.py::test_release_pipeline_enforces_supply_chain_gates` still read a removed per-app `.github/workflows/release.yml`. The test was repaired during audit review to assert the monorepo OCI release, SBOM, provenance, evidence, proposal and GitHub-release gates. A subsequent isolated Python 3.12 run completed with **208 passed**.
 
-No live MQTT broker, coordinator, Zigbee devices, Docker daemon supervision, PM2 host, Windows/macOS proxy, hardware migration, RF behavior, OTA, or backup/restore was available. Consequently this audit verifies reachable source and mocked tests, **not** successful radio operation or hardware qualification. Dependency audit and multi-architecture image builds were not rerun locally; they are declared in CI for the sidecar, while the integration declaration does not request them.
+No live MQTT broker, coordinator, Zigbee devices, PM2 host, Windows/macOS proxy,
+hardware migration, RF behavior, or OTA target was available. Backup encryption,
+restore, migration, rollback, and Docker supervision were exercised locally or
+with mocks, but not against representative radios. Consequently this
+reassessment verifies source, contracts, a local container build, and automated
+failure behavior—not successful radio operation or hardware qualification.
+Multi-architecture images and attestations remain release-workflow evidence.
 
 ## Primary source index
 

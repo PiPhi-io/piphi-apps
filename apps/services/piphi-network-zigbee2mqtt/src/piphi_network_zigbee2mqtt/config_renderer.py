@@ -13,7 +13,7 @@ def render_zigbee2mqtt_config(config: Zigbee2MqttBridgeConfig) -> RenderedBridge
         "permit_join": config.permit_join,
         "mqtt": _render_mqtt_settings(config.mqtt),
         "serial": {
-            "port": config.serial.port,
+            "port": "/dev/ttyZigbee" if config.runtime == "docker" else config.serial.port,
         },
         "frontend": {
             "enabled": config.frontend_enabled,

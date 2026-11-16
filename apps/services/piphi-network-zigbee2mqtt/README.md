@@ -56,6 +56,12 @@ Bridge-specific routes:
 - `POST /v1/network-map`
 - `GET /v1/network-map`
 - `POST /v1/permit-join`
+- `POST /v1/network-backup`
+- `POST /v1/network-backup/export`
+- `POST /v1/network-backup/import`
+- `POST /v1/network-restore`
+- `POST /v1/coordinator-migration/plan`
+- `POST /v1/coordinator-migration/apply`
 
 ## Render a Zigbee2MQTT Config
 
@@ -92,21 +98,15 @@ For Windows/macOS proxy mode, use the native coordinator path:
 
 ## Supervise Zigbee2MQTT
 
-Linux Docker mode:
+Linux Docker mode is delegated to Core's authenticated managed-runtime helper.
+The sidecar does not run Docker commands and receives neither the Docker socket
+nor coordinator devices:
 
 ```bash
 curl -s http://127.0.0.1:8720/v1/supervisor/start \
   -H 'content-type: application/json' \
   -d '{
-    "mode": "docker",
-    "docker": {
-      "image": "ghcr.io/koenkk/zigbee2mqtt@sha256:fb4a6b0f6868ad1cd6a9996479802b2420e599c3463b62bbff8c8cd9a908f43a",
-      "container_name": "piphi-zigbee2mqtt",
-      "host_data_path": "/var/lib/piphi/zigbee2mqtt",
-      "container_data_path": "/app/data",
-      "device_path": "/dev/serial/by-id/usb-coordinator",
-      "frontend_port": 8080
-    }
+    "mode": "docker"
   }'
 ```
 
@@ -125,8 +125,8 @@ curl -s http://127.0.0.1:8720/v1/supervisor/start \
   }'
 ```
 
-Set `"dry_run": true` on any supervisor request to see the planned commands
-without executing Docker or PM2.
+Set `"dry_run": true` on a PM2 supervisor request to see planned commands.
+Docker requests only report Core ownership; Core performs the signed action.
 
 Collect recent logs:
 
@@ -135,11 +135,7 @@ curl -s http://127.0.0.1:8720/v1/supervisor/logs \
   -H 'content-type: application/json' \
   -d '{
     "mode": "docker",
-    "tail": 100,
-    "docker": {
-      "host_data_path": "/var/lib/piphi/zigbee2mqtt",
-      "container_name": "piphi-zigbee2mqtt"
-    }
+    "tail": 100
   }'
 ```
 
@@ -210,11 +206,7 @@ curl -s http://127.0.0.1:8720/v1/apply \
       "data_path": "/app/data"
     },
     "supervisor": {
-      "mode": "docker",
-      "docker": {
-        "host_data_path": "/var/lib/piphi/zigbee2mqtt",
-        "device_path": "/dev/serial/by-id/usb-coordinator"
-      }
+      "mode": "docker"
     },
     "mqtt_check": {
       "server": "mqtt://127.0.0.1:1883",
@@ -239,17 +231,27 @@ adapter/version compatibility metadata. `POST /v1/network-restore` requires a
 stopped coordinator, a matching adapter family, explicit confirmation, and
 creates a rollback backup before replacing data.
 
+Encrypted export uses passphrase-derived AES-256-GCM with authenticated format
+metadata. Export a verified backup with `POST /v1/network-backup/export`, retain
+the returned checksum, and import it with `POST /v1/network-backup/import`.
+Passphrases are never returned in responses.
+
+Guided coordinator migration is a two-step flow. First call
+`POST /v1/coordinator-migration/plan`; the sidecar verifies backup metadata,
+adapter-family compatibility, and exclusive target availability. Then submit
+the unchanged request, returned `plan_id`, and `confirm_migration: true` to
+`POST /v1/coordinator-migration/apply`. The apply creates rollback evidence,
+restores, rewrites the selected target, and automatically restores the rollback
+backup if a post-restore step fails. Cross-family migration fails closed unless
+the caller records a specific compatibility evidence reference.
+
 Before applying, check host prerequisites:
 
 ```bash
 curl -s http://127.0.0.1:8720/v1/prerequisites \
   -H 'content-type: application/json' \
   -d '{
-    "mode": "docker",
-    "docker": {
-      "host_data_path": "/var/lib/piphi/zigbee2mqtt",
-      "device_path": "/dev/serial/by-id/usb-coordinator"
-    }
+    "mode": "docker"
   }'
 ```
 
@@ -257,9 +259,11 @@ curl -s http://127.0.0.1:8720/v1/prerequisites \
 
 Linux:
 
-- sidecar runs as a container
-- `/dev/bus/usb` is mapped for coordinator access
-- `/var/lib/piphi/zigbee2mqtt` is mounted as Zigbee2MQTT data
+- sidecar runs non-root as UID/GID `1000:1000`
+- sidecar has no Docker socket, broad USB mapping, privileged mode, or devices
+- sidecar and Zigbee2MQTT share `piphi-helper-zigbee2mqtt-data`
+- Core discovers stable `/dev/serial` links and maps only the selected device
+  into the digest-pinned Zigbee2MQTT helper as `/dev/ttyZigbee`
 
 Windows/macOS:
 
@@ -270,9 +274,9 @@ Windows/macOS:
 ## Docker Build
 
 ```bash
-docker build -t ghcr.io/piphi-io/zigbee2mqtt-sidecar:0.1.21 .
-docker run --rm -p 8720:8720 ghcr.io/piphi-io/zigbee2mqtt-sidecar:0.1.21
+docker build -t ghcr.io/piphi-io/zigbee2mqtt-sidecar:0.1.22 .
+docker run --rm -p 8720:8720 ghcr.io/piphi-io/zigbee2mqtt-sidecar:0.1.22
 ```
 
-For live Linux adapter detection/config writes, run with the PiPhi-managed
-volume and device mappings declared in `manifest.json`.
+For Linux, deploy through Core's managed-runtime helper contract. Running the
+sidecar image alone does not grant coordinator or Docker authority.

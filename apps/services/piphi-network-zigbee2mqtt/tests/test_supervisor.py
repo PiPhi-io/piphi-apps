@@ -27,7 +27,7 @@ class FakeRunner:
 
 
 @pytest.mark.anyio
-async def test_docker_start_runs_container_when_missing() -> None:
+async def test_docker_lifecycle_is_delegated_to_core_without_host_commands() -> None:
     runner = FakeRunner(
         [
             CommandResult(command=["docker", "inspect"], returncode=1, stderr="No such object"),
@@ -49,16 +49,9 @@ async def test_docker_start_runs_container_when_missing() -> None:
     )
 
     assert result.ok is True
-    assert result.commands[0][:2] == ["docker", "inspect"]
-    run_command = result.commands[1]
-    assert run_command[:3] == ["docker", "run", "-d"]
-    assert (
-        "ghcr.io/koenkk/zigbee2mqtt"
-        "@sha256:fb4a6b0f6868ad1cd6a9996479802b2420e599c3463b62bbff8c8cd9a908f43a"
-        in run_command
-    )
-    assert "--device" in run_command
-    assert "/dev/ttyUSB0:/dev/ttyUSB0" in run_command
+    assert result.status == "managed_by_core"
+    assert result.commands == []
+    assert runner.calls == []
 
 
 @pytest.mark.anyio
@@ -85,7 +78,7 @@ async def test_pm2_restart_uses_working_directory_and_env() -> None:
 
 
 @pytest.mark.anyio
-async def test_supervisor_logs_for_docker() -> None:
+async def test_supervisor_logs_for_docker_are_delegated_to_core() -> None:
     runner = FakeRunner([CommandResult(command=["docker", "logs"], returncode=0, stdout="ready")])
 
     result = await supervisor_logs(
@@ -99,8 +92,9 @@ async def test_supervisor_logs_for_docker() -> None:
 
     assert result.ok is True
     assert result.action == "logs"
-    assert result.commands == [["docker", "logs", "--tail", "50", "piphi-zigbee2mqtt"]]
-    assert result.results[0].stdout == "ready"
+    assert result.commands == []
+    assert result.results == []
+    assert runner.calls == []
 
 
 def test_parse_mqtt_endpoint_defaults_ports() -> None:
@@ -126,7 +120,7 @@ async def test_prerequisite_checks_report_pm2_availability() -> None:
 
 
 @pytest.mark.anyio
-async def test_supervisor_response_redacts_secret_values() -> None:
+async def test_docker_supervisor_ignores_caller_environment_and_output() -> None:
     runner = FakeRunner(
         [
             CommandResult(command=["docker", "inspect"], returncode=1, stderr="No such object"),
@@ -151,9 +145,9 @@ async def test_supervisor_response_redacts_secret_values() -> None:
     )
 
     assert result.ok is True
-    assert "TZ=UTC" in result.commands[1]
-    assert "super-secret" not in result.results[1].stdout
-    assert "mqtt://user:[redacted]@broker.local" in result.results[1].stdout
+    assert result.commands == []
+    assert result.results == []
+    assert runner.calls == []
 
 
 @pytest.mark.parametrize(

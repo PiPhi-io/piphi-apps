@@ -64,6 +64,6 @@ async def test_apply_config_writes_zigbee2mqtt_configuration(tmp_path, monkeypat
     assert 'user: "user"' in yaml
     assert 'password: "pass"' in yaml
     assert "user:pass@" not in yaml
-    assert 'port: "/dev/ttyUSB0"' in yaml
+    assert 'port: "/dev/ttyZigbee"' in yaml
     assert sidecar_store.config_path == str(config_path)
     assert sidecar_store.config_hash

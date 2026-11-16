@@ -6,6 +6,8 @@ import pytest
 
 from piphi_network_zigbee2mqtt.network_backup import (
     create_network_backup,
+    export_encrypted_backup,
+    import_encrypted_backup,
     restore_network_backup,
     verify_network_backup,
 )
@@ -68,3 +70,62 @@ def test_network_restore_checks_adapter_compatibility_and_restores_full_data(
     assert (tmp_path / "configuration.yaml").read_text() == "version: original\n"
     assert nested.read_text() == '{"device": 1}'
     assert result.rollback_backup.backup_sha256.startswith("sha256:")
+
+
+def test_encrypted_backup_round_trip_and_wrong_passphrase_fail_closed(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("PIPHI_ZIGBEE2MQTT_ALLOWED_DATA_ROOTS", str(tmp_path))
+    (tmp_path / "configuration.yaml").write_text("advanced:\n  network_key: secret\n")
+    backup = create_network_backup(str(tmp_path), adapter_family="ember")
+
+    exported = export_encrypted_backup(
+        backup_path=backup.backup_path,
+        expected_sha256=backup.backup_sha256,
+        passphrase="a sufficiently long passphrase",
+    )
+
+    encrypted = (tmp_path / "exports" / os.path.basename(exported.export_path)).read_bytes()
+    assert b"network_key: secret" not in encrypted
+    assert (os.stat(exported.export_path).st_mode & 0o777) == 0o600
+    with pytest.raises(ValueError, match="passphrase or authentication"):
+        import_encrypted_backup(
+            data_path=str(tmp_path),
+            export_path=exported.export_path,
+            expected_sha256=exported.export_sha256,
+            passphrase="the wrong passphrase value",
+        )
+
+    imported = import_encrypted_backup(
+        data_path=str(tmp_path),
+        export_path=exported.export_path,
+        expected_sha256=exported.export_sha256,
+        passphrase="a sufficiently long passphrase",
+    )
+
+    verify_network_backup(imported.backup_path, imported.backup_sha256)
+    assert set(imported.files) == {"configuration.yaml"}
+
+
+def test_encrypted_backup_rejects_ciphertext_tampering(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("PIPHI_ZIGBEE2MQTT_ALLOWED_DATA_ROOTS", str(tmp_path))
+    (tmp_path / "configuration.yaml").write_text("advanced: {}\n")
+    backup = create_network_backup(str(tmp_path), adapter_family="ember")
+    exported = export_encrypted_backup(
+        backup_path=backup.backup_path,
+        expected_sha256=backup.backup_sha256,
+        passphrase="a sufficiently long passphrase",
+    )
+    target = tmp_path / "exports" / os.path.basename(exported.export_path)
+    payload = bytearray(target.read_bytes())
+    payload[-1] ^= 1
+    target.write_bytes(payload)
+
+    with pytest.raises(ValueError, match="checksum"):
+        import_encrypted_backup(
+            data_path=str(tmp_path),
+            export_path=exported.export_path,
+            expected_sha256=exported.export_sha256,
+            passphrase="a sufficiently long passphrase",
+        )

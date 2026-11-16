@@ -22,5 +22,5 @@ attestations; no Docker Hub credential is required.
 Current image target:
 
 ```text
-ghcr.io/piphi-io/zigbee2mqtt-sidecar:0.1.21
+ghcr.io/piphi-io/zigbee2mqtt-sidecar:0.1.22
 ```
