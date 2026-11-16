@@ -3,8 +3,8 @@
   "manifest_version": "1.0",
   "id": "piphi-network-android-tv",
   "name": "Android TV",
-  "version": "0.2.0-rc.1",
-  "description": "Control paired Android TV and Google TV devices with Remote Protocol v2.",
+  "version": "0.3.0-rc.1",
+  "description": "Control Android TV devices using explicit Remote Protocol v2 or bounded managed ADB transport.",
   "metadata": {
     "generator": "piphi-network-create",
     "scaffold_version": "0.3.0",
@@ -17,7 +17,7 @@
     "website": "https://piphi.io"
   },
   "license": "Apache-2.0",
-  "image": "ghcr.io/piphi-io/piphi-network-android-tv:0.2.0-rc.1",
+  "image": "ghcr.io/piphi-io/piphi-network-android-tv:0.3.0-rc.1",
   "platforms": [
     "linux"
   ],
@@ -25,7 +25,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "ghcr.io/piphi-io/piphi-network-android-tv:0.2.0-rc.1",
+        "image": "ghcr.io/piphi-io/piphi-network-android-tv:0.3.0-rc.1",
         "ports": [
           {
             "container": 4220,
@@ -34,6 +34,8 @@
         ],
         "environment": {
           "LOG_LEVEL": "info",
+          "PIPHI_ENV": "production",
+          "PIPHI_ANDROID_ADB_SIDECAR_URL": "http://piphi-android-adb-sidecar:4213",
           "PIPHI_ANDROID_TV_CREDENTIAL_DIR": "/app/data/android-tv-credentials"
         },
         "restart_policy": {
@@ -52,6 +54,20 @@
         "method": "passive"
       }
     }
+  },
+  "requires": {
+    "services": [
+      {
+        "id": "piphi-android-adb-sidecar",
+        "kind": "platform_service",
+        "version_range": ">=0.3.0-rc.1,<0.4.0",
+        "recommended_version": "0.3.0-rc.1",
+        "required": true,
+        "shared": true,
+        "auto_install": true,
+        "reason": "Owns authenticated network ADB sessions, opaque target leases, bounded command queues, and strict property and key allow-lists."
+      }
+    ]
   },
   "api": {
     "required": [
@@ -84,7 +100,12 @@
     "required": true,
     "editable_fields": [
       "host",
-      "alias"
+      "alias",
+      "transport",
+      "adb_port",
+      "adb_queue_capacity",
+      "adb_connect_timeout_ms",
+      "adb_operation_timeout_ms"
     ],
     "runtime_fields": [
       "id",
@@ -142,6 +163,15 @@
       "kind": "sensor",
       "unit": "string"
     },
+    "transport_type": {"kind": "sensor", "unit": "string"},
+    "adb_authorized": {"kind": "sensor", "unit": "bool"},
+    "android_version": {"kind": "sensor", "unit": "string"},
+    "android_api_level": {"kind": "sensor", "unit": "string"},
+    "sidecar_queue_depth": {"kind": "sensor", "unit": "commands"},
+    "sidecar_queue_capacity": {"kind": "sensor", "unit": "commands"},
+    "sidecar_reconnect_count": {"kind": "sensor", "unit": "count"},
+    "sidecar_command_timeout_count": {"kind": "sensor", "unit": "count"},
+    "sidecar_last_error_code": {"kind": "sensor", "unit": "string"},
     "refresh": {
       "kind": "action"
     },
@@ -172,7 +202,7 @@
   "marketplace": {
     "metadata_version": 2,
     "display_name": "Android TV",
-    "summary": "Pair and control Android TV and Google TV using Remote Protocol v2.",
+    "summary": "Control Android TV using explicit Remote v2 or a bounded managed ADB sidecar.",
     "category": "media",
     "regions": [
       "WW"
@@ -218,7 +248,8 @@
       "streaming device"
     ],
     "protocols": [
-      "Android TV Remote Protocol v2"
+      "Android TV Remote Protocol v2",
+      "Android Debug Bridge (managed bounded transport)"
     ],
     "discovery_methods": [
       "Remote v2 mDNS candidates",

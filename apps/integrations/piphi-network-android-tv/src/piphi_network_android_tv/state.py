@@ -13,12 +13,13 @@ from piphi_runtime_kit_python import (
     create_runtime_starter,
 )
 
+from .adb_sidecar_client import AdbSidecarClient
 from .contract import CAPABILITIES, COMMANDS
 from .device_sessions import DeviceSessionManager
 from .remote_v2_adapter import AndroidTVRemoteV2Adapter
 from .remote_v2_pairing import RemoteV2CredentialStore, RemoteV2PairingManager
 from .runtime_service import AndroidTVRuntimeService
-from .schemas import DeviceConfig
+from .schemas import DeviceConfig, TransportType
 from .settings import INTEGRATION_ID, INTEGRATION_NAME, INTEGRATION_VERSION
 
 # Upstream certificate generation respects the process umask. Set it before
@@ -65,17 +66,21 @@ android_tv_service = AndroidTVRuntimeService(
     registry=registry,
     sessions=session_manager,
     credentials=_credential_paths,
+    adb=AdbSidecarClient(),
 )
 
 
 def make_entry(config: DeviceConfig) -> dict[str, Any]:
     identity = build_runtime_identity(config, integration_id=INTEGRATION_ID)
-    return {
+    entry = {
         **identity,
-        "host": config.host,
         "alias": config.alias,
-        "config": config.model_dump(),
+        "transport": config.transport.value,
+        "config": config.model_dump(exclude={"host"}, mode="json"),
     }
+    if config.transport is TransportType.REMOTE_V2:
+        entry["host"] = config.host
+    return entry
 
 
 def append_runtime_event(

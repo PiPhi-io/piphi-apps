@@ -41,6 +41,15 @@
       "kind": "sensor",
       "unit": "string"
     },
+    "transport_type": {"kind": "sensor", "unit": "string"},
+    "adb_authorized": {"kind": "sensor", "unit": "bool"},
+    "android_version": {"kind": "sensor", "unit": "string"},
+    "android_api_level": {"kind": "sensor", "unit": "string"},
+    "sidecar_queue_depth": {"kind": "sensor", "unit": "commands"},
+    "sidecar_queue_capacity": {"kind": "sensor", "unit": "commands"},
+    "sidecar_reconnect_count": {"kind": "sensor", "unit": "count"},
+    "sidecar_command_timeout_count": {"kind": "sensor", "unit": "count"},
+    "sidecar_last_error_code": {"kind": "sensor", "unit": "string"},
     "refresh": {
       "kind": "action"
     },

@@ -1,13 +1,15 @@
 # Piphi Network Android Tv
 
-PiPhi integration runtime for Android TV Remote Protocol v2. The initial
-vertical slice supports authenticated pairing, mDNS candidates, stable opaque
-identity, availability, power, foreground application, volume/mute state,
-refresh, and a conservative allow-list of short remote keys.
+PiPhi integration runtime with explicit Android TV transport selection. Remote
+Protocol v2 remains the default and supports authenticated pairing, mDNS
+candidates, stable opaque identity, availability, power, foreground
+application, volume/mute state, refresh, and conservative short remote keys.
 
-Android TV and Google TV devices require Android TV Remote Service. Fire TV is
-not supported by this protocol and remains reserved for the isolated ADB
-sidecar.
+The optional `adb` transport delegates all network ADB ownership to the managed
+`piphi-android-adb-sidecar`. The parent receives only an opaque target lease and
+can query four allow-listed identity properties or send the intersection of the
+parent and sidecar key allow-lists. It does not expose shell, pairing, files,
+packages, intents, USB, or arbitrary ADB operations.
 
 ## Pair and configure
 
@@ -28,7 +30,7 @@ curl -X POST http://127.0.0.1:4220/pairing/SESSION_ID/finish \
 # 3. Save only after authenticated connectivity and identity are verified.
 curl -X POST http://127.0.0.1:4220/config \
   -H 'content-type: application/json' \
-  -d '{"id":"living-room","host":"192.168.1.50","alias":"Living Room"}'
+  -d '{"id":"living-room","host":"192.168.1.50","alias":"Living Room","transport":"remote_v2"}'
 ```
 
 Credentials are stored under `PIPHI_ANDROID_TV_CREDENTIAL_DIR` with `0700`
@@ -36,6 +38,23 @@ directories and `0600` files. Deconfiguration keeps authorization available
 for a later reconfiguration. To revoke local credentials explicitly after
 deconfiguring, call `DELETE /pairing/credentials/{config_id}` and also forget
 the remote from the television when appropriate.
+
+## Configure managed ADB
+
+ADB must already be authorized outside this integration. Select it explicitly;
+the runtime never falls back from Remote v2 to ADB:
+
+```bash
+curl -X POST http://127.0.0.1:4220/config \
+  -H 'content-type: application/json' \
+  -d '{"id":"living-room-adb","host":"192.168.1.50","alias":"Living Room","transport":"adb","adb_port":5555}'
+```
+
+The parent configures the authenticated sidecar first and saves only after the
+target is connected and authorized. Changing transport requires deconfiguring
+the existing entry first. ADB refresh reports manufacturer, model, Android
+release, API level, and bounded sidecar counters; power, app, volume, and mute
+remain unknown because this contract does not query them.
 
 ## Run locally
 
@@ -78,10 +97,11 @@ features from being advertised.
 
 Remote v2 pairing, authenticated connectivity, stable identity, push state,
 reconnect behavior, allow-listed short keys, and privacy-safe diagnostics are
-implemented. Long presses, text input, application/deep-link launch, channel
-entry, broad protocol keys, and hardware qualification remain planned. Fire TV
-compatibility will use a separate, isolated ADB sidecar. Arbitrary shell,
-intent, package, and filesystem access is explicitly excluded.
+implemented. The managed ADB path adds bounded identity refresh, opaque leases,
+queue telemetry, and a narrower key allow-list. Long presses, text input,
+application/deep-link launch, channel entry, broad protocol keys, and physical
+hardware qualification remain deferred. Arbitrary shell, intent, package, and
+filesystem access is explicitly excluded.
 
 ## Limitations
 
@@ -91,6 +111,9 @@ intent, package, and filesystem access is explicitly excluded.
 - mDNS results are unverified endpoint candidates, never stable identity.
 - A reset television or revoked certificate requires pairing again.
 - App IDs, text, long presses, deep links, and voice are not exposed yet.
+- ADB authorization and network reachability must be provisioned separately.
+- ADB key failures with an uncertain outcome are never retried.
+- The ADB release candidate has not been physically device-qualified.
 
 ## Manifest
 
@@ -105,6 +128,6 @@ intent, package, and filesystem access is explicitly excluded.
 ## Docker
 
 ```bash
-docker build -t ghcr.io/piphi-io/piphi-network-android-tv:0.2.0-rc.1 .
-docker run --rm -p 4220:4220 ghcr.io/piphi-io/piphi-network-android-tv:0.2.0-rc.1
+docker build -t ghcr.io/piphi-io/piphi-network-android-tv:0.3.0-rc.1 .
+docker run --rm -p 4220:4220 ghcr.io/piphi-io/piphi-network-android-tv:0.3.0-rc.1
 ```

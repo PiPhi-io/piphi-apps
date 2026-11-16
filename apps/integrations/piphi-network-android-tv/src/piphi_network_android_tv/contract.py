@@ -35,6 +35,15 @@ CAPABILITIES: dict[str, dict[str, Any]] = {
     "manufacturer": {"kind": "sensor", "unit": "string"},
     "model": {"kind": "sensor", "unit": "string"},
     "software_version": {"kind": "sensor", "unit": "string"},
+    "transport_type": {"kind": "sensor", "unit": "string"},
+    "adb_authorized": {"kind": "sensor", "unit": "bool"},
+    "android_version": {"kind": "sensor", "unit": "string"},
+    "android_api_level": {"kind": "sensor", "unit": "string"},
+    "sidecar_queue_depth": {"kind": "sensor", "unit": "commands"},
+    "sidecar_queue_capacity": {"kind": "sensor", "unit": "commands"},
+    "sidecar_reconnect_count": {"kind": "sensor", "unit": "count"},
+    "sidecar_command_timeout_count": {"kind": "sensor", "unit": "count"},
+    "sidecar_last_error_code": {"kind": "sensor", "unit": "string"},
     "refresh": {
         "kind": "action"
     },
@@ -59,7 +68,8 @@ CONFIG_SCHEMA: dict[str, Any] = {
         "title": "Piphi Network Android Tv Setup",
         "type": "object",
         "required": [
-            "host"
+            "host",
+            "transport"
         ],
         "properties": {
             "host": {
@@ -69,6 +79,40 @@ CONFIG_SCHEMA: dict[str, Any] = {
             "alias": {
                 "type": "string",
                 "title": "Alias"
+            },
+            "transport": {
+                "type": "string",
+                "title": "Transport",
+                "enum": ["remote_v2", "adb"],
+                "default": "remote_v2"
+            },
+            "adb_port": {
+                "type": "integer",
+                "title": "ADB port",
+                "minimum": 1,
+                "maximum": 65535,
+                "default": 5555
+            },
+            "adb_queue_capacity": {
+                "type": "integer",
+                "title": "ADB queue capacity",
+                "minimum": 1,
+                "maximum": 100,
+                "default": 16
+            },
+            "adb_connect_timeout_ms": {
+                "type": "integer",
+                "title": "ADB connect timeout (ms)",
+                "minimum": 500,
+                "maximum": 30000,
+                "default": 5000
+            },
+            "adb_operation_timeout_ms": {
+                "type": "integer",
+                "title": "ADB operation timeout (ms)",
+                "minimum": 100,
+                "maximum": 30000,
+                "default": 5000
             }
         }
     },
@@ -78,6 +122,9 @@ CONFIG_SCHEMA: dict[str, Any] = {
         },
         "alias": {
             "placeholder": "Office Device"
+        },
+        "transport": {
+            "help": "Remote v2 is the default. Select ADB only for a separately authorized network ADB target."
         }
     }
 }
@@ -98,6 +145,15 @@ FALLBACK_ENTITY: dict[str, Any] = {
         "manufacturer",
         "model",
         "software_version",
+        "transport_type",
+        "adb_authorized",
+        "android_version",
+        "android_api_level",
+        "sidecar_queue_depth",
+        "sidecar_queue_capacity",
+        "sidecar_reconnect_count",
+        "sidecar_command_timeout_count",
+        "sidecar_last_error_code",
         "refresh",
         "send_key"
     ],

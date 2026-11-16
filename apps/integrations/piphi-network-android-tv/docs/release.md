@@ -21,12 +21,12 @@ The workflow qualifies the package, builds and pushes `linux/amd64` and
 immutable release evidence plus a registry proposal, and creates a namespaced
 GitHub prerelease/tag.
 
-For `0.2.0-rc.1`, publishing is explicitly permitted without physical hardware
+For `0.3.0-rc.1`, publishing is explicitly permitted without physical hardware
 qualification. Governance must remain `draft`, `unverified`, and rollout zero;
 the release must not be described as production-ready or hardware-verified.
 
 Current image target:
 
 ```text
-ghcr.io/piphi-io/piphi-network-android-tv:0.2.0-rc.1
+ghcr.io/piphi-io/piphi-network-android-tv:0.3.0-rc.1
 ```
