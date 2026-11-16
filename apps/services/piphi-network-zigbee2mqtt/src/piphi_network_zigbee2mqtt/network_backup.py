@@ -23,7 +23,7 @@ from .config_store import _write_private
 from .settings import INTEGRATION_VERSION
 
 BACKUP_METADATA = "piphi-backup.json"
-EXCLUDED_TOP_LEVEL = {"backups", "coordinator-claims"}
+EXCLUDED_TOP_LEVEL = {"backups", "coordinator-claims", "piphi-sidecar"}
 ENCRYPTED_BACKUP_MAGIC = b"PIPHI-ZIGBEE-AES256-GCM-V1\n"
 
 

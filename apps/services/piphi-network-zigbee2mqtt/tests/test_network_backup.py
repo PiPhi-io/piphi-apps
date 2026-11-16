@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import zipfile
 
 import pytest
 
@@ -25,6 +26,24 @@ def test_network_backup_is_private_and_checksum_verified(tmp_path, monkeypatch) 
     assert (target.stat().st_mode & 0o777) == 0o600
     assert set(result.files) == {"configuration.yaml", "coordinator_backup.json"}
     verify_network_backup(result.backup_path, result.backup_sha256)
+
+
+def test_network_backup_excludes_sidecar_control_plane_state(
+    tmp_path, monkeypatch
+) -> None:
+    monkeypatch.setenv("PIPHI_ZIGBEE2MQTT_ALLOWED_DATA_ROOTS", str(tmp_path))
+    (tmp_path / "configuration.yaml").write_text("serial: {}\n", encoding="utf-8")
+    control_plane = tmp_path / "piphi-sidecar"
+    control_plane.mkdir()
+    (control_plane / "coordinator-stop-evidence.sqlite3").write_bytes(b"nonce-ledger")
+    (control_plane / "automation-actions.sqlite3").write_bytes(b"action-ledger")
+
+    result = create_network_backup(str(tmp_path), adapter_family="zstack")
+
+    assert result.files == ["configuration.yaml"]
+    target = tmp_path / "backups" / os.path.basename(result.backup_path)
+    with zipfile.ZipFile(target) as archive:
+        assert not any(name.startswith("piphi-sidecar/") for name in archive.namelist())
 
 
 def test_network_backup_rejects_tampering(tmp_path, monkeypatch) -> None:
