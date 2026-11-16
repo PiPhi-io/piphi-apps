@@ -23,6 +23,9 @@ def test_runtime_implements_contract_routes() -> None:
         "/telemetry/example",
         "/telemetry/device/{config_id}/example",
         "/command",
+        "/v1/adb/snapshot",
+        "/v1/adb/reconnect",
+        "/v1/adb/execute",
     ]:
         assert path in routes
 

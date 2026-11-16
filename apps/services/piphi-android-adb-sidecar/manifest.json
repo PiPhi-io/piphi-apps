@@ -3,8 +3,8 @@
   "manifest_version": "1.0",
   "id": "piphi-android-adb-sidecar",
   "name": "Android ADB sidecar",
-  "version": "0.2.0-rc.1",
-  "description": "Draft ADB sidecar scaffold; no device transport is implemented.",
+  "version": "0.3.0-rc.1",
+  "description": "Provide bounded, authenticated network ADB transport for parent integrations.",
   "metadata": {
     "generator": "piphi-network-create",
     "scaffold_version": "0.3.0",
@@ -17,7 +17,7 @@
     "website": "https://piphi.io"
   },
   "license": "Apache-2.0",
-  "image": "ghcr.io/piphi-io/piphi-android-adb-sidecar:0.2.0-rc.1",
+  "image": "ghcr.io/piphi-io/piphi-android-adb-sidecar:0.3.0-rc.1",
   "platforms": [
     "linux"
   ],
@@ -25,19 +25,27 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "ghcr.io/piphi-io/piphi-android-adb-sidecar:0.2.0-rc.1",
+        "image": "ghcr.io/piphi-io/piphi-android-adb-sidecar:0.3.0-rc.1",
         "ports": [
           {
             "container": 4213
           }
         ],
         "environment": {
-          "LOG_LEVEL": "info"
+          "LOG_LEVEL": "info",
+          "PIPHI_ADB_HOME": "/app/data"
         },
         "restart_policy": {
           "name": "unless-stopped",
           "maximum_retry_count": 0
-        }
+        },
+        "volumes": [
+          {
+            "host": "/var/lib/piphi/android-adb-sidecar",
+            "container": "/app/data",
+            "mode": "rw"
+          }
+        ]
       },
       "discovery": {
         "method": "manual"
@@ -63,7 +71,10 @@
       "deconfigure": "/deconfigure",
       "ui_config": "/ui-config",
       "events": "/events",
-      "command": "/command"
+      "command": "/command",
+      "adb_snapshot": "/v1/adb/snapshot",
+      "adb_reconnect": "/v1/adb/reconnect",
+      "adb_execute": "/v1/adb/execute"
     }
   },
   "config": {
@@ -72,8 +83,12 @@
     "required": true,
     "editable_fields": [
       "host",
+      "port",
       "alias",
-      "service_name"
+      "service_name",
+      "queue_capacity",
+      "connect_timeout_ms",
+      "operation_timeout_ms"
     ],
     "runtime_fields": [
       "id",
@@ -82,18 +97,84 @@
       "device_id"
     ],
     "identity_fields": [
-      "host"
+      "host",
+      "port"
     ]
   },
   "identity": {
     "fields": [
-      "host"
+      "host",
+      "port"
     ]
   },
   "capabilities": {
     "connected": {
       "kind": "sensor",
       "unit": "bool"
+    },
+    "authorized": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "lifecycle": {
+      "kind": "sensor",
+      "unit": "string"
+    },
+    "service_available": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "device_manufacturer": {
+      "kind": "sensor",
+      "unit": "string"
+    },
+    "device_model": {
+      "kind": "sensor",
+      "unit": "string"
+    },
+    "android_release": {
+      "kind": "sensor",
+      "unit": "string"
+    },
+    "android_sdk": {
+      "kind": "sensor",
+      "unit": "string"
+    },
+    "queue_depth": {
+      "kind": "sensor",
+      "unit": "count"
+    },
+    "queue_capacity": {
+      "kind": "sensor",
+      "unit": "count"
+    },
+    "queue_high_water_mark": {
+      "kind": "sensor",
+      "unit": "count"
+    },
+    "reconnect_count": {
+      "kind": "sensor",
+      "unit": "count"
+    },
+    "request_success_count": {
+      "kind": "sensor",
+      "unit": "count"
+    },
+    "request_failure_count": {
+      "kind": "sensor",
+      "unit": "count"
+    },
+    "timeout_count": {
+      "kind": "sensor",
+      "unit": "count"
+    },
+    "transport_error_count": {
+      "kind": "sensor",
+      "unit": "count"
+    },
+    "operation_duration_ms": {
+      "kind": "sensor",
+      "unit": "ms"
     }
   },
   "commands": {},
@@ -104,7 +185,23 @@
       "device_id": "android-adb-service",
       "entity_type": "service",
       "capabilities": [
-        "connected"
+        "connected",
+        "authorized",
+        "lifecycle",
+        "service_available",
+        "device_manufacturer",
+        "device_model",
+        "android_release",
+        "android_sdk",
+        "queue_depth",
+        "queue_capacity",
+        "queue_high_water_mark",
+        "reconnect_count",
+        "request_success_count",
+        "request_failure_count",
+        "timeout_count",
+        "transport_error_count",
+        "operation_duration_ms"
       ],
       "available_commands": [],
       "dashboard": {
@@ -120,7 +217,7 @@
   "marketplace": {
     "metadata_version": 2,
     "display_name": "Android ADB sidecar",
-    "summary": "Draft scaffold for a future managed ADB transport; no device I/O is implemented.",
+    "summary": "Bounded network ADB transport for explicitly configured and authorized Android targets.",
     "category": "networking",
     "regions": [
       "WW"
@@ -136,6 +233,12 @@
     },
     "access": [
       {
+        "id": "local_network",
+        "label": "Local network access",
+        "reason": "Connects only to the explicitly configured Android ADB endpoint on the local network.",
+        "required": true
+      },
+      {
         "id": "sidecar_runtime",
         "label": "Managed sidecar runtime",
         "reason": "Runs as an isolated helper service consumed by a parent PiPhi integration.",
@@ -144,8 +247,8 @@
     ],
     "compatibility": [
       {
-        "brand": "Android (planned)",
-        "model": "No devices supported by this draft scaffold"
+        "brand": "Android",
+        "model": "Manually configured devices with authorized ADB-over-network access"
       }
     ],
     "documentation_url": "https://github.com/PiPhi-io/piphi-android-adb-sidecar",
@@ -165,13 +268,13 @@
       "Android platform service"
     ],
     "protocols": [
-      "ADB (planned)"
+      "Android Debug Bridge over TCP"
     ],
     "discovery_methods": [
       "manual configuration only"
     ],
     "connectivity": "local",
-    "offline_support": "none"
+    "offline_support": "partial"
   },
   "onboarding": {
     "mode": "service"

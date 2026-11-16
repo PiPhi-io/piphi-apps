@@ -26,7 +26,7 @@
     {
       "id": "piphi-android-adb-sidecar",
       "type": "platform_service",
-      "version": "0.2.0-rc.1",
+      "version": "0.3.0-rc.1",
       "manifest": "manifest.json",
       "release": {
         "tag": "apps/{package_id}/v{version}",

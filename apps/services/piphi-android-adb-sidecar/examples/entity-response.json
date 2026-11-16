@@ -6,24 +6,49 @@
       "device_id": "android-adb-service",
       "entity_type": "service",
       "capabilities": [
-        "connected"
+        "connected",
+        "authorized",
+        "lifecycle",
+        "service_available",
+        "device_manufacturer",
+        "device_model",
+        "android_release",
+        "android_sdk",
+        "queue_depth",
+        "queue_capacity",
+        "queue_high_water_mark",
+        "reconnect_count",
+        "request_success_count",
+        "request_failure_count",
+        "timeout_count",
+        "transport_error_count",
+        "operation_duration_ms"
       ],
       "available_commands": [],
       "dashboard": {
-        "allowed_widgets": [
-          "tile",
-          "stat",
-          "button"
-        ],
+        "allowed_widgets": ["tile", "stat", "button"],
         "default_widget": "tile"
       }
     }
   ],
   "capabilities": {
-    "connected": {
-      "kind": "sensor",
-      "unit": "bool"
-    }
+    "connected": {"kind": "sensor", "unit": "bool"},
+    "authorized": {"kind": "sensor", "unit": "bool"},
+    "lifecycle": {"kind": "sensor", "unit": "string"},
+    "service_available": {"kind": "sensor", "unit": "bool"},
+    "device_manufacturer": {"kind": "sensor", "unit": "string"},
+    "device_model": {"kind": "sensor", "unit": "string"},
+    "android_release": {"kind": "sensor", "unit": "string"},
+    "android_sdk": {"kind": "sensor", "unit": "string"},
+    "queue_depth": {"kind": "sensor", "unit": "count"},
+    "queue_capacity": {"kind": "sensor", "unit": "count"},
+    "queue_high_water_mark": {"kind": "sensor", "unit": "count"},
+    "reconnect_count": {"kind": "sensor", "unit": "count"},
+    "request_success_count": {"kind": "sensor", "unit": "count"},
+    "request_failure_count": {"kind": "sensor", "unit": "count"},
+    "timeout_count": {"kind": "sensor", "unit": "count"},
+    "transport_error_count": {"kind": "sensor", "unit": "count"},
+    "operation_duration_ms": {"kind": "sensor", "unit": "ms"}
   },
   "commands": {}
 }

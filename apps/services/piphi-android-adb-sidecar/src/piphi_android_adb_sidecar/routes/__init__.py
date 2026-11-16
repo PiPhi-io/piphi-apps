@@ -7,6 +7,7 @@ from .entities import router as entity_router
 from .events import router as event_router
 from .health import router as health_router
 from .runtime import router as runtime_router
+from .sidecar_api import router as sidecar_api_router
 from .telemetry import router as telemetry_router
 
 routers = [
@@ -18,4 +19,5 @@ routers = [
     event_router,
     telemetry_router,
     command_router,
+    sidecar_api_router,
 ]

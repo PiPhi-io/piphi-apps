@@ -4,14 +4,21 @@ from fastapi import APIRouter
 
 from ..contract import ENDPOINTS, REQUIRED_ENDPOINTS
 from ..settings import PROJECT_KIND
-from ..state import registry, starter
+from ..state import controllers, registry, starter
 
 router = APIRouter(tags=["health"])
 
 
 @router.get("/health")
 async def health():
-    return starter.health_response(metadata={"active_configs": len(registry.ids())})
+    return starter.health_response(
+        metadata={
+            "active_configs": len(registry.ids()),
+            "ready_targets": sum(
+                controller.lifecycle == "ready" for controller in controllers.values()
+            ),
+        }
+    )
 
 
 @router.get("/diagnostics")
