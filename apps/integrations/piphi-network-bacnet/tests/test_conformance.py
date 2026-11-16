@@ -14,7 +14,7 @@ FIXTURES = json.loads((Path(__file__).parent / "fixtures" / "contract-conformanc
 
 
 @pytest.mark.anyio
-async def test_runtime_conforms_to_shared_contract_fixtures() -> None:
+async def test_runtime_conforms_to_shared_contract_fixtures(fake_bacnet_reader) -> None:
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
         for fixture in FIXTURES["cases"]:

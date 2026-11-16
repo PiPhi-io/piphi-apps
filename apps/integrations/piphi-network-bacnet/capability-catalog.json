@@ -1,15 +1,69 @@
 {
-  "catalog_version": "1.0", "integration_id": "piphi-network-bacnet", "coverage_mode": "network_device_object_property_services_priority_and-write-policy-negotiated", "reviewed_at": "2026-09-07",
-  "sources": {"ashrae_135": "https://data.ashrae.org/bacnet/", "bacnet_committee": "https://bacnet.org/", "bacpypes3": "https://github.com/JoelBender/BACpypes3", "core_vocabulary": "PiPhi Network Core and maintained PiPhi integrations", "bacnet_sidecar": "PiPhi managed BACnet/IP transport sidecar contract"},
+  "catalog_version": "1.0",
+  "integration_id": "piphi-network-bacnet",
+  "coverage_mode": "explicit-target-kaiterra-sensedge-mini-read-only",
+  "reviewed_at": "2026-11-16",
+  "sources": {
+    "kaiterra_manual_2026_09": "https://support.kaiterra.com/sensedge-mini-bacnet-user-manual",
+    "kaiterra_pics_2026_09": "https://support.kaiterra.com/sensedge-mini-bacnet-user-manual",
+    "bacpypes3_0_0_110": "https://github.com/JoelBender/BACpypes3/tree/v0.0.110",
+    "core_vocabulary": "PiPhi Network Core runtime contract"
+  },
   "groups": [
-    {"id":"runtime-foundation","status":"implemented","scope":["all-configurations"],"source_refs":["core_vocabulary"],"reason":"The scaffold implements configuration presence, connectivity state, refresh dispatch, and its configuration event.","state":["connected"],"events":["runtime.config.applied"],"conditions":["state_matches"],"actions":["refresh"]},
-    {"id":"network-device-discovery-and-transport","status":"planned","scope":["bacnet-ip-ipv6-sc-foreign-device-and-bbmd-configurations"],"source_refs":["ashrae_135","bacnet_committee","bacpypes3","bacnet_sidecar"],"reason":"Network selection, Who-Is/I-Am discovery, BBMD/foreign-device registration, BACnet/SC trust, segmentation, timeouts, reconnect, and redaction need implementation and fixtures.","state":["network_type","local_device_instance","device_instance","device_name","vendor_id","vendor_name","model_name","firmware_revision","application_software_version","protocol_version","protocol_revision","segmentation_supported","max_apdu_length","bbmd_registered","sc_hub_connected","transport_latency_ms","last_seen_at"],"events":["device.discovered","device.online","device.offline","transport.degraded","transport.recovered","foreign_device.registration_changed","secure_connectivity.changed"],"conditions":["device_is_online","device_is_stale","bbmd_is_registered","secure_connectivity_is_active","protocol_revision_at_least"],"actions":["rediscover_devices","reconnect_transport","renew_foreign_device_registration"]},
-    {"id":"object-property-metadata-and-quality","status":"planned","scope":["discovered-readable-bacnet-objects-and-properties"],"source_refs":["ashrae_135","bacnet_committee","bacpypes3"],"reason":"Object identity, property types, arrays, units, status flags, reliability, out-of-service, writability, priority arrays, and access errors must be negotiated per point.","state":["object_type","object_instance","object_name","object_description","present_value","engineering_units","status_flags","event_state","reliability","out_of_service","property_writable","command_priority_active","relinquish_default","property_updated_at","property_quality"],"events":["property.changed","property.stale","property.recovered","reliability.changed","out_of_service.changed","command_priority.changed"],"conditions":["property_equals","property_above","property_below","property_in_range","property_is_stale","property_is_reliable","object_is_out_of_service"],"actions":["read_property","read_property_multiple","write_allowlisted_property","relinquish_allowlisted_priority"]},
-    {"id":"analog-binary-multistate-and-loop-objects","status":"planned","scope":["analog-binary-multistate-pulse-converter-and-loop-objects"],"source_refs":["ashrae_135","bacpypes3"],"reason":"Core input/output/value/loop objects need semantic mapping, units, bounds, enumerations, writable flags, and BACnet command-priority handling.","state":["analog_value","binary_value","binary_active_text","binary_inactive_text","multistate_value","multistate_state_text","loop_setpoint","loop_controlled_variable","loop_output","pulse_count","accumulator_value","averaging_value"],"events":["analog.changed","binary.changed","multistate.changed","loop.changed","accumulator.changed"],"conditions":["analog_threshold","binary_is_active","multistate_is","loop_error_above","accumulator_threshold"],"actions":["set_analog_output","set_binary_output","set_multistate_output","set_loop_setpoint","reset_allowlisted_accumulator"]},
-    {"id":"hvac-lighting-elevator-access-and-life-safety","status":"planned","scope":["devices-advertising-each-specialized-standard-object-type"],"source_refs":["ashrae_135","bacnet_committee","bacpypes3"],"reason":"Specialized building systems require object-type-specific normalization, safety classification, writable-property checks, confirmation, and site commissioning.","state":["temperature_c","target_temperature_c","humidity_percent","hvac_mode","hvac_action","fan_speed_percent","lighting_output_percent","lighting_in_progress","door_status","lock_status","access_event","credential_status","elevator_car_position","elevator_door_status","life_safety_state","life_safety_mode","life_safety_operation_expected"],"events":["hvac.changed","lighting.changed","door.changed","access.event","elevator.changed","life_safety.event","life_safety.reliability_changed"],"conditions":["temperature_threshold","hvac_mode_is","lighting_output_threshold","door_is_open","lock_is_locked","elevator_floor_is","life_safety_state_is"],"actions":["set_temperature_setpoint","set_hvac_mode","set_fan_output","set_lighting_output","set_door_command","set_elevator_landing_call"]},
-    {"id":"cov-events-alarms-and-notifications","status":"planned","scope":["objects-and-devices-supporting-cov-or-event-services"],"source_refs":["ashrae_135","bacnet_committee","bacpypes3"],"reason":"COV subscriptions and intrinsic/event enrollment require renewal, sequence handling, deduplication, acknowledgement policy, recipient filtering, and baseline suppression.","state":["cov_subscription_active","cov_subscription_expires_at","active_event_count","unacknowledged_event_count","notification_class","event_enable","acked_transitions","event_time_stamps","event_message_text","event_priority"],"events":["cov.notification_received","alarm.to_offnormal","alarm.to_fault","alarm.to_normal","alarm.acknowledged","subscription.expired","subscription.renewed"],"conditions":["alarm_is_active","alarm_is_unacknowledged","event_priority_at_most","cov_subscription_is_active"],"actions":["subscribe_cov","cancel_cov_subscription","acknowledge_alarm"]},
-    {"id":"schedules-calendars-trends-files-and-backup","status":"planned","scope":["devices-advertising-each-object-or-service"],"source_refs":["ashrae_135","bacnet_committee","bacpypes3"],"reason":"Schedules, calendars, trend logs, files, and backup/restore are complex, potentially administrative surfaces requiring bounded reads and explicit site policy.","state":["schedule_effective_value","schedule_weekly","schedule_exception_count","calendar_entry_count","trend_log_record_count","trend_log_last_record_at","trend_log_buffer_size","file_size_bytes","backup_restore_state","time_synchronized"],"events":["schedule.changed","schedule.exception_active","trend_log.record_added","trend_log.buffer_full","backup.state_changed","time_sync.changed"],"conditions":["schedule_value_is","schedule_exception_is_active","trend_log_is_stale","time_is_synchronized"],"actions":["read_schedule","write_allowlisted_schedule","read_calendar","read_trend_log","read_allowlisted_file","synchronize_time"]},
-    {"id":"managed-transport-sidecar-and-network-health","status":"planned","scope":["piphi-managed-bacnet-transport-sidecar"],"source_refs":["bacpypes3","bacnet_sidecar","core_vocabulary"],"reason":"The sidecar owns UDP/SC sockets, BBMD state, APDU segmentation, invoke IDs, bounded queues, backpressure, malformed input, reconnect, and restart recovery.","state":["sidecar_connected","sidecar_queue_depth","sidecar_queue_capacity","sidecar_pending_request_count","sidecar_timeout_count","sidecar_reject_count","sidecar_abort_count","sidecar_malformed_apdu_count","sidecar_reconnect_count","sidecar_dropped_notification_count"],"events":["sidecar.connected","sidecar.disconnected","sidecar.queue_saturated","apdu.rejected","apdu.aborted","apdu.malformed","notifications.resynchronized","sidecar.recovered"],"conditions":["sidecar_is_healthy","sidecar_queue_below","pending_requests_below","apdu_error_count_above"],"actions":["restart_network_session","resynchronize_subscriptions"]},
-    {"id":"unsafe-or-sensitive-surface","status":"excluded","scope":["all-networks-devices-objects-and-sidecars"],"source_refs":["ashrae_135","bacpypes3","bacnet_sidecar"],"reason":"SC private keys, unrestricted discovery/property writes, destructive device services, raw APDUs, network reconfiguration, and safety-system bypasses must not be exposed.","state":["sc_private_key","sc_certificate_private_material","device_password","raw_apdu","raw_network_address","full_access_credential_data"],"events":[],"conditions":[],"actions":["send_arbitrary_apdu","write_arbitrary_property","scan_unbounded_networks","reinitialize_device","delete_object","create_arbitrary_object","device_communication_control","restore_device_backup","change_bbmd_table","change_sc_trust_store","disable_life_safety","bypass_access_control"]}
+    {
+      "id": "read-only-runtime",
+      "status": "implemented",
+      "scope": ["explicit-kaiterra-sensedge-mini-configurations"],
+      "source_refs": ["core_vocabulary", "bacpypes3_0_0_110"],
+      "reason": "The runtime validates one explicit IPv4 target and instance, polls it, reports connectivity, and permits only an immediate read-only refresh.",
+      "state": ["connected"],
+      "events": ["runtime.config.applied"],
+      "conditions": ["state_matches"],
+      "actions": ["refresh"]
+    },
+    {
+      "id": "sensedge-mini-iaq-points",
+      "status": "implemented",
+      "scope": ["analog-input-instances-present-in-the-device-object-list"],
+      "source_refs": ["kaiterra_pics_2026_09", "bacpypes3_0_0_110"],
+      "reason": "The PICS fixes measurement meanings by Analog Input instance. The runtime reads only present allowlisted objects and emits a metric only when its engineering unit is recognized.",
+      "state": ["pm2_5_ug_m3", "pm10_ug_m3", "tvoc_ppb", "tvoc_ug_m3", "temperature_c", "humidity_percent", "co2_ppm", "km20x_module_8_lifespan_percent", "km20x_module_9_lifespan_percent", "ozone_ppb", "differential_pressure_pa", "flow_speed_pressure_pa", "in_duct_module_lifespan_percent", "no2_ppb", "co_ppm"],
+      "events": [],
+      "conditions": [],
+      "actions": []
+    },
+    {
+      "id": "bounded-device-and-object-metadata",
+      "status": "implemented",
+      "scope": ["configured-device-and-installed-analog-inputs"],
+      "source_refs": ["kaiterra_pics_2026_09", "bacpypes3_0_0_110"],
+      "reason": "The runtime reads an allowlist of Device metadata, Object_List, object name, units, status flags, reliability, and out-of-service state. These are descriptive state fields rather than independent automation capabilities.",
+      "state": [],
+      "events": [],
+      "conditions": [],
+      "actions": []
+    },
+    {
+      "id": "deferred-standard-services",
+      "status": "planned",
+      "scope": ["future-reviewed-bacnet-profiles"],
+      "source_refs": ["kaiterra_pics_2026_09", "bacpypes3_0_0_110"],
+      "reason": "Broadcast discovery, COV, ReadPropertyMultiple, alarms, schedules, trend logs, additional vendors, foreign-device registration, and multi-interface operation need separate bounded designs and evidence.",
+      "state": ["cov_subscription_active", "active_event_count", "trend_log_record_count"],
+      "events": ["device.online", "device.offline", "cov.notification_received", "alarm.changed"],
+      "conditions": ["device_is_online", "property_is_stale", "alarm_is_active"],
+      "actions": ["subscribe_cov", "read_trend_log"]
+    },
+    {
+      "id": "unsafe-or-out-of-scope-surface",
+      "status": "excluded",
+      "scope": ["all-configurations"],
+      "source_refs": ["kaiterra_manual_2026_09", "kaiterra_pics_2026_09", "bacpypes3_0_0_110"],
+      "reason": "The initial image must not expose writes, raw APDUs, unbounded scans, BBMD mutation, routing, BACnet/SC, MS/TP, administrative services, or device reconfiguration.",
+      "state": ["raw_apdu", "device_password", "raw_network_address"],
+      "events": [],
+      "conditions": [],
+      "actions": ["send_arbitrary_apdu", "write_arbitrary_property", "scan_unbounded_networks", "reinitialize_device", "device_communication_control", "change_bbmd_table", "change_sc_trust_store"]
+    }
   ]
 }

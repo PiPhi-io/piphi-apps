@@ -1,5 +1,7 @@
 # PiPhi BACnet and Home Assistant BACnet: capability and quality audit
 
+> **Historical baseline:** This audit describes the generated scaffold before the bounded Kaiterra SenseEdge Mini implementation added on 2026-11-16. It remains as design rationale and a record of rejected unsafe scope. For current reachable behavior, use `README.md`, `capability-catalog.json`, and executable tests. Automated exact-image simulator qualification is the release gate; physical-device testing is optional follow-up evidence.
+
 **Research cutoff:** 2026-11-16
 
 **PiPhi source audited:** `piphi-network-bacnet` 0.1.0 source, tests, manifest, capability catalog, container, CI and release metadata in this repository

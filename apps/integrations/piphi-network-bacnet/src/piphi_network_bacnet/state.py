@@ -1,18 +1,23 @@
 from __future__ import annotations
 
+import asyncio
 import os
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import HTTPException
-
 from piphi_runtime_kit_python import (
+    AutomationActionRequest,
+    AutomationActionResult,
     AutomationRegistry,
     SQLiteAutomationIdempotencyStore,
     build_local_event_record,
     build_runtime_identity,
     create_runtime_starter,
+    schedule_telemetry_delivery,
 )
 
+from .bacnet_client import BacnetReadError, BacnetReader, BacpypesReader, DeviceSnapshot
 from .contract import CAPABILITIES, COMMANDS
 from .schemas import DeviceConfig
 from .settings import INTEGRATION_ID, INTEGRATION_NAME, INTEGRATION_VERSION
@@ -34,15 +39,25 @@ automations = AutomationRegistry(
 
 capabilities = CAPABILITIES
 commands = COMMANDS
+bacnet_reader: BacnetReader = BacpypesReader()
+runtime_configs: dict[str, DeviceConfig] = {}
+poll_tasks: dict[str, asyncio.Task[None]] = {}
+poll_status: dict[str, dict[str, Any]] = {}
+
+
+def set_bacnet_reader(reader: BacnetReader) -> None:
+    global bacnet_reader
+    bacnet_reader = reader
 
 
 def make_entry(config: DeviceConfig) -> dict[str, Any]:
     identity = build_runtime_identity(config, integration_id=INTEGRATION_ID)
     return {
         **identity,
-        "host": config.host,
         "alias": config.alias,
-        "config": config.model_dump(),
+        "profile": config.profile,
+        "device_instance": config.device_instance,
+        "poll_interval_seconds": config.poll_interval_seconds,
     }
 
 
@@ -65,77 +80,221 @@ def append_runtime_event(
 def get_entry_or_404(config_id: str) -> dict[str, Any]:
     entry = registry.get(config_id)
     if entry is None:
-        raise HTTPException(status_code=404, detail=f"unknown config_id={config_id}")
+        raise HTTPException(status_code=404, detail="unknown BACnet configuration")
     return entry
 
 
-async def apply_config(config: DeviceConfig) -> None:
-    entry = make_entry(config)
-    registry.set(config.id, entry)
-    registry.update_state(
-        config.id,
-        {
-            "connected": True,
-            "host": config.host,
-            "alias": config.alias,
-            "config_id": entry["config_id"],
+def _snapshot_state(snapshot: DeviceSnapshot, *, config_id: str, device_id: str) -> dict[str, Any]:
+    return {
+        "connected": True,
+        "config_id": config_id,
+        "device_id": device_id,
+        "profile": "kaiterra_sensedge_mini",
+        "device": {
+            "device_instance": snapshot.device_instance,
+            "object_name": snapshot.object_name,
+            "vendor_id": snapshot.vendor_id,
+            "model_name": snapshot.model_name,
+            "firmware_revision": snapshot.firmware_revision,
+            "application_software_version": snapshot.application_software_version,
+            "protocol_version": snapshot.protocol_version,
+            "protocol_revision": snapshot.protocol_revision,
+            "segmentation_supported": snapshot.segmentation_supported,
+            "max_apdu_length": snapshot.max_apdu_length,
+            "database_revision": snapshot.database_revision,
         },
-        device_id=entry["device_id"],
+        "metrics": snapshot.metrics,
+        "units": snapshot.units,
+        "points": [
+            {
+                "object_instance": reading.object_instance,
+                "object_name": reading.object_name,
+                "metric": reading.metric,
+                "status_flags": reading.status_flags,
+                "reliability": reading.reliability,
+                "out_of_service": reading.out_of_service,
+            }
+            for reading in snapshot.readings
+        ],
+        "sampled_at": datetime.now(tz=UTC).isoformat(),
+    }
+
+
+async def _read_and_store(config_id: str) -> DeviceSnapshot:
+    config = runtime_configs.get(config_id)
+    entry = registry.get(config_id)
+    if config is None or entry is None:
+        raise BacnetReadError("The BACnet configuration is no longer active.")
+    snapshot = await bacnet_reader.read_snapshot(config)
+    state = _snapshot_state(
+        snapshot,
+        config_id=str(entry["config_id"]),
+        device_id=str(entry["device_id"]),
+    )
+    registry.update_state(
+        config_id,
+        state,
+        device_id=str(entry["device_id"]),
+    )
+    poll_status[config_id] = {
+        "connected": True,
+        "last_success_at": state["sampled_at"],
+        "last_error": None,
+        "reading_count": len(snapshot.readings),
+    }
+    schedule_telemetry_delivery(
+        process_state=runtime.process_state,
+        telemetry_client=telemetry,
+        auth_context=runtime.auth,
+        config_id=str(entry["config_id"]),
+        device_id=str(entry["device_id"]),
+        container_id=entry.get("container_id"),
+        metrics=snapshot.metrics,
+        units=snapshot.units,
+    )
+    return snapshot
+
+
+async def poll_once(config_id: str) -> bool:
+    try:
+        await _read_and_store(config_id)
+        return True
+    except BacnetReadError:
+        entry = registry.get(config_id)
+        previous = poll_status.get(config_id, {})
+        poll_status[config_id] = {
+            **previous,
+            "connected": False,
+            "last_error": "bacnet_read_failed",
+            "last_failure_at": datetime.now(tz=UTC).isoformat(),
+        }
+        if entry is not None:
+            registry.update_state(
+                config_id,
+                {
+                    "connected": False,
+                    "config_id": str(entry["config_id"]),
+                    "device_id": str(entry["device_id"]),
+                    "profile": "kaiterra_sensedge_mini",
+                    "error": "bacnet_read_failed",
+                },
+                device_id=str(entry["device_id"]),
+            )
+        return False
+
+
+async def _poll_config(config_id: str, interval_seconds: int) -> None:
+    while config_id in runtime_configs:
+        await poll_once(config_id)
+        await asyncio.sleep(interval_seconds)
+
+
+async def _stop_poll_task(config_id: str) -> None:
+    task = poll_tasks.pop(config_id, None)
+    if task is None:
+        return
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
+
+
+async def apply_config(config: DeviceConfig) -> None:
+    config_id = str(config.config_id or config.id)
+    await _stop_poll_task(config_id)
+    previous = runtime_configs.get(config_id)
+    if previous is not None and len(runtime_configs) == 1 and (
+        previous.local_address != config.local_address
+        or previous.local_device_instance != config.local_device_instance
+    ):
+        await bacnet_reader.close()
+    entry = make_entry(config)
+    registry.set(config_id, entry)
+    runtime_configs[config_id] = config
+    registry.update_state(
+        config_id,
+        {
+            "connected": False,
+            "config_id": entry["config_id"],
+            "device_id": entry["device_id"],
+            "profile": config.profile,
+            "status": "pending_first_read",
+        },
+        device_id=str(entry["device_id"]),
     )
     append_runtime_event(
         "runtime.config.applied",
         entry,
-        {"host": config.host, "alias": config.alias},
+        {"profile": config.profile, "poll_interval_seconds": config.poll_interval_seconds},
+    )
+    poll_tasks[config_id] = asyncio.create_task(
+        _poll_config(config_id, config.poll_interval_seconds),
+        name=f"bacnet-poll-{config_id}",
     )
 
 
 async def remove_config(config_id: str) -> bool:
+    await _stop_poll_task(config_id)
+    runtime_configs.pop(config_id, None)
+    poll_status.pop(config_id, None)
+    if not runtime_configs:
+        await bacnet_reader.close()
     entry = registry.remove(config_id)
     if entry is None:
         return False
     append_runtime_event(
         "runtime.config.removed",
         entry,
-        {"host": entry.get("host"), "alias": entry.get("alias")},
+        {"profile": entry.get("profile")},
     )
     return True
 
 
-def _register_automation_actions() -> None:
-    for command_name, command_definition in commands.items():
-        def handler(request, *, _command_name=command_name):
-            target = getattr(request, "target", None)
-            target = target if isinstance(target, dict) else {}
-            device_id = str(request.device_id or target.get("device_id") or "demo-device")
-            config_id = str(request.config_id or target.get("config_id") or device_id)
-            entry = registry.get(config_id) or {
-                "device_id": device_id,
-                "config_id": config_id,
-            }
-            event = append_runtime_event(
-                "runtime.command.received",
-                entry,
-                {
-                    "command": _command_name,
-                    "device_id": device_id,
-                    "entity_id": request.entity_id,
-                    "args": request.args,
-                    "target": target,
-                },
-            )
-            return {
-                "event": event,
-                "command": _command_name,
-                "device_id": device_id,
-                "config_id": config_id,
-                "target": target,
-                "params": request.args,
-            }
-
-        automations.action(
-            command_name,
-            label=str(command_definition.get("description") or command_name),
-        )(handler)
+async def shutdown_runtime() -> None:
+    for config_id in list(poll_tasks):
+        await _stop_poll_task(config_id)
+    await bacnet_reader.close()
 
 
-_register_automation_actions()
+async def reset_runtime_state() -> None:
+    await shutdown_runtime()
+    runtime_configs.clear()
+    poll_status.clear()
+    registry.entries.clear()
+    registry.state_snapshots.clear()
+    registry.recent_events.clear()
+
+
+async def _refresh_all_state() -> None:
+    for config_id in registry.ids():
+        await poll_once(config_id)
+
+
+starter.state.provide(_refresh_all_state, source=INTEGRATION_ID)
+
+
+async def _refresh_device(request: AutomationActionRequest) -> AutomationActionResult:
+    config_id = str(request.config_id or "").strip()
+    if not config_id or config_id not in runtime_configs:
+        return AutomationActionResult.failure(
+            "Unknown BACnet configuration.",
+            retryable=False,
+        )
+    try:
+        snapshot = await _read_and_store(config_id)
+    except BacnetReadError:
+        return AutomationActionResult.failure(
+            "The configured BACnet device did not answer the read-only refresh.",
+            retryable=True,
+        )
+    return AutomationActionResult.success(
+        {
+            "status": "ok",
+            "config_id": config_id,
+            "reading_count": len(snapshot.readings),
+        }
+    )
+
+
+automations.action("refresh", label="Refresh BACnet readings")(_refresh_device)
