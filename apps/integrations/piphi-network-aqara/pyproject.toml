@@ -4,7 +4,7 @@ build-backend = "pdm.backend"
 
 [project]
 name = "piphi-network-aqara"
-version = "0.1.3"
+version = "0.1.4"
 description = "PiPhi runtime integration for Aqara Open API cloud devices."
 authors = [
     {name = "PiPhi Network", email = "support@piphi.io"},

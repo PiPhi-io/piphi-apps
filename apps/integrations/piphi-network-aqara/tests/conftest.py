@@ -19,7 +19,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from piphi_network_aqara.app import app
 from piphi_network_aqara.cloud.client import AqaraCloudClient
-from piphi_network_aqara.cloud.models import AqaraAuthTokens, AqaraCloudDevice, AqaraResourceInfo, AqaraResourceValue
+from piphi_network_aqara.cloud.models import (
+    AqaraAuthTokens,
+    AqaraCloudDevice,
+    AqaraResourceInfo,
+    AqaraResourceValue,
+    AqaraScene,
+    AqaraTraitInfo,
+    AqaraTraitValue,
+)
 from piphi_network_aqara import runtime as runtime_module
 from piphi_network_aqara.runtime import reset_runtime_state, set_cloud_client
 
@@ -30,9 +38,16 @@ class FakeAqaraCloudClient(AqaraCloudClient):
         self.devices: dict[str, AqaraCloudDevice] = {}
         self.resources_by_model: dict[str, list[AqaraResourceInfo]] = {}
         self.values_by_did: dict[str, list[AqaraResourceValue]] = {}
+        self.traits_by_model: dict[str, list[AqaraTraitInfo]] = {}
+        self.trait_values_by_did: dict[str, list[AqaraTraitValue]] = {}
         self.writes: list[tuple[str, str, str]] = []
+        self.trait_writes: list[tuple[str, int, str, str, object]] = []
+        self.scenes_by_did: dict[str, list[AqaraScene]] = {}
+        self.scene_runs: list[str] = []
         self.subscriptions: list[list[dict[str, object]]] = []
         self.unsubscriptions: list[list[dict[str, object]]] = []
+        self.trait_subscriptions: list[list[dict[str, object]]] = []
+        self.trait_unsubscriptions: list[list[dict[str, object]]] = []
         self.token_exchange_result = AqaraAuthTokens(
             access_token="access-token-1",
             refresh_token="refresh-token-1",
@@ -70,6 +85,34 @@ class FakeAqaraCloudClient(AqaraCloudClient):
     async def write_resource(self, credentials, *, subject_id, resource_id, value):
         del credentials
         self.writes.append((subject_id, resource_id, value))
+
+    async def trait_info(self, credentials, *, model, device_id):
+        del credentials, device_id
+        return list(self.traits_by_model.get(model, []))
+
+    async def trait_values(self, credentials, *, device_id, traits):
+        del credentials, traits
+        return list(self.trait_values_by_did.get(device_id, []))
+
+    async def write_trait(self, credentials, *, device_id, endpoint_id, function_code, trait_code, value):
+        del credentials
+        self.trait_writes.append((device_id, endpoint_id, function_code, trait_code, value))
+
+    async def subscribe_traits(self, credentials, *, traits):
+        del credentials
+        self.trait_subscriptions.append(list(traits))
+
+    async def unsubscribe_traits(self, credentials, *, traits):
+        del credentials
+        self.trait_unsubscriptions.append(list(traits))
+
+    async def list_scenes(self, credentials, *, subject_id):
+        del credentials
+        return list(self.scenes_by_did.get(subject_id, []))
+
+    async def run_scene(self, credentials, *, scene_id):
+        del credentials
+        self.scene_runs.append(scene_id)
 
     async def subscribe_resources(self, credentials, *, resources):
         del credentials

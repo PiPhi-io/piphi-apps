@@ -31,6 +31,20 @@
         "power_factor",
         "switch_on",
         "brightness_percent",
+        "color_temperature",
+        "hue_degrees",
+        "saturation_percent",
+        "target_temperature_c",
+        "fan_speed_percent",
+        "filter_life_percent",
+        "pm1_ugm3",
+        "pm10_ugm3",
+        "carbon_monoxide_detected",
+        "hvac_mode",
+        "fan_mode",
+        "swing_mode",
+        "airflow_direction",
+        "cover_movement_state",
         "cover_position",
         "locked",
         "privacy_mode",
@@ -458,6 +472,93 @@
           "safety": {
             "riskLevel": "medium"
           }
+        },
+        {
+          "id": "set_color_temperature", "label": "Set color temperature", "description": "Set a writable Aqara light color-temperature resource within its advertised bounds.",
+          "capability": "light.color_temperature", "runtime": {"command": "set_color_temperature"},
+          "targeting": {"fanoutSafe": true, "scopes": ["config", "configs", "room", "rooms", "group", "groups", "selection", "tag", "tags", "capability", "all_matching"], "supportsMultiTarget": true},
+          "failure": {"strategy": "retry_then_continue", "retry": {"maxAttempts": 1, "delaySeconds": 2, "backoff": "fixed"}, "timeoutSeconds": 30, "continueOnPartialFailure": true, "idempotent": true},
+          "params": [{"name": "value", "label": "Color temperature", "type": "number", "required": true}],
+          "ui": {"group": "do_this"}, "safety": {"riskLevel": "medium"}
+        },
+        {
+          "id": "set_hue", "label": "Set hue", "description": "Set a writable Aqara light hue.",
+          "capability": "light.hue", "runtime": {"command": "set_hue"},
+          "targeting": {"fanoutSafe": true, "scopes": ["config", "configs", "room", "rooms", "group", "groups", "selection", "tag", "tags", "capability", "all_matching"], "supportsMultiTarget": true},
+          "failure": {"strategy": "retry_then_continue", "retry": {"maxAttempts": 1, "delaySeconds": 2, "backoff": "fixed"}, "timeoutSeconds": 30, "continueOnPartialFailure": true, "idempotent": true},
+          "params": [{"name": "value", "label": "Hue", "type": "number", "required": true, "minimum": 0, "maximum": 360, "unit": "deg"}],
+          "ui": {"group": "do_this"}, "safety": {"riskLevel": "medium"}
+        },
+        {
+          "id": "set_saturation", "label": "Set saturation", "description": "Set a writable Aqara light saturation.",
+          "capability": "light.saturation", "runtime": {"command": "set_saturation"},
+          "targeting": {"fanoutSafe": true, "scopes": ["config", "configs", "room", "rooms", "group", "groups", "selection", "tag", "tags", "capability", "all_matching"], "supportsMultiTarget": true},
+          "failure": {"strategy": "retry_then_continue", "retry": {"maxAttempts": 1, "delaySeconds": 2, "backoff": "fixed"}, "timeoutSeconds": 30, "continueOnPartialFailure": true, "idempotent": true},
+          "params": [{"name": "value", "label": "Saturation", "type": "number", "required": true, "minimum": 0, "maximum": 100, "unit": "%"}],
+          "ui": {"group": "do_this"}, "safety": {"riskLevel": "medium"}
+        },
+        {
+          "id": "set_temperature", "label": "Set temperature", "description": "Set a writable Aqara thermostat setpoint within device-advertised bounds.",
+          "capability": "climate.target_temperature", "runtime": {"command": "set_temperature"},
+          "targeting": {"fanoutSafe": false, "scopes": ["config", "selection"], "supportsMultiTarget": false},
+          "failure": {"strategy": "stop", "timeoutSeconds": 30, "continueOnPartialFailure": false, "idempotent": true},
+          "params": [{"name": "temperature_c", "label": "Temperature", "type": "number", "required": true, "unit": "C"}],
+          "ui": {"group": "do_this"}, "safety": {"riskLevel": "medium"}
+        },
+        {
+          "id": "set_fan_speed", "label": "Set fan speed", "description": "Set a writable Aqara fan speed.",
+          "capability": "fan.speed", "runtime": {"command": "set_fan_speed"},
+          "targeting": {"fanoutSafe": true, "scopes": ["config", "configs", "room", "rooms", "group", "groups", "selection", "tag", "tags", "capability", "all_matching"], "supportsMultiTarget": true},
+          "failure": {"strategy": "retry_then_continue", "retry": {"maxAttempts": 1, "delaySeconds": 2, "backoff": "fixed"}, "timeoutSeconds": 30, "continueOnPartialFailure": true, "idempotent": true},
+          "params": [{"name": "speed", "label": "Speed", "type": "number", "required": true, "minimum": 0, "maximum": 100, "unit": "%"}],
+          "ui": {"group": "do_this"}, "safety": {"riskLevel": "medium"}
+        },
+        {
+          "id": "set_hvac_mode", "label": "Set HVAC mode", "description": "Set an Aqara-advertised heating or cooling mode.",
+          "capability": "climate.hvac_mode", "runtime": {"command": "set_hvac_mode"},
+          "targeting": {"fanoutSafe": false, "scopes": ["config", "selection"], "supportsMultiTarget": false},
+          "failure": {"strategy": "stop", "timeoutSeconds": 30, "continueOnPartialFailure": false, "idempotent": true},
+          "params": [{"name": "mode", "label": "Mode", "type": "string", "required": true}],
+          "ui": {"group": "do_this"}, "safety": {"riskLevel": "medium"}
+        },
+        {
+          "id": "set_fan_mode", "label": "Set fan mode", "description": "Set an Aqara-advertised fan mode.",
+          "capability": "fan.mode", "runtime": {"command": "set_fan_mode"},
+          "targeting": {"fanoutSafe": false, "scopes": ["config", "selection"], "supportsMultiTarget": false},
+          "failure": {"strategy": "stop", "timeoutSeconds": 30, "continueOnPartialFailure": false, "idempotent": true},
+          "params": [{"name": "mode", "label": "Mode", "type": "string", "required": true}],
+          "ui": {"group": "do_this"}, "safety": {"riskLevel": "medium"}
+        },
+        {
+          "id": "set_swing_mode", "label": "Set swing mode", "description": "Set an Aqara-advertised swing mode.",
+          "capability": "fan.swing_mode", "runtime": {"command": "set_swing_mode"},
+          "targeting": {"fanoutSafe": false, "scopes": ["config", "selection"], "supportsMultiTarget": false},
+          "failure": {"strategy": "stop", "timeoutSeconds": 30, "continueOnPartialFailure": false, "idempotent": true},
+          "params": [{"name": "mode", "label": "Mode", "type": "string", "required": true}],
+          "ui": {"group": "do_this"}, "safety": {"riskLevel": "medium"}
+        },
+        {
+          "id": "set_airflow_direction", "label": "Set airflow direction", "description": "Set an Aqara-advertised airflow direction.",
+          "capability": "climate.airflow_direction", "runtime": {"command": "set_airflow_direction"},
+          "targeting": {"fanoutSafe": false, "scopes": ["config", "selection"], "supportsMultiTarget": false},
+          "failure": {"strategy": "stop", "timeoutSeconds": 30, "continueOnPartialFailure": false, "idempotent": true},
+          "params": [{"name": "direction", "label": "Direction", "type": "string", "required": true}],
+          "ui": {"group": "do_this"}, "safety": {"riskLevel": "medium"}
+        },
+        {
+          "id": "stop_cover", "label": "Stop cover", "description": "Stop a cover using its vendor-advertised enum value.",
+          "capability": "action.stop_cover", "runtime": {"command": "stop_cover"},
+          "targeting": {"fanoutSafe": false, "scopes": ["config", "selection"], "supportsMultiTarget": false},
+          "failure": {"strategy": "stop", "timeoutSeconds": 30, "continueOnPartialFailure": false, "idempotent": true},
+          "ui": {"group": "do_this"}, "safety": {"riskLevel": "medium"}
+        },
+        {
+          "id": "run_scene", "label": "Run scene", "description": "Run a scene associated with this device using a currently discovered scene selector.",
+          "capability": "scene.run", "runtime": {"command": "run_scene"},
+          "targeting": {"fanoutSafe": false, "scopes": ["config", "selection"], "supportsMultiTarget": false},
+          "failure": {"strategy": "stop", "timeoutSeconds": 30, "continueOnPartialFailure": false, "idempotent": false},
+          "params": [{"name": "scene", "label": "Scene", "type": "string", "required": true}],
+          "ui": {"group": "do_this"}, "safety": {"riskLevel": "medium"}
         }
       ],
       "deviceClass": "air_quality_sensor",
@@ -519,6 +620,26 @@
           "ui": {
             "group": "when"
           }
+        },
+        {
+          "id": "button_event", "label": "Button event", "description": "Start when an Aqara button reports a vendor-advertised action.",
+          "capability": "event.button", "runtime": {"event": "aqara.button.event", "source": "integration"},
+          "ui": {"group": "when"}
+        },
+        {
+          "id": "rotation_event", "label": "Rotation event", "description": "Start when an Aqara rotary control reports a vendor-advertised action.",
+          "capability": "event.rotation", "runtime": {"event": "aqara.rotation.event", "source": "integration"},
+          "ui": {"group": "when"}
+        },
+        {
+          "id": "cube_event", "label": "Cube event", "description": "Start when an Aqara cube reports a vendor-advertised gesture.",
+          "capability": "event.cube", "runtime": {"event": "aqara.cube.event", "source": "integration"},
+          "ui": {"group": "when"}
+        },
+        {
+          "id": "vibration_event", "label": "Vibration event", "description": "Start when an Aqara vibration sensor reports a vendor-advertised action.",
+          "capability": "event.vibration", "runtime": {"event": "aqara.vibration.event", "source": "integration"},
+          "ui": {"group": "when"}
         }
       ]
     }
@@ -655,6 +776,62 @@
       {
         "nativeMetric": "brightness_percent",
         "capability": "sensor.brightness_percent"
+      },
+      {
+        "nativeMetric": "color_temperature",
+        "capability": "sensor.color_temperature"
+      },
+      {
+        "nativeMetric": "hue_degrees",
+        "capability": "sensor.hue_degrees"
+      },
+      {
+        "nativeMetric": "saturation_percent",
+        "capability": "sensor.saturation_percent"
+      },
+      {
+        "nativeMetric": "target_temperature_c",
+        "capability": "sensor.target_temperature_c"
+      },
+      {
+        "nativeMetric": "fan_speed_percent",
+        "capability": "sensor.fan_speed_percent"
+      },
+      {
+        "nativeMetric": "filter_life_percent",
+        "capability": "sensor.filter_life_percent"
+      },
+      {
+        "nativeMetric": "pm1_ugm3",
+        "capability": "sensor.pm1_ugm3"
+      },
+      {
+        "nativeMetric": "pm10_ugm3",
+        "capability": "sensor.pm10_ugm3"
+      },
+      {
+        "nativeMetric": "carbon_monoxide_detected",
+        "capability": "sensor.carbon_monoxide_detected"
+      },
+      {
+        "nativeMetric": "hvac_mode",
+        "capability": "sensor.hvac_mode"
+      },
+      {
+        "nativeMetric": "fan_mode",
+        "capability": "sensor.fan_mode"
+      },
+      {
+        "nativeMetric": "swing_mode",
+        "capability": "sensor.swing_mode"
+      },
+      {
+        "nativeMetric": "airflow_direction",
+        "capability": "sensor.airflow_direction"
+      },
+      {
+        "nativeMetric": "cover_movement_state",
+        "capability": "sensor.cover_movement_state"
       },
       {
         "nativeMetric": "co2_ppm",
