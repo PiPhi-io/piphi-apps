@@ -1,7 +1,10 @@
 FROM python:3.12-slim
 WORKDIR /app
-COPY pyproject.toml ./
+ENV PDM_CHECK_UPDATE=false PDM_USE_VENV=false
+COPY pyproject.toml pdm.lock ./
+RUN pip install --no-cache-dir "pdm==2.29.7" \
+    && pdm sync --prod --no-self
 COPY src ./src
-RUN pip install --no-cache-dir .
+RUN pdm sync --prod --no-editable
 EXPOSE 4225
-CMD ["uvicorn", "piphi_network_reolink.main:app", "--host", "0.0.0.0", "--port", "4225"]
+CMD ["pdm", "run", "uvicorn", "piphi_network_reolink.main:app", "--host", "0.0.0.0", "--port", "4225"]

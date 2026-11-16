@@ -79,7 +79,31 @@ def test_behavior_events_and_conditions_match_catalog() -> None:
 
 
 @pytest.mark.anyio
-async def test_config_event_is_emitted_without_credentials() -> None:
+async def test_config_event_is_emitted_without_credentials(monkeypatch) -> None:
+    from piphi_network_reolink import state
+
+    class FakeClient:
+        async def refresh(self):
+            return {
+                "connected": True,
+                "camera_count": 0,
+                "name": "Test camera",
+                "model": "RLC-Test",
+                "hardware": "IPC-Test",
+                "firmware": "v1",
+                "hardware_id": "catalog-hardware",
+                "is_nvr": False,
+                "is_battery": False,
+                "channels": [],
+            }
+
+        async def close(self):
+            return None
+
+    async def connect(**_kwargs):
+        return FakeClient()
+
+    monkeypatch.setattr(state.runtime_data, "client_connector", connect)
     transport = httpx.ASGITransport(app=app)
     config_id = "catalog-test"
     async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:

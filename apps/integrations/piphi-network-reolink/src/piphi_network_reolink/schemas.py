@@ -11,7 +11,7 @@ class DeviceConfig(RuntimeConfig):
     port: int | None = Field(default=None, ge=1, le=65535)
     use_https: bool | None = None
     alias: str | None = None
-    poll_interval_seconds: int = Field(default=30, ge=10, le=3600)
+    poll_interval_seconds: int = Field(default=60, ge=60, le=3600)
 
     @field_validator("host", "username")
     @classmethod
