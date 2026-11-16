@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 import os
+from typing import Literal
 
 from piphi_runtime_kit_python import RuntimeConfig
+from pydantic import model_validator
+
+from .stopped_coordinator_evidence import StoppedCoordinatorEvidence
 
 
 class DeviceConfig(RuntimeConfig):
@@ -23,3 +27,14 @@ class DeviceConfig(RuntimeConfig):
     mqtt_credential_generation: int | None = None
     mqtt_binding: str | None = None
     data_path: str = "/app/data"
+    coordinator_stop_authority: Literal["local", "core_managed_helper"] = "local"
+    stopped_coordinator_evidence: StoppedCoordinatorEvidence | None = None
+
+    @model_validator(mode="after")
+    def require_managed_stop_evidence(self) -> DeviceConfig:
+        if (
+            self.coordinator_stop_authority == "core_managed_helper"
+            and self.stopped_coordinator_evidence is None
+        ):
+            raise ValueError("Core-managed config sync requires stopped-coordinator evidence.")
+        return self

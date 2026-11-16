@@ -13,6 +13,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 StoppedCoordinatorOperation = Literal[
+    "config_sync",
     "network_restore",
     "coordinator_migration_plan",
     "coordinator_migration_apply",

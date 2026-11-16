@@ -1,14 +1,45 @@
 from __future__ import annotations
 
+import hashlib
+import hmac
+import json
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
 import pytest
 
 from piphi_network_zigbee2mqtt import state
-from piphi_network_zigbee2mqtt.coordinator_claims import CoordinatorClaimStore
+from piphi_network_zigbee2mqtt.coordinator_claims import (
+    CoordinatorClaimStore,
+    stable_coordinator_identity,
+)
 from piphi_network_zigbee2mqtt.routes.config import _runtime_config_payloads
 from piphi_network_zigbee2mqtt.schemas import DeviceConfig
 from piphi_network_zigbee2mqtt.state import apply_config, sidecar_store
+
+_EVIDENCE_SECRET = "managed-config-sync-test-secret-that-is-at-least-32-bytes"
+
+
+def _managed_config_evidence(identity: str) -> dict[str, object]:
+    issued_at = datetime.now(UTC)
+    payload: dict[str, object] = {
+        "protocol": "piphi.zigbee2mqtt.stopped-coordinator.v1",
+        "operation": "config_sync",
+        "coordinator_identity": identity,
+        "generation": 42,
+        "target_digest": "1" * 64,
+        "helper_spec_digest": "2" * 64,
+        "issued_at": issued_at.isoformat().replace("+00:00", "Z"),
+        "expires_at": (issued_at + timedelta(seconds=30)).isoformat().replace(
+            "+00:00", "Z"
+        ),
+        "nonce": "stop.managed-config-sync",
+    }
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    payload["signature"] = hmac.new(
+        _EVIDENCE_SECRET.encode(), canonical, hashlib.sha256
+    ).hexdigest()
+    return payload
 
 
 class RuntimeConfigLike:
@@ -67,6 +98,47 @@ async def test_apply_config_writes_zigbee2mqtt_configuration(tmp_path, monkeypat
     assert 'port: "/dev/ttyZigbee"' in yaml
     assert sidecar_store.config_path == str(config_path)
     assert sidecar_store.config_hash
+
+
+@pytest.mark.anyio
+async def test_apply_managed_config_uses_core_evidence_without_local_probe(
+    tmp_path, monkeypatch
+) -> None:
+    identity = "serial-by-id:usb-sonoff-managed-config"
+    monkeypatch.setenv("PIPHI_ZIGBEE2MQTT_ALLOWED_DATA_ROOTS", str(tmp_path))
+    monkeypatch.setenv("PIPHI_COORDINATOR_EVIDENCE_KEY", _EVIDENCE_SECRET)
+    monkeypatch.setenv(
+        "PIPHI_COORDINATOR_EVIDENCE_LEDGER_PATH", str(tmp_path / "evidence.sqlite3")
+    )
+    monkeypatch.setattr(state, "claim_store", CoordinatorClaimStore(tmp_path / "claims.json"))
+    monkeypatch.setattr(
+        state,
+        "probe_coordinator",
+        lambda _port: (_ for _ in ()).throw(AssertionError("local probe must not run")),
+    )
+    sidecar_store.coordinator_identity = None
+    sidecar_store.coordinator_owner_id = None
+    config = DeviceConfig(
+        id="managed-config",
+        config_id="managed-config",
+        container_id="runtime-container",
+        serial_port="/dev/serial/by-id/usb-sonoff-managed-config",
+        coordinator_identity=identity,
+        adapter="zstack",
+        mqtt_server="mqtt://127.0.0.1:1883",
+        data_path=str(tmp_path),
+        coordinator_stop_authority="core_managed_helper",
+        stopped_coordinator_evidence=_managed_config_evidence(identity),
+    )
+
+    await apply_config(config)
+
+    assert sidecar_store.current_config is not None
+    assert sidecar_store.coordinator_identity == stable_coordinator_identity(identity)
+    assert (tmp_path / "configuration.yaml").exists()
+
+    with pytest.raises(Exception, match="already been used"):
+        await apply_config(config)
 
 
 @pytest.mark.anyio
