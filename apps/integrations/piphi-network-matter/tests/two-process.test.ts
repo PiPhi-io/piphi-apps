@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
+import { createRequire } from "node:module";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { mkdtemp, rm } from "node:fs/promises";
 import { createServer as createNetServer } from "node:net";
@@ -7,6 +8,8 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
+
+const tsxImport = createRequire(import.meta.url).resolve("tsx");
 
 test("real parent and sidecar processes route commands, Core delivery, gaps, and stream restarts", { timeout: 45_000 }, async () => {
   const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -107,7 +110,7 @@ test("real parent and sidecar processes route commands, Core delivery, gaps, and
 });
 
 function startSidecar(root: string, entrypoint: string, port: number, directory: string, switchOn: boolean): ChildProcess {
-  return spawn(process.execPath, ["--import", "tsx", entrypoint], {
+  return spawn(process.execPath, ["--import", tsxImport, entrypoint], {
     cwd: root,
     stdio: ["ignore", "ignore", "inherit"],
     env: {

@@ -12,9 +12,9 @@ from app_tooling import validate_all_apps
 ROOT = Path(__file__).resolve().parents[1]
 INVENTORY_PATH = ROOT / "migration" / "inventory.json"
 EXPECTED_COUNTS = {
-    "entries": 66,
+    "entries": 67,
     "repositories": 63,
-    "integrations": 45,
+    "integrations": 46,
     "platform_services": 11,
     "widgets": 10,
 }

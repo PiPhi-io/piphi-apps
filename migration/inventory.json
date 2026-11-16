@@ -2,9 +2,9 @@
   "schema_version": 1,
   "generated_from": "/home/kelvinfor3xzorin/Documents/PiPhi/PiPhi-Network-Core-main/.codex-widget-work/piphi-nework-registry/registry.json",
   "summary": {
-    "entries": 66,
+    "entries": 67,
     "repositories": 63,
-    "integrations": 45,
+    "integrations": 46,
     "platform_services": 11,
     "widgets": 10
   },
@@ -435,7 +435,7 @@
       "source_url": "https://github.com/PiPhi-io/piphi-network-matter",
       "import": {
         "mode": "repository",
-        "destination": "apps/services/piphi-network-matter"
+        "destination": "apps/services/piphi-matter-js-sidecar"
       },
       "status": "pending",
       "entries": [

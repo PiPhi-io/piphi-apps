@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "description": "PiPhi Core-facing Matter integration backed by the managed Matter sidecar",
   "type": "module",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "check": "tsc --noEmit -p tsconfig.json",
@@ -19,6 +21,7 @@
   "devDependencies": {
     "@types/node": "^24.10.1",
     "piphi-runtime-testkit-node": "^0.1.0",
+    "tsx": "^4.23.15",
     "typescript": "^5.9.3"
   },
   "license": "Apache-2.0"
