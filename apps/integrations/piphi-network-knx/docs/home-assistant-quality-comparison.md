@@ -1,8 +1,8 @@
 # PiPhi KNX and Home Assistant KNX: capability and quality audit
 
-## Current reassessment: 0.2.2
+## Current reassessment: 0.2.3
 
-Version 0.2.2 implements the deliberately bounded first protocol slice rather than attempting Home Assistant's full platform breadth. The software evidence supports an HA-inspired production-quality claim **only for the listed slice**, not HA Platinum equivalence and not KNX product certification.
+Version 0.2.3 implements the deliberately bounded first protocol slice rather than attempting Home Assistant's full platform breadth. The software evidence supports an HA-inspired production-quality claim **only for the listed slice**, not HA Platinum equivalence and not KNX product certification.
 
 | Quality area | Current evidence | Boundary |
 |---|---|---|
@@ -18,7 +18,7 @@ The registry must therefore remain `draft`, rollout `0`, quality `unrated`, and 
 
 ## Historical 0.1.0 baseline
 
-The remainder of this document is the immutable pre-remediation audit of version 0.1.0. Statements using “current” below refer to that historical source snapshot, not 0.2.2.
+The remainder of this document is the immutable pre-remediation audit of version 0.1.0. Statements using “current” below refer to that historical source snapshot, not 0.2.3.
 
 **Research cutoff:** 2026-11-15
 

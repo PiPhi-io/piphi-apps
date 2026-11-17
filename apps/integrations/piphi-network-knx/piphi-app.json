@@ -27,7 +27,7 @@
     {
       "id": "piphi-network-knx",
       "type": "integration",
-      "version": "0.2.2",
+      "version": "0.2.3",
       "manifest": "manifest.json",
       "release": {
         "tag": "apps/{package_id}/v{version}",

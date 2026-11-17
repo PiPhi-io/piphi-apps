@@ -7,11 +7,18 @@ RUN pip install --no-cache-dir "pdm==2.29.7" \
     && pip wheel --no-cache-dir --wheel-dir /wheels -r requirements.txt .
 
 FROM python:3.12.12-slim@sha256:f3fa41d74a768c2fce8016b98c191ae8c1bacd8f1152870a3f9f87d350920b7c
+ARG RELEASE_VERSION=0.2.3
+ARG SOURCE_REVISION=unknown
+ARG SOURCE_REPOSITORY=https://github.com/PiPhi-io/piphi-apps
+LABEL org.opencontainers.image.source="${SOURCE_REPOSITORY}" \
+      org.opencontainers.image.revision="${SOURCE_REVISION}" \
+      org.opencontainers.image.version="${RELEASE_VERSION}"
 WORKDIR /app
 RUN useradd --create-home --uid 10001 piphi
 COPY --from=builder /wheels /wheels
 RUN pip install --no-cache-dir /wheels/* && rm -rf /wheels
 RUN mkdir -p /app/data && chown -R piphi:piphi /app
+VOLUME ["/app/data"]
 USER piphi
 EXPOSE 4223
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \

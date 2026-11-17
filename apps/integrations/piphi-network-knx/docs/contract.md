@@ -1,7 +1,7 @@
 # Runtime contract
 
 - Integration: `piphi-network-knx`
-- Version: `0.2.2`
+- Version: `0.2.3`
 - Kind/preset/domain: `integration` / `protocol-bridge` / `bridge`
 - Port: `4223`
 
