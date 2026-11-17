@@ -63,7 +63,11 @@ class Zigbee2MqttSidecarClient:
             "/v1/mqtt/messages",
             {"topics": topics, "after_sequence": after_sequence},
         )
-        return payload if isinstance(payload, dict) else {"messages": [], "sequence": after_sequence}
+        return payload if isinstance(payload, dict) else {
+            "messages": [],
+            "sequence": after_sequence,
+            "gap": None,
+        }
 
     async def mqtt_publish(
         self,
@@ -123,12 +127,14 @@ class SidecarMessageSubscriber:
         base_url: str,
         topics: list[str],
         on_message: Callable[[str, Any], None],
+        on_gap: Callable[[dict[str, int]], None] | None = None,
         token: str | None = None,
         poll_interval_seconds: float = 1.0,
     ) -> None:
         self.client = Zigbee2MqttSidecarClient(base_url=base_url, token=token)
         self.topics = list(dict.fromkeys(topics))
         self.on_message = on_message
+        self.on_gap = on_gap
         self.poll_interval_seconds = poll_interval_seconds
         self.status = "stopped"
         self.message: str | None = None
@@ -136,6 +142,7 @@ class SidecarMessageSubscriber:
         self._after_sequence = 0
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
+        self._gap: dict[str, int] | None = None
 
     def start(self) -> None:
         if not self.topics:
@@ -165,20 +172,21 @@ class SidecarMessageSubscriber:
             "topics": self.topics,
             "started_at": self.started_at.isoformat() if self.started_at else None,
             "sequence": self._after_sequence,
+            "gap": self._gap,
         }
 
     def _run(self) -> None:
         while not self._stop.is_set():
             try:
-                self._poll_once()
-                self.status = "running"
-                self.message = None
+                gap_detected = self._poll_once()
+                self.status = "degraded" if gap_detected else "running"
+                self.message = "mqtt_journal_gap" if gap_detected else None
             except SidecarUnavailable as exc:
                 self.status = "error"
                 self.message = str(exc)
             self._stop.wait(self.poll_interval_seconds)
 
-    def _poll_once(self) -> None:
+    def _poll_once(self) -> bool:
         url = f"{self.client.base_url}/v1/mqtt/messages"
         headers = (
             {"Authorization": f"Bearer {self.client.token}"}
@@ -204,6 +212,16 @@ class SidecarMessageSubscriber:
         messages = payload.get("messages") if isinstance(payload, dict) else []
         if not isinstance(messages, list):
             raise SidecarUnavailable("Zigbee2MQTT sidecar returned invalid MQTT messages")
+        gap = payload.get("gap") if isinstance(payload, dict) else None
+        if gap is not None and not (
+            isinstance(gap, dict)
+            and isinstance(gap.get("from_sequence"), int)
+            and isinstance(gap.get("to_sequence"), int)
+        ):
+            raise SidecarUnavailable("Zigbee2MQTT sidecar returned an invalid journal gap")
+        self._gap = dict(gap) if gap else None
+        if self._gap and self.on_gap:
+            self.on_gap(dict(self._gap))
         for message in messages:
             if not isinstance(message, dict):
                 continue
@@ -217,3 +235,4 @@ class SidecarMessageSubscriber:
         sequence = payload.get("sequence") if isinstance(payload, dict) else None
         if isinstance(sequence, int):
             self._after_sequence = max(self._after_sequence, sequence)
+        return self._gap is not None

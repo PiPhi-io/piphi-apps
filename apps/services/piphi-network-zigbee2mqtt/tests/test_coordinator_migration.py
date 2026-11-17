@@ -36,6 +36,7 @@ def _plan_request(tmp_path, backup, **updates) -> CoordinatorMigrationPlanReques
         "target_coordinator_identity": "usb:target:123",
         "target_coordinator_port": "/dev/serial/by-id/target-123",
         "target_adapter": "ember",
+        "compatibility_record_id": "ember-same-family-v1",
     }
     values.update(updates)
     return CoordinatorMigrationPlanRequest.model_validate(values)
@@ -44,11 +45,39 @@ def _plan_request(tmp_path, backup, **updates) -> CoordinatorMigrationPlanReques
 def test_migration_plan_rejects_cross_family_without_evidence(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("PIPHI_ZIGBEE2MQTT_ALLOWED_DATA_ROOTS", str(tmp_path))
     (tmp_path / "configuration.yaml").write_text("advanced: {}\n")
-    backup = create_network_backup(str(tmp_path), adapter_family="ember")
+    (tmp_path / "database.db").write_text("device")
+    (tmp_path / "coordinator_backup.json").write_text("{}")
+    backup = create_network_backup(str(tmp_path), adapter_family="ember", workload_fenced=True)
 
-    with pytest.raises(ValueError, match="explicit compatibility evidence"):
+    with pytest.raises(ValueError, match="same-family"):
         plan_coordinator_migration(
             _plan_request(tmp_path, backup, target_adapter_family="zstack"),
+            probe=_available_probe,
+        )
+
+
+def test_migration_rejects_free_form_cross_family_evidence_and_ungoverned_record(
+    tmp_path, monkeypatch
+) -> None:
+    monkeypatch.setenv("PIPHI_ZIGBEE2MQTT_ALLOWED_DATA_ROOTS", str(tmp_path))
+    (tmp_path / "configuration.yaml").write_text("advanced: {}\n")
+    (tmp_path / "database.db").write_text("device")
+    (tmp_path / "coordinator_backup.json").write_text("{}")
+    backup = create_network_backup(str(tmp_path), adapter_family="ember", workload_fenced=True)
+
+    with pytest.raises(ValueError, match="Free-form"):
+        plan_coordinator_migration(
+            _plan_request(
+                tmp_path,
+                backup,
+                target_adapter_family="zstack",
+                compatibility_evidence="vendor says this should work",
+            ),
+            probe=_available_probe,
+        )
+    with pytest.raises(ValueError, match="governed"):
+        plan_coordinator_migration(
+            _plan_request(tmp_path, backup, compatibility_record_id="made-up-v99"),
             probe=_available_probe,
         )
 
@@ -56,7 +85,9 @@ def test_migration_plan_rejects_cross_family_without_evidence(tmp_path, monkeypa
 def test_migration_plan_requires_exclusive_target_probe(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("PIPHI_ZIGBEE2MQTT_ALLOWED_DATA_ROOTS", str(tmp_path))
     (tmp_path / "configuration.yaml").write_text("advanced: {}\n")
-    backup = create_network_backup(str(tmp_path), adapter_family="ember")
+    (tmp_path / "database.db").write_text("device")
+    (tmp_path / "coordinator_backup.json").write_text("{}")
+    backup = create_network_backup(str(tmp_path), adapter_family="ember", workload_fenced=True)
 
     with pytest.raises(ValueError, match="exclusivity"):
         plan_coordinator_migration(
@@ -87,8 +118,9 @@ async def test_guided_same_family_migration_restores_and_retargets_config(
     bridge.sidecar_store.coordinator_identity = None
     bridge.sidecar_store.coordinator_owner_id = None
     (tmp_path / "configuration.yaml").write_text("source: true\n")
+    (tmp_path / "database.db").write_text("device")
     (tmp_path / "coordinator_backup.json").write_text("{}")
-    backup = create_network_backup(str(tmp_path), adapter_family="ember")
+    backup = create_network_backup(str(tmp_path), adapter_family="ember", workload_fenced=True)
     (tmp_path / "configuration.yaml").write_text("changed: true\n")
     request = _plan_request(tmp_path, backup)
     plan = plan_coordinator_migration(request, probe=_available_probe)
@@ -113,7 +145,9 @@ async def test_guided_same_family_migration_restores_and_retargets_config(
 async def test_migration_requires_confirmation(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("PIPHI_ZIGBEE2MQTT_ALLOWED_DATA_ROOTS", str(tmp_path))
     (tmp_path / "configuration.yaml").write_text("advanced: {}\n")
-    backup = create_network_backup(str(tmp_path), adapter_family="ember")
+    (tmp_path / "database.db").write_text("device")
+    (tmp_path / "coordinator_backup.json").write_text("{}")
+    backup = create_network_backup(str(tmp_path), adapter_family="ember", workload_fenced=True)
     request = _plan_request(tmp_path, backup)
     plan = plan_coordinator_migration(request, probe=_available_probe)
 
@@ -146,7 +180,9 @@ async def test_migration_rolls_back_data_when_target_config_write_fails(
     bridge.sidecar_store.coordinator_identity = None
     bridge.sidecar_store.coordinator_owner_id = None
     (tmp_path / "configuration.yaml").write_text("selected-backup: true\n")
-    backup = create_network_backup(str(tmp_path), adapter_family="ember")
+    (tmp_path / "database.db").write_text("device")
+    (tmp_path / "coordinator_backup.json").write_text("{}")
+    backup = create_network_backup(str(tmp_path), adapter_family="ember", workload_fenced=True)
     (tmp_path / "configuration.yaml").write_text("current-before-migration: true\n")
     request = _plan_request(tmp_path, backup)
     plan = plan_coordinator_migration(request, probe=_available_probe)

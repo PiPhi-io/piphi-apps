@@ -51,6 +51,8 @@ Bridge-specific routes:
 - `POST /v1/supervisor/restart`
 - `POST /v1/supervisor/logs`
 - `POST /v1/mqtt/check`
+- `POST /v1/mqtt/messages`
+- `POST /v1/mqtt/publish`
 - `POST /v1/devices`
 - `GET /v1/devices`
 - `POST /v1/network-map`
@@ -62,6 +64,7 @@ Bridge-specific routes:
 - `POST /v1/network-restore`
 - `POST /v1/coordinator-migration/plan`
 - `POST /v1/coordinator-migration/apply`
+- `POST /v1/coordinator-claim/repair`
 
 ## Render a Zigbee2MQTT Config
 
@@ -221,15 +224,21 @@ Restart policies:
 - `always`: restart after every apply
 - `never`: write config but leave process state alone
 
-PiPhi persists an exclusive claim for `coordinator_identity`. Forming a new
+PiPhi persists an exclusive, leased claim for `coordinator_identity`, renews it
+with the stable Core runtime identity, and fences changes with a generation.
+Stale repair is authenticated, explicitly confirmed, generation-checked, and
+requires stopped-workload evidence. Forming a new
 network requires `network_formation: "form_new"` and
-`confirm_form_new: true`. Changing an existing PAN, extended PAN, or network
-key also requires `backup_path` and `backup_sha256` returned by
+`confirm_form_new: true`. Changing an existing channel, PAN, extended PAN, or
+network key also requires warning acknowledgement, explicit confirmation,
+stopped-workload evidence, and `backup_path`/`backup_sha256` returned by
 `POST /v1/network-backup`; the sidecar verifies the archive and checksum before
-writing the change. Backups include the bounded Zigbee2MQTT data tree and
-adapter/version compatibility metadata. `POST /v1/network-restore` requires a
-stopped coordinator, a matching adapter family, explicit confirmation, and
-creates a rollback backup before replacing data.
+writing the change. Recoverable backups require `configuration.yaml`,
+`database.db`, and fresh `coordinator_backup.json` for governed Ember/Z-Stack
+families, plus adapter/version/timestamp metadata. `POST /v1/network-restore`
+requires a stopped coordinator, a matching adapter family, explicit
+confirmation, creates a rollback backup before replacing data, and runs the
+configured post-restore verification hook.
 
 Encrypted export uses passphrase-derived AES-256-GCM with authenticated format
 metadata. Export a verified backup with `POST /v1/network-backup/export`, retain
@@ -242,8 +251,9 @@ adapter-family compatibility, and exclusive target availability. Then submit
 the unchanged request, returned `plan_id`, and `confirm_migration: true` to
 `POST /v1/coordinator-migration/apply`. The apply creates rollback evidence,
 restores, rewrites the selected target, and automatically restores the rollback
-backup if a post-restore step fails. Cross-family migration fails closed unless
-the caller records a specific compatibility evidence reference.
+backup if a post-restore step fails. The request must name a governed
+same-family compatibility record whose family and backup format match; free-form
+and cross-family compatibility evidence is rejected.
 
 Before applying, check host prerequisites:
 
@@ -274,8 +284,8 @@ Windows/macOS:
 ## Docker Build
 
 ```bash
-docker build -t ghcr.io/piphi-io/zigbee2mqtt-sidecar:0.1.25 .
-docker run --rm -p 8720:8720 ghcr.io/piphi-io/zigbee2mqtt-sidecar:0.1.25
+docker build -t ghcr.io/piphi-io/zigbee2mqtt-sidecar:0.1.26 .
+docker run --rm -p 8720:8720 ghcr.io/piphi-io/zigbee2mqtt-sidecar:0.1.26
 ```
 
 For Linux, deploy through Core's managed-runtime helper contract. Running the

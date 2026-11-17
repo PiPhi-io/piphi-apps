@@ -17,6 +17,7 @@ from piphi_network_zigbee.mqtt_runtime import (
 )
 from piphi_network_zigbee.routes import commands as command_routes
 from piphi_network_zigbee.schemas import DeviceConfig
+from piphi_network_zigbee.sidecar_client import SidecarMessageSubscriber
 
 
 @pytest.mark.anyio
@@ -500,10 +501,11 @@ async def test_apply_config_starts_subscription_and_ingests_state(monkeypatch) -
     telemetry_deliveries: list[dict] = []
 
     class FakeSubscriber:
-        def __init__(self, *, base_url, topics, on_message):
+        def __init__(self, *, base_url, topics, on_message, on_gap=None):
             self.base_url = base_url
             self.topics = topics
             self.on_message = on_message
+            self.on_gap = on_gap
             self.status = "stopped"
             self.message = None
             self.started_at = None
@@ -566,4 +568,118 @@ async def test_apply_config_starts_subscription_and_ingests_state(monkeypatch) -
 
     runtime_state.stop_mqtt_subscriptions()
     await runtime_state.remove_config(source_id)
+    await runtime_state.remove_config(config_id)
+
+
+def test_sidecar_subscriber_surfaces_journal_gap(monkeypatch) -> None:
+    gaps: list[dict] = []
+
+    class Response:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "messages": [],
+                "sequence": 9,
+                "gap": {"from_sequence": 3, "to_sequence": 7},
+            }
+
+    class Client:
+        def __init__(self, **_kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def post(self, *_args, **_kwargs):
+            return Response()
+
+    monkeypatch.setattr("piphi_network_zigbee.sidecar_client.httpx.Client", Client)
+    subscriber = SidecarMessageSubscriber(
+        base_url="http://sidecar.local:8720",
+        topics=["zigbee2mqtt/kitchen"],
+        on_message=lambda _topic, _payload: None,
+        on_gap=gaps.append,
+    )
+
+    assert subscriber._poll_once() is True
+    assert gaps == [{"from_sequence": 3, "to_sequence": 7}]
+    assert subscriber.snapshot()["gap"] == {"from_sequence": 3, "to_sequence": 7}
+
+
+@pytest.mark.anyio
+async def test_device_availability_starts_unknown_and_bridge_disconnect_propagates(
+    monkeypatch,
+) -> None:
+    class QuietSubscriber:
+        def __init__(self, *, base_url, topics, on_message, on_gap=None):
+            self.base_url = base_url
+            self.topics = topics
+            self.on_message = on_message
+            self.on_gap = on_gap
+            self.status = "starting"
+            self.message = None
+            self.started_at = None
+
+        def start(self):
+            return None
+
+        def stop(self):
+            self.status = "stopped"
+
+        def snapshot(self):
+            return {"status": self.status, "topics": self.topics}
+
+    monkeypatch.setattr(runtime_state, "SidecarMessageSubscriber", QuietSubscriber)
+    config_id = "availability-sensor"
+    await runtime_state.apply_config(
+        DeviceConfig(
+            id=config_id,
+            friendly_name="availability-sensor",
+            mqtt_topic="zigbee2mqtt/availability-sensor",
+            sidecar_base_url="http://sidecar.local:8720",
+        )
+    )
+    initial = runtime_state.registry.state_snapshots[config_id]["state"]
+    assert initial["connected"] is False
+    assert initial["availability"] is None
+    assert initial["availability_status"] == "unknown"
+
+    device_subscription = ZigbeeMqttSubscription(
+        topic="zigbee2mqtt/availability-sensor/availability",
+        config_id=config_id,
+        device_id=config_id,
+        kind="availability",
+    )
+    runtime_state._handle_mqtt_payload(device_subscription, {"availability": "online"})
+    recovered = runtime_state.registry.state_snapshots[config_id]["state"]
+    assert recovered["connected"] is True
+    assert recovered["availability"] is True
+    assert recovered["availability_updated_at"] is not None
+
+    runtime_state._handle_bridge_availability(
+        "http://sidecar.local:8720", "offline", reason="broker_disconnected"
+    )
+    disconnected = runtime_state.registry.state_snapshots[config_id]["state"]
+    assert disconnected["connected"] is False
+    assert disconnected["availability"] is False
+    assert disconnected["bridge_available"] is False
+    assert disconnected["availability_reason"] == "broker_disconnected"
+
+    runtime_state._handle_bridge_availability("http://sidecar.local:8720", "online")
+    still_waiting = runtime_state.registry.state_snapshots[config_id]["state"]
+    assert still_waiting["connected"] is False
+    assert still_waiting["availability_status"] == "unknown"
+
+    runtime_state._handle_mqtt_payload(device_subscription, {"availability": "online"})
+    assert runtime_state.registry.state_snapshots[config_id]["state"]["connected"] is True
+    runtime_state._handle_bridge_availability("http://sidecar.local:8720", "online")
+    remains_online = runtime_state.registry.state_snapshots[config_id]["state"]
+    assert remains_online["connected"] is True
+    assert remains_online["availability_status"] == "online"
+    runtime_state.stop_mqtt_subscriptions()
     await runtime_state.remove_config(config_id)

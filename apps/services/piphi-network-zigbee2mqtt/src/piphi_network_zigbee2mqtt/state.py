@@ -81,6 +81,9 @@ async def apply_config(config: DeviceConfig) -> None:
         selected_coordinator_identity = config.coordinator_identity.strip()
         coordinator_identity = stable_coordinator_identity(selected_coordinator_identity)
         owner_id = claim_owner_id()
+        previous_identity = sidecar_store.coordinator_identity
+        previous_owner_id = sidecar_store.coordinator_owner_id
+        previous_generation = sidecar_store.coordinator_claim_generation
         if config.coordinator_stop_authority == "core_managed_helper":
             evidence = config.stopped_coordinator_evidence
             if evidence is None:
@@ -104,7 +107,15 @@ async def apply_config(config: DeviceConfig) -> None:
                     detail=probe.message or "Coordinator is unavailable or already in use.",
                 )
         try:
-            claim_store.claim(coordinator_identity, owner_id)
+            claim = claim_store.claim(
+                coordinator_identity,
+                owner_id,
+                expected_generation=(
+                    previous_generation
+                    if previous_identity == coordinator_identity and previous_owner_id == owner_id
+                    else None
+                ),
+            )
         except CoordinatorClaimConflict as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         mqtt_base_topic = config.mqtt_base_topic.strip().strip("/")
@@ -126,7 +137,8 @@ async def apply_config(config: DeviceConfig) -> None:
         try:
             write_result = write_config_atomic(rendered.yaml, target_path)
         except (OSError, ValueError) as exc:
-            claim_store.release(coordinator_identity, owner_id)
+            if previous_identity != coordinator_identity or previous_owner_id != owner_id:
+                claim_store.release(coordinator_identity, owner_id, claim.generation)
             sidecar_store.last_error = f"Could not write Zigbee2MQTT configuration: {exc}"
             raise HTTPException(status_code=400, detail=sidecar_store.last_error) from exc
 
@@ -141,6 +153,9 @@ async def apply_config(config: DeviceConfig) -> None:
         sidecar_store.last_error = None
         sidecar_store.coordinator_identity = coordinator_identity
         sidecar_store.coordinator_owner_id = owner_id
+        sidecar_store.coordinator_claim_generation = claim.generation
+        if previous_identity and previous_owner_id and previous_identity != coordinator_identity:
+            claim_store.release(previous_identity, previous_owner_id, previous_generation)
 
     registry.set(config.id, entry)
     registry.update_state(
@@ -173,10 +188,15 @@ async def remove_config(config_id: str) -> bool:
     coordinator_identity = config.get("coordinator_identity")
     if coordinator_identity:
         owner_id = claim_owner_id()
-        claim_store.release(stable_coordinator_identity(coordinator_identity), owner_id)
+        claim_store.release(
+            stable_coordinator_identity(coordinator_identity),
+            owner_id,
+            sidecar_store.coordinator_claim_generation,
+        )
         if sidecar_store.coordinator_owner_id == owner_id:
             sidecar_store.coordinator_identity = None
             sidecar_store.coordinator_owner_id = None
+            sidecar_store.coordinator_claim_generation = None
     append_runtime_event(
         "runtime.config.removed",
         entry,

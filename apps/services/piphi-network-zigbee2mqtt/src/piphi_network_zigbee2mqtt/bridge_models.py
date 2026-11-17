@@ -125,6 +125,10 @@ class WriteConfigRequest(BaseModel):
     confirm_form_new: bool = False
     backup_path: str | None = None
     backup_sha256: str | None = None
+    acknowledge_network_change_warning: bool = False
+    confirm_network_change: bool = False
+    coordinator_stop_authority: Literal["local", "core_managed_helper"] = "local"
+    stopped_coordinator_evidence: StoppedCoordinatorEvidence | None = None
 
     @model_validator(mode="after")
     def validate_network_formation(self) -> WriteConfigRequest:
@@ -150,7 +154,22 @@ class ConfigWriteResult(BaseModel):
 
 class NetworkBackupRequest(BaseModel):
     data_path: str
-    adapter_family: str = Field(default="unknown", min_length=1, max_length=64)
+    adapter_family: str = Field(min_length=1, max_length=64)
+    zigbee2mqtt_version: str = Field(min_length=1, max_length=64)
+    adapter_backup_supported: bool = False
+    coordinator_identity: str = Field(min_length=1, max_length=256)
+    coordinator_port: str = Field(min_length=1, max_length=512)
+    coordinator_stop_authority: Literal["local", "core_managed_helper"] = "local"
+    stopped_coordinator_evidence: StoppedCoordinatorEvidence | None = None
+
+    @model_validator(mode="after")
+    def require_managed_stop_evidence(self) -> NetworkBackupRequest:
+        if (
+            self.coordinator_stop_authority == "core_managed_helper"
+            and self.stopped_coordinator_evidence is None
+        ):
+            raise ValueError("Core-managed backup requires stopped-coordinator evidence.")
+        return self
 
 
 class NetworkBackupResponse(BaseModel):
@@ -158,6 +177,10 @@ class NetworkBackupResponse(BaseModel):
     backup_sha256: str
     files: list[str]
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    adapter_family: str
+    zigbee2mqtt_version: str
+    coordinator_backup_created_at: datetime | None = None
+    recoverable: bool
 
 
 class NetworkRestoreRequest(BaseModel):
@@ -186,6 +209,7 @@ class NetworkRestoreResponse(BaseModel):
     files: list[str]
     rollback_backup: NetworkBackupResponse
     message: str
+    verification_status: Literal["pending", "passed"]
 
 
 class EncryptedBackupExportRequest(BaseModel):
@@ -216,6 +240,7 @@ class CoordinatorMigrationPlanRequest(BaseModel):
     target_coordinator_identity: str = Field(min_length=1, max_length=256)
     target_coordinator_port: str = Field(min_length=1, max_length=512)
     target_adapter: str | None = Field(default=None, min_length=1, max_length=64)
+    compatibility_record_id: str = Field(min_length=1, max_length=128)
     compatibility_evidence: str | None = Field(default=None, min_length=1, max_length=512)
     coordinator_stop_authority: Literal["local", "core_managed_helper"] = "local"
     stopped_coordinator_evidence: StoppedCoordinatorEvidence | None = None
@@ -246,7 +271,8 @@ class CoordinatorMigrationPlanResponse(BaseModel):
     target_adapter_family: str
     target_coordinator_identity: str
     target_coordinator_port: str
-    compatibility_basis: Literal["same_family", "explicit_evidence"]
+    compatibility_basis: Literal["governed_same_family_record"]
+    compatibility_record_id: str
     steps: list[str]
     warnings: list[str] = Field(default_factory=list)
 
@@ -277,6 +303,31 @@ class CoordinatorProbeResponse(BaseModel):
     exclusive_verified: bool
     holders: list[str] = Field(default_factory=list)
     message: str | None = None
+
+
+class CoordinatorClaimRepairRequest(BaseModel):
+    coordinator_identity: str = Field(min_length=1, max_length=256)
+    coordinator_port: str = Field(min_length=1, max_length=512)
+    expected_generation: int = Field(ge=1)
+    confirm_stale_repair: bool = False
+    coordinator_stop_authority: Literal["local", "core_managed_helper"] = "local"
+    stopped_coordinator_evidence: StoppedCoordinatorEvidence | None = None
+
+    @model_validator(mode="after")
+    def require_managed_stop_evidence(self) -> CoordinatorClaimRepairRequest:
+        if (
+            self.coordinator_stop_authority == "core_managed_helper"
+            and self.stopped_coordinator_evidence is None
+        ):
+            raise ValueError("Core-managed stale-claim repair requires stopped-coordinator evidence.")
+        return self
+
+
+class CoordinatorClaimResponse(BaseModel):
+    coordinator_identity: str
+    owner_id: str
+    generation: int
+    lease_expires_at: datetime
 
 
 class BridgeSnapshot(BaseModel):
@@ -591,6 +642,7 @@ class SidecarStore:
         self.last_permit_join: PermitJoinResponse | None = None
         self.coordinator_identity: str | None = None
         self.coordinator_owner_id: str | None = None
+        self.coordinator_claim_generation: int | None = None
 
     def snapshot(self) -> BridgeSnapshot:
         config = self.current_config

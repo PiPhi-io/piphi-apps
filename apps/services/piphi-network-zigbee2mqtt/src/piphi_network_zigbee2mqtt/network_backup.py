@@ -4,6 +4,7 @@ import json
 import os
 import shutil
 import zipfile
+from collections.abc import Callable
 from datetime import UTC, datetime
 from hashlib import sha256
 from pathlib import Path
@@ -25,13 +26,55 @@ from .settings import INTEGRATION_VERSION
 BACKUP_METADATA = "piphi-backup.json"
 EXCLUDED_TOP_LEVEL = {"backups", "coordinator-claims", "piphi-sidecar"}
 ENCRYPTED_BACKUP_MAGIC = b"PIPHI-ZIGBEE-AES256-GCM-V1\n"
+ESSENTIAL_NETWORK_FILES = {"configuration.yaml", "database.db"}
+COORDINATOR_BACKUP_FILE = "coordinator_backup.json"
+MAX_COORDINATOR_BACKUP_AGE_SECONDS = 300
+COORDINATOR_BACKUP_SUPPORTED_FAMILIES = {"ember", "zstack"}
 
 
-def create_network_backup(data_path: str, *, adapter_family: str = "unknown") -> NetworkBackupResponse:
+def create_network_backup(
+    data_path: str,
+    *,
+    adapter_family: str = "unknown",
+    adapter_backup_supported: bool = False,
+    workload_fenced: bool = False,
+    zigbee2mqtt_version: str = "2.14.3",
+    now: datetime | None = None,
+) -> NetworkBackupResponse:
     root = _approved_data_root(data_path)
+    if not workload_fenced:
+        raise ValueError("Zigbee2MQTT workload must be stopped and fenced before backup.")
     available = _network_files(root)
-    if "configuration.yaml" not in available:
-        raise ValueError("A Zigbee2MQTT configuration.yaml is required before backup.")
+    missing = ESSENTIAL_NETWORK_FILES - set(available)
+    if missing:
+        raise ValueError(
+            "Recoverable Zigbee backup is missing essential file(s): " + ", ".join(sorted(missing))
+        )
+    current = now or datetime.now(UTC)
+    normalized_family = adapter_family.strip().lower()
+    if normalized_family in {"", "unknown"}:
+        raise ValueError("A known adapter family is required for recoverable backup evidence.")
+    if not zigbee2mqtt_version.strip() or zigbee2mqtt_version.strip().lower() == "unknown":
+        raise ValueError("Zigbee2MQTT version is required for recoverable backup evidence.")
+    backup_supported = (
+        adapter_backup_supported or normalized_family in COORDINATOR_BACKUP_SUPPORTED_FAMILIES
+    )
+    coordinator_created_at: str | None = None
+    if backup_supported:
+        coordinator = root / COORDINATOR_BACKUP_FILE
+        if COORDINATOR_BACKUP_FILE not in available or not coordinator.is_file():
+            raise ValueError("Adapter requires a fresh upstream coordinator backup.")
+        modified = datetime.fromtimestamp(coordinator.stat().st_mtime, tz=UTC)
+        age = (current - modified).total_seconds()
+        if age < -5 or age > MAX_COORDINATOR_BACKUP_AGE_SECONDS:
+            raise ValueError("Adapter requires a fresh upstream coordinator backup.")
+        try:
+            coordinator_payload = json.loads(coordinator.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ValueError("Upstream coordinator backup is invalid.") from exc
+        if not isinstance(coordinator_payload, dict):
+            raise ValueError("Upstream coordinator backup is invalid.")
+        coordinator_created_at = modified.isoformat()
     backup_dir = root / "backups"
     backup_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     os.chmod(backup_dir, 0o700)
@@ -46,11 +89,16 @@ def create_network_backup(data_path: str, *, adapter_family: str = "unknown") ->
             BACKUP_METADATA,
             json.dumps(
                 {
-                    "format": 1,
+                    "format": 2,
                     "sidecar_version": INTEGRATION_VERSION,
-                    "zigbee2mqtt_version": "2.14.3",
-                    "adapter_family": adapter_family,
-                    "created_at": datetime.now(UTC).isoformat(),
+                    "zigbee2mqtt_version": zigbee2mqtt_version,
+                    "adapter_family": normalized_family,
+                    "created_at": current.isoformat(),
+                    "recoverable": True,
+                    "workload_fenced": True,
+                    "essential_files": sorted(ESSENTIAL_NETWORK_FILES),
+                    "adapter_backup_supported": backup_supported,
+                    "coordinator_backup_created_at": coordinator_created_at,
                 },
                 sort_keys=True,
             ),
@@ -63,6 +111,10 @@ def create_network_backup(data_path: str, *, adapter_family: str = "unknown") ->
         backup_path=str(target),
         backup_sha256=digest,
         files=available,
+        adapter_family=normalized_family,
+        zigbee2mqtt_version=zigbee2mqtt_version,
+        coordinator_backup_created_at=coordinator_created_at,
+        recoverable=True,
     )
 
 
@@ -82,15 +134,42 @@ def inspect_network_backup(backup_path: str | None, expected_sha256: str | None)
     try:
         with zipfile.ZipFile(target) as archive:
             names = set(archive.namelist())
-            if "configuration.yaml" not in names:
-                raise ValueError("Zigbee network backup is missing configuration.yaml.")
             if BACKUP_METADATA not in names:
                 raise ValueError("Zigbee network backup is missing compatibility metadata.")
             if any(Path(name).is_absolute() or ".." in Path(name).parts for name in names):
                 raise ValueError("Zigbee network backup contains unsafe paths.")
             metadata = json.loads(archive.read(BACKUP_METADATA))
-            if not isinstance(metadata, dict) or metadata.get("format") != 1:
+            if not isinstance(metadata, dict) or metadata.get("format") != 2:
                 raise ValueError("Zigbee network backup metadata is unsupported.")
+            backup_family = str(metadata.get("adapter_family") or "").strip().lower()
+            zigbee2mqtt_version = str(metadata.get("zigbee2mqtt_version") or "").strip()
+            if backup_family in {"", "unknown"} or zigbee2mqtt_version.lower() in {
+                "",
+                "unknown",
+            }:
+                raise ValueError("Zigbee network backup compatibility metadata is incomplete.")
+            try:
+                created_at = datetime.fromisoformat(str(metadata.get("created_at")))
+            except ValueError as exc:
+                raise ValueError("Zigbee network backup creation time is invalid.") from exc
+            if created_at.tzinfo is None or created_at.utcoffset() is None:
+                raise ValueError("Zigbee network backup creation time is invalid.")
+            missing = ESSENTIAL_NETWORK_FILES - names
+            if missing:
+                raise ValueError(
+                    "Zigbee network backup is missing essential file(s): "
+                    + ", ".join(sorted(missing))
+                )
+            if metadata.get("recoverable") is not True or metadata.get("workload_fenced") is not True:
+                raise ValueError("Zigbee network backup lacks recoverability evidence.")
+            requires_coordinator_backup = bool(metadata.get("adapter_backup_supported")) or (
+                backup_family in COORDINATOR_BACKUP_SUPPORTED_FAMILIES
+            )
+            if requires_coordinator_backup and (
+                COORDINATOR_BACKUP_FILE not in names
+                or not metadata.get("coordinator_backup_created_at")
+            ):
+                raise ValueError("Zigbee network backup lacks coordinator recovery evidence.")
     except zipfile.BadZipFile as exc:
         raise ValueError("Zigbee network backup is invalid.") from exc
     except json.JSONDecodeError as exc:
@@ -106,20 +185,26 @@ def restore_network_backup(
     adapter_family: str,
     compatibility_evidence: str | None = None,
     rollback_adapter_family: str | None = None,
+    workload_fenced: bool = False,
+    post_restore_verify: Callable[[Path, dict[str, object]], bool | None] | None = None,
 ) -> NetworkRestoreResponse:
     root = _approved_data_root(data_path)
+    if not workload_fenced:
+        raise ValueError("Zigbee2MQTT workload must be stopped and fenced before restore.")
     metadata = inspect_network_backup(backup_path, expected_sha256)
     backup_family = str(metadata.get("adapter_family") or "unknown")
-    explicit_evidence = (compatibility_evidence or "").strip()
-    if backup_family == "unknown" or (
-        backup_family != adapter_family and not explicit_evidence
-    ):
+    if compatibility_evidence:
+        raise ValueError("Free-form adapter compatibility evidence is not accepted.")
+    if backup_family == "unknown" or backup_family != adapter_family.strip().lower():
         raise ValueError(
             f"Backup adapter family {backup_family!r} is not compatible with {adapter_family!r}."
         )
     rollback = create_network_backup(
         str(root),
         adapter_family=rollback_adapter_family or adapter_family,
+        adapter_backup_supported=bool(metadata.get("adapter_backup_supported")),
+        workload_fenced=True,
+        zigbee2mqtt_version=str(metadata.get("zigbee2mqtt_version") or "unknown"),
     )
     staging = Path(mkdtemp(prefix=".restore-", dir=root))
     rollback_staging: Path | None = None
@@ -127,6 +212,8 @@ def restore_network_backup(
         _extract_backup(Path(backup_path), staging)
         restored_files = [str(item) for item in metadata["files"]]
         _replace_data_files(root, staging, restored_files)
+        if post_restore_verify is not None and post_restore_verify(root, metadata) is False:
+            raise ValueError("Zigbee post-restore verification failed.")
     except Exception:
         try:
             rollback_staging = Path(mkdtemp(prefix=".rollback-", dir=root))
@@ -143,6 +230,7 @@ def restore_network_backup(
         files=restored_files,
         rollback_backup=rollback,
         message="Zigbee2MQTT data restored; restart and post-restore verification are required.",
+        verification_status="passed" if post_restore_verify is not None else "pending",
     )
 
 
@@ -213,6 +301,15 @@ def import_encrypted_backup(
         backup_path=str(target),
         backup_sha256=digest,
         files=[str(name) for name in metadata["files"]],
+        created_at=datetime.fromisoformat(str(metadata["created_at"])),
+        adapter_family=str(metadata["adapter_family"]),
+        zigbee2mqtt_version=str(metadata["zigbee2mqtt_version"]),
+        coordinator_backup_created_at=(
+            datetime.fromisoformat(str(metadata["coordinator_backup_created_at"]))
+            if metadata.get("coordinator_backup_created_at")
+            else None
+        ),
+        recoverable=True,
     )
 
 

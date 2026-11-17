@@ -14,6 +14,9 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 StoppedCoordinatorOperation = Literal[
     "config_sync",
+    "network_backup",
+    "network_change",
+    "coordinator_claim_repair",
     "network_restore",
     "coordinator_migration_plan",
     "coordinator_migration_apply",

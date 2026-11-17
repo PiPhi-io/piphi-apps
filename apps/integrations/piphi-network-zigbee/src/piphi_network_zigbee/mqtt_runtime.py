@@ -6,10 +6,9 @@ import threading
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import unquote, urlparse
-
 
 STATE_FIELDS = {
     "action": "action",
@@ -212,7 +211,7 @@ class ZigbeeMqttSubscriber:
             client.loop_start()
             self._client = client
             self.status = "starting"
-            self.started_at = datetime.now(timezone.utc)
+            self.started_at = datetime.now(UTC)
         except Exception as exc:
             self.status = "error"
             self.message = str(exc)
@@ -251,7 +250,24 @@ def command_to_mqtt(entry: dict[str, Any], command_name: str, params: dict[str, 
 
 
 def normalize_state_payload(payload: dict[str, Any]) -> dict[str, Any]:
-    state: dict[str, Any] = {"connected": True, "zigbee_payload": payload}
+    observed_at = datetime.now(UTC).isoformat()
+    availability_value = payload.get("availability")
+    if availability_value is None:
+        connected = True
+        availability = True
+    else:
+        availability = _normalize_state_value("availability", availability_value)
+        connected = availability
+    state: dict[str, Any] = {
+        "connected": connected,
+        "availability": availability,
+        "zigbee_payload": payload,
+        "last_seen_at": observed_at,
+        "availability_updated_at": observed_at,
+        "availability_status": (
+            "online" if availability is True else "offline" if availability is False else "unknown"
+        ),
+    }
     for capability, zigbee_property in STATE_FIELDS.items():
         if zigbee_property in payload:
             state[capability] = _normalize_state_value(capability, payload[zigbee_property])

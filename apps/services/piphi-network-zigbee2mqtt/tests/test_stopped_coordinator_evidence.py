@@ -152,7 +152,9 @@ async def test_managed_restore_uses_verified_evidence_instead_of_local_probe(
         lambda _port: (_ for _ in ()).throw(AssertionError("local probe must not run")),
     )
     (tmp_path / "configuration.yaml").write_text("before: true\n")
-    backup = create_network_backup(str(tmp_path), adapter_family="zstack")
+    (tmp_path / "database.db").write_text("device")
+    (tmp_path / "coordinator_backup.json").write_text("{}")
+    backup = create_network_backup(str(tmp_path), adapter_family="zstack", workload_fenced=True)
     (tmp_path / "configuration.yaml").write_text("after: true\n")
     evidence = _evidence(now=datetime.now(UTC), nonce="stop.route-test")
 

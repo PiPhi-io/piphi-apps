@@ -15,7 +15,7 @@
     "enforcement": "full",
     "commands": [
       "pdm install --check",
-      "pdm export --prod --without-hashes --output /tmp/piphi-zigbee2mqtt-requirements.txt && pdm run pip-audit -r /tmp/piphi-zigbee2mqtt-requirements.txt",
+      "pdm export --prod --without-hashes --output /tmp/piphi-zigbee2mqtt-requirements.txt && pdm run pip-audit -r /tmp/piphi-zigbee2mqtt-requirements.txt --no-deps --disable-pip",
       "pdm run ruff check .",
       "pdm run python scripts/validate.py",
       "pdm run pytest"
@@ -26,7 +26,7 @@
     {
       "id": "piphi.service.zigbee2mqtt-sidecar",
       "type": "platform_service",
-      "version": "0.1.25",
+      "version": "0.1.26",
       "manifest": "src/manifest.json",
       "release": {
         "tag": "apps/{package_id}/v{version}",
