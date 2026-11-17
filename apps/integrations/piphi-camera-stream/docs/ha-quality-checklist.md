@@ -18,9 +18,9 @@ called out rather than silently counted as passing.
 - [x] **Truthful availability.** State comes from a recent source probe, not configuration
   presence. Failures become unavailable, recoveries become available, and transition logs are
   deduplicated.
-- [x] **Refresh and stale-state lifecycle.** Manual refresh performs a real probe; periodic probes
-  run every 15 seconds by default; deconfiguration removes the state snapshot; no fallback phantom
-  camera is returned.
+- [x] **Refresh and stale-state lifecycle.** Manual refresh performs a real probe; periodic cycles
+  target 15 seconds with bounded concurrency and no overlap; deconfiguration removes the state
+  snapshot; no fallback phantom camera is returned.
 - [x] **Still images.** Core can request one authenticated, bounded JPEG snapshot without exposing
   the source URL.
 - [x] **Bounded WebRTC sessions.** Capacity, SDP size, explicit close, shutdown cleanup, failed

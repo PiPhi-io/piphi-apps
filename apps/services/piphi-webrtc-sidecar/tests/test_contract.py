@@ -17,6 +17,7 @@ def test_runtime_implements_contract_routes() -> None:
         "/contract",
         "/v1/camera-media/sessions",
         "/v1/camera-media/sessions/{session_id}",
+        "/v1/camera-media/sessions/{session_id}/keepalive",
         "/v1/camera-media/status",
     ]:
         assert path in routes
@@ -36,7 +37,12 @@ def test_runtime_implements_contract_routes() -> None:
     ]:
         assert legacy_device_path not in routes
 
-    assert REQUIRED_ENDPOINTS == ["health", "camera_media_status", "camera_media_sessions"]
+    assert REQUIRED_ENDPOINTS == [
+        "health",
+        "camera_media_status",
+        "camera_media_sessions",
+        "camera_media_session_keepalive",
+    ]
 
 
 def test_manifest_declares_a_shared_zero_setup_camera_media_service() -> None:

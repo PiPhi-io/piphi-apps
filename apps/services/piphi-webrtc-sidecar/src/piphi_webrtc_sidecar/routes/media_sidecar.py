@@ -12,6 +12,7 @@ from ..contract import CAMERA_MEDIA_CONTRACT_VERSION
 from ..go2rtc import Go2RtcError, validate_source_url
 from ..media_sessions import (
     CameraMediaCapacityError,
+    CameraMediaCleanupError,
     CameraSourceUnavailableError,
     media_session_broker,
 )
@@ -121,7 +122,21 @@ async def open_camera_session(request: OpenCameraSession) -> dict[str, object]:
 
 @router.delete("/sessions/{session_id}", status_code=204)
 async def close_camera_session(session_id: str) -> Response:
-    await media_session_broker.close(session_id)
+    try:
+        await media_session_broker.close(session_id)
+    except CameraMediaCleanupError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "contract_version": CAMERA_MEDIA_CONTRACT_VERSION,
+                "message_type": "camera.error",
+                "audience": "core-sidecar",
+                "code": "CAMERA_SESSION_CLEANUP_FAILED",
+                "message": "The camera media session could not be cleaned up.",
+                "retryable": True,
+                "retry_after_seconds": 1,
+            },
+        ) from exc
     return Response(status_code=204)
 
 
@@ -141,8 +156,8 @@ async def keep_camera_session_alive(session_id: str) -> dict[str, object]:
 
 @router.get("/status")
 async def camera_media_status() -> dict[str, object]:
-    ready = True
-    degraded_reason = None
+    degraded_reason = media_session_broker.degraded_reason
+    ready = degraded_reason is None
     try:
         await media_session_broker.client.health()
     except (Go2RtcError, httpx.HTTPError, ValueError, AttributeError):
@@ -155,6 +170,7 @@ async def camera_media_status() -> dict[str, object]:
         "ready": ready,
         "active_sessions": media_session_broker.active_count,
         "session_capacity": media_session_broker.capacity,
+        "cleanup_pending_sessions": media_session_broker.cleanup_pending_count,
         "degraded_reason": degraded_reason,
         "supported_source_protocols": ["rtsp", "rtsps"],
         "supported_transports": ["webrtc"],

@@ -23,9 +23,10 @@ credentials with the RTSP URL inside its private camera-source response. Legacy
 URLs containing embedded credentials remain supported.
 
 Camera setup performs a real video-stream probe before accepting new configuration. The runtime
-then refreshes availability every 15 seconds by default and exposes authenticated source and JPEG
-snapshot endpoints to Core. Source URLs and credentials are never included in entity state or
-snapshot responses.
+targets a 15-second availability cycle with up to four concurrent bounded probes by default; a
+large fleet never overlaps cycles and may take longer than one target interval. It exposes
+authenticated source and JPEG snapshot endpoints to Core. Source URLs and credentials are never
+included in entity state or snapshot responses.
 
 The runtime exposes the common PiPhi runtime route contract:
 

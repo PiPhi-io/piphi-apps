@@ -21,7 +21,7 @@ from .settings import INTEGRATION_ID, INTEGRATION_NAME, INTEGRATION_VERSION
 from .source_probe import SourceProbeResult, probe_camera_source
 
 logger = logging.getLogger(__name__)
-_refresh_lock = asyncio.Lock()
+_refresh_locks: dict[str, asyncio.Lock] = {}
 
 
 class CameraSourceUnavailableError(RuntimeError):
@@ -110,22 +110,37 @@ def _publish_probe_state(entry: dict[str, Any], result: SourceProbeResult) -> No
 
 
 async def refresh_entry(entry: dict[str, Any]) -> SourceProbeResult:
-    async with _refresh_lock:
+    config_id = str(entry["config_id"])
+    lock = _refresh_locks.setdefault(config_id, asyncio.Lock())
+    async with lock:
         result = await probe_camera_source(
             entry["_source_url"].get_secret_value(),
             preferred_transport=str(entry.get("preferred_transport") or "auto"),
         )
-        config_id = str(entry["config_id"])
         if registry.get(config_id) is entry:
             _publish_probe_state(entry, result)
         return result
 
 
 async def refresh_all_entries() -> list[SourceProbeResult]:
-    results = []
-    for entry in list(registry.entries.values()):
-        results.append(await refresh_entry(entry))
-    return results
+    semaphore = asyncio.Semaphore(_probe_concurrency())
+
+    async def refresh_bounded(entry: dict[str, Any]) -> SourceProbeResult:
+        async with semaphore:
+            return await refresh_entry(entry)
+
+    return list(
+        await asyncio.gather(
+            *(refresh_bounded(entry) for entry in list(registry.entries.values()))
+        )
+    )
+
+
+def _probe_concurrency() -> int:
+    try:
+        return max(1, min(int(os.getenv("PIPHI_CAMERA_PROBE_CONCURRENCY", "4")), 16))
+    except ValueError:
+        return 4
 
 
 async def apply_config(
@@ -154,6 +169,7 @@ async def remove_config(config_id: str) -> bool:
     if entry is None:
         return False
     registry.state_snapshots.pop(config_id, None)
+    _refresh_locks.pop(config_id, None)
     append_runtime_event(
         "runtime.config.removed",
         entry,

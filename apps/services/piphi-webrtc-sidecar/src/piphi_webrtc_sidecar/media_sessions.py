@@ -43,12 +43,21 @@ class CameraMediaSessionBroker:
         self.probe_ttl_seconds = max(0, probe_ttl_seconds)
         self._sessions: dict[str, ActiveMediaSession] = {}
         self._expiry_tasks: dict[str, asyncio.Task[None]] = {}
+        self._cleanup_failures: dict[str, int] = {}
         self._probe_cache: dict[bytes, tuple[float, CameraVideoProbe | None]] = {}
         self._lock = asyncio.Lock()
 
     @property
     def active_count(self) -> int:
         return len(self._sessions)
+
+    @property
+    def cleanup_pending_count(self) -> int:
+        return len(self._cleanup_failures)
+
+    @property
+    def degraded_reason(self) -> str | None:
+        return "session_cleanup_failed" if self._cleanup_failures else None
 
     async def open(
         self,
@@ -151,11 +160,11 @@ class CameraMediaSessionBroker:
             try:
                 return await self.client.exchange_offer(stream_name, offer_sdp), strategy
             except Go2RtcError as exc:
-                await self._remove_stream_safely(stream_name)
+                await self._remove_stream(stream_name)
                 if not exc.is_native_source_eof or index == len(strategies) - 1:
                     raise
             except Exception:
-                await self._remove_stream_safely(stream_name)
+                await self._remove_stream(stream_name)
                 raise
         raise RuntimeError("camera media strategy selection failed")
 
@@ -185,7 +194,7 @@ class CameraMediaSessionBroker:
     async def touch(self, session_id: str) -> ActiveMediaSession | None:
         async with self._lock:
             active = self._sessions.get(session_id)
-            if active is None:
+            if active is None or session_id in self._cleanup_failures:
                 return None
             refreshed = replace(
                 active,
@@ -203,52 +212,82 @@ class CameraMediaSessionBroker:
 
     async def close(self, session_id: str) -> bool:
         async with self._lock:
-            active = self._sessions.pop(session_id, None)
+            active = self._sessions.get(session_id)
+            if active is None:
+                return False
+            try:
+                await self._remove_stream(active.stream_name)
+            except CameraMediaCleanupError:
+                failures = self._cleanup_failures.get(session_id, 0) + 1
+                self._cleanup_failures[session_id] = failures
+                expiry_task = self._expiry_tasks.get(session_id)
+                if expiry_task is not None and expiry_task is not asyncio.current_task():
+                    expiry_task.cancel()
+                self._expiry_tasks[session_id] = asyncio.create_task(
+                    self._retry_cleanup(session_id, failures),
+                    name=f"camera-media-cleanup:{session_id}",
+                )
+                raise
+            self._sessions.pop(session_id, None)
+            self._cleanup_failures.pop(session_id, None)
             expiry_task = self._expiry_tasks.pop(session_id, None)
             if expiry_task is not None and expiry_task is not asyncio.current_task():
                 expiry_task.cancel()
-            if active is None:
-                return False
-            await self._remove_stream_safely(active.stream_name)
             return True
 
     async def close_all(self) -> None:
-        async with self._lock:
-            sessions = list(self._sessions.values())
-            self._sessions.clear()
-            expiry_tasks = list(self._expiry_tasks.values())
-            self._expiry_tasks.clear()
-            for task in expiry_tasks:
-                task.cancel()
-            if expiry_tasks:
-                await asyncio.gather(*expiry_tasks, return_exceptions=True)
-            if sessions:
-                await asyncio.gather(
-                    *(self._remove_stream_safely(active.stream_name) for active in sessions)
-                )
+        failures: list[str] = []
+        for session_id in list(self._sessions):
+            try:
+                await self.close(session_id)
+            except CameraMediaCleanupError:
+                failures.append(session_id)
+        if failures:
+            raise CameraMediaCleanupError(
+                f"failed to clean up {len(failures)} camera media session(s)"
+            )
 
     async def _expire_after(self, session_id: str, timeout_seconds: int) -> None:
         try:
             await asyncio.sleep(timeout_seconds)
             await self.close(session_id)
-        except asyncio.CancelledError:
+        except (asyncio.CancelledError, CameraMediaCleanupError):
+            return
+
+    async def _retry_cleanup(self, session_id: str, failure_count: int) -> None:
+        try:
+            await asyncio.sleep(min(2 ** min(failure_count - 1, 5), 30))
+            await self.close(session_id)
+        except (asyncio.CancelledError, CameraMediaCleanupError):
             return
 
     async def _expire_locked(self) -> None:
         now = datetime.now(UTC)
         expired = [item for item in self._sessions.values() if item.expires_at <= now]
         for active in expired:
+            if active.session_id in self._cleanup_failures:
+                continue
+            try:
+                await self._remove_stream(active.stream_name)
+            except CameraMediaCleanupError:
+                failures = self._cleanup_failures.get(active.session_id, 0) + 1
+                self._cleanup_failures[active.session_id] = failures
+                self._expiry_tasks[active.session_id] = asyncio.create_task(
+                    self._retry_cleanup(active.session_id, failures),
+                    name=f"camera-media-cleanup:{active.session_id}",
+                )
+                continue
             self._sessions.pop(active.session_id, None)
+            self._cleanup_failures.pop(active.session_id, None)
             expiry_task = self._expiry_tasks.pop(active.session_id, None)
             if expiry_task is not None and expiry_task is not asyncio.current_task():
                 expiry_task.cancel()
-            await self._remove_stream_safely(active.stream_name)
 
-    async def _remove_stream_safely(self, stream_name: str) -> None:
+    async def _remove_stream(self, stream_name: str) -> None:
         try:
             await asyncio.wait_for(self.client.remove_stream(stream_name), timeout=5.0)
-        except (Go2RtcError, TimeoutError, OSError):
-            pass
+        except (Go2RtcError, TimeoutError, OSError) as exc:
+            raise CameraMediaCleanupError("camera media session cleanup failed") from exc
 
 
 class CameraMediaCapacityError(RuntimeError):
@@ -256,6 +295,10 @@ class CameraMediaCapacityError(RuntimeError):
 
 
 class CameraSourceUnavailableError(RuntimeError):
+    pass
+
+
+class CameraMediaCleanupError(RuntimeError):
     pass
 
 

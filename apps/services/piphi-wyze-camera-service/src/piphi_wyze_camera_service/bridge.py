@@ -12,7 +12,7 @@ from urllib.parse import quote
 import httpx
 
 from .schemas import WyzeBridgeConfig
-from .settings import UPSTREAM_CONTROL_URL, rtsp_service_port
+from .settings import INTERNAL_RTSP_PORT, UPSTREAM_CONTROL_URL, rtsp_service_port
 
 
 class BridgeUnavailableError(RuntimeError):
@@ -144,6 +144,7 @@ class WyzeBridgeSupervisor:
                 raise BridgeUnavailableError(self._last_error)
             try:
                 await self._request_camera_payload(runtime_config, timeout=2.0)
+                await self._probe_rtsp_listener(timeout=2.0)
             except (httpx.HTTPError, ValueError):
                 await asyncio.sleep(0.25)
                 continue
@@ -185,7 +186,6 @@ class WyzeBridgeSupervisor:
                         await self._start_locked(source_config, runtime_config)
                     except BridgeUnavailableError:
                         continue
-                    self._restart_count = 0
                     break
 
     @staticmethod
@@ -241,7 +241,21 @@ class WyzeBridgeSupervisor:
         ) as client:
             response = await client.get(f"{UPSTREAM_CONTROL_URL}/api")
         response.raise_for_status()
-        return response.json()
+        payload = response.json()
+        WyzeBridgeSupervisor._camera_items(payload)
+        return payload
+
+    @staticmethod
+    async def _probe_rtsp_listener(*, timeout: float) -> None:
+        try:
+            _reader, writer = await asyncio.wait_for(
+                asyncio.open_connection("127.0.0.1", INTERNAL_RTSP_PORT),
+                timeout=timeout,
+            )
+        except (OSError, TimeoutError) as exc:
+            raise ValueError("Wyze RTSP listener is unavailable") from exc
+        writer.close()
+        await writer.wait_closed()
 
     @staticmethod
     def _bridge_environment(
@@ -269,7 +283,10 @@ class WyzeBridgeSupervisor:
 
     @staticmethod
     def _normalize_cameras(payload: object) -> list[dict[str, Any]]:
-        raw_cameras = payload.get("cameras", payload) if isinstance(payload, Mapping) else payload
+        try:
+            raw_cameras = WyzeBridgeSupervisor._camera_items(payload)
+        except ValueError:
+            return []
         if isinstance(raw_cameras, Mapping):
             items = [
                 ({"name_uri": key, **value} if isinstance(value, Mapping) else {"name_uri": key})
@@ -299,6 +316,24 @@ class WyzeBridgeSupervisor:
                 }
             )
         return normalized
+
+    @staticmethod
+    def _camera_items(payload: object) -> Mapping[Any, Any] | list[Any]:
+        if isinstance(payload, Mapping) and "cameras" in payload:
+            raw_cameras = payload["cameras"]
+        else:
+            raw_cameras = payload
+        if isinstance(raw_cameras, list):
+            if not all(isinstance(item, Mapping) for item in raw_cameras):
+                raise ValueError("Wyze bridge returned an invalid camera list")
+            return raw_cameras
+        if isinstance(raw_cameras, Mapping):
+            if raw_cameras and not all(isinstance(item, Mapping) for item in raw_cameras.values()):
+                raise ValueError("Wyze bridge returned an invalid camera mapping")
+            if not raw_cameras and not (isinstance(payload, Mapping) and "cameras" in payload):
+                raise ValueError("Wyze bridge returned an ambiguous empty response")
+            return raw_cameras
+        raise ValueError("Wyze bridge returned an invalid camera response")
 
     @staticmethod
     def _with_source_url(

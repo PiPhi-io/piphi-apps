@@ -39,6 +39,21 @@ class FakeGo2Rtc:
         self.sources.pop(name, None)
         self.removed.append(name)
 
+    async def health(self) -> dict[str, str]:
+        return {"version": "1.9.15"}
+
+
+class RecoveringCleanupGo2Rtc(FakeGo2Rtc):
+    def __init__(self, failures: int = 1) -> None:
+        super().__init__()
+        self.failures_remaining = failures
+
+    async def remove_stream(self, name: str) -> None:
+        if self.failures_remaining:
+            self.failures_remaining -= 1
+            raise Go2RtcError("go2rtc stream removal failed with status 500")
+        await super().remove_stream(name)
+
 
 async def unknown_probe(*_args, **_kwargs) -> CameraVideoProbe:
     return CameraVideoProbe("mjpeg", "", None, "yuvj420p", 640, 360, 15)
@@ -287,6 +302,67 @@ async def test_broker_actively_expires_abandoned_sessions(monkeypatch) -> None:
     await asyncio.sleep(0)
     assert broker.active_count == 0
     assert active.stream_name in fake.removed
+
+
+@pytest.mark.anyio
+async def test_close_surfaces_cleanup_failure_and_retries_without_forgetting_session(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = RecoveringCleanupGo2Rtc()
+    broker = CameraMediaSessionBroker(fake, capacity=1, probe=unknown_probe)  # type: ignore[arg-type]
+    monkeypatch.setattr("piphi_webrtc_sidecar.routes.media_sidecar.media_session_broker", broker)
+    active, _ = await broker.open(
+        source_url="rtsp://user:top-secret@camera.local/live",
+        offer_sdp="v=0",
+        idle_timeout_seconds=60,
+    )
+    transport = httpx.ASGITransport(app=app)
+
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        failed = await client.delete(f"/v1/camera-media/sessions/{active.session_id}")
+        status = await client.get("/v1/camera-media/status")
+
+    assert failed.status_code == 502
+    assert failed.json()["detail"]["code"] == "CAMERA_SESSION_CLEANUP_FAILED"
+    assert "top-secret" not in failed.text
+    assert broker.active_count == 1
+    assert broker.cleanup_pending_count == 1
+    assert active.stream_name in fake.sources
+    assert status.json()["ready"] is False
+    assert status.json()["degraded_reason"] == "session_cleanup_failed"
+    assert status.json()["cleanup_pending_sessions"] == 1
+
+    await asyncio.sleep(1.1)
+
+    assert broker.active_count == 0
+    assert broker.cleanup_pending_count == 0
+    assert fake.sources == {}
+
+
+@pytest.mark.anyio
+async def test_expiry_retains_and_retries_failed_cleanup(monkeypatch) -> None:
+    fake = RecoveringCleanupGo2Rtc()
+    broker = CameraMediaSessionBroker(fake, capacity=1, probe=unknown_probe)  # type: ignore[arg-type]
+    monkeypatch.setattr(
+        "piphi_webrtc_sidecar.media_sessions.validate_source_url", lambda value: value
+    )
+    active, _ = await broker.open(
+        source_url="rtsp://camera.local/live",
+        offer_sdp="v=0",
+        idle_timeout_seconds=0,
+    )
+    await asyncio.sleep(0)
+    await asyncio.sleep(0)
+
+    assert broker.active_count == 1
+    assert broker.cleanup_pending_count == 1
+    assert active.stream_name in fake.sources
+
+    await asyncio.sleep(1.1)
+
+    assert broker.active_count == 0
+    assert broker.cleanup_pending_count == 0
+    assert fake.sources == {}
 
 
 @pytest.mark.anyio

@@ -18,8 +18,11 @@ async def startup_sync(_runtime, _client) -> None:
 
 async def availability_loop() -> None:
     while True:
+        loop = asyncio.get_running_loop()
+        cycle_started = loop.time()
         await refresh_all_entries()
-        await asyncio.sleep(_probe_interval_seconds())
+        elapsed = loop.time() - cycle_started
+        await asyncio.sleep(max(0.0, _probe_interval_seconds() - elapsed))
 
 
 def _probe_interval_seconds() -> float:

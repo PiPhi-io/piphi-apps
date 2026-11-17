@@ -88,7 +88,48 @@ async def test_managed_process_reports_terminal_state_after_bounded_restart_limi
     assert managed._monitor_task is not None
     await managed._monitor_task
 
-    assert managed.state == "stopped"
+    assert managed.state == "failed"
     assert managed.restart_count == 1
     assert managed.last_error == "go2rtc exceeded its restart limit"
     await managed.stop()
+
+
+@pytest.mark.anyio
+async def test_rapid_ready_then_crash_loops_exhaust_restart_budget(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    binary = tmp_path / "go2rtc"
+    binary.write_bytes(b"binary")
+    monkeypatch.setenv("GO2RTC_BINARY", str(binary))
+    monkeypatch.setenv("GO2RTC_MAX_RESTART_ATTEMPTS", "2")
+    processes = []
+    for _ in range(3):
+        process = Mock(returncode=None)
+
+        async def crash(current=process) -> int:
+            current.returncode = 9
+            return 9
+
+        process.wait = AsyncMock(side_effect=crash)
+        processes.append(process)
+    monkeypatch.setattr(
+        go2rtc_module.asyncio,
+        "create_subprocess_exec",
+        AsyncMock(side_effect=processes),
+    )
+    monkeypatch.setattr(go2rtc_module.asyncio, "sleep", AsyncMock())
+    monkeypatch.setattr(
+        go2rtc_module,
+        "Go2RtcClient",
+        Mock(return_value=Mock(health=AsyncMock(return_value={"version": "1.9.15"}))),
+    )
+    managed = go2rtc_module.Go2RtcProcess()
+
+    await managed.start()
+    assert managed._monitor_task is not None
+    await managed._monitor_task
+
+    assert managed.state == "failed"
+    assert managed.restart_count == 3
+    assert managed.last_error == "go2rtc exceeded its restart limit"

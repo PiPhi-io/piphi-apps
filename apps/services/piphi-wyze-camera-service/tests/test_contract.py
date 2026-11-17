@@ -57,3 +57,12 @@ def test_exact_container_pins_the_audited_wyze_dependency() -> None:
     assert f"mrlt8/wyze-bridge:2.10.3@{digest}" in dockerfile
     assert digest in notices
     assert manifest["marketplace"]["compatibility"] == []
+
+
+def test_container_uses_the_private_rtsp_service_port() -> None:
+    dockerfile = (ROOT / "Dockerfile").read_text()
+
+    assert "ARG APP_VERSION=0.1.4\n" in dockerfile
+    assert "PIPHI_WYZE_RTSP_PORT=8554" in dockerfile
+    assert "PIPHI_WYZE_RTSP_HOST_PORT" not in dockerfile
+    assert "18554" not in dockerfile

@@ -22,10 +22,21 @@ def docker(*args: str) -> str:
     return result.stdout.strip()
 
 
-def request_json(url: str, *, token: str | None = None) -> dict[str, object]:
+def request_json(
+    url: str,
+    *,
+    token: str | None = None,
+    method: str = "GET",
+    payload: dict[str, object] | None = None,
+    timeout: float = 3,
+) -> dict[str, object]:
     headers = {"Authorization": f"Bearer {token}"} if token else {}
-    request = urllib.request.Request(url, headers=headers)
-    with urllib.request.urlopen(request, timeout=3) as response:
+    data = None
+    if payload is not None:
+        headers["Content-Type"] = "application/json"
+        data = json.dumps(payload).encode()
+    request = urllib.request.Request(url, headers=headers, data=data, method=method)
+    with urllib.request.urlopen(request, timeout=timeout) as response:
         payload = json.loads(response.read())
     if not isinstance(payload, dict):
         raise RuntimeError(f"expected an object response from {url}")
@@ -47,30 +58,104 @@ def wait_for_health(base_url: str) -> dict[str, object]:
 
 
 def verify_media_fixture(container: str) -> dict[str, object]:
-    script = """
+    script = r"""
 import json
 import urllib.parse
 import urllib.request
 
+base = "http://127.0.0.1:1984/api/streams"
+names = ("ha_fixture_a", "ha_fixture_b")
 source = "ffmpeg:virtual?video=testsrc2&size=640x360#video=h264"
-query = urllib.parse.urlencode({"name": "ha_fixture", "src": source})
-request = urllib.request.Request(
-    "http://127.0.0.1:1984/api/streams?" + query,
-    method="PUT",
-)
-with urllib.request.urlopen(request, timeout=5) as response:
-    if response.status != 200:
-        raise RuntimeError(f"stream setup returned {response.status}")
+
+def streams():
+    with urllib.request.urlopen(base, timeout=5) as response:
+        payload = json.loads(response.read())
+    if not isinstance(payload, dict):
+        raise RuntimeError("go2rtc returned an invalid stream inventory")
+    return payload
+
+for name in names:
+    query = urllib.parse.urlencode({"name": name, "src": source})
+    request = urllib.request.Request(base + "?" + query, method="PUT")
+    with urllib.request.urlopen(request, timeout=5) as response:
+        if response.status not in (200, 201, 204):
+            raise RuntimeError(f"stream setup returned {response.status}")
+
+created = streams()
+if not all(name in created for name in names):
+    raise RuntimeError("go2rtc did not retain both fixture streams")
 with urllib.request.urlopen(
-    "http://127.0.0.1:1984/api/frame.jpeg?src=ha_fixture",
+    "http://127.0.0.1:1984/api/frame.jpeg?src=ha_fixture_a",
     timeout=20,
 ) as response:
     image = response.read()
-if not image.startswith(b"\\xff\\xd8") or not image.endswith(b"\\xff\\xd9"):
+if not image.startswith(b"\xff\xd8") or not image.endswith(b"\xff\xd9"):
     raise RuntimeError("go2rtc did not return a complete JPEG fixture frame")
-print(json.dumps({"jpeg_bytes": len(image), "content_type": "image/jpeg"}))
+
+first_delete = urllib.request.Request(
+    base + "?" + urllib.parse.urlencode({"src": names[0]}), method="DELETE"
+)
+with urllib.request.urlopen(first_delete, timeout=5):
+    pass
+after_first = streams()
+if names[0] in after_first or names[1] not in after_first:
+    raise RuntimeError("go2rtc pairwise cleanup removed the wrong streams")
+
+second_delete = urllib.request.Request(
+    base + "?" + urllib.parse.urlencode({"src": names[1]}), method="DELETE"
+)
+with urllib.request.urlopen(second_delete, timeout=5):
+    pass
+after_second = streams()
+if any(name in after_second for name in names):
+    raise RuntimeError("go2rtc fixture cleanup left a stream behind")
+
+print(json.dumps({
+    "jpeg_bytes": len(image),
+    "content_type": "image/jpeg",
+    "pairwise_cleanup": True,
+}))
 """
     return json.loads(docker("exec", container, "python", "-c", script))
+
+
+def verify_secret_failure_redaction(base_url: str, container: str) -> dict[str, object]:
+    secret = f"smoke-secret-{uuid4().hex}"
+    payload: dict[str, object] = {
+        "contract_version": "camera.media.v1",
+        "message_type": "camera.sidecar.session.open",
+        "audience": "core-sidecar",
+        "source": {
+            "contract_version": "camera.media.v1",
+            "message_type": "camera.source",
+            "audience": "core-sidecar",
+            "camera_id": "container-smoke-unreachable",
+            "source_url": f"rtsp://smoke:{secret}@192.0.2.1:554/live",
+            "source_protocol": "rtsp",
+            "preferred_transport": "tcp",
+            "connect_timeout_seconds": 1,
+        },
+        "offer": {"type": "offer", "sdp": "v=0"},
+        "idle_timeout_seconds": 10,
+    }
+    try:
+        request_json(
+            f"{base_url}/v1/camera-media/sessions",
+            token=TOKEN,
+            method="POST",
+            payload=payload,
+            timeout=15,
+        )
+    except urllib.error.HTTPError as exc:
+        response_body = exc.read().decode("utf-8", errors="replace")
+        if exc.code != 502:
+            raise RuntimeError(f"secret-bearing failure returned {exc.code}") from exc
+    else:
+        raise RuntimeError("unreachable secret-bearing source unexpectedly opened")
+    logs = docker("logs", container)
+    if secret in response_body or secret in logs:
+        raise RuntimeError("camera source secret appeared in failure evidence")
+    return {"status": 502, "secret_redacted": True}
 
 
 def smoke(image: str) -> dict[str, object]:
@@ -90,6 +175,8 @@ def smoke(image: str) -> dict[str, object]:
         binding = docker("port", container, "8090/tcp")
         base_url = f"http://{binding}"
         health = wait_for_health(base_url)
+        if health.get("go2rtc_version") != "1.9.15":
+            raise RuntimeError("container did not run the pinned go2rtc 1.9.15 build")
         try:
             request_json(f"{base_url}/v1/camera-media/status")
         except urllib.error.HTTPError as exc:
@@ -101,7 +188,14 @@ def smoke(image: str) -> dict[str, object]:
         if status.get("ready") is not True:
             raise RuntimeError("authenticated media status is not ready")
         media = verify_media_fixture(container)
-        return {"image": image, "health": health, "status": status, "media": media}
+        failure = verify_secret_failure_redaction(base_url, container)
+        return {
+            "image": image,
+            "health": health,
+            "status": status,
+            "media": media,
+            "failure": failure,
+        }
     finally:
         subprocess.run(
             ["docker", "rm", "--force", container],

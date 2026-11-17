@@ -82,14 +82,16 @@
     "required": [
       "health",
       "camera_media_status",
-      "camera_media_sessions"
+      "camera_media_sessions",
+      "camera_media_session_keepalive"
     ],
     "endpoints": {
       "health": "/health",
       "diagnostics": "/diagnostics",
       "contract": "/contract",
       "camera_media_status": "/v1/camera-media/status",
-      "camera_media_sessions": "/v1/camera-media/sessions"
+      "camera_media_sessions": "/v1/camera-media/sessions",
+      "camera_media_session_keepalive": "/v1/camera-media/sessions/{session_id}/keepalive"
     }
   },
   "capabilities": {},

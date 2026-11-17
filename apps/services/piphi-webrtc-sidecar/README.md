@@ -38,6 +38,8 @@ diagnostics and contract metadata.
 - `GET /v1/camera-media/status` reports session capacity.
 - `POST /v1/camera-media/sessions` exchanges a short-lived source and browser SDP offer for an
   answer.
+- `PUT /v1/camera-media/sessions/{session_id}/keepalive` renews the bounded idle expiry for an
+  active viewer.
 - `DELETE /v1/camera-media/sessions/{session_id}` closes a media session.
 
 ## Development

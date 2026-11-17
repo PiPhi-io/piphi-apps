@@ -15,8 +15,8 @@ piphi-network-create publish-check -C .
 pdm run python scripts/smoke_container.py --image <image>
 ```
 
-The container smoke test verifies the real pinned go2rtc process, production authentication, and
-an FFmpeg-generated H.264 fixture frame.
+The container smoke test verifies the real pinned go2rtc process, production authentication, an
+FFmpeg-generated H.264 fixture frame, pairwise stream cleanup, and secret-safe failure output.
 
 Pushing the tag builds and attests Linux amd64/arm64 images, publishes
 `ghcr.io/piphi-io/piphi-webrtc-sidecar:<version>`, and creates the matching GitHub release.

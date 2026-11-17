@@ -255,7 +255,7 @@ class Go2RtcProcess:
             while not self._stopping:
                 self.restart_count += 1
                 if self.restart_count > _max_restart_attempts():
-                    self.state = "stopped"
+                    self.state = "failed"
                     self.last_error = "go2rtc exceeded its restart limit"
                     return
                 await asyncio.sleep(min(2 ** (self.restart_count - 1), 30))
@@ -263,7 +263,6 @@ class Go2RtcProcess:
                     await self._spawn_and_wait_ready()
                 except (OSError, RuntimeError):
                     continue
-                self.restart_count = 0
                 break
 
     async def stop(self) -> None:

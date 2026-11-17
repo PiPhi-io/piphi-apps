@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, Mock
 
+import httpx
 import pytest
 
+from piphi_wyze_camera_service import bridge as bridge_module
 from piphi_wyze_camera_service.bridge import BridgeRuntimeConfig, WyzeBridgeSupervisor
 from piphi_wyze_camera_service.schemas import WyzeBridgeConfig
 
@@ -125,6 +127,36 @@ async def test_configure_waits_for_authenticated_readiness(monkeypatch) -> None:
 
 
 @pytest.mark.asyncio
+async def test_readiness_requires_valid_camera_schema_and_rtsp_listener() -> None:
+    process = Mock(returncode=None)
+    supervisor = WyzeBridgeSupervisor()
+    supervisor._request_camera_payload = AsyncMock(return_value={"cameras": {}})
+    supervisor._probe_rtsp_listener = AsyncMock(return_value=None)
+
+    await supervisor._wait_until_ready(process, runtime_config())
+
+    supervisor._request_camera_payload.assert_awaited_once()
+    supervisor._probe_rtsp_listener.assert_awaited_once_with(timeout=2.0)
+
+
+@pytest.mark.asyncio
+async def test_authenticated_readiness_rejects_arbitrary_json(monkeypatch) -> None:
+    real_client = httpx.AsyncClient
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.headers["authorization"].startswith("Basic ")
+        return httpx.Response(200, json={"status": "ok"})
+
+    def client_factory(**kwargs):
+        return real_client(transport=httpx.MockTransport(handler), **kwargs)
+
+    monkeypatch.setattr(bridge_module.httpx, "AsyncClient", client_factory)
+
+    with pytest.raises(ValueError, match="camera mapping"):
+        await WyzeBridgeSupervisor._request_camera_payload(runtime_config(), timeout=1.0)
+
+
+@pytest.mark.asyncio
 async def test_failed_readiness_terminates_process_and_clears_secrets(monkeypatch) -> None:
     from piphi_wyze_camera_service.bridge import BridgeUnavailableError
 
@@ -170,3 +202,31 @@ async def test_unexpected_exit_becomes_terminal_after_bounded_restarts(monkeypat
     assert status["state"] == "failed"
     assert status["last_error"] == "The embedded Wyze bridge exceeded its restart limit."
     await supervisor.stop()
+
+
+@pytest.mark.asyncio
+async def test_rapid_ready_then_crash_loops_exhaust_restart_budget(monkeypatch) -> None:
+    processes = []
+    for _ in range(3):
+        process = Mock(returncode=None)
+
+        async def crash(current=process) -> int:
+            current.returncode = 9
+            return 9
+
+        process.wait = AsyncMock(side_effect=crash)
+        processes.append(process)
+    monkeypatch.setenv("PIPHI_WYZE_MAX_RESTART_ATTEMPTS", "2")
+    monkeypatch.setattr("asyncio.create_subprocess_exec", AsyncMock(side_effect=processes))
+    monkeypatch.setattr("asyncio.sleep", AsyncMock())
+    supervisor = WyzeBridgeSupervisor()
+    supervisor._wait_until_ready = AsyncMock(return_value=None)
+
+    await supervisor.configure(config())
+    assert supervisor._monitor_task is not None
+    await supervisor._monitor_task
+
+    status = supervisor.status()
+    assert status["state"] == "failed"
+    assert status["restart_count"] == 3
+    assert status["last_error"] == "The embedded Wyze bridge exceeded its restart limit."

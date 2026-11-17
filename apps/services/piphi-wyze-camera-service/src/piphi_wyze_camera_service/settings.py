@@ -25,9 +25,7 @@ def runtime_port() -> int:
 
 
 def rtsp_service_port() -> int:
-    raw_port = os.getenv("PIPHI_WYZE_RTSP_PORT") or os.getenv(
-        "PIPHI_WYZE_RTSP_HOST_PORT", str(DEFAULT_RTSP_SERVICE_PORT)
-    )
+    raw_port = os.getenv("PIPHI_WYZE_RTSP_PORT", str(DEFAULT_RTSP_SERVICE_PORT))
     try:
         port = int(raw_port)
     except ValueError:

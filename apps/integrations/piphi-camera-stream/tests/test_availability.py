@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from unittest.mock import AsyncMock
 
@@ -11,6 +12,7 @@ from piphi_camera_stream.schemas import DeviceConfig
 from piphi_camera_stream.source_probe import SourceProbeResult
 from piphi_camera_stream.state import (
     apply_config,
+    refresh_all_entries,
     refresh_entry,
     registry,
     remove_config,
@@ -97,3 +99,64 @@ async def test_deconfigure_clears_state_and_empty_entities_have_no_phantom_camer
 
     assert registry.state_snapshots == {}
     assert response.json()["entities"] == []
+
+
+@pytest.mark.anyio
+async def test_refresh_all_entries_uses_bounded_concurrency(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    available = SourceProbeResult(True, "available")
+    monkeypatch.setattr(
+        "piphi_camera_stream.state.probe_camera_source",
+        AsyncMock(return_value=available),
+    )
+    for index in range(6):
+        await apply_config(
+            DeviceConfig(
+                id=f"camera-{index}", source_url=f"rtsp://camera-{index}.local/live"
+            )
+        )
+
+    active = 0
+    maximum = 0
+    counter_lock = asyncio.Lock()
+
+    async def bounded_probe(*_args, **_kwargs) -> SourceProbeResult:
+        nonlocal active, maximum
+        async with counter_lock:
+            active += 1
+            maximum = max(maximum, active)
+        await asyncio.sleep(0.01)
+        async with counter_lock:
+            active -= 1
+        return available
+
+    monkeypatch.setenv("PIPHI_CAMERA_PROBE_CONCURRENCY", "2")
+    monkeypatch.setattr("piphi_camera_stream.state.probe_camera_source", bounded_probe)
+
+    results = await refresh_all_entries()
+
+    assert len(results) == 6
+    assert maximum == 2
+
+
+@pytest.mark.anyio
+async def test_diagnostics_hashes_active_config_ids(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "piphi_camera_stream.state.probe_camera_source",
+        AsyncMock(return_value=SourceProbeResult(True, "available")),
+    )
+    await apply_config(
+        DeviceConfig(id="private-front-door", source_url="rtsp://camera.local/live")
+    )
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/diagnostics")
+
+    diagnostics = response.json()["diagnostics"]
+    assert diagnostics["active_config_count"] == 1
+    assert "active_config_ids" not in diagnostics
+    assert diagnostics["active_config_fingerprints"] != ["private-front-door"]
+    assert "private-front-door" not in response.text
