@@ -22,8 +22,14 @@ async def telemetry_example(request: Request):
         config_id=str(entry["config_id"]),
         device_id=str(entry["device_id"]),
         container_id=entry.get("container_id"),
-        metrics={"connected": True, "temperature_c": 21.4},
-        units={"temperature_c": "C"},
+        metrics={
+            "connected": bool(
+                registry.state_snapshots.get(str(entry["config_id"]), {})
+                .get("state", {})
+                .get("connected", False)
+            )
+        },
+        units={},
     )
     return {"status": "queued"}
 
@@ -40,9 +46,12 @@ async def telemetry_for_device(config_id: str, request: Request):
         device_id=str(entry["device_id"]),
         container_id=entry.get("container_id"),
         metrics={
-            "connected": True,
-            "temperature_c": 21.4,
+            "connected": bool(
+                registry.state_snapshots.get(config_id, {})
+                .get("state", {})
+                .get("connected", False)
+            )
         },
-        units={"temperature_c": "C"},
+        units={},
     )
     return {"status": "queued"}

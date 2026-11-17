@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-
 ROOT = Path(__file__).parents[1]
 
 
@@ -27,8 +26,8 @@ def test_rtsp_camera_auto_installs_the_shared_webrtc_service() -> None:
         {
             "id": "piphi.service.webrtc-sidecar",
             "kind": "platform_service",
-            "version_range": ">=0.3.0,<0.4.0",
-            "recommended_version": "0.3.0",
+            "version_range": ">=0.3.6,<0.4.0",
+            "recommended_version": "0.3.6",
             "required": True,
             "shared": True,
             "auto_install": True,
@@ -45,6 +44,4 @@ def test_core_allocates_the_runtime_host_port() -> None:
         "port_binding": "core_allocated",
         "port_env": "PORT",
     }
-    assert manifest["runtime"]["linux"]["container"]["ports"] == [
-        {"container": 8090}
-    ]
+    assert manifest["runtime"]["linux"]["container"]["ports"] == [{"container": 8090}]

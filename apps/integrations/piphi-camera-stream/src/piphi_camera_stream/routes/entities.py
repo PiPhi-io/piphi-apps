@@ -4,7 +4,7 @@ from typing import Any
 
 from fastapi import APIRouter
 
-from ..contract import FALLBACK_ENTITY
+from ..contract import CAMERA_ENTITY_TEMPLATE
 from ..state import capabilities, commands, registry
 
 router = APIRouter(tags=["entities"])
@@ -20,10 +20,14 @@ async def entities() -> dict[str, Any]:
             "config_id": entry["config_id"],
             "device_id": entry["device_id"],
             "entity_type": "camera",
-            "capabilities": FALLBACK_ENTITY["capabilities"],
-            "available_commands": FALLBACK_ENTITY["available_commands"],
-            "dashboard": FALLBACK_ENTITY["dashboard"],
+            "capabilities": CAMERA_ENTITY_TEMPLATE["capabilities"],
+            "available_commands": CAMERA_ENTITY_TEMPLATE["available_commands"],
+            "dashboard": CAMERA_ENTITY_TEMPLATE["dashboard"],
         }
         for entry in entries
-    ] or [FALLBACK_ENTITY]
-    return {"entities": runtime_entities, "capabilities": capabilities, "commands": commands}
+    ]
+    return {
+        "entities": runtime_entities,
+        "capabilities": capabilities,
+        "commands": commands,
+    }

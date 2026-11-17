@@ -31,8 +31,8 @@ async def state(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     payload["summary"] = {
-            "active_config_count": len(registry.ids()),
-            "recent_event_count": len(registry.recent_events),
+        "active_config_count": len(registry.ids()),
+        "recent_event_count": len(registry.recent_events),
     }
     return payload
 

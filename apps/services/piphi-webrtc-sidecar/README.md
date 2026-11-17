@@ -21,12 +21,16 @@ model are a zero-setup home service.
 - The service probes the first camera video stream and caches only a one-way source fingerprint
   plus non-secret codec metadata for five minutes.
 - Conservatively verified Baseline H.264 uses an FFmpeg codec-copy relay. Main/High-profile H.264,
-  HEVC, MJPEG, unknown codecs, and probe failures are normalized to browser-compatible H.264.
+  HEVC, and MJPEG are normalized to browser-compatible H.264. Probe failures fail closed before
+  signaling.
 - Failed go2rtc negotiations retry through bounded compatibility strategies. The internal RTSP
   listener remains loopback-only, and go2rtc may execute only the packaged FFmpeg binary.
 - `docs/camera-compatibility.json` records implemented and planned media paths.
 
 ## Runtime contract
+
+Only `/health` is public. All other routes require the Core-issued bearer identity, including
+diagnostics and contract metadata.
 
 - `GET /health` reports service and embedded go2rtc health.
 - `GET /diagnostics` reports bounded, non-secret service diagnostics.
@@ -34,6 +38,8 @@ model are a zero-setup home service.
 - `GET /v1/camera-media/status` reports session capacity.
 - `POST /v1/camera-media/sessions` exchanges a short-lived source and browser SDP offer for an
   answer.
+- `PUT /v1/camera-media/sessions/{session_id}/keepalive` renews the bounded idle expiry for an
+  active viewer.
 - `DELETE /v1/camera-media/sessions/{session_id}` closes a media session.
 
 ## Development
@@ -48,12 +54,12 @@ pdm run python scripts/validate.py
 ## Container
 
 ```bash
-docker build -t ghcr.io/piphi-io/piphi-webrtc-sidecar:0.3.5 .
+docker build -t ghcr.io/piphi-io/piphi-webrtc-sidecar:0.3.6 .
 docker run --rm \
   -p 8090:8090 \
   -p 8555:8555/tcp \
   -p 8555:8555/udp \
-  ghcr.io/piphi-io/piphi-webrtc-sidecar:0.3.5
+  ghcr.io/piphi-io/piphi-webrtc-sidecar:0.3.6
 ```
 
 The pinned upstream is go2rtc `1.9.15`. No host networking or privileged container mode is

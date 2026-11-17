@@ -55,4 +55,5 @@ def test_compatibility_catalog_accounts_for_every_strategy() -> None:
         "hevc",
         "mjpeg-or-other-video",
         "probe-failed-or-unknown",
+        "audio-normalization",
     }

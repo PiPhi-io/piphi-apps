@@ -7,9 +7,11 @@ to `PUT /v1/wyze-bridge/config`. The bridge starts the pinned upstream runtime w
 streams and returns descriptors from `GET /v1/wyze-bridge/cameras`. Camera Media Service consumes
 the returned RTSP source through Core; browser widgets never receive the source URL.
 
-The service may be healthy while awaiting configuration. After configuration, an exited bridge
-process changes health to degraded. Removing configuration terminates the child process and drops
-all adapter-held credentials and generated stream passwords.
+Only `/health` is public. Every control, descriptor, diagnostics, and contract route requires the
+Core-issued bearer identity. The service may be healthy while awaiting configuration. After
+configuration, an exited bridge process changes health to degraded. Removing configuration
+terminates the child process, reports `stopped`, and drops all adapter-held credentials and
+generated stream passwords.
 
 No automation actions, first-class devices, telemetry, or dashboard widgets are provided by this
 service.

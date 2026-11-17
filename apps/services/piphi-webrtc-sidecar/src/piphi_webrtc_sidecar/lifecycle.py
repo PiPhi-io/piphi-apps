@@ -15,5 +15,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     try:
         yield
     finally:
-        await media_session_broker.close_all()
-        await go2rtc_process.stop()
+        try:
+            await media_session_broker.close_all()
+        finally:
+            await go2rtc_process.stop()

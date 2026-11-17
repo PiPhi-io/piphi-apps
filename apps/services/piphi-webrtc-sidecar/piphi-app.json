@@ -17,7 +17,8 @@
       "pdm install --check",
       "pdm run pip-audit",
       "pdm run ruff check .",
-      "pdm run pytest"
+      "pdm run pytest",
+      "pdm run python scripts/smoke_container.py --build --image piphi-webrtc-sidecar:ci-smoke"
     ],
     "build_container": true
   },
@@ -25,7 +26,7 @@
     {
       "id": "piphi.service.webrtc-sidecar",
       "type": "platform_service",
-      "version": "0.3.5",
+      "version": "0.3.6",
       "manifest": "manifest.json",
       "release": {
         "tag": "apps/{package_id}/v{version}",

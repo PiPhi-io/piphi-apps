@@ -10,7 +10,7 @@ RUN pdm export --prod --without-hashes --output requirements.txt
 
 FROM python:3.12-slim@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea
 
-ARG APP_VERSION=0.3.5
+ARG APP_VERSION=0.3.6
 LABEL org.opencontainers.image.title="PiPhi Camera Media Service" \
       org.opencontainers.image.description="Shared private go2rtc media service for PiPhi camera integrations" \
       org.opencontainers.image.source="https://github.com/PiPhi-io/piphi-apps" \

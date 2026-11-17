@@ -17,6 +17,7 @@ def test_runtime_implements_contract_routes() -> None:
         "/contract",
         "/v1/camera-media/sessions",
         "/v1/camera-media/sessions/{session_id}",
+        "/v1/camera-media/sessions/{session_id}/keepalive",
         "/v1/camera-media/status",
     ]:
         assert path in routes
@@ -36,7 +37,12 @@ def test_runtime_implements_contract_routes() -> None:
     ]:
         assert legacy_device_path not in routes
 
-    assert REQUIRED_ENDPOINTS == ["health", "camera_media_status", "camera_media_sessions"]
+    assert REQUIRED_ENDPOINTS == [
+        "health",
+        "camera_media_status",
+        "camera_media_sessions",
+        "camera_media_session_keepalive",
+    ]
 
 
 def test_manifest_declares_a_shared_zero_setup_camera_media_service() -> None:
@@ -64,3 +70,11 @@ def test_manifest_declares_a_shared_zero_setup_camera_media_service() -> None:
     assert "discover" not in manifest["api"]["endpoints"]
     assert "config" not in manifest["api"]["endpoints"]
     assert "entities" not in manifest["api"]["endpoints"]
+
+
+def test_package_ci_requires_the_real_pinned_container_smoke() -> None:
+    app_metadata = json.loads((ROOT / "piphi-app.json").read_text())
+
+    assert (
+        "pdm run python scripts/smoke_container.py --build --image piphi-webrtc-sidecar:ci-smoke"
+    ) in app_metadata["ci"]["commands"]

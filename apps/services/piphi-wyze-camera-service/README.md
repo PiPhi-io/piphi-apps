@@ -20,9 +20,19 @@ account onboarding, saved camera entities, and the handoff to PiPhi Camera Media
 - `GET /v1/wyze-bridge/cameras` returns authorized camera descriptors to trusted PiPhi
   consumers. Stream URLs are sensitive and must never be logged or exposed to widgets.
 
-Core allocates the primary HTTP listener through `PORT`. The container publishes MediaMTX's
-internal RTSP listener on host TCP port `18554`, keeping it separate from PiPhi Camera Media
-Service's WebRTC listener.
+Configuration becomes ready only after the authenticated bridge API exposes at least one
+authorized camera and the private RTSP listener accepts connections. If the API remains empty,
+configuration fails with the deterministic message that credentials may be rejected or the
+account may be empty. When camera names are configured, at least one must match the authorized
+inventory. This contract is fixture-tested without contacting a real Wyze account.
+
+Every route except `/health` requires `Authorization: Bearer <token>` when
+`PIPHI_SIDECAR_TOKEN` (preferred) or `PIPHI_INTEGRATION_INTERNAL_TOKEN` is configured. Production
+fails closed when neither token is present. Diagnostics and contract metadata remain private to
+Core.
+
+Core allocates the primary HTTP listener through `PORT`. MediaMTX's RTSP listener remains on the
+private PiPhi service network at container TCP port `8554`; it is not bound to a host or LAN port.
 
 ## Development
 
@@ -41,7 +51,9 @@ contract tests use deterministic fakes and never contact Wyze.
 
 Wyze credentials and API keys are accepted as secret configuration, passed only to the embedded
 bridge process, retained only in memory by the adapter, and excluded from health, diagnostics,
-state, and logs. Do not expose the service API or RTSP port to the public internet.
+state, and logs. The credential-bearing control API is authenticated, and both the API and RTSP
+listener must remain reachable only from the private PiPhi service network. Do not publish either
+to a home LAN, public interface, or the internet.
 
 See [SECURITY.md](SECURITY.md) to report vulnerabilities.
 

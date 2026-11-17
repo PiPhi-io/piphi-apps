@@ -5,8 +5,14 @@ ENDPOINTS = {
     "diagnostics": "/diagnostics",
     "contract": "/contract",
     "camera_media_sessions": "/v1/camera-media/sessions",
+    "camera_media_session_keepalive": "/v1/camera-media/sessions/{session_id}/keepalive",
     "camera_media_status": "/v1/camera-media/status",
 }
 
-REQUIRED_ENDPOINTS = ["health", "camera_media_status", "camera_media_sessions"]
+REQUIRED_ENDPOINTS = [
+    "health",
+    "camera_media_status",
+    "camera_media_sessions",
+    "camera_media_session_keepalive",
+]
 CAMERA_MEDIA_CONTRACT_VERSION = "camera.media.v1"

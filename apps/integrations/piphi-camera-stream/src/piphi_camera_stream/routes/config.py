@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 from piphi_runtime_kit_python import (
     RuntimeConfigSnapshot,
     build_config_apply_response,
@@ -14,6 +14,7 @@ from piphi_runtime_kit_python.fastapi import sync_runtime_auth_from_fastapi_payl
 from ..contract import CONFIG_SCHEMA
 from ..schemas import DeviceConfig
 from ..state import (
+    CameraSourceUnavailableError,
     apply_config,
     config_sync,
     registry,
@@ -32,17 +33,25 @@ async def ui_config():
 @router.post("/config")
 async def configure(payload: DeviceConfig, request: Request):
     sync_runtime_auth_from_fastapi_payload(runtime, request, payload)
-    await apply_config(payload)
+    try:
+        await apply_config(payload, require_available=True)
+    except CameraSourceUnavailableError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
     return build_config_apply_response(
         config_id=payload.config_id or payload.id,
         container_id=payload.container_id,
-        metadata={"source_protocol": payload.source_url.get_secret_value().split(":", 1)[0], "alias": payload.alias},
+        metadata={
+            "source_protocol": payload.source_url.get_secret_value().split(":", 1)[0],
+            "alias": payload.alias,
+        },
     )
 
 
 @router.post("/config/sync")
 async def sync_config(snapshot: RuntimeConfigSnapshot, request: Request):
-    runtime.auth.sync_from_headers(request.headers, payload_container_id=snapshot.container_id)
+    runtime.auth.sync_from_headers(
+        request.headers, payload_container_id=snapshot.container_id
+    )
     typed_configs = validate_typed_configs(snapshot.configs, DeviceConfig)
     return await config_sync.apply_snapshot(
         snapshot=snapshot.model_copy(update={"configs": typed_configs}),

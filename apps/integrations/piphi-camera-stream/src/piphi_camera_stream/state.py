@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import asyncio
+import logging
 import os
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import HTTPException
-
 from piphi_runtime_kit_python import (
     AutomationRegistry,
     SQLiteAutomationIdempotencyStore,
@@ -16,6 +18,15 @@ from piphi_runtime_kit_python import (
 from .contract import CAPABILITIES, COMMANDS
 from .schemas import DeviceConfig
 from .settings import INTEGRATION_ID, INTEGRATION_NAME, INTEGRATION_VERSION
+from .source_probe import SourceProbeResult, probe_camera_source
+
+logger = logging.getLogger(__name__)
+_refresh_locks: dict[str, asyncio.Lock] = {}
+
+
+class CameraSourceUnavailableError(RuntimeError):
+    """Raised when initial camera validation cannot reach a video stream."""
+
 
 starter = create_runtime_starter(
     integration_id=INTEGRATION_ID,
@@ -71,19 +82,81 @@ def get_entry_or_404(config_id: str) -> dict[str, Any]:
     return entry
 
 
-async def apply_config(config: DeviceConfig) -> None:
-    entry = make_entry(config)
-    registry.set(config.id, entry)
+def _publish_probe_state(entry: dict[str, Any], result: SourceProbeResult) -> None:
+    config_id = str(entry["config_id"])
+    previous_record = registry.state_snapshots.get(config_id, {})
+    previous_state = previous_record.get("state", {})
+    previous_available = previous_state.get("connected")
     starter.state.publish(
-        config.id,
+        config_id,
         {
-            "connected": True,
-            "alias": config.alias,
-            "config_id": entry["config_id"],
-            "camera_stream": {"available": True, "transport": "brokered"},
+            "connected": result.available,
+            "available": result.available,
+            "availability_reason": result.reason,
+            "last_checked_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+            "alias": entry.get("alias"),
+            "config_id": config_id,
+            "camera_stream": {
+                "available": result.available,
+                "transport": "brokered",
+            },
         },
         device_id=entry["device_id"],
     )
+    if previous_available is True and not result.available:
+        logger.warning("camera source became unavailable config_id=%s", config_id)
+    elif previous_available is False and result.available:
+        logger.info("camera source recovered config_id=%s", config_id)
+
+
+async def refresh_entry(entry: dict[str, Any]) -> SourceProbeResult:
+    config_id = str(entry["config_id"])
+    lock = _refresh_locks.setdefault(config_id, asyncio.Lock())
+    async with lock:
+        result = await probe_camera_source(
+            entry["_source_url"].get_secret_value(),
+            preferred_transport=str(entry.get("preferred_transport") or "auto"),
+        )
+        if registry.get(config_id) is entry:
+            _publish_probe_state(entry, result)
+        return result
+
+
+async def refresh_all_entries() -> list[SourceProbeResult]:
+    semaphore = asyncio.Semaphore(_probe_concurrency())
+
+    async def refresh_bounded(entry: dict[str, Any]) -> SourceProbeResult:
+        async with semaphore:
+            return await refresh_entry(entry)
+
+    return list(
+        await asyncio.gather(
+            *(refresh_bounded(entry) for entry in list(registry.entries.values()))
+        )
+    )
+
+
+def _probe_concurrency() -> int:
+    try:
+        return max(1, min(int(os.getenv("PIPHI_CAMERA_PROBE_CONCURRENCY", "4")), 16))
+    except ValueError:
+        return 4
+
+
+async def apply_config(
+    config: DeviceConfig, *, require_available: bool = False
+) -> None:
+    entry = make_entry(config)
+    result = await probe_camera_source(
+        entry["_source_url"].get_secret_value(),
+        preferred_transport=entry["preferred_transport"],
+    )
+    if require_available and not result.available:
+        raise CameraSourceUnavailableError(
+            "The camera stream could not be reached with the supplied address and credentials."
+        )
+    registry.set(str(entry["config_id"]), entry)
+    _publish_probe_state(entry, result)
     append_runtime_event(
         "runtime.config.applied",
         entry,
@@ -95,6 +168,8 @@ async def remove_config(config_id: str) -> bool:
     entry = registry.remove(config_id)
     if entry is None:
         return False
+    registry.state_snapshots.pop(config_id, None)
+    _refresh_locks.pop(config_id, None)
     append_runtime_event(
         "runtime.config.removed",
         entry,
@@ -105,15 +180,17 @@ async def remove_config(config_id: str) -> bool:
 
 def _register_automation_actions() -> None:
     for command_name, command_definition in commands.items():
-        def handler(request, *, _command_name=command_name):
+
+        async def handler(request, *, _command_name=command_name):
             target = getattr(request, "target", None)
             target = target if isinstance(target, dict) else {}
-            device_id = str(request.device_id or target.get("device_id") or "demo-device")
+            device_id = str(
+                request.device_id or target.get("device_id") or "demo-device"
+            )
             config_id = str(request.config_id or target.get("config_id") or device_id)
-            entry = registry.get(config_id) or {
-                "device_id": device_id,
-                "config_id": config_id,
-            }
+            entry = registry.get(config_id)
+            if entry is None or str(entry.get("device_id")) != device_id:
+                raise ValueError("camera refresh target is not configured")
             event = append_runtime_event(
                 "runtime.command.received",
                 entry,
@@ -125,6 +202,7 @@ def _register_automation_actions() -> None:
                     "target": target,
                 },
             )
+            probe = await refresh_entry(entry)
             return {
                 "event": event,
                 "command": _command_name,
@@ -132,6 +210,8 @@ def _register_automation_actions() -> None:
                 "config_id": config_id,
                 "target": target,
                 "params": request.args,
+                "available": probe.available,
+                "availability_reason": probe.reason,
             }
 
         automations.action(
@@ -141,3 +221,4 @@ def _register_automation_actions() -> None:
 
 
 _register_automation_actions()
+starter.state.provide(refresh_all_entries, source=INTEGRATION_ID)
