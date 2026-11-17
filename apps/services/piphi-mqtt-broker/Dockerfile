@@ -22,7 +22,7 @@ COPY package.json ./
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/node_modules ./node_modules
 
-RUN apk add --no-cache mosquitto mosquitto-clients openssl \
+RUN apk add --no-cache mosquitto mosquitto-clients openssl su-exec \
     && chmod +x /app/docker/entrypoint.sh /app/docker/credentials-admin.sh /app/docker/tls-admin.sh \
     && mkdir -p /mosquitto/config /mosquitto/data /mosquitto/log \
     && chown -R mosquitto:mosquitto /mosquitto/config /mosquitto/data /mosquitto/log

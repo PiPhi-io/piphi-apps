@@ -1,9 +1,13 @@
-import { access, readFile, rm, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
+import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { promisify } from "node:util";
 import { connectAsync } from "mqtt";
 
 import { loadBrokerConfig } from "./config.js";
 import { loadIdentityPolicy } from "./identity.js";
+
+const execFileAsync = promisify(execFile);
 
 async function main(): Promise<void> {
   const config = loadBrokerConfig();
@@ -31,26 +35,20 @@ async function main(): Promise<void> {
   });
 
   try {
-    if (process.argv.includes("--liveness")) return;
     await client.subscribeAsync(topic, { qos: 1 });
     const received = new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error("MQTT readiness round trip timed out")), 3_000);
+      const timeout = setTimeout(() => reject(new Error("MQTT lifecycle round trip timed out")), 3_000);
       client.once("message", (receivedTopic, payload) => {
         clearTimeout(timeout);
-        if (receivedTopic !== topic || payload.toString() !== id) reject(new Error("MQTT readiness round trip mismatch"));
+        if (receivedTopic !== topic || payload.toString() !== id) reject(new Error("MQTT lifecycle round trip mismatch"));
         else resolve();
       });
     });
     await client.publishAsync(topic, id, { qos: 1, retain: false });
     await received;
-    if (config.persistence) {
+    if (config.persistence && !process.argv.includes("--liveness")) {
       const probe = `${config.persistenceLocation}.piphi-health-${randomUUID()}`;
-      try {
-        await writeFile(probe, "", { mode: 0o600, flag: "wx" });
-        await access(probe);
-      } finally {
-        await rm(probe, { force: true }).catch(() => undefined);
-      }
+      await execFileAsync("su-exec", ["mosquitto", "sh", "-c", "umask 077; : > \"$1\"; test -w \"$1\"; rm -f \"$1\"", "piphi-persistence-probe", probe], { timeout: 3_000 });
     }
   } finally {
     await client.endAsync();

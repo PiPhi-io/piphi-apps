@@ -3,10 +3,12 @@ set -eu
 
 image="piphi-mqtt-broker:smoke"
 name="piphi-mqtt-smoke-$$"
+failure_name="${name}-entry-failure"
 secrets="${TMPDIR:-/tmp}/piphi-mqtt-smoke-$$"
 
 cleanup() {
   docker rm -f "$name" >/dev/null 2>&1 || true
+  docker rm -f "$failure_name" >/dev/null 2>&1 || true
   if [ -d "$secrets/restored-data" ]; then
     docker run --rm --entrypoint sh -v "$secrets:/cleanup" "$image" -c 'chmod -R 0777 /cleanup/restored-data' >/dev/null 2>&1 || true
   fi
@@ -36,6 +38,15 @@ until [ "$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{end}
   sleep 1
 done
 docker exec "$name" node /app/dist/src/healthcheck.js --liveness
+docker exec "$name" chmod 0555 /mosquitto/data
+docker exec "$name" node /app/dist/src/healthcheck.js --liveness
+if docker exec "$name" node /app/dist/src/healthcheck.js --readiness >/dev/null 2>&1; then
+  echo "Persistence readiness passed without Mosquitto write access" >&2
+  exit 1
+fi
+docker exec "$name" chmod 0755 /mosquitto/data
+docker exec "$name" chown mosquitto:mosquitto /mosquitto/data
+docker exec "$name" node /app/dist/src/healthcheck.js --readiness
 
 docker exec "$name" sh -ec '
   mosquitto_sub -V mqttv5 -h 127.0.0.1 -u piphi -P smoke-secret -t piphi/test -C 1 -W 5 > /tmp/message &
@@ -133,6 +144,48 @@ docker exec "$name" mosquitto_pub -V mqttv5 -h 127.0.0.1 -u alpha -P alpha-two -
 docker exec "$name" /app/docker/credentials-admin.sh >/dev/null
 docker exec "$name" grep -q '"action":"reload"' /mosquitto/log/security-audit.jsonl
 
+ln -s /etc/hostname "$secrets/escaped-password"
+sed 's#/run/secrets/alpha-password#/run/secrets/escaped-password#' "$secrets/policy.json" > "$secrets/policy-escape.json"
+if docker exec -e MQTT_AUTH_POLICY_FILE=/run/secrets/policy-escape.json "$name" node /app/dist/src/cli.js --credentials-only >/dev/null 2>&1; then
+  echo "Resolved password path escaped its secret directory" >&2
+  exit 1
+fi
+
+for failure_step in after-password-install after-acl-install after-reload; do
+  active_password_hash="$(docker exec "$name" sha256sum /mosquitto/config/passwordfile | cut -d' ' -f1)"
+  active_acl_hash="$(docker exec "$name" sha256sum /mosquitto/config/aclfile | cut -d' ' -f1)"
+  printf '%s' 'alpha-three' > "$secrets/alpha-password"
+  if docker exec -e PIPHI_TEST_FAIL_IDENTITY_STEP="$failure_step" "$name" /app/docker/credentials-admin.sh >/dev/null 2>&1; then
+    echo "Injected identity transaction failure was accepted" >&2
+    exit 1
+  fi
+  sleep 1
+  test "$(docker exec "$name" sha256sum /mosquitto/config/passwordfile | cut -d' ' -f1)" = "$active_password_hash"
+  test "$(docker exec "$name" sha256sum /mosquitto/config/aclfile | cut -d' ' -f1)" = "$active_acl_hash"
+  docker exec "$name" mosquitto_pub -V mqttv5 -h 127.0.0.1 -u alpha -P alpha-two -t piphi/alpha/rollback -m rollback-ok -q 1
+  rejected_candidate="$(docker exec "$name" mosquitto_pub -V mqttv5 -h 127.0.0.1 -u alpha -P alpha-three -t piphi/alpha/rollback -m denied -q 1 2>&1 || true)"
+  echo "$rejected_candidate" | grep -q 'Not authorized'
+  printf '%s' 'alpha-two' > "$secrets/alpha-password"
+done
+
+mkdir -p "$secrets/entry-config"
+docker cp "$name:/mosquitto/config/passwordfile" "$secrets/entry-config/passwordfile"
+docker cp "$name:/mosquitto/config/aclfile" "$secrets/entry-config/aclfile"
+password_before="$(sha256sum "$secrets/entry-config/passwordfile" | cut -d' ' -f1)"
+acl_before="$(sha256sum "$secrets/entry-config/aclfile" | cut -d' ' -f1)"
+docker run -d --name "$failure_name" \
+  -e MQTT_ALLOW_PLAINTEXT=true \
+  -e MQTT_AUTH_POLICY_FILE=/run/secrets/policy.json \
+  -e PIPHI_TEST_FAIL_IDENTITY_STEP=after-password-install \
+  -v "$secrets:/run/secrets:ro" \
+  -v "$secrets/entry-config:/mosquitto/config" \
+  "$image" >/dev/null
+failure_status="$(docker wait "$failure_name")"
+test "$failure_status" -ne 0
+test "$(sha256sum "$secrets/entry-config/passwordfile" | cut -d' ' -f1)" = "$password_before"
+test "$(sha256sum "$secrets/entry-config/aclfile" | cut -d' ' -f1)" = "$acl_before"
+docker rm "$failure_name" >/dev/null
+
 docker stop "$name" >/dev/null
 docker cp "$name:/mosquitto/data/." "$secrets/restored-data"
 docker rm "$name" >/dev/null
@@ -185,6 +238,31 @@ until [ "$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{end}
     exit 1
   fi
   sleep 1
+done
+
+openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "$secrets/other.key" >/dev/null 2>&1
+openssl req -x509 -new -key "$secrets/other.key" -days 1 -subj '/CN=Other test CA' -out "$secrets/other-ca.crt" >/dev/null 2>&1
+openssl req -new -key "$secrets/other.key" -subj '/CN=127.0.0.1' -out "$secrets/other-server.csr" >/dev/null 2>&1
+openssl x509 -req -days 1 -in "$secrets/other-server.csr" -CA "$secrets/other-ca.crt" -CAkey "$secrets/other.key" -CAcreateserial \
+  -extfile "$secrets/server.ext" -out "$secrets/other-server.crt" >/dev/null 2>&1
+openssl x509 -req -days 0 -in "$secrets/server.csr" -CA "$secrets/ca.crt" -CAkey "$secrets/ca.key" -CAcreateserial \
+  -extfile "$secrets/server.ext" -out "$secrets/expired-server.crt" >/dev/null 2>&1
+chmod 0600 "$secrets/other.key"
+chmod 0644 "$secrets/other-ca.crt" "$secrets/other-server.crt" "$secrets/expired-server.crt"
+
+negative_restart_count="$(docker inspect -f '{{.RestartCount}}' "$name")"
+for negative_case in \
+  'MQTT_TLS_KEY_FILE=/run/secrets/other.key' \
+  'MQTT_TLS_CERT_FILE=/run/secrets/other-server.crt' \
+  'MQTT_TLS_CERT_FILE=/run/secrets/expired-server.crt' \
+  'MQTT_HEALTH_TLS_KEY_FILE=/run/secrets/other.key'; do
+  env_name="${negative_case%%=*}"
+  env_value="${negative_case#*=}"
+  if docker exec -e "$env_name=$env_value" "$name" /app/docker/tls-admin.sh >/dev/null 2>&1; then
+    echo "Invalid TLS rotation material was accepted" >&2
+    exit 1
+  fi
+  test "$(docker inspect -f '{{.RestartCount}}' "$name")" = "$negative_restart_count"
 done
 
 without_client="$(docker exec "$name" mosquitto_pub -V mqttv5 -h 127.0.0.1 -p 1883 --cafile /run/secrets/ca.crt -u piphi -P smoke-secret -t piphi/mtls -m denied -q 1 2>&1 || true)"

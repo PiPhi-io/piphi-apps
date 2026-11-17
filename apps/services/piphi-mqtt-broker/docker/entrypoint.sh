@@ -7,17 +7,11 @@ password_file="${MQTT_PASSWORD_FILE:-/mosquitto/config/passwordfile}"
 password_candidate="${password_file}.candidate"
 acl_file="${MQTT_ACL_FILE:-/mosquitto/config/aclfile}"
 acl_candidate="${acl_file}.candidate"
-identity_installed=0
-had_password=0
-had_acl=0
+. /app/docker/identity-transaction.sh
 
 cleanup() {
-  if [ "$identity_installed" -eq 1 ]; then
-    if [ "$had_password" -eq 1 ]; then mv -f "${password_file}.previous" "$password_file"; else rm -f "$password_file"; fi
-    if [ "$had_acl" -eq 1 ]; then mv -f "${acl_file}.previous" "$acl_file"; else rm -f "$acl_file"; fi
-  fi
-  rm -f "$password_candidate" "$acl_candidate" "${config_file}.candidate"
-  rm -f "${password_file}.previous" "${acl_file}.previous"
+  identity_cleanup
+  rm -f "${config_file}.candidate"
 }
 trap cleanup EXIT HUP INT TERM
 
@@ -46,11 +40,7 @@ MQTT_CONFIG_OUTPUT="${config_file}.candidate" node /app/dist/src/cli.js
 mosquitto_passwd -U "$password_candidate"
 chown mosquitto:mosquitto "$password_candidate" "$acl_candidate"
 chmod 0640 "$password_candidate" "$acl_candidate"
-if [ -f "$password_file" ]; then cp -p "$password_file" "${password_file}.previous"; had_password=1; fi
-if [ -f "$acl_file" ]; then cp -p "$acl_file" "${acl_file}.previous"; had_acl=1; fi
-mv -f "$password_candidate" "$password_file"
-mv -f "$acl_candidate" "$acl_file"
-identity_installed=1
+identity_install_candidates
 
 for path in /mosquitto/config /mosquitto/data /mosquitto/log; do
   mkdir -p "$path"
@@ -74,7 +64,6 @@ done
 kill -TERM "$validation_pid"
 wait "$validation_pid"
 mv -f "${config_file}.candidate" "$config_file"
-identity_installed=0
-rm -f "${password_file}.previous" "${acl_file}.previous"
+identity_commit
 trap - EXIT HUP INT TERM
 exec mosquitto -c "$config_file"

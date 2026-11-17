@@ -9,7 +9,7 @@
     {"id":"reserved_topic_protection","status":"implemented","scope":"explicit deny for $SYS/# and $CONTROL/#; broker $SYS publication disabled"},
     {"id":"tls_and_mtls","status":"implemented","scope":"TLS 1.2 or newer with separately mounted server and health-client identities"},
     {"id":"credential_and_certificate_rotation","status":"implemented","scope":"candidate validation, payload-free audit record, and forced reauthentication by restart"},
-    {"id":"bounded_broker_resources","status":"implemented","scope":"connections, packets, payloads, inflight, queue count/bytes, memory, keepalive, and durable-session age"},
+    {"id":"bounded_broker_resources","status":"implemented","scope":"broker-enforced listener connections, packet/payload bytes, inflight count, offline queue count/bytes, broker heap, keepalive, and persistent-client age"},
     {"id":"authenticated_lifecycle_probes","status":"implemented","scope":"authenticated MQTT 5 liveness and readiness/startup round-trip; readiness/startup also verify persistence writability"},
     {"id":"retained_and_session_persistence","status":"implemented","scope":"single-node Mosquitto persistence with clean-stop restore qualification"},
     {"id":"websockets","status":"excluded","reason":"No browser-facing broker listener is part of this platform-service contract."},
@@ -17,6 +17,8 @@
     {"id":"active_active_or_automatic_failover","status":"planned","reason":"Requires an orchestrator and broker topology contract outside this single-container package."},
     {"id":"encrypted_backup_orchestration","status":"planned","reason":"The package documents coupled-state backup and tests restore; encryption and retention belong to platform storage orchestration."},
     {"id":"disk_full_and_corrupt_database_recovery","status":"planned","reason":"Destructive storage fault qualification is not yet automated."},
+    {"id":"per_principal_rate_and_session_limits","status":"planned","reason":"Mosquitto 2.0 does not provide package-configured per-principal publish rate, bandwidth, live-session, or subscription-count quotas."},
+    {"id":"container_and_disk_enforcement","status":"planned","reason":"CPU, container RSS, process/file-descriptor, persistence-volume capacity, and log-retention limits require orchestrator enforcement not declared by this package."},
     {"id":"physical_device_qualification","status":"excluded","reason":"A broker is protocol infrastructure; physical-device and field qualification are explicitly outside this release."}
   ]
 }

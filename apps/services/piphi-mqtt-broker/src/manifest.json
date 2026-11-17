@@ -17,7 +17,9 @@
       "container": {
         "image": "ghcr.io/piphi-io/mqtt-broker:0.3.1",
         "environment": {
-          "MQTT_ALLOW_PLAINTEXT": "true"
+          "MQTT_ALLOW_PLAINTEXT": "false",
+          "MQTT_TLS_ENABLED": "true",
+          "MQTT_TLS_REQUIRE_CLIENT_CERTIFICATE": "true"
         },
         "ports": [
           {
@@ -64,7 +66,7 @@
           "title": "Allow Plaintext on the Private Service Network",
           "description": "Enable only when network isolation is enforced by PiPhi Core.",
           "x-env": "MQTT_ALLOW_PLAINTEXT",
-          "default": true
+          "default": false
         },
         "username": {
           "type": "string",
@@ -95,7 +97,7 @@
           "type": "boolean",
           "title": "Enable TLS",
           "x-env": "MQTT_TLS_ENABLED",
-          "default": false
+          "default": true
         },
         "tls_ca_file": {
           "type": "string",
@@ -116,7 +118,7 @@
           "type": "boolean",
           "title": "Require Client Certificates",
           "x-env": "MQTT_TLS_REQUIRE_CLIENT_CERTIFICATE",
-          "default": false
+          "default": true
         },
         "health_tls_cert_file": {
           "type": "string",
@@ -136,7 +138,8 @@
       "MQTT_ENABLED": "true",
       "MQTT_HOST": "mqtt-broker",
       "MQTT_PORT": "1883",
-      "MQTT_TOPIC_PREFIX": "piphi"
+      "MQTT_TOPIC_PREFIX": "piphi",
+      "MQTT_TLS_ENABLED": "true"
     }
   },
   "onboarding": {

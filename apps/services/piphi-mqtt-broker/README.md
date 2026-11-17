@@ -17,6 +17,12 @@ in the image and must be explicitly enabled with `MQTT_ALLOW_PLAINTEXT=true` on
 an enforced private container network. Use TLS for every path crossing a host or
 trust boundary.
 
+The production manifest now fails closed: it sets plaintext off and TLS plus
+client-certificate authentication on. Operators must mount the server, CA, and
+dedicated health-client material before production startup. The plaintext
+examples in this document are an explicit development or legacy migration
+profile only; they are not production defaults.
+
 ## Credential handling
 
 Mount a policy and one read-only password secret per principal:
@@ -54,7 +60,7 @@ docker run --rm \
 ```
 
 The entrypoint hashes the password through a mode-0600 temporary file, installs
-the password database atomically, and never places the password in a process
+the password and ACL databases transactionally, and never places passwords in a process
 argument or generated broker config. `MQTT_PASSWORD` remains a compatibility
 fallback for single-principal upgrades and should not be used for shared
 production infrastructure.
@@ -129,13 +135,20 @@ Override these with the corresponding `MQTT_MAX_*`, `MQTT_MEMORY_LIMIT`, and
 `MQTT_PERSISTENT_CLIENT_EXPIRATION` variables. Container CPU, memory, and volume
 quotas remain the orchestrator's responsibility.
 
+These are broker-wide safeguards, not a complete abuse envelope. This package
+does not enforce per-principal publish rate or bandwidth, simultaneous sessions,
+subscription count, file descriptors, container RSS/CPU, persistence-volume
+capacity, or log retention. Production orchestration must enforce container and
+disk limits; untrusted workload admission still requires external rate policy.
+
 ## Health and recovery
 
 The image readiness check performs an authenticated MQTT 5 subscribe/publish
 round trip beneath the health namespace and verifies persistence storage is
 writable. Startup performs the same qualification against the candidate broker
-before atomically promoting its config. An authenticated MQTT CONNECT liveness
-probe is available as `node /app/dist/src/healthcheck.js --liveness`; readiness
+before atomically promoting its config. Liveness performs the same authenticated
+MQTT 5 subscribe/publish round trip without the storage write; it is available
+as `node /app/dist/src/healthcheck.js --liveness`. Readiness
 uses `--readiness`, and startup uses `--startup`. Probe failures never print
 credentials, client identifiers, topics, or payloads.
 

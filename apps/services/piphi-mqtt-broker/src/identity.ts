@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
-import { chmod, readFile, writeFile } from "node:fs/promises";
+import { chmod, readFile, realpath, writeFile } from "node:fs/promises";
+import { isAbsolute, relative, resolve } from "node:path";
 
 import type { BrokerConfig } from "./config.js";
 
@@ -19,10 +20,24 @@ export interface IdentityPolicy {
 }
 
 function assertSecretPath(value: unknown, field: string): string {
-  if (typeof value !== "string" || /[\r\n\0]/.test(value) || !["/run/secrets/", "/mosquitto/config/"].some((root) => value.startsWith(root))) {
+  if (typeof value !== "string" || /[\r\n\0]/.test(value) || !isAbsolute(value) || !["/run/secrets", "/mosquitto/config"].some((root) => isContainedPath(root, resolve(value)))) {
     throw new Error(`${field} must be an absolute secret path`);
   }
   return value;
+}
+
+function isContainedPath(root: string, candidate: string): boolean {
+  const child = relative(root, candidate);
+  return child !== "" && child !== ".." && !child.startsWith(`..${process.platform === "win32" ? "\\" : "/"}`) && !isAbsolute(child);
+}
+
+async function resolveSecretPath(value: string): Promise<string> {
+  const candidate = await realpath(value);
+  for (const root of ["/run/secrets", "/mosquitto/config"]) {
+    const resolvedRoot = await realpath(root).catch(() => null);
+    if (resolvedRoot && isContainedPath(resolvedRoot, candidate)) return candidate;
+  }
+  throw new Error("Principal password secret resolves outside an allowed secret directory");
 }
 
 function assertUsername(value: unknown): string {
@@ -59,12 +74,13 @@ function assertFilters(value: unknown, field: string, prefix: string, namespace:
 export async function loadIdentityPolicy(config: BrokerConfig): Promise<IdentityPolicy> {
   if (!config.authPolicyFile) {
     if (!config.username) throw new Error("Broker identity is not configured");
+    const passwordSecretFile = config.passwordSecretFile ? await resolveSecretPath(config.passwordSecretFile) : "environment:MQTT_PASSWORD";
     return {
       schemaVersion: 1,
       sourceDigest: "legacy-single-principal",
       principals: [{
         username: config.username,
-        passwordSecretFile: config.passwordSecretFile ?? "environment:MQTT_PASSWORD",
+        passwordSecretFile,
         read: [`${config.topicPrefix}/#`],
         write: [`${config.topicPrefix}/#`],
         health: true,
@@ -74,7 +90,9 @@ export async function loadIdentityPolicy(config: BrokerConfig): Promise<Identity
   }
 
   const raw = await readFile(config.authPolicyFile, "utf8");
-  return parseIdentityPolicy(raw, config);
+  const policy = parseIdentityPolicy(raw, config);
+  for (const principal of policy.principals) principal.passwordSecretFile = await resolveSecretPath(principal.passwordSecretFile);
+  return policy;
 }
 
 export function parseIdentityPolicy(raw: string, config: BrokerConfig): IdentityPolicy {

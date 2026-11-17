@@ -42,4 +42,8 @@ test("identity policy binds every principal to exactly one isolated namespace", 
     { username: "worker", namespace: "_health", password_secret_file: "/run/secrets/worker", read: ["piphi/_health/#"], write: ["piphi/_health/#"], health: false },
     { username: "health", namespace: "health", password_secret_file: "/run/secrets/health", read: ["piphi/health/#"], write: ["piphi/health/#"], health: true },
   ]), config), /Only the health principal/);
+  assert.throws(() => parseIdentityPolicy(policy([
+    { username: "worker", namespace: "worker", password_secret_file: "/run/secrets/../outside", read: ["piphi/worker/#"], write: ["piphi/worker/#"], health: false },
+    { username: "health", namespace: "_health", password_secret_file: "/run/secrets/health", read: ["piphi/_health/#"], write: ["piphi/_health/#"], health: true },
+  ]), config), /absolute secret path/);
 });
