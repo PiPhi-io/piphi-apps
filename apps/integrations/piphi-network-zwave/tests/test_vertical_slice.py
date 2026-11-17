@@ -32,6 +32,37 @@ class GapSidecarClient(FakeSidecarClient):
 
 
 @pytest.mark.anyio
+async def test_only_liveness_is_public_after_runtime_auth_is_bound() -> None:
+    runtime.auth.update(container_id="owner-container", internal_token="owner-token")
+    transport = httpx.ASGITransport(app=app)
+    routes = [
+        ("GET", "/diagnostics"), ("POST", "/discover"), ("GET", "/ui-config"),
+        ("POST", "/config"), ("POST", "/config/sync"), ("POST", "/deconfigure"),
+        ("POST", "/deconfigure/network"), ("GET", "/state"), ("GET", "/contract"),
+        ("GET", "/entities"), ("GET", "/events"), ("POST", "/events/example"),
+        ("POST", "/events/device/network/example"), ("POST", "/telemetry/example"),
+        ("POST", "/telemetry/device/network/example"), ("POST", "/command"),
+    ]
+    try:
+        async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+            assert (await client.get("/health")).status_code == 200
+            for method, path in routes:
+                response = await client.request(method, path, json={} if method == "POST" else None)
+                assert response.status_code == 401, f"{method} {path}: {response.text}"
+            response = await client.get(
+                "/contract",
+                headers={
+                    "X-Container-Id": "owner-container",
+                    "X-PiPhi-Integration-Token": "owner-token",
+                },
+            )
+            assert response.status_code == 200
+    finally:
+        runtime.auth.container_id = ""
+        runtime.auth.internal_token = ""
+
+
+@pytest.mark.anyio
 async def test_snapshot_creates_real_metadata_negotiated_entities() -> None:
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:

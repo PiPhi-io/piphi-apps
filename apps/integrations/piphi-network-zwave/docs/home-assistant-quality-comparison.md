@@ -4,6 +4,12 @@
 
 **PiPhi source audited:** `piphi-network-zwave` `0.3.0` and `piphi-zwave-js-sidecar` `0.3.0`, treated as one delivery boundary; source, tests, manifests, CI, documentation and release metadata at workspace commit `e9c7fb55230a5512735f333c7f802e580f81743a` (the audited implementation is present in `8c4dc844ee51f8282382a2fb3d60f5978cb91a9f`)
 
+**v0.3.1 remediation note:** the coordinated v0.3.1 update closes P0 items 1–3
+below: confirmed-success handling for `SetValueResult`, supported `refreshInfo()`
+interview refresh behavior, and default-deny authorization for every operational
+route. The remaining P0/P1 items stay planned and are not marketplace claims;
+qualification remains unverified with rollout at zero.
+
 **External baseline:** Home Assistant Core `2026.11.1`, Z-Wave JS `v15.32.3`, and `zwave-js-server` `3.12.0`
 
 **Method:** reachable production source outranks README, manifest and capability-catalog claims. Upstream Z-Wave JS capability is not PiPhi capability unless PiPhi exposes it safely and tests it. Software tests establish only the behavior they execute; they do not prove controller, RF, device or field interoperability.

@@ -2,12 +2,12 @@ import { timingSafeEqual } from "node:crypto";
 
 import type { FastifyInstance } from "fastify";
 
-const PROTECTED_PATHS = ["/command", "/v1/zwave/"];
+const PUBLIC_PATHS = new Set(["/health"]);
 
 export function registerSidecarAuthorization(app: FastifyInstance): void {
   app.addHook("onRequest", async (request, reply) => {
     const path = request.url.split("?", 1)[0] ?? request.url;
-    if (!PROTECTED_PATHS.some((prefix) => path === prefix || path.startsWith(prefix))) return;
+    if (PUBLIC_PATHS.has(path)) return;
 
     const expected = String(
       process.env.PIPHI_ZWAVE_SIDECAR_TOKEN

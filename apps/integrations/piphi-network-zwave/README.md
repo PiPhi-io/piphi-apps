@@ -35,22 +35,23 @@ Run the sidecar on port `4211`, set the same long random token in
 pdm run uvicorn piphi_network_zwave.main:app --host 0.0.0.0 --port 4221
 ```
 
-Production `/config` and `/command` requests also require the runtime identity
-headers supplied by PiPhi Core. The runtime fails closed if authentication is
-not configured.
+Only `GET /health` is public. Production operational reads and mutations require
+the runtime identity headers supplied by PiPhi Core. The runtime fails closed if
+authentication is not configured.
 
 ## Runtime routes
 
 The parent exposes the standard PiPhi health, diagnostics, discovery,
 configuration, entities, state, events, telemetry, command, and contract routes.
-See [`docs/contract.md`](docs/contract.md) for the parent/sidecar boundary.
+See [`docs/contract.md`](docs/contract.md) for the parent/sidecar boundary and
+[`docs/privacy.md`](docs/privacy.md) for data handling and runtime requirements.
 
 ## Container
 
 ```bash
-docker build -t ghcr.io/piphi-io/piphi-network-zwave:0.3.0 .
+docker build -t ghcr.io/piphi-io/piphi-network-zwave:0.3.1 .
 docker run --rm -p 4221:4221 \
   -e PIPHI_ZWAVE_SIDECAR_URL=http://host.docker.internal:4211 \
   -e PIPHI_ZWAVE_SIDECAR_TOKEN=replace-with-a-long-random-token \
-  ghcr.io/piphi-io/piphi-network-zwave:0.3.0
+  ghcr.io/piphi-io/piphi-network-zwave:0.3.1
 ```

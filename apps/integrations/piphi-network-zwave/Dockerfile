@@ -8,7 +8,7 @@ RUN pdm export --prod --without-hashes --output requirements.txt
 
 FROM python:3.12-slim@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea
 
-ARG APP_VERSION=0.3.0
+ARG APP_VERSION=0.3.1
 LABEL org.opencontainers.image.title="PiPhi Network Z-Wave" \
       org.opencontainers.image.description="Homeowner-facing Z-Wave integration backed by the managed Z-Wave JS sidecar" \
       org.opencontainers.image.source="https://github.com/PiPhi-io/piphi-apps" \
