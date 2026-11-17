@@ -36,23 +36,61 @@ def test_capability_catalog_does_not_advertise_excluded_surface() -> None:
 
 
 @pytest.mark.anyio
-@pytest.mark.parametrize(
-    "status,remediation", [(401, "reauthenticate"), (403, "reconfigure_permissions")]
-)
-async def test_permission_denial_matrix_is_classified(
-    status: int, remediation: str
-) -> None:
-    client = PfRestV2Client(
-        DeviceConfig(id="denial", host="firewall.test", api_key="secret"),
-        transport=httpx.MockTransport(lambda _request: httpx.Response(status)),
-    )
-    try:
-        with pytest.raises(PfSenseError) as error:
-            await client.read_snapshot()
-        assert error.value.remediation == remediation
-        assert "secret" not in str(error.value)
-    finally:
-        await client.close()
+async def test_every_permission_contract_endpoint_and_action_denial_is_classified() -> (
+    None
+):
+    contract = json.loads((ROOT / "permission-contract.json").read_text())
+    grants = [
+        grant
+        for profile in contract["profiles"].values()
+        for grant in profile
+    ] + [grant for action in contract["actions"].values() for grant in action]
+    unique_grants = {
+        (grant["method"], grant["path"], grant["privilege"])
+        for grant in grants
+    }
+    for method, path, privilege in unique_grants:
+        expected_privilege = (
+            path.replace("/", "-").replace("_", "-").lstrip("-")
+            + f"-{method.lower()}"
+        )
+        assert privilege == expected_privilege
+        for row in contract["denial_matrix"]["every_endpoint_and_action"]:
+            client = PfRestV2Client(
+                DeviceConfig(id="denial", host="firewall.test", api_key="secret"),
+                transport=httpx.MockTransport(
+                    lambda _request, status=row["status"]: httpx.Response(status)
+                ),
+            )
+            try:
+                with pytest.raises(PfSenseError) as error:
+                    await client._request(method, path, payload={} if method == "POST" else None)
+                assert error.value.reason == row["reason"]
+                assert error.value.retryable is row["retryable"]
+                assert error.value.remediation == row["remediation"]
+                assert "secret" not in str(error.value)
+            finally:
+                await client.close()
+
+
+def test_permission_contract_covers_every_runtime_profile_and_action() -> None:
+    contract = json.loads((ROOT / "permission-contract.json").read_text())
+    assert set(contract["profiles"]) == {
+        "baseline-monitoring",
+        "dhcp-leases",
+        "client-inventory",
+        "security-logs",
+        "certificates",
+        "high-availability",
+        "vpn-status",
+    }
+    assert set(contract["actions"]) == {
+        "diagnostic_ping",
+        "restart_service",
+        "start_service",
+        "wake_on_lan",
+    }
+    assert "page-all" in contract["forbidden"]
 
 
 def test_collection_limits_are_finite() -> None:

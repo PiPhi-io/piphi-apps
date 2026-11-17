@@ -6,6 +6,8 @@ import json
 import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from email.utils import parsedate_to_datetime
 from functools import partial
 from time import monotonic
 from typing import Any, Protocol
@@ -18,6 +20,9 @@ MAX_RESPONSE_BYTES = 1_048_576
 MAX_ROWS = 1_000
 MAX_LOG_ROWS = 200
 MAX_ENDPOINT_CONCURRENCY = 4
+MAX_GLOBAL_ENDPOINT_CONCURRENCY = 8
+MAX_RETRY_AFTER_SECONDS = 900.0
+_GLOBAL_ENDPOINT_SLOTS = asyncio.Semaphore(MAX_GLOBAL_ENDPOINT_CONCURRENCY)
 
 
 class PfSenseError(RuntimeError):
@@ -29,11 +34,13 @@ class PfSenseError(RuntimeError):
         *,
         retryable: bool = False,
         remediation: str = "reconfigure",
+        retry_after_seconds: float | None = None,
     ) -> None:
         super().__init__(reason)
         self.reason = reason
         self.retryable = retryable
         self.remediation = remediation
+        self.retry_after_seconds = retry_after_seconds
 
 
 @dataclass(slots=True)
@@ -56,6 +63,7 @@ class PfSenseSnapshot:
     ipsec_sas: list[dict[str, Any]] = field(default_factory=list)
     wireguard_tunnels: list[dict[str, Any]] = field(default_factory=list)
     endpoint_errors: dict[str, str] = field(default_factory=dict)
+    endpoint_retry_after_seconds: dict[str, float] = field(default_factory=dict)
     api_latency_ms: float = 0.0
 
 
@@ -166,6 +174,7 @@ class PfRestV2Client:
         values: dict[str, Any] = {}
         endpoint_errors: dict[str, str] = {}
         failures: dict[str, BaseException] = {}
+        endpoint_retry_after_seconds: dict[str, float] = {}
         for name, result in zip(names, results, strict=True):
             if isinstance(result, BaseException):
                 failures[name] = result
@@ -174,6 +183,11 @@ class PfRestV2Client:
                     if isinstance(result, PfSenseError)
                     else "invalid_response"
                 )
+                if (
+                    isinstance(result, PfSenseError)
+                    and result.retry_after_seconds is not None
+                ):
+                    endpoint_retry_after_seconds[name] = result.retry_after_seconds
             else:
                 values[name] = result
 
@@ -198,6 +212,11 @@ class PfRestV2Client:
                     selected.remediation
                     if isinstance(selected, PfSenseError)
                     else "reconfigure"
+                ),
+                retry_after_seconds=(
+                    selected.retry_after_seconds
+                    if isinstance(selected, PfSenseError)
+                    else None
                 ),
             )
 
@@ -242,6 +261,7 @@ class PfRestV2Client:
             ipsec_sas=values.get("ipsec_sas", []),
             wireguard_tunnels=values.get("wireguard_tunnels", []),
             endpoint_errors=endpoint_errors,
+            endpoint_retry_after_seconds=endpoint_retry_after_seconds,
             api_latency_ms=round((monotonic() - started) * 1000, 2),
         )
 
@@ -318,7 +338,7 @@ class PfRestV2Client:
     ) -> Any:
         response: httpx.Response | None = None
         try:
-            async with self._endpoint_slots:
+            async with self._endpoint_slots, _GLOBAL_ENDPOINT_SLOTS:
                 request = self._client.build_request(method, path, json=payload)
                 response = await self._client.send(request, stream=True)
                 response.raise_for_status()
@@ -343,9 +363,30 @@ class PfRestV2Client:
                     if status == 401
                     else "reconfigure_permissions",
                 ) from exc
+            reason = (
+                "rate_limited"
+                if status == 429
+                else "endpoint_or_version_unsupported"
+                if status == 404
+                else "request_timeout"
+                if status == 408
+                else "server_error"
+                if status >= 500
+                else "request_rejected"
+            )
             raise PfSenseError(
-                f"pfSense returned HTTP {status} for {path}",
+                reason,
                 retryable=status in {408, 429} or status >= 500,
+                remediation="retry"
+                if status in {408, 429} or status >= 500
+                else "reconfigure_api_version"
+                if status == 404
+                else "reconfigure",
+                retry_after_seconds=(
+                    _retry_after_seconds(exc.response.headers.get("retry-after"))
+                    if status == 429
+                    else None
+                ),
             ) from exc
         except httpx.RequestError as exc:
             reason = (
@@ -372,6 +413,22 @@ class PfRestV2Client:
         if not isinstance(decoded, dict) or "data" not in decoded:
             raise PfSenseError("invalid_api_envelope")
         return decoded["data"]
+
+
+def _retry_after_seconds(value: str | None, *, now: datetime | None = None) -> float | None:
+    if not value:
+        return None
+    try:
+        seconds = float(value.strip())
+    except ValueError:
+        try:
+            retry_at = parsedate_to_datetime(value)
+        except (TypeError, ValueError, OverflowError):
+            return None
+        if retry_at.tzinfo is None:
+            retry_at = retry_at.replace(tzinfo=UTC)
+        seconds = (retry_at - (now or datetime.now(UTC))).total_seconds()
+    return min(MAX_RETRY_AFTER_SECONDS, max(0.0, seconds))
 
 
 _SECRET = re.compile(

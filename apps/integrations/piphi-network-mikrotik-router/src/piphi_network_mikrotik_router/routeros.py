@@ -8,6 +8,8 @@ import json
 import math
 import re
 from dataclasses import dataclass
+from datetime import UTC, datetime
+from email.utils import parsedate_to_datetime
 from urllib.parse import urlsplit
 
 import httpx
@@ -15,6 +17,9 @@ import httpx
 HOSTNAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9.-]{0,251}\Z")
 MAX_RESPONSE_BYTES = 262_144
 MAX_ENDPOINT_CONCURRENCY = 2
+MAX_GLOBAL_ENDPOINT_CONCURRENCY = 8
+MAX_RETRY_AFTER_SECONDS = 900.0
+_GLOBAL_ENDPOINT_SLOTS = asyncio.Semaphore(MAX_GLOBAL_ENDPOINT_CONCURRENCY)
 
 
 @dataclass(frozen=True)
@@ -28,10 +33,17 @@ class RouterResources:
 class RouterOSError(RuntimeError):
     """Credential-free, classified RouterOS failure."""
 
-    def __init__(self, reason: str, *, retryable: bool) -> None:
+    def __init__(
+        self,
+        reason: str,
+        *,
+        retryable: bool,
+        retry_after_seconds: float | None = None,
+    ) -> None:
         super().__init__(reason)
         self.reason = reason
         self.retryable = retryable
+        self.retry_after_seconds = retry_after_seconds
 
 
 def _resource_url(host: str) -> str:
@@ -117,7 +129,13 @@ async def fetch_resources(
                     "routeros_rest_unsupported", retryable=False
                 ) from exc
             if status == 429:
-                raise RouterOSError("rate_limited", retryable=True) from exc
+                raise RouterOSError(
+                    "rate_limited",
+                    retryable=True,
+                    retry_after_seconds=_retry_after_seconds(
+                        exc.response.headers.get("retry-after")
+                    ),
+                ) from exc
             raise RouterOSError(
                 "routeros_server_error"
                 if status >= 500
@@ -173,7 +191,7 @@ async def _bounded_json(
 ) -> object:
     response: httpx.Response | None = None
     try:
-        async with endpoint_slots:
+        async with endpoint_slots, _GLOBAL_ENDPOINT_SLOTS:
             response = await client.send(client.build_request("GET", url), stream=True)
             response.raise_for_status()
             declared = response.headers.get("content-length")
@@ -184,7 +202,9 @@ async def _bounded_json(
                             "response_size_limit_exceeded", retryable=False
                         )
                 except ValueError as exc:
-                    raise RouterOSError("invalid_content_length", retryable=False) from exc
+                    raise RouterOSError(
+                        "invalid_content_length", retryable=False
+                    ) from exc
             body = bytearray()
             async for chunk in response.aiter_bytes():
                 body.extend(chunk)
@@ -196,3 +216,19 @@ async def _bounded_json(
     finally:
         if response is not None:
             await response.aclose()
+
+
+def _retry_after_seconds(value: str | None, *, now: datetime | None = None) -> float | None:
+    if not value:
+        return None
+    try:
+        seconds = float(value.strip())
+    except ValueError:
+        try:
+            retry_at = parsedate_to_datetime(value)
+        except (TypeError, ValueError, OverflowError):
+            return None
+        if retry_at.tzinfo is None:
+            retry_at = retry_at.replace(tzinfo=UTC)
+        seconds = (retry_at - (now or datetime.now(UTC))).total_seconds()
+    return min(MAX_RETRY_AFTER_SECONDS, max(0.0, seconds))

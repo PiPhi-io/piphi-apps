@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import asyncio
 import json
 
 import httpx
 import pytest
 
+from piphi_network_pfsense import pfsense_client
 from piphi_network_pfsense.pfsense_client import PfRestV2Client, PfSenseError
 from piphi_network_pfsense.schemas import DeviceConfig
 
@@ -146,6 +148,110 @@ async def test_optional_endpoint_failure_survives_as_scoped_error() -> None:
         await client.close()
     assert snapshot.system["serial"] == "TEST"
     assert snapshot.endpoint_errors == {"log_auth": "permission_denied"}
+
+
+@pytest.mark.anyio
+async def test_process_global_concurrency_is_bounded_across_clients(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    active = 0
+    maximum = 0
+    monkeypatch.setattr(
+        pfsense_client, "_GLOBAL_ENDPOINT_SLOTS", asyncio.Semaphore(2)
+    )
+
+    async def handler(_request: httpx.Request) -> httpx.Response:
+        nonlocal active, maximum
+        active += 1
+        maximum = max(maximum, active)
+        await asyncio.sleep(0.01)
+        active -= 1
+        return httpx.Response(200, json={"data": {}})
+
+    clients = [
+        PfRestV2Client(
+            config(id=f"firewall-{index}", host=f"firewall-{index}.test"),
+            transport=httpx.MockTransport(handler),
+        )
+        for index in range(6)
+    ]
+    try:
+        await asyncio.gather(
+            *(client._get("/api/v2/status/system") for client in clients)
+        )
+    finally:
+        await asyncio.gather(*(client.close() for client in clients))
+    assert maximum == 2
+
+
+@pytest.mark.anyio
+async def test_per_appliance_concurrency_is_bounded(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    active = 0
+    maximum = 0
+    monkeypatch.setattr(
+        pfsense_client, "_GLOBAL_ENDPOINT_SLOTS", asyncio.Semaphore(20)
+    )
+
+    async def handler(_request: httpx.Request) -> httpx.Response:
+        nonlocal active, maximum
+        active += 1
+        maximum = max(maximum, active)
+        await asyncio.sleep(0.01)
+        active -= 1
+        return httpx.Response(200, json={"data": {}})
+
+    client = PfRestV2Client(config(), transport=httpx.MockTransport(handler))
+    try:
+        await asyncio.gather(
+            *(client._get(f"/api/v2/test/{index}") for index in range(12))
+        )
+    finally:
+        await client.close()
+    assert maximum == pfsense_client.MAX_ENDPOINT_CONCURRENCY
+
+
+@pytest.mark.anyio
+async def test_rate_limit_retry_after_is_parsed_and_bounded() -> None:
+    client = PfRestV2Client(
+        config(),
+        transport=httpx.MockTransport(
+            lambda _request: httpx.Response(429, headers={"Retry-After": "1200"})
+        ),
+    )
+    try:
+        with pytest.raises(PfSenseError) as exc_info:
+            await client._get("/api/v2/status/system")
+    finally:
+        await client.close()
+    assert exc_info.value.reason == "rate_limited"
+    assert exc_info.value.retryable is True
+    assert exc_info.value.retry_after_seconds == 900
+
+
+@pytest.mark.anyio
+async def test_selected_endpoint_retry_after_is_preserved_in_partial_snapshot() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/v2/status/logs/auth":
+            return httpx.Response(429, headers={"Retry-After": "600"})
+        if request.url.path == "/api/v2/status/system":
+            return httpx.Response(200, json={"data": {"serial": "TEST"}})
+        if request.url.path == "/api/v2/system/restapi/version":
+            return httpx.Response(200, json={"data": {"current_version": "2.9.0"}})
+        if request.url.path == "/api/v2/system/version":
+            return httpx.Response(200, json={"data": {"version": "fixture"}})
+        return httpx.Response(200, json={"data": []})
+
+    client = PfRestV2Client(
+        config(collect_security_logs=True), transport=httpx.MockTransport(handler)
+    )
+    try:
+        snapshot = await client.read_snapshot()
+    finally:
+        await client.close()
+    assert snapshot.endpoint_errors == {"log_auth": "rate_limited"}
+    assert snapshot.endpoint_retry_after_seconds == {"log_auth": 600}
 
 
 @pytest.mark.anyio

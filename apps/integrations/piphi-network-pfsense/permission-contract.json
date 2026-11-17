@@ -1,32 +1,76 @@
 {
-  "version": 1,
+  "version": 2,
+  "upstream": {
+    "project": "pfrest/pfSense-pkg-RESTAPI",
+    "revision": "82ff3272b27b5dfc959d543e3fa3f3010187355d",
+    "privilege_format": "api-v2-{endpoint-path-with-hyphens}-{lowercase-method}"
+  },
   "default_profile": "baseline-monitoring",
   "profiles": {
-    "baseline-monitoring": {
-      "required": [
-        "GET /api/v2/status/system",
-        "GET /api/v2/system/version",
-        "GET /api/v2/system/restapi/version",
-        "GET /api/v2/status/interfaces",
-        "GET /api/v2/status/gateways",
-        "GET /api/v2/status/services"
-      ]
-    },
-    "client-inventory": {"required": ["GET /api/v2/status/dhcp_server/leases", "GET /api/v2/diagnostics/arp_table"]},
-    "security-logs": {"required": ["GET /api/v2/status/logs/firewall", "GET /api/v2/status/logs/auth", "GET /api/v2/status/logs/dhcp", "GET /api/v2/status/logs/system"]},
-    "certificates": {"required": ["GET /api/v2/system/certificates"]},
-    "high-availability": {"required": ["GET /api/v2/status/carp", "GET /api/v2/firewall/virtual_ips", "GET /api/v2/system/hasync"]},
-    "vpn-status": {"required": ["GET /api/v2/status/openvpn/clients", "GET /api/v2/status/openvpn/servers", "GET /api/v2/status/ipsec/sas", "GET /api/v2/status/wireguard/tunnels"]}
+    "baseline-monitoring": [
+      {"method": "GET", "path": "/api/v2/status/system", "privilege": "api-v2-status-system-get"},
+      {"method": "GET", "path": "/api/v2/system/version", "privilege": "api-v2-system-version-get"},
+      {"method": "GET", "path": "/api/v2/system/restapi/version", "privilege": "api-v2-system-restapi-version-get"},
+      {"method": "GET", "path": "/api/v2/status/interfaces", "privilege": "api-v2-status-interfaces-get"},
+      {"method": "GET", "path": "/api/v2/status/gateways", "privilege": "api-v2-status-gateways-get"},
+      {"method": "GET", "path": "/api/v2/status/services", "privilege": "api-v2-status-services-get"}
+    ],
+    "dhcp-leases": [
+      {"method": "GET", "path": "/api/v2/status/dhcp_server/leases", "privilege": "api-v2-status-dhcp-server-leases-get"}
+    ],
+    "client-inventory": [
+      {"method": "GET", "path": "/api/v2/status/dhcp_server/leases", "privilege": "api-v2-status-dhcp-server-leases-get"},
+      {"method": "GET", "path": "/api/v2/diagnostics/arp_table", "privilege": "api-v2-diagnostics-arp-table-get"}
+    ],
+    "security-logs": [
+      {"method": "GET", "path": "/api/v2/status/logs/firewall", "privilege": "api-v2-status-logs-firewall-get"},
+      {"method": "GET", "path": "/api/v2/status/logs/auth", "privilege": "api-v2-status-logs-auth-get"},
+      {"method": "GET", "path": "/api/v2/status/logs/dhcp", "privilege": "api-v2-status-logs-dhcp-get"},
+      {"method": "GET", "path": "/api/v2/status/logs/system", "privilege": "api-v2-status-logs-system-get"}
+    ],
+    "certificates": [
+      {"method": "GET", "path": "/api/v2/system/certificates", "privilege": "api-v2-system-certificates-get"}
+    ],
+    "high-availability": [
+      {"method": "GET", "path": "/api/v2/status/carp", "privilege": "api-v2-status-carp-get"},
+      {"method": "GET", "path": "/api/v2/firewall/virtual_ips", "privilege": "api-v2-firewall-virtual-ips-get"},
+      {"method": "GET", "path": "/api/v2/system/hasync", "privilege": "api-v2-system-hasync-get"}
+    ],
+    "vpn-status": [
+      {"method": "GET", "path": "/api/v2/status/openvpn/clients", "privilege": "api-v2-status-openvpn-clients-get"},
+      {"method": "GET", "path": "/api/v2/status/openvpn/servers", "privilege": "api-v2-status-openvpn-servers-get"},
+      {"method": "GET", "path": "/api/v2/status/ipsec/sas", "privilege": "api-v2-status-ipsec-sas-get"},
+      {"method": "GET", "path": "/api/v2/status/wireguard/tunnels", "privilege": "api-v2-status-wireguard-tunnels-get"}
+    ]
   },
-  "denial_matrix": [
-    {"status": 401, "reason": "authentication_failed", "remediation": "reauthenticate"},
-    {"status": 403, "reason": "permission_denied", "remediation": "reconfigure_permissions"},
-    {"status": 404, "reason": "endpoint_or_version_unsupported", "remediation": "reconfigure_api_version"},
-    {"status": 429, "reason": "rate_limited", "remediation": "retry"}
-  ],
+  "actions": {
+    "diagnostic_ping": [
+      {"method": "POST", "path": "/api/v2/diagnostics/ping", "privilege": "api-v2-diagnostics-ping-post"}
+    ],
+    "restart_service": [
+      {"method": "GET", "path": "/api/v2/status/services", "privilege": "api-v2-status-services-get"},
+      {"method": "POST", "path": "/api/v2/status/service", "privilege": "api-v2-status-service-post"}
+    ],
+    "start_service": [
+      {"method": "GET", "path": "/api/v2/status/services", "privilege": "api-v2-status-services-get"},
+      {"method": "POST", "path": "/api/v2/status/service", "privilege": "api-v2-status-service-post"}
+    ],
+    "wake_on_lan": [
+      {"method": "POST", "path": "/api/v2/services/wake_on_lan/send", "privilege": "api-v2-services-wake-on-lan-send-post"}
+    ]
+  },
+  "denial_matrix": {
+    "every_endpoint_and_action": [
+      {"status": 401, "reason": "authentication_failed", "retryable": false, "remediation": "reauthenticate"},
+      {"status": 403, "reason": "permission_denied", "retryable": false, "remediation": "reconfigure_permissions"},
+      {"status": 404, "reason": "endpoint_or_version_unsupported", "retryable": false, "remediation": "reconfigure_api_version"},
+      {"status": 429, "reason": "rate_limited", "retryable": true, "remediation": "retry", "honor_retry_after": true},
+      {"status": 503, "reason": "server_error", "retryable": true, "remediation": "retry"}
+    ]
+  },
   "service_control": {
     "allowed_low_risk": ["collectd", "node_exporter", "telegraf"],
     "policy": "all critical and unclassified services are denied during configuration and command dispatch"
   },
-  "forbidden": ["firewall rule mutation", "route mutation", "user mutation", "VPN secret mutation", "arbitrary API path", "shell execution"]
+  "forbidden": ["page-all", "firewall rule mutation", "route mutation", "user mutation", "VPN secret mutation", "arbitrary API path", "shell execution"]
 }

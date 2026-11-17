@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from time import monotonic
 from types import SimpleNamespace
 
 import pytest
@@ -13,6 +14,7 @@ from piphi_network_pfsense.service import (
     PfSenseRuntimeService,
     _appliance_device_id,
     _opaque_child_id,
+    _retry_delay,
     apply_interface_rates,
     main_metrics,
     snapshot_to_state,
@@ -519,3 +521,163 @@ def test_retryable_outage_recovers_but_permanent_failure_requires_action(
     assert active.requires_user_action is True
     assert states[-1]["requires_user_action"] is True
     assert states[-1]["circuit_open"] is False
+
+
+def test_five_retryable_failures_open_circuit_with_bounded_backoff_and_jitter(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        "piphi_network_pfsense.service.schedule_telemetry_delivery",
+        lambda **_kwargs: None,
+    )
+    service = PfSenseRuntimeService(
+        registry=SimpleNamespace(update_state=lambda *_args, **_kwargs: None),
+        runtime=SimpleNamespace(),
+        telemetry=SimpleNamespace(),
+    )
+    active = ActiveFirewall(
+        config=DeviceConfig(
+            id="firewall-retry",
+            host="pfsense.test",
+            api_key="key",
+            poll_interval_seconds=30,
+        ),
+        entry={"config_id": "firewall-retry", "device_id": "opaque-device"},
+        client=ActionClient(),
+    )
+    delays = []
+    for failure in range(1, 6):
+        assert service._mark_failure(
+            active,
+            PfSenseError("connection_failed", retryable=True, remediation="retry"),
+        )
+        delays.append(_retry_delay(active))
+        assert active.failure_count == failure
+        assert (active.circuit_open_until > monotonic()) is (failure == 5)
+    assert delays[:4] == sorted(delays[:4])
+    assert all(1 <= delay <= 900 for delay in delays)
+    assert 299 <= delays[-1] <= 300
+
+
+def test_retry_after_is_honored_without_exceeding_backoff_bound() -> None:
+    service = PfSenseRuntimeService(
+        registry=SimpleNamespace(update_state=lambda *_args, **_kwargs: None),
+        runtime=SimpleNamespace(),
+        telemetry=SimpleNamespace(),
+    )
+    active = ActiveFirewall(
+        config=DeviceConfig(id="limited", host="pfsense.test", api_key="key"),
+        entry={"config_id": "limited", "device_id": "opaque-device"},
+        client=ActionClient(),
+    )
+    service._mark_failure(
+        active,
+        PfSenseError(
+            "rate_limited",
+            retryable=True,
+            remediation="retry",
+            retry_after_seconds=1200,
+        ),
+    )
+    assert _retry_delay(active) == 900
+
+
+@pytest.mark.parametrize(
+    "failure_reason", ["permission_denied", "endpoint_or_version_unsupported"]
+)
+def test_selected_endpoint_failure_is_connected_but_degraded_stale_and_actionable(
+    monkeypatch, failure_reason,
+) -> None:
+    states: list[dict] = []
+    monkeypatch.setattr(
+        "piphi_network_pfsense.service.schedule_telemetry_delivery",
+        lambda **_kwargs: None,
+    )
+    service = PfSenseRuntimeService(
+        registry=SimpleNamespace(
+            update_state=lambda _config_id, state, **_kwargs: states.append(state)
+        ),
+        runtime=SimpleNamespace(process_state=object(), auth=object()),
+        telemetry=object(),
+    )
+    prior = {
+        "connected": True,
+        "degraded": False,
+        "last_success_at": "2026-01-01T00:00:00+00:00",
+        "clients": [{"id": "opaque", "name": "Network client opaque", "online": True}],
+    }
+    active = ActiveFirewall(
+        config=DeviceConfig(
+            id="firewall-profile",
+            host="pfsense.test",
+            api_key="key",
+            collect_client_inventory=True,
+        ),
+        entry={"config_id": "firewall-profile", "device_id": "opaque-device"},
+        client=ActionClient(),
+        last_state=prior,
+        last_complete_state=prior,
+    )
+    state = service._apply_snapshot(
+        active,
+        PfSenseSnapshot(
+            system={},
+            api_version={"current_version": "2.9.0"},
+            arp_entries=[{"mac_address": "aa:bb:cc:dd:ee:ff"}],
+            endpoint_errors={"dhcp_leases": failure_reason},
+        ),
+    )
+    assert state["connected"] is True
+    assert state["degraded"] is True
+    assert state["stale"] is True
+    assert state["last_success_at"] == prior["last_success_at"]
+    assert state["requires_user_action"] is True
+    assert state["error"] == "selected_profile_degraded"
+    assert state["endpoint_errors"] == {"dhcp_leases": failure_reason}
+    assert state["clients"]
+    assert active.requires_user_action is True
+    assert states[-1] is state
+
+
+def test_transient_selected_endpoint_failure_remains_retryable_degraded_state(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        "piphi_network_pfsense.service.schedule_telemetry_delivery",
+        lambda **_kwargs: None,
+    )
+    service = PfSenseRuntimeService(
+        registry=SimpleNamespace(update_state=lambda *_args, **_kwargs: None),
+        runtime=SimpleNamespace(process_state=object(), auth=object()),
+        telemetry=object(),
+    )
+    prior = {"connected": True, "last_success_at": "2026-01-01T00:00:00+00:00"}
+    active = ActiveFirewall(
+        config=DeviceConfig(
+            id="firewall-profile",
+            host="pfsense.test",
+            api_key="key",
+            collect_security_logs=True,
+        ),
+        entry={"config_id": "firewall-profile", "device_id": "opaque-device"},
+        client=ActionClient(),
+        last_state=prior,
+        last_complete_state=prior,
+    )
+    state = service._apply_snapshot(
+        active,
+        PfSenseSnapshot(
+            system={},
+            api_version={"current_version": "2.9.0"},
+            logs={"firewall": [{"event_id": "opaque-event"}]},
+            endpoint_errors={"log_auth": "server_error"},
+            endpoint_retry_after_seconds={"log_auth": 600},
+        ),
+    )
+    assert state["connected"] is True
+    assert state["degraded"] is True
+    assert state["stale"] is True
+    assert state["requires_user_action"] is False
+    assert state["remediation"] == "retry"
+    assert active.requires_user_action is False
+    assert active.retry_after_seconds == 600

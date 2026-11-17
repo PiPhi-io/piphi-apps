@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 from fastapi import APIRouter, HTTPException, Request
 from piphi_runtime_kit_python.fastapi import dispatch_automation_action_from_fastapi
@@ -22,7 +22,8 @@ async def command(payload: dict[str, Any], request: Request):
             status_code=400, detail=f"Unsupported command: {command_name}"
         )
 
-    target = payload.get("target") if isinstance(payload.get("target"), dict) else {}
+    raw_target = payload.get("target")
+    target = cast(dict[str, Any], raw_target) if isinstance(raw_target, dict) else {}
     device_id = str(
         payload.get("device_id") or target.get("device_id") or "configured-router"
     )

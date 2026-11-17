@@ -196,7 +196,7 @@ async def _refresh_entry_serialized(entry: dict[str, Any]) -> dict[str, Any]:
     try:
         resources = await fetch_resources(
             config.host,
-            config.username,
+            config.username or "",
             password,
             ca_bundle_path=config.ca_bundle_path,
         )
@@ -220,7 +220,12 @@ async def _refresh_entry_serialized(entry: dict[str, Any]) -> dict[str, Any]:
         _emit_connectivity_transition(entry, state)
         entry["latest_metrics"] = state
         registry.update_state(entry["config_id"], state, device_id=entry["device_id"])
-        _schedule_failure(entry, retryable=exc.retryable, reason=exc.reason)
+        _schedule_failure(
+            entry,
+            retryable=exc.retryable,
+            reason=exc.reason,
+            retry_after_seconds=exc.retry_after_seconds,
+        )
         return state
     except (httpx.HTTPError, OSError, TypeError, ValueError) as exc:
         logger.warning(
@@ -300,7 +305,11 @@ async def _apply_resources(
 
 
 def _schedule_failure(
-    entry: dict[str, Any], *, retryable: bool, reason: str | None = None
+    entry: dict[str, Any],
+    *,
+    retryable: bool,
+    reason: str | None = None,
+    retry_after_seconds: float | None = None,
 ) -> None:
     if not retryable:
         entry["failure_count"] = 0
@@ -311,13 +320,20 @@ def _schedule_failure(
         return
     failures = int(entry.get("failure_count", 0)) + 1
     entry["failure_count"] = failures
-    base = min(900, 60 * (2 ** min(failures - 1, 4))) if retryable else 900
+    base = min(900.0, 60.0 * (2 ** min(failures - 1, 4)))
     digest = int(sha256(str(entry["config_id"]).encode()).hexdigest()[:4], 16)
     jitter = (digest % 21 - 10) / 100
-    entry["next_poll_at"] = time.monotonic() + base * (1 + jitter)
+    delay = min(
+        900.0,
+        max(base * (1 + jitter), retry_after_seconds or 0.0, 1.0),
+    )
+    now = time.monotonic()
+    entry["next_poll_at"] = now + delay
     if failures >= 5:
-        entry["circuit_open_until"] = time.monotonic() + 300
-        entry["next_poll_at"] = entry["circuit_open_until"]
+        entry["circuit_open_until"] = now + 300
+        entry["next_poll_at"] = max(
+            entry["circuit_open_until"], entry["next_poll_at"]
+        )
 
 
 def _stale_age_seconds(last_success_at: Any) -> int | None:

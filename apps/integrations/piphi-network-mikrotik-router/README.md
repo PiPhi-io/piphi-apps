@@ -44,7 +44,8 @@ and [resource fields](https://help.mikrotik.com/docs/spaces/ROS/pages/40992875/R
 Other RouterOS features, such as per-interface traffic and client inventory,
 remain planned and are not implied by the health widget.
 
-Create a dedicated RouterOS group with only `read,rest-api`; do not use the
+Create a dedicated RouterOS group with exactly `read,api,rest-api`; RouterOS
+requires `api` alongside `rest-api` for REST login. Do not use the
 built-in `read` group, which grants unrelated sensitive privileges. Restrict
 the monitoring user's `address` to the PiPhi runtime host or management subnet,
 enable `www-ssl`, and disable plain `www`. Setup performs authenticated reads of

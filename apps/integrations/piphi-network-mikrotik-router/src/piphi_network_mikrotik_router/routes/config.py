@@ -4,6 +4,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 from piphi_runtime_kit_python import (
+    RuntimeConfig,
     RuntimeConfigSnapshot,
     build_config_apply_response,
     build_config_remove_response,
@@ -22,6 +23,10 @@ from ..state import (
 )
 
 router = APIRouter(tags=["config"])
+
+
+async def _apply_synced_config(config: RuntimeConfig) -> None:
+    await apply_config(DeviceConfig.model_validate(config.model_dump()))
 
 
 @router.post("/config")
@@ -58,7 +63,7 @@ async def sync_config(snapshot: RuntimeConfigSnapshot, request: Request):
     return await config_sync.apply_snapshot(
         snapshot=snapshot.model_copy(update={"configs": typed_configs}),
         active_config_ids=registry.ids(),
-        apply_config=apply_config,
+        apply_config=_apply_synced_config,
         remove_config=remove_config,
         get_active_config_ids=registry.ids,
     )

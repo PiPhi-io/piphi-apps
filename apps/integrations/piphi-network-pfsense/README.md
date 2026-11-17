@@ -27,6 +27,11 @@ Required pfSense API access:
 - `GET /api/v2/status/gateways`
 - `GET /api/v2/status/services`
 
+The corresponding generated pfREST privileges are
+`api-v2-status-system-get`, `api-v2-system-version-get`,
+`api-v2-system-restapi-version-get`, `api-v2-status-interfaces-get`,
+`api-v2-status-gateways-get`, and `api-v2-status-services-get`.
+
 Optional access is needed for DHCP leases and VPN status only when those
 collection settings are enabled.
 
@@ -51,7 +56,10 @@ containing only these exact endpoint privileges and the explicitly selected
 optional privileges; no administrator role is required or recommended.
 
 Selecting an optional profile makes every endpoint in that profile essential
-during setup. `permission-contract.json` is the machine-readable privilege and
+during setup. During later polls, a partial selected profile remains connected
+to the baseline API but is explicitly `degraded` and `stale`; permanent
+permission/version failures stop polling for user action, while transient
+failures retry. `permission-contract.json` is the machine-readable privilege and
 denial matrix. CI verifies deterministic fake pfREST responses and sanitized
 recorded schemas only. No physical appliance or firmware combination is
 qualified by this package, and no compatibility beyond the exact locally tested
