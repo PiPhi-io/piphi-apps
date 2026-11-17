@@ -4,7 +4,7 @@ import os
 
 INTEGRATION_ID = "piphi.service.wyze-camera-bridge"
 INTEGRATION_NAME = "PiPhi Wyze Camera Bridge"
-INTEGRATION_VERSION = "0.1.4"
+INTEGRATION_VERSION = "0.1.5"
 PROJECT_KIND = "platform_service"
 PROJECT_PRESET = "platform-service"
 PROJECT_DOMAIN = "camera-bridge"

@@ -188,19 +188,25 @@ safe reason/remediation classes and aggregate status.
 ## Container
 
 ```bash
-docker build -t ghcr.io/piphi-io/piphi-network-pfsense:0.1.9 .
+docker build -t ghcr.io/piphi-io/piphi-network-pfsense:0.1.10 .
 ```
 
 The container does not require host networking, privileged mode, or access to
 the pfSense filesystem.
+
+The runtime and its persistent ledger execute as UID/GID `10001`. Docker named
+volumes inherit the image directory ownership. Deployments using the manifest's
+bind mount must provision `/var/lib/piphi/pfsense` for UID/GID `10001` before
+startup; replacing `/data/piphi` with a root-owned tmpfs is intentionally not a
+supported writable-volume contract.
 
 ## Releases
 
 Use the monorepo **Release one app package** workflow with package ID
 `piphi-network-pfsense`, the committed version, and `publish=false` for
 qualification. Publishing creates the immutable tag
-`apps/piphi-network-pfsense/v0.1.9` and the managed GHCR image
-`ghcr.io/piphi-io/piphi-network-pfsense:0.1.9`; do not create standalone `v*`
+`apps/piphi-network-pfsense/v0.1.10` and the managed GHCR image
+`ghcr.io/piphi-io/piphi-network-pfsense:0.1.10`; do not create standalone `v*`
 tags or Docker Hub releases.
 
 ## Upstream status

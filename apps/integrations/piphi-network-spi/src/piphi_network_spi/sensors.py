@@ -23,7 +23,7 @@ _operation_locks_guard = threading.Lock()
 
 @dataclass(frozen=True)
 class SensorConfig:
-    # Physical settings are internal experimental constants in 0.1.4. Public
+    # Physical settings are internal experimental constants in 0.1.5. Public
     # normalization rejects caller values for them while physical helpers remain
     # unreachable for future backend work.
     adapter: str = "mock"
@@ -40,7 +40,7 @@ def normalize_config(payload: dict[str, Any] | None) -> SensorConfig:
     forbidden = sorted(PHYSICAL_CONFIG_FIELDS.intersection(data))
     if forbidden:
         raise ValueError(
-            f"Physical SPI settings are unavailable for mock-only 0.1.4: {', '.join(forbidden)}"
+            f"Physical SPI settings are unavailable for mock-only 0.1.5: {', '.join(forbidden)}"
         )
     config = SensorConfig(
         adapter=str(data.get("adapter") or "mock").strip().lower(),

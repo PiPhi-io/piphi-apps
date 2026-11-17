@@ -55,7 +55,7 @@ for path in /mosquitto/config /mosquitto/data /mosquitto/log; do
   }
 done
 
-mosquitto -c "${config_file}.candidate" &
+su-exec mosquitto:mosquitto mosquitto -c "${config_file}.candidate" &
 validation_pid=$!
 attempt=0
 until node /app/dist/src/healthcheck.js --startup >/dev/null 2>&1; do
@@ -72,4 +72,4 @@ wait "$validation_pid"
 mv -f "${config_file}.candidate" "$config_file"
 node /app/dist/src/cli.js --commit-identity
 trap - EXIT HUP INT TERM
-exec mosquitto -c "$config_file"
+exec su-exec mosquitto:mosquitto mosquitto -c "$config_file"

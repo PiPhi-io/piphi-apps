@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "release": "0.3.1",
+  "release": "0.3.2",
   "service_id": "piphi.service.mqtt-broker",
   "capabilities": [
     {"id":"mqtt_3_1_1_and_5_tcp","status":"implemented","scope":"Mosquitto TCP listener; automated qualification uses MQTT 5"},

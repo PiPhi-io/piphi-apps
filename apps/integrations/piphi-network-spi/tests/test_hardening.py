@@ -3,11 +3,14 @@ from __future__ import annotations
 import asyncio
 import threading
 import time
+from pathlib import Path
 
 import pytest
 from fastapi import HTTPException
 
 from piphi_network_spi import sensors, state
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_mock_operations_and_identity_have_no_chip_select_semantics() -> None:
@@ -126,3 +129,12 @@ def test_manifest_requires_private_core_allocated_port() -> None:
         "port_binding": "core_allocated",
         "port_env": "PIPHI_SPI_PORT",
     }
+
+
+def test_image_declares_release_provenance_and_non_root_user() -> None:
+    dockerfile = (ROOT / "Dockerfile").read_text()
+
+    assert 'org.opencontainers.image.source="${SOURCE_REPOSITORY}"' in dockerfile
+    assert 'org.opencontainers.image.revision="${SOURCE_REVISION}"' in dockerfile
+    assert 'org.opencontainers.image.version="${RELEASE_VERSION}"' in dockerfile
+    assert "USER piphi" in dockerfile

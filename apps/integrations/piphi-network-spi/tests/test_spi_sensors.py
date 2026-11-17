@@ -39,11 +39,11 @@ def test_discover_devices_probes_instead_of_projecting_config(
 
 
 def test_normalize_config_rejects_ignored_or_unsafe_settings() -> None:
-    with pytest.raises(ValueError, match="mock-only 0.1.4: bus"):
+    with pytest.raises(ValueError, match="mock-only 0.1.5: bus"):
         sensors.normalize_config({"bus": 1, "sensor_model": "bme280"})
-    with pytest.raises(ValueError, match="mock-only 0.1.4: chip_select"):
+    with pytest.raises(ValueError, match="mock-only 0.1.5: chip_select"):
         sensors.normalize_config({"chip_select": 9, "sensor_model": "bme280"})
-    with pytest.raises(ValueError, match="mock-only 0.1.4: baudrate"):
+    with pytest.raises(ValueError, match="mock-only 0.1.5: baudrate"):
         sensors.normalize_config({"baudrate": 1, "sensor_model": "bme280"})
     with pytest.raises(ValueError, match="explicit sensor_model"):
         sensors.normalize_config({"adapter": "linux_spi", "sensor_model": "auto"})

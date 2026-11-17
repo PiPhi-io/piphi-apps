@@ -7,6 +7,8 @@ const manifest = JSON.parse(readFileSync(new URL("../src/manifest.json", import.
 const packageJson = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
 const packageLock = JSON.parse(readFileSync(new URL("../package-lock.json", import.meta.url), "utf8"));
 const catalog = JSON.parse(readFileSync(new URL("../capability-catalog.json", import.meta.url), "utf8"));
+const dockerfile = readFileSync(new URL("../Dockerfile", import.meta.url), "utf8");
+const entrypoint = readFileSync(new URL("../docker/entrypoint.sh", import.meta.url), "utf8");
 
 test("release metadata and GHCR image stay aligned", () => {
   const releasePackage = app.packages[0];
@@ -48,4 +50,11 @@ test("release metadata and GHCR image stay aligned", () => {
     registry: "ghcr.io",
     repository: "piphi-io/mqtt-broker",
   });
+});
+
+test("image labels provenance and drops broker privileges", () => {
+  assert.match(dockerfile, /org\.opencontainers\.image\.source="\$\{SOURCE_REPOSITORY\}"/);
+  assert.match(dockerfile, /org\.opencontainers\.image\.revision="\$\{SOURCE_REVISION\}"/);
+  assert.match(dockerfile, /org\.opencontainers\.image\.version="\$\{RELEASE_VERSION\}"/);
+  assert.match(entrypoint, /exec su-exec mosquitto:mosquitto mosquitto -c "\$config_file"/);
 });

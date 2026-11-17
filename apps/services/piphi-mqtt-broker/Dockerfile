@@ -9,11 +9,14 @@ RUN npm ci && npm run build && npm prune --omit=dev
 
 FROM node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
 
-ARG APP_VERSION=0.3.1
+ARG RELEASE_VERSION=0.3.2
+ARG SOURCE_REVISION=unknown
+ARG SOURCE_REPOSITORY=https://github.com/PiPhi-io/piphi-apps
 LABEL org.opencontainers.image.title="PiPhi MQTT Broker" \
       org.opencontainers.image.description="Managed MQTT broker platform service for PiPhi" \
-      org.opencontainers.image.source="https://github.com/PiPhi-io/piphi-apps" \
-      org.opencontainers.image.version="${APP_VERSION}"
+      org.opencontainers.image.source="${SOURCE_REPOSITORY}" \
+      org.opencontainers.image.revision="${SOURCE_REVISION}" \
+      org.opencontainers.image.version="${RELEASE_VERSION}"
 
 WORKDIR /app
 

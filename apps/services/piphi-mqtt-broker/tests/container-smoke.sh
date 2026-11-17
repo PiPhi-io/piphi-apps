@@ -16,6 +16,12 @@ cleanup() {
 }
 trap cleanup EXIT HUP INT TERM
 
+assert_broker_non_root() {
+  broker_user="$(docker top "$name" -eo user,pid,comm | awk '$3 == "mosquitto" { print $1; exit }')"
+  test -n "$broker_user"
+  test "$broker_user" != root
+}
+
 mkdir -p "$secrets"
 printf '%s' 'smoke-secret' > "$secrets/password"
 chmod 0600 "$secrets/password"
@@ -37,6 +43,7 @@ until [ "$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{end}
   fi
   sleep 1
 done
+assert_broker_non_root
 docker exec "$name" node /app/dist/src/healthcheck.js --liveness
 docker exec "$name" chmod 0555 /mosquitto/data
 docker exec "$name" node /app/dist/src/healthcheck.js --liveness
@@ -108,6 +115,7 @@ attempt=0
 until [ "$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{end}}' "$name")" = "healthy" ]; do
   attempt=$((attempt + 1)); [ "$attempt" -lt 30 ] || { docker logs "$name"; exit 1; }; sleep 1
 done
+assert_broker_non_root
 docker exec "$name" mosquitto_pub -V mqttv5 -h 127.0.0.1 -u alpha -P alpha-one -t piphi/alpha/retained -m alpha-state -q 1 -r
 cross_tenant="$(docker exec "$name" mosquitto_sub -V mqttv5 -h 127.0.0.1 -u beta -P beta-secret -t piphi/alpha/# -C 1 -W 2 2>&1 || true)"
 # A retained alpha message exists; timing out proves beta cannot receive it.
