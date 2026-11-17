@@ -4,10 +4,62 @@ import importlib.util
 import io
 import json
 from pathlib import Path
+import subprocess
 import sys
 from zipfile import ZipFile
 
 import pytest
+
+
+def test_published_digest_is_pulled_before_local_metadata_inspection(monkeypatch) -> None:
+    root = Path(__file__).resolve().parent.parent
+    spec = importlib.util.spec_from_file_location(
+        "airthings_qualify_release_image",
+        root / "scripts" / "qualify_release_image.py",
+    )
+    assert spec is not None and spec.loader is not None
+    qualification = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = qualification
+    spec.loader.exec_module(qualification)
+
+    image = "ghcr.io/piphi-io/airthings-consumer-cloud@sha256:" + "a" * 64
+    commands: list[tuple[str, ...]] = []
+    inspected = json.dumps(
+        [
+            {
+                "Config": {
+                    "User": "piphi",
+                    "Volumes": {"/var/lib/piphi": {}},
+                    "Labels": {
+                        "org.opencontainers.image.version": "0.1.8",
+                        "org.opencontainers.image.revision": "revision",
+                        "io.piphi.manifest.sha256": "manifest",
+                        "io.piphi.behaviors.sha256": "behaviors",
+                    },
+                }
+            }
+        ]
+    )
+
+    def capture_command(*command: str, check: bool = True) -> subprocess.CompletedProcess[str]:
+        del check
+        commands.append(command)
+        stdout = inspected if command[:3] == ("docker", "image", "inspect") else ""
+        return subprocess.CompletedProcess(command, 0, stdout=stdout, stderr="")
+
+    monkeypatch.setattr(qualification, "run_command", capture_command)
+    qualification.validate_image_metadata(
+        image,
+        version="0.1.8",
+        revision="revision",
+        manifest_sha256="manifest",
+        behaviors_sha256="behaviors",
+    )
+
+    assert commands == [
+        ("docker", "pull", image),
+        ("docker", "image", "inspect", image),
+    ]
 
 
 def test_manifest_and_behaviors_align() -> None:
