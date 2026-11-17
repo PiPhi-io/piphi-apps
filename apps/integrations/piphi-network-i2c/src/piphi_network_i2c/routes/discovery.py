@@ -21,7 +21,7 @@ async def discover(payload: IntegrationDiscoveryRequest | None = None) -> Integr
         config = normalize_config(
             {
                 **inputs,
-                "adapter": inputs.get("adapter") or "linux_i2c",
+                "adapter": inputs.get("adapter") or "mock",
                 "allow_scan": inputs.get("allow_scan") is True,
             }
         )

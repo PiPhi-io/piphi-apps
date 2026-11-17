@@ -20,12 +20,8 @@ def main() -> None:
     container = manifest["runtime"]["linux"]["container"]
     assert container["privileged"] is False
     assert container["read_only"] is True
-    assert container["devices"] == [
-        {"host": "/dev/i2c-1", "container": "/dev/i2c-1", "permissions": "rw"}
-    ]
-    assert container["group_add"] == [
-        {"source": "device_gid", "path": "/dev/i2c-1", "required": True}
-    ]
+    assert not container.get("devices")
+    assert "group_add" not in container
     assert container["ports"] == [{"container": 3674, "protocol": "tcp"}]
     assert manifest["runtime_contract"] == {
         "version": 1,
@@ -40,9 +36,11 @@ def main() -> None:
     dockerfile = (ROOT / "Dockerfile").read_text()
     assert "@sha256:" in dockerfile and "USER piphi" in dockerfile
     readme = (ROOT / "README.md").read_text()
-    assert '--group-add "$I2C_DEVICE_GID"' in readme
     assert "-p 127.0.0.1:3674:3674" in readme
     assert "standalone ingress-auth boundary" in readme
+    assert "dynamic supplementary device GID" in readme
+    adapter_options = manifest["runtime"]["linux"]["discovery"]["inputs"][0]["options"]
+    assert adapter_options == ["mock"]
     options = manifest["runtime"]["linux"]["discovery"]["inputs"][4]["options"]
     assert options == ["auto", "bme680", "bme280", "bmp280", "generic"]
     assert (ROOT / "CHANGELOG.md").exists()

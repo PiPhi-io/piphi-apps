@@ -1,6 +1,6 @@
 # PiPhi I2C/SPI direct-hardware quality comparison
 
-> **Historical 0.1.3 baseline.** The findings below describe the audited revision and remain for traceability. Version 0.1.4 narrows I2C to an exact `/dev/i2c-1` mapping and disables untruthful physical SPI/USB routes. This does not establish physical qualification; see `software-qualification.md` for current residual limits.
+> **Historical 0.1.3 baseline.** The findings below describe the audited revision and remain for traceability. Version 0.1.4 disables all physical I2C/SPI routes and requests no host bus devices because governed dynamic supplementary device-GID resolution is not available in Core. See `software-qualification.md` for current residual limits.
 
 **Research cutoff:** 2026-11-16
 

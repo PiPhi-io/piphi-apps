@@ -124,13 +124,17 @@ def test_diagnostics_redact_paths_ids_and_raw_adapter_identity() -> None:
     assert "/dev/" not in encoded
 
 
-def test_manifest_requires_private_core_port_and_dynamic_device_gid() -> None:
+def test_manifest_is_mock_only_without_host_hardware_requests() -> None:
     container = state.MANIFEST["runtime"]["linux"]["container"]
+    discovery_inputs = state.MANIFEST["runtime"]["linux"]["discovery"]["inputs"]
 
     assert container["ports"] == [{"container": 3674, "protocol": "tcp"}]
-    assert container["group_add"] == [
-        {"source": "device_gid", "path": "/dev/i2c-1", "required": True}
-    ]
+    assert not container.get("devices")
+    assert "group_add" not in container
+    assert discovery_inputs[0]["options"] == ["mock"]
+    adapter_field = next(field for field in state.UI_CONFIG_SCHEMA["fields"] if field["name"] == "adapter")
+    assert adapter_field["options"] == ["mock"]
+    assert adapter_field["default"] == "mock"
     assert state.MANIFEST["runtime_contract"] == {
         "version": 1,
         "port_binding": "core_allocated",

@@ -41,7 +41,7 @@ MANIFEST_PATH = PACKAGE_MANIFEST_PATH if PACKAGE_MANIFEST_PATH.exists() else Pat
 MANIFEST = json.loads(MANIFEST_PATH.read_text())
 UI_CONFIG_SCHEMA = {
     "fields": [
-        {"name": "adapter", "label": "Adapter", "type": "select", "required": True, "options": ["linux_i2c", "mock"], "default": "linux_i2c"},
+        {"name": "adapter", "label": "Adapter", "type": "select", "required": True, "options": ["mock"], "default": "mock"},
         {"name": "adapter_id", "label": "Opaque adapter ID", "type": "text", "required": False},
         {"name": "bus", "label": "I2C Bus", "type": "number", "required": True, "default": 1},
         {"name": "address", "label": "Address", "type": "text", "required": False, "placeholder": "0x76"},
@@ -53,7 +53,7 @@ UI_CONFIG_SCHEMA = {
 
 
 class I2CSensorRuntimeConfig(RuntimeConfig):
-    adapter: Literal["linux_i2c", "mock"] = "linux_i2c"
+    adapter: Literal["mock"] = "mock"
     adapter_id: str | None = Field(default=None, min_length=8, max_length=64, pattern=r"^[a-z0-9_-]+$")
     bus: int = Field(default=1, ge=0, le=255, strict=True)
     address: str | int | None = None
@@ -63,9 +63,7 @@ class I2CSensorRuntimeConfig(RuntimeConfig):
 
     @model_validator(mode="after")
     def validate_hardware_target(self) -> I2CSensorRuntimeConfig:
-        config = normalize_config(self.model_dump())
-        if config.adapter != "mock" and config.address is None:
-            raise ValueError("A physical I2C configuration requires an explicit address")
+        normalize_config(self.model_dump())
         return self
 
 
@@ -416,7 +414,7 @@ def diagnostics_payload() -> dict[str, Any]:
         "active_config_count": len(registry.ids()),
         "recent_event_count": len(registry.recent_events),
         "runtime_version": INTEGRATION_VERSION,
-        "physical_qualification": "experimental_unverified",
+        "physical_qualification": "not_deployable",
         "adapter_operations": _operation_stats,
         "supported_models": ["bme680", "bme280", "bmp280", "generic"],
         "hardware": hardware_diagnostics(),

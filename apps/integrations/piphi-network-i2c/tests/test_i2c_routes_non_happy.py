@@ -48,10 +48,11 @@ def test_discover_rejects_unselectable_usb_backend(
     assert "Unsupported I2C adapter" in response.text
 
 
-def test_discovery_permission_preflight_fails_before_io(
+def test_discovery_rejects_physical_backend_before_preflight_or_io(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    preflight_attempted = False
     io_attempted = False
 
     def forbidden_io(_config):
@@ -59,11 +60,12 @@ def test_discovery_permission_preflight_fails_before_io(
         io_attempted = True
         raise AssertionError("discovery I/O must not run")
 
-    monkeypatch.setattr(
-        discovery_routes,
-        "preflight_target",
-        lambda _config: (_ for _ in ()).throw(PermissionError("mapped node denied")),
-    )
+    def forbidden_preflight(_config):
+        nonlocal preflight_attempted
+        preflight_attempted = True
+        raise AssertionError("physical backend must be rejected before preflight")
+
+    monkeypatch.setattr(discovery_routes, "preflight_target", forbidden_preflight)
     monkeypatch.setattr(discovery_routes, "discover_devices", forbidden_io)
 
     response = client.post(
@@ -79,8 +81,69 @@ def test_discovery_permission_preflight_fails_before_io(
         },
     )
 
-    assert response.status_code == 503
-    assert "permission_denied" in response.text
+    assert response.status_code == 400
+    assert "Unsupported I2C adapter: linux_i2c" in response.text
+    assert preflight_attempted is False
+    assert io_attempted is False
+
+
+def test_config_rejects_physical_backend_before_preflight_or_io(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    preflight_attempted = False
+    io_attempted = False
+
+    def forbidden_preflight(_config):
+        nonlocal preflight_attempted
+        preflight_attempted = True
+
+    def forbidden_io(_config):
+        nonlocal io_attempted
+        io_attempted = True
+
+    monkeypatch.setattr(state_module, "preflight_target", forbidden_preflight)
+    monkeypatch.setattr(state_module, "read_state", forbidden_io)
+
+    response = client.post(
+        "/config",
+        json={"id": "physical", "adapter": "linux_i2c", "address": "0x76", "sensor_model": "bme280"},
+    )
+
+    assert response.status_code == 422
+    assert preflight_attempted is False
+    assert io_attempted is False
+    assert state_module.registry.entries == {}
+
+
+def test_command_rejects_legacy_physical_config_before_preflight_or_io(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state_module.registry.entries["physical"] = {
+        "config_id": "physical",
+        "device_id": "physical",
+        "config": {"id": "physical", "adapter": "linux_i2c", "address": "0x76", "sensor_model": "bme280"},
+    }
+    preflight_attempted = False
+    io_attempted = False
+
+    def forbidden_preflight(_config):
+        nonlocal preflight_attempted
+        preflight_attempted = True
+
+    def forbidden_io(_config):
+        nonlocal io_attempted
+        io_attempted = True
+
+    monkeypatch.setattr(command_routes, "preflight_target", forbidden_preflight)
+    monkeypatch.setattr(command_routes, "read_state", forbidden_io)
+
+    response = client.post("/command", json={"command": "refresh", "device_id": "physical"})
+
+    assert response.status_code == 400
+    assert "physical_backend_not_deployable" in response.text
+    assert preflight_attempted is False
     assert io_attempted is False
 
 
@@ -182,7 +245,7 @@ def test_config_sync_invalid_typed_config_returns_422(client: TestClient) -> Non
             "configs": [
                 {
                     "id": "i2c-dev",
-                    "adapter": "linux_i2c",
+                    "adapter": "mock",
                     "bus": "not-a-number",
                 }
             ],
@@ -205,10 +268,9 @@ def test_state_without_configs_does_not_touch_hardware(client: TestClient) -> No
     "payload",
     [
         {"id": "bad", "adapter": "unknown", "address": "0x76", "sensor_model": "bme280"},
-        {"id": "bad", "adapter": "linux_i2c", "address": "0x02", "sensor_model": "bme280"},
-        {"id": "bad", "adapter": "linux_i2c", "address": "0x76", "bus": -1, "sensor_model": "bme280"},
-        {"id": "bad", "adapter": "linux_i2c", "address": "0x76", "sensor_model": "aht20"},
-        {"id": "bad", "adapter": "linux_i2c", "sensor_model": "bme280"},
+        {"id": "bad", "adapter": "mock", "address": "0x02", "sensor_model": "bme280"},
+        {"id": "bad", "adapter": "mock", "address": "0x76", "bus": -1, "sensor_model": "bme280"},
+        {"id": "bad", "adapter": "mock", "address": "0x76", "sensor_model": "aht20"},
     ],
 )
 def test_config_rejects_invalid_hardware_targets_before_io(

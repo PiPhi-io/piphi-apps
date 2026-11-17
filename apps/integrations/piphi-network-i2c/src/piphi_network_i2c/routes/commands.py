@@ -12,6 +12,7 @@ from piphi_runtime_kit_python import (
     SQLiteAutomationIdempotencyStore,
 )
 from piphi_runtime_kit_python.fastapi import dispatch_automation_action_from_fastapi
+from pydantic import ValidationError
 
 from ..sensors import preflight_target
 from ..state import (
@@ -47,7 +48,21 @@ async def _refresh_sensor(
         or (registry.ids()[0] if registry.ids() else primary_config().id)
     )
     entry = registry.get(config_id) or registry.primary_entry()
-    config = I2CSensorRuntimeConfig.model_validate(entry["config"]) if entry else primary_config()
+    raw_config = entry.get("config") if entry else None
+    if isinstance(raw_config, dict) and raw_config.get("adapter", "mock") != "mock":
+        return AutomationActionResult.failure(
+            "I2C operation failed (physical_backend_not_deployable)",
+            retryable=False,
+            metadata={"status_code": 400},
+        )
+    try:
+        config = I2CSensorRuntimeConfig.model_validate(entry["config"]) if entry else primary_config()
+    except ValidationError:
+        return AutomationActionResult.failure(
+            "I2C operation failed (invalid_or_unsupported_config)",
+            retryable=False,
+            metadata={"status_code": 400},
+        )
     previous = registry.state_snapshots.get(config.id, {}).get("state", {}) if entry else {}
     recovering = bool(previous and not previous.get("connected", False))
     if entry and recovering:

@@ -3,7 +3,7 @@
   "id": "piphi-network-i2c",
   "name": "PiPhi Network I2C Sensors",
   "version": "0.1.4",
-  "description": "Experimental, physically unverified local I2C sensor integration with an exact Linux device boundary.",
+  "description": "Mock-only I2C sensor contract; physical backends are not deployable in version 0.1.4.",
   "maintainer": {
     "name": "PiPhi Integrations Team",
     "website": "https://github.com/PiPhi-io"
@@ -30,20 +30,6 @@
         },
         "privileged": false,
         "read_only": true,
-        "devices": [
-          {
-            "host": "/dev/i2c-1",
-            "container": "/dev/i2c-1",
-            "permissions": "rw"
-          }
-        ],
-        "group_add": [
-          {
-            "source": "device_gid",
-            "path": "/dev/i2c-1",
-            "required": true
-          }
-        ],
         "cap_drop": ["ALL"],
         "security_opt": ["no-new-privileges:true"],
         "restart_policy": {
@@ -60,17 +46,16 @@
             "type": "select",
             "required": true,
             "options": [
-              "linux_i2c",
               "mock"
             ],
-            "description": "linux_i2c is restricted to the exactly mapped /dev/i2c-1 node. USB bridge backends are rejected until exact-node selection exists. Physical operation remains unverified."
+            "description": "Version 0.1.4 supports mock operation only. Physical I2C requires a future governed Core mechanism for dynamic supplementary device GID resolution."
           },
           {
             "name": "adapter_id",
             "label": "Opaque Adapter ID",
             "type": "text",
             "required": false,
-            "description": "Provisioned non-secret opaque identity (required for linux_i2c); raw serials and paths are not accepted."
+            "description": "Optional non-secret opaque identity for deterministic mock targets."
           },
           {
             "name": "bus",
@@ -104,7 +89,7 @@
             "label": "Actively scan the full bus",
             "type": "boolean",
             "required": false,
-            "description": "Maintenance-only: sends probe traffic to every normal 7-bit address. Leave disabled on unknown or shared buses."
+            "description": "Mock discovery option only; version 0.1.4 never scans a physical bus."
           }
         ]
       }

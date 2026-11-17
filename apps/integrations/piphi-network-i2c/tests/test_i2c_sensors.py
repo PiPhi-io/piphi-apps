@@ -27,17 +27,14 @@ def test_scan_blinka_i2c_addresses_returns_empty_when_board_missing(
     assert addresses == []
 
 
-def test_hardware_diagnostics_exposes_bridge_support_flags(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("BLINKA_MCP2221", "true")
-    monkeypatch.setenv("BLINKA_FT232H", "1")
-
+def test_hardware_diagnostics_advertises_mock_only() -> None:
     diagnostics = sensors.hardware_diagnostics()
 
-    assert diagnostics["mcp2221a"]["blinka_env_enabled"] is True
-    assert "easy_mcp2221" in diagnostics["mcp2221a"]
-    assert diagnostics["ft232h"]["blinka_env_enabled"] is True
+    assert diagnostics == {
+        "default_adapter": "mock",
+        "supported_adapters": ["mock"],
+        "mock_enabled": False,
+    }
 
 
 def test_parse_address_supports_hex_and_decimal() -> None:
@@ -179,12 +176,8 @@ def test_normalize_config_rejects_ranges_and_ignored_bus_combinations() -> None:
         sensors.normalize_config({"adapter": "ft232h", "bus": 2, "sensor_model": "generic"})
 
 
-def test_linux_config_requires_exact_bus_and_opaque_adapter_id() -> None:
-    with pytest.raises(ValueError, match="bus must be 1"):
-        sensors.normalize_config(
-            {"adapter": "linux_i2c", "bus": 2, "address": "0x76", "sensor_model": "bme280", "adapter_id": "adapter01"}
-        )
-    with pytest.raises(ValueError, match="opaque adapter_id"):
+def test_linux_config_is_not_publicly_supported() -> None:
+    with pytest.raises(ValueError, match="Unsupported I2C adapter: linux_i2c"):
         sensors.normalize_config(
             {"adapter": "linux_i2c", "bus": 1, "address": "0x76", "sensor_model": "bme280"}
         )

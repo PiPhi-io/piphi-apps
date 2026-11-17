@@ -17,7 +17,10 @@ DEFAULT_ADDRESSES: dict[str, tuple[int, ...]] = {
 BLINKA_I2C_ADAPTERS = {"ft232h"}
 BOARD_I2C_ADAPTERS = {"mcp2221a", "ft232h"}
 DEFAULT_MCP2221_I2C_CLOCK = 100_000
-SUPPORTED_ADAPTERS = {"linux_i2c", "mock"}
+# Version 0.1.4 exposes only the mock backend. Physical driver helpers below are
+# retained as experimental implementation code, but public config validation
+# keeps them unreachable until Core can govern dynamic supplementary device GIDs.
+SUPPORTED_ADAPTERS = {"mock"}
 SUPPORTED_MODELS = {"auto", "bme680", "bme280", "bmp280", "generic"}
 MIN_POLL_INTERVAL_SECONDS = 5
 MAX_POLL_INTERVAL_SECONDS = 3600
@@ -30,7 +33,7 @@ _operation_locks_guard = threading.Lock()
 
 @dataclass(frozen=True)
 class SensorConfig:
-    adapter: str = "linux_i2c"
+    adapter: str = "mock"
     bus: int = 1
     address: int | None = None
     sensor_model: str = "auto"
@@ -52,7 +55,7 @@ def parse_address(value: Any) -> int | None:
 def normalize_config(payload: dict[str, Any] | None) -> SensorConfig:
     data = payload or {}
     config = SensorConfig(
-        adapter=str(data.get("adapter") or "linux_i2c").strip().lower(),
+        adapter=str(data.get("adapter") or "mock").strip().lower(),
         bus=int(data.get("bus", 1)),
         address=parse_address(data.get("address")),
         sensor_model=str(data.get("sensor_model") or "auto").strip().lower(),
@@ -394,39 +397,10 @@ def require_mock_enabled() -> None:
 
 
 def hardware_diagnostics() -> dict[str, Any]:
-    i2c_node_count = sum(1 for _ in Path("/dev").glob("i2c-*"))
     return {
-        "default_adapter": "linux_i2c",
+        "default_adapter": "mock",
+        "supported_adapters": ["mock"],
         "mock_enabled": mock_hardware_allowed(),
-        "linux_i2c": {
-            "device_node_count": i2c_node_count,
-            "available": i2c_node_count > 0,
-            "smbus2": _module_available("smbus2"),
-            "pimoroni_bme280": _module_available("bme280"),
-            "pimoroni_bme680": _module_available("bme680"),
-            "adafruit_pm25": _module_available("adafruit_pm25"),
-        },
-        "mcp2221a": {
-            "easy_mcp2221": _module_available("EasyMCP2221"),
-            "blinka_env_enabled": _blinka_env_enabled("BLINKA_MCP2221"),
-            "board": _module_available("board"),
-            "busio": _module_available("busio"),
-            "pimoroni_bme280": _module_available("bme280"),
-            "pimoroni_bme680": _module_available("bme680"),
-            "adafruit_pm25": _module_available("adafruit_pm25"),
-            "ahtx0": _module_available("adafruit_ahtx0"),
-            "adafruit_bme280": _module_available("adafruit_bme280"),
-            "adafruit_bme680": _module_available("adafruit_bme680"),
-        },
-        "ft232h": {
-            "blinka_env_enabled": _blinka_env_enabled("BLINKA_FT232H"),
-            "board": _module_available("board"),
-            "busio": _module_available("busio"),
-            "adafruit_pm25": _module_available("adafruit_pm25"),
-            "ahtx0": _module_available("adafruit_ahtx0"),
-            "adafruit_bme280": _module_available("adafruit_bme280"),
-            "adafruit_bme680": _module_available("adafruit_bme680"),
-        },
     }
 
 
