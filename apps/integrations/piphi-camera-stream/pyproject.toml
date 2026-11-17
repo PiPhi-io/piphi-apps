@@ -1,6 +1,6 @@
 [project]
 name = "piphi-camera-stream"
-version = "0.1.6"
+version = "0.1.7"
 description = "Piphi Camera Stream PiPhi integration runtime."
 requires-python = ">=3.11"
 dependencies = [
