@@ -64,6 +64,14 @@ receipts in integration code; the Runtime Kit owns that protocol.
 ## Docker
 
 ```bash
-docker build -t ghcr.io/piphi-io/piphi-camera-stream:0.1.6 .
-docker run --rm -p 8090:8090 ghcr.io/piphi-io/piphi-camera-stream:0.1.6
+docker build -t ghcr.io/piphi-io/piphi-camera-stream:0.1.7 .
+docker volume create piphi-camera-stream-data
+docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges \
+  --tmpfs /tmp:rw,noexec,nosuid,size=64m \
+  -v piphi-camera-stream-data:/data/piphi \
+  -p 127.0.0.1:8090:8090 ghcr.io/piphi-io/piphi-camera-stream:0.1.7
 ```
+
+The runtime and persistent idempotency ledger execute as UID/GID `10001`.
+Deployments using the manifest's bind mount must provision
+`/var/lib/piphi/camera-stream` for that ownership before startup.

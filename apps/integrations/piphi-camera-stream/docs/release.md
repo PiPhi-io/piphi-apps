@@ -21,5 +21,5 @@ the `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` repository secrets.
 Current image target:
 
 ```text
-ghcr.io/piphi-io/piphi-camera-stream:0.1.6
+ghcr.io/piphi-io/piphi-camera-stream:0.1.7
 ```

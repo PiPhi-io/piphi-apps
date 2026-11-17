@@ -55,7 +55,7 @@ called out rather than silently counted as passing.
   - Wyze Camera Service: `ghcr.io/piphi-io/piphi-wyze-camera-service@sha256:6531b148aee3b8d68580ded0dc8f80484ea88b75dc6c96e0a8bf1d47c6881dd2`.
     The unconfigured service reports healthy, rejects unauthenticated control requests with 401,
     and accepts the configured production bearer token.
-  These historical artifacts do not qualify the current source changes or `0.1.6` / `0.3.6` /
+  These historical artifacts do not qualify the current source changes or `0.1.7` / `0.3.6` /
   `0.1.4` package versions. No image, tag, release, or registry update was published by this work.
 - [x] **Coverage gates.** Package test runs enforce current floors of 80% for Camera Stream, 75%
   for the WebRTC sidecar, and 70% for the Wyze service. The current local baselines are 83%, 79%,

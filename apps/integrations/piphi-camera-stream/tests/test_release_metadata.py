@@ -15,7 +15,7 @@ def test_release_metadata_uses_one_version() -> None:
     with (ROOT / "pyproject.toml").open("rb") as pyproject_file:
         project_version = tomllib.load(pyproject_file)["project"]["version"]
 
-    assert manifest["version"] == "0.1.6"
+    assert manifest["version"] == "0.1.7"
     assert manifest["version"] == package_contract["version"]
     assert manifest["version"] == project_version
     assert manifest["version"] == INTEGRATION_VERSION

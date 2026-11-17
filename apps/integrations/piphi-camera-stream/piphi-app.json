@@ -26,7 +26,7 @@
     {
       "id": "piphi-camera-stream",
       "type": "integration",
-      "version": "0.1.6",
+      "version": "0.1.7",
       "manifest": "manifest.json",
       "release": {
         "tag": "apps/{package_id}/v{version}",
