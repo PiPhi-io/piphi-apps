@@ -19,8 +19,16 @@ assert.equal(manifest.runtime.linux.container.privileged, false);
 assert.equal(pkg.dependencies["@stoprocent/noble"], "2.8.0", "BLE scanner must be a production dependency");
 assert.equal(hardware.schema_version, 1);
 assert.equal(hardware.release, pkg.version);
-assert.match(hardware.publication?.index_digest ?? "", /^sha256:[a-f0-9]{64}$/, "published image index digest is required");
-assert.ok(hardware.publication?.release, "published release version is required");
+assert.ok(Array.isArray(hardware.publications) && hardware.publications.length > 0, "published releases are required");
+assert.equal(new Set(hardware.publications.map((publication) => publication.release)).size, hardware.publications.length);
+for (const publication of hardware.publications) {
+  assert.match(publication.index_digest ?? "", /^sha256:[a-f0-9]{64}$/, "published image index digest is required");
+  assert.ok(publication.release, "published release version is required");
+  assert.ok(["qualified", "failed", "pending_hardware"].includes(publication.production_status), "published release production status is required");
+  if (publication.production_status === "failed") assert.ok(publication.production_failure, "failed publication requires a reason");
+}
+const currentPublication = hardware.publications.find((publication) => publication.release === hardware.release);
+if (currentPublication) assert.equal(currentPublication.image, manifest.runtime.linux.container.image);
 assert.deepEqual(hardware.policy.supported_transports.sort(), ["ethernet", "wifi_on_network"]);
 assert.deepEqual(hardware.policy.experimental_transports.sort(), ["ble", "thread"]);
 const profileIds = hardware.profiles.map((profile) => profile.id);
@@ -40,10 +48,11 @@ for (const profile of hardware.profiles) {
     assert.ok(profile.blocker, `unqualified hardware profile ${profile.id} requires a blocker`);
   }
   if (profile.production_status === "qualified") {
-    assert.equal(profile.production_release, hardware.publication.release);
+    const publication = hardware.publications.find((candidate) => candidate.release === profile.production_release);
+    assert.ok(publication, `production release ${profile.production_release} is not recorded`);
     assert.ok(profile.evidence.some((entry) => (
       entry.evidence_level === "published"
-      && entry.image_digest === hardware.publication.index_digest
+      && entry.image_digest === publication.index_digest
       && /^sha256:[a-f0-9]{64}$/.test(entry.platform_manifest_digest ?? "")
     )), `production-qualified profile ${profile.id} requires exact published-digest evidence`);
   } else {

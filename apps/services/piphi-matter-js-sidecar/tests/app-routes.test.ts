@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -30,7 +30,7 @@ async function fixture(overrides: Partial<MatterSettings> = {}) {
     app: createApp(service, {
       bleBinding: "dbus",
       blePreflight: async () => ({ status: "pass", adapter: "hci0", transport: "bluez_dbus" }),
-    }), backend, service,
+    }), backend, service, settings,
   };
 }
 
@@ -195,11 +195,20 @@ test("Thread commissioning uses a one-shot dataset and clears it on success and 
 });
 
 test("startup clears an orphaned Thread dataset before readiness", async (t) => {
-  const { app, backend } = await fixture();
+  const { app, backend, settings } = await fixture();
   t.after(() => app.close());
   backend.threadDataset = "a".repeat(64);
+  await writeFile(join(settings.storageDir, ".piphi-thread-dataset-pending"), "pending\n", { mode: 0o600 });
   await app.ready();
   assert.equal(backend.threadDataset, undefined);
+  assert.equal(backend.threadDatasetClearCount, 1);
+});
+
+test("startup does not mutate Thread credentials without an interrupted-operation marker", async (t) => {
+  const { app, backend } = await fixture();
+  t.after(() => app.close());
+  await app.ready();
+  assert.equal(backend.threadDatasetClearCount, 0);
 });
 
 test("transport events and command aliases reject invalid input and accept alternate fields", async (t) => {

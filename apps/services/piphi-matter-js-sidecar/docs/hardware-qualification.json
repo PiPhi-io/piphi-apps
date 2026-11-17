@@ -1,14 +1,26 @@
 {
   "schema_version": 1,
-  "reviewed_at": "2026-11-16",
-  "release": "0.2.0-alpha.6",
-  "publication": {
-    "release": "0.2.0-alpha.5",
-    "image": "ghcr.io/piphi-io/matter-sidecar:0.2.0-alpha.5",
-    "index_digest": "sha256:074eceb7857a01328f4e4cbaec6973f1969d89e5057b33abf15da35b69930d51",
-    "source_revision": "e61dd3fe5966e751572adeaf3b2e3a75946bd0d4",
-    "release_url": "https://github.com/PiPhi-io/piphi-apps/releases/tag/apps/piphi.service.matter-sidecar/v0.2.0-alpha.5"
-  },
+  "reviewed_at": "2026-11-17",
+  "release": "0.2.0-alpha.7",
+  "publications": [
+    {
+      "release": "0.2.0-alpha.5",
+      "image": "ghcr.io/piphi-io/matter-sidecar:0.2.0-alpha.5",
+      "index_digest": "sha256:074eceb7857a01328f4e4cbaec6973f1969d89e5057b33abf15da35b69930d51",
+      "source_revision": "e61dd3fe5966e751572adeaf3b2e3a75946bd0d4",
+      "release_url": "https://github.com/PiPhi-io/piphi-apps/releases/tag/apps/piphi.service.matter-sidecar/v0.2.0-alpha.5",
+      "production_status": "qualified"
+    },
+    {
+      "release": "0.2.0-alpha.6",
+      "image": "ghcr.io/piphi-io/matter-sidecar:0.2.0-alpha.6",
+      "index_digest": "sha256:1b260d52a48094d07120fe1258841eda72093002c0b572857af0451a56126383",
+      "source_revision": "ea8686786875ee0e2faaeac1e5a76f32c68d0e45",
+      "release_url": "https://github.com/PiPhi-io/piphi-apps/releases/tag/apps/piphi.service.matter-sidecar/v0.2.0-alpha.6",
+      "production_status": "failed",
+      "production_failure": "Two exact-digest KP125M BLE-to-Wi-Fi attempts discovered the device but timed out after unconditional startup Thread credential deletion; alpha.5 and the marker-gated fix both commissioned successfully on the same host and device."
+    }
+  ],
   "policy": {
     "supported_transports": [
       "ethernet",

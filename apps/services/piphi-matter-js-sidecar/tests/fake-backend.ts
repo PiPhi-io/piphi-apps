@@ -17,6 +17,7 @@ export class FakeMatterBackend implements MatterBackend {
   readonly wifiCredentialEntries = new Map<string, { ssid: string; credentials: string }>();
   readonly provisioningCalls: Array<{ operation: string; id?: string; networkOnly?: boolean }> = [];
   threadDataset: string | undefined;
+  threadDatasetClearCount = 0;
   readonly #listeners = new Set<(event: MatterEvent) => void>();
 
   constructor(nodes: MatterNodeSnapshot[] = [sampleNode()]) {
@@ -71,7 +72,10 @@ export class FakeMatterBackend implements MatterBackend {
     for (const id of ids) this.wifiCredentialEntries.delete(id);
     return ids.length;
   }
-  async clearThreadDataset(): Promise<void> { this.threadDataset = undefined; }
+  async clearThreadDataset(): Promise<void> {
+    this.threadDatasetClearCount += 1;
+    this.threadDataset = undefined;
+  }
   async removeNode(nodeId: string): Promise<void> { this.nodes = this.nodes.filter((item) => item.nodeId !== nodeId); }
   async invoke(nodeId: string, endpointId: number, command: string, args: JsonObject): Promise<unknown> {
     this.invocations.push({ nodeId, endpointId, command, args });

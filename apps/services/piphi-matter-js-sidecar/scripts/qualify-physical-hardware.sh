@@ -629,18 +629,24 @@ jq -n \
 npm --prefix "$PACKAGE_ROOT" run validate:hardware-report -- "$REPORT_PATH"
 REPORT_RELATIVE="docs/qualification/$(basename "$WORKSPACE")/report.json"
 LEDGER="$PACKAGE_ROOT/docs/hardware-qualification.json"
-PUBLICATION_DIGEST=$(jq -r '.publication.index_digest // empty' "$LEDGER")
+PUBLICATION_DIGEST=$(jq -r --arg release "$RELEASE_VERSION" \
+  '.publications[]? | select(.release == $release) | .index_digest' "$LEDGER")
+[[ "$PUBLICATION_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]] || {
+  warn "No immutable publication digest is recorded for release $RELEASE_VERSION."
+  exit 1
+}
 LEDGER_TMP=$(mktemp)
   jq --arg profile "$PROFILE_ID" --arg report "$REPORT_RELATIVE" \
     --arg vendor "$DEVICE_VENDOR" --arg model "$DEVICE_MODEL" --arg firmware "$FIRMWARE_VERSION" \
     --arg digest "$IMAGE_DIGEST" --arg platform_digest "$PLATFORM_MANIFEST_DIGEST" \
-    --arg evidence_level "$EVIDENCE_LEVEL" --arg publication_digest "$PUBLICATION_DIGEST" --arg completed "$RUN_COMPLETED_AT" \
+    --arg evidence_level "$EVIDENCE_LEVEL" --arg publication_digest "$PUBLICATION_DIGEST" \
+    --arg release "$RELEASE_VERSION" --arg completed "$RUN_COMPLETED_AT" \
     --argjson steps "$QUALIFICATION_STEPS" \
   '(.profiles[] | select(.id == $profile)) |= (
     .status = "qualified" | del(.blocker)
     | .evidence += [{report:$report,vendor:$vendor,model:$model,firmware_version:$firmware,image_digest:$digest,platform_manifest_digest:$platform_digest,evidence_level:$evidence_level,completed_at:$completed,steps:$steps}]
     | if $evidence_level == "published" and $digest == $publication_digest
-      then .production_status = "qualified" | del(.production_blocker)
+      then .production_status = "qualified" | .production_release = $release | del(.production_blocker)
       else . end
   )' \
   "$LEDGER" > "$LEDGER_TMP"
