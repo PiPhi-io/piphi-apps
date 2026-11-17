@@ -585,13 +585,14 @@ def test_retry_after_is_honored_without_exceeding_backoff_bound() -> None:
 @pytest.mark.parametrize(
     "failure_reason", ["permission_denied", "endpoint_or_version_unsupported"]
 )
-def test_selected_endpoint_failure_is_connected_but_degraded_stale_and_actionable(
+def test_selected_endpoint_failure_is_unavailable_stale_and_actionable(
     monkeypatch, failure_reason,
 ) -> None:
     states: list[dict] = []
+    telemetry_calls: list[dict] = []
     monkeypatch.setattr(
         "piphi_network_pfsense.service.schedule_telemetry_delivery",
-        lambda **_kwargs: None,
+        lambda **kwargs: telemetry_calls.append(kwargs),
     )
     service = PfSenseRuntimeService(
         registry=SimpleNamespace(
@@ -627,14 +628,20 @@ def test_selected_endpoint_failure_is_connected_but_degraded_stale_and_actionabl
             endpoint_errors={"dhcp_leases": failure_reason},
         ),
     )
-    assert state["connected"] is True
+    assert state["connected"] is False
     assert state["degraded"] is True
     assert state["stale"] is True
     assert state["last_success_at"] == prior["last_success_at"]
     assert state["requires_user_action"] is True
-    assert state["error"] == "selected_profile_degraded"
+    assert state["error"] == "selected_profile_unavailable"
     assert state["endpoint_errors"] == {"dhcp_leases": failure_reason}
-    assert state["clients"]
+    assert "clients" not in state
+    assert state["last_known_good"] == {
+        "stale": True,
+        "observed_at": prior["last_success_at"],
+        "values": {"clients": prior["clients"]},
+    }
+    assert telemetry_calls == []
     assert active.requires_user_action is True
     assert states[-1] is state
 
@@ -642,9 +649,10 @@ def test_selected_endpoint_failure_is_connected_but_degraded_stale_and_actionabl
 def test_transient_selected_endpoint_failure_remains_retryable_degraded_state(
     monkeypatch,
 ) -> None:
+    telemetry_calls: list[dict] = []
     monkeypatch.setattr(
         "piphi_network_pfsense.service.schedule_telemetry_delivery",
-        lambda **_kwargs: None,
+        lambda **kwargs: telemetry_calls.append(kwargs),
     )
     service = PfSenseRuntimeService(
         registry=SimpleNamespace(update_state=lambda *_args, **_kwargs: None),
@@ -674,10 +682,56 @@ def test_transient_selected_endpoint_failure_remains_retryable_degraded_state(
             endpoint_retry_after_seconds={"log_auth": 600},
         ),
     )
-    assert state["connected"] is True
+    assert state["connected"] is False
     assert state["degraded"] is True
     assert state["stale"] is True
     assert state["requires_user_action"] is False
     assert state["remediation"] == "retry"
     assert active.requires_user_action is False
     assert active.retry_after_seconds == 600
+    assert telemetry_calls == []
+
+
+@pytest.mark.anyio
+async def test_permanent_selected_endpoint_denial_stops_polling_until_reconfigure(
+    monkeypatch,
+) -> None:
+    async def no_wait(_delay: float) -> None:
+        return None
+
+    monkeypatch.setattr("piphi_network_pfsense.service.asyncio.sleep", no_wait)
+
+    class DeniedProfileClient(ActionClient):
+        calls = 0
+
+        async def read_snapshot(self) -> PfSenseSnapshot:
+            self.calls += 1
+            return PfSenseSnapshot(
+                system={},
+                api_version={"current_version": "2.9.0"},
+                endpoint_errors={"certificates": "permission_denied"},
+            )
+
+    client = DeniedProfileClient()
+    config = DeviceConfig(
+        id="firewall-profile",
+        host="pfsense.test",
+        api_key="key",
+        collect_certificates=True,
+    )
+    active = ActiveFirewall(
+        config=config,
+        entry={"config_id": config.id, "device_id": "opaque-device"},
+        client=client,
+    )
+    service = PfSenseRuntimeService(
+        registry=SimpleNamespace(update_state=lambda *_args, **_kwargs: None),
+        runtime=SimpleNamespace(process_state=object(), auth=object()),
+        telemetry=object(),
+    )
+    service._active[config.id] = active
+
+    await service._poll_loop(active)
+
+    assert client.calls == 1
+    assert active.requires_user_action is True

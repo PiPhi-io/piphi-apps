@@ -379,15 +379,24 @@ class PfSenseRuntimeService:
         )
         if degraded:
             previous_success = active.last_complete_state or active.last_state
+            profile_fields = _selected_profile_state_fields(active.config)
+            stale_values = {
+                field: previous_success[field]
+                for field in profile_fields
+                if previous_success is not None and field in previous_success
+            }
+            for field in profile_fields:
+                state.pop(field, None)
             state.update(
                 {
+                    "connected": False,
                     "degraded": True,
                     "stale": True,
                     "last_success_at": (previous_success or {}).get(
                         "last_success_at"
                     ),
                     "stale_age_seconds": _stale_age_seconds(previous_success),
-                    "error": "selected_profile_degraded",
+                    "error": "selected_profile_unavailable",
                     "remediation": (
                         "reconfigure_permissions_or_version"
                         if permanent_degradation
@@ -396,6 +405,12 @@ class PfSenseRuntimeService:
                     "requires_user_action": permanent_degradation,
                 }
             )
+            if stale_values:
+                state["last_known_good"] = {
+                    "stale": True,
+                    "observed_at": (previous_success or {}).get("last_success_at"),
+                    "values": stale_values,
+                }
         else:
             state["degraded"] = False
         if active.outage_reported:
@@ -433,12 +448,15 @@ class PfSenseRuntimeService:
         device_id = str(active.entry["device_id"])
         if not degraded and active.last_complete_state is not None:
             self._emit_transitions(active, active.last_complete_state, state)
-        self._emit_certificate_alerts(active, state)
-        self._emit_log_events(active, snapshot)
+        if not degraded:
+            self._emit_certificate_alerts(active, state)
+            self._emit_log_events(active, snapshot)
         active.last_state = state
         if not degraded:
             active.last_complete_state = state
         self.registry.update_state(config_id, state, device_id=device_id)
+        if degraded:
+            return state
         _schedule_metrics(
             runtime=self.runtime,
             telemetry=self.telemetry,
@@ -843,12 +861,58 @@ SELECTED_PROFILE_ENDPOINTS: dict[str, tuple[str, ...]] = {
         "wireguard_tunnels",
     ),
 }
+SELECTED_PROFILE_STATE_FIELDS: dict[str, tuple[str, ...]] = {
+    "collect_dhcp_leases": (
+        "dhcp_lease_count",
+        "dhcp_online_lease_count",
+        "client_count",
+        "clients_online",
+        "clients",
+    ),
+    "collect_client_inventory": (
+        "dhcp_lease_count",
+        "dhcp_online_lease_count",
+        "client_count",
+        "clients_online",
+        "clients",
+    ),
+    "collect_security_logs": ("security_log_count",),
+    "collect_certificates": (
+        "certificate_count",
+        "certificates_expiring",
+        "certificates_expired",
+        "certificates",
+    ),
+    "collect_ha_status": (
+        "ha_enabled",
+        "ha_maintenance_mode",
+        "ha_sync_enabled",
+        "carp_vip_count",
+        "carp_primary_count",
+        "carp_vips",
+    ),
+    "collect_vpn_status": (
+        "vpn_tunnel_count",
+        "vpn_tunnels_up",
+        "openvpn_server_connections",
+        "vpn_tunnels",
+    ),
+}
 RETRYABLE_ENDPOINT_REASONS = {
     "connection_failed",
     "request_timeout",
     "rate_limited",
     "server_error",
 }
+
+
+def _selected_profile_state_fields(config: DeviceConfig) -> set[str]:
+    return {
+        state_field
+        for config_field, state_fields in SELECTED_PROFILE_STATE_FIELDS.items()
+        if getattr(config, config_field)
+        for state_field in state_fields
+    }
 
 
 def _selected_endpoint_errors(

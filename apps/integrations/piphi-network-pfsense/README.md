@@ -56,10 +56,11 @@ containing only these exact endpoint privileges and the explicitly selected
 optional privileges; no administrator role is required or recommended.
 
 Selecting an optional profile makes every endpoint in that profile essential
-during setup. During later polls, a partial selected profile remains connected
-to the baseline API but is explicitly `degraded` and `stale`; permanent
-permission/version failures stop polling for user action, while transient
-failures retry. `permission-contract.json` is the machine-readable privilege and
+during setup. During later polls, a partial selected profile is explicitly
+unavailable (`connected=false`), `degraded`, and `stale`; its profile metrics
+are suppressed, and any retained last-known-good profile values are marked
+stale. Permanent permission/version failures stop polling for user action,
+while transient failures retry. `permission-contract.json` is the machine-readable privilege and
 denial matrix. CI verifies deterministic fake pfREST responses and sanitized
 recorded schemas only. No physical appliance or firmware combination is
 qualified by this package, and no compatibility beyond the exact locally tested
