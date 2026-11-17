@@ -15,9 +15,10 @@ def test_require_mock_enabled_raises_without_env(monkeypatch: pytest.MonkeyPatch
 def test_hardware_diagnostics_exposes_only_used_backends() -> None:
     diagnostics = sensors.hardware_diagnostics()
 
-    assert "ft232h" in diagnostics
-    assert "shared_libraries" not in diagnostics
-    assert "spidev" not in diagnostics["linux_spi"]
+    assert diagnostics["default_adapter"] == "mock"
+    assert diagnostics["supported_adapters"] == ["mock"]
+    assert "linux_spi" not in diagnostics
+    assert "ft232h" not in diagnostics
 
 
 def test_discover_devices_probes_instead_of_projecting_config(

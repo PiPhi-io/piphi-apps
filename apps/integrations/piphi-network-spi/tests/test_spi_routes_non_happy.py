@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from copy import deepcopy
 
 import pytest
@@ -146,15 +147,52 @@ def test_config_rejects_invalid_hardware_targets_before_io(
 def test_config_rejects_duplicate_target_claim(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PIPHI_ALLOW_MOCK_HARDWARE", "true")
     first = client.post(
-        "/config", json={"id": "first", "adapter": "mock", "sensor_model": "bme280"}
+        "/config",
+        json={"id": "first", "adapter": "mock", "adapter_id": "display-one", "sensor_model": "bme280"},
     )
     duplicate = client.post(
-        "/config", json={"id": "second", "adapter": "mock", "sensor_model": "bme680"}
+        "/config",
+        json={"id": "second", "adapter": "mock", "adapter_id": "display-two", "sensor_model": "bme680"},
     )
 
     assert first.status_code == 200
     assert duplicate.status_code == 409
     assert "already claimed" in duplicate.text
+
+
+def test_background_refresh_records_offline_state_once_and_recovery(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PIPHI_ALLOW_MOCK_HARDWARE", "true")
+    config = state_module.SPISensorRuntimeConfig(id="background-spi", adapter="mock", sensor_model="bme280")
+    entry = state_module.entry_for_config(config)
+    state_module.registry.set(config.id, entry)
+    state_module.registry.update_state(
+        config.id,
+        {"connected": True, "availability": "available", "temperature_c": 21.0},
+        device_id=entry["device_id"],
+    )
+    attempts = 0
+
+    def fail_once(_config):
+        nonlocal attempts
+        attempts += 1
+        raise FileNotFoundError("offline")
+
+    monkeypatch.setattr(state_module, "read_state", fail_once)
+    asyncio.run(state_module.refresh_all_state())
+
+    failed = state_module.registry.state_snapshots[config.id]["state"]
+    assert attempts == 1
+    assert failed["availability"] == "stale"
+    assert failed["error_class"] == "unavailable"
+
+    monkeypatch.setattr(state_module, "read_state", lambda _config: {"connected": True, "temperature_c": 22.0})
+    asyncio.run(state_module.refresh_all_state())
+
+    recovered = state_module.registry.state_snapshots[config.id]["state"]
+    assert recovered["availability"] == "available"
+    assert any(event["event_type"] == "spi.sensor.recovered" for event in state_module.registry.recent_events)
 
 
 def test_deconfigure_without_payload_returns_default_not_removed(client: TestClient) -> None:
@@ -301,6 +339,7 @@ def test_state_telemetry_uses_stable_runtime_identity(
     assert captured["config_id"] == "spi-config-1"
     assert captured["device_id"] == "spi-device-1"
     assert captured["container_id"] == "container-1"
+    assert captured["auth_context"] is state_module.runtime.auth
     assert captured["metrics"] == {"connected": True, "pressure_hpa": 1013.2}
     assert captured["units"] == {"connected": "bool", "pressure_hpa": "hPa"}
     assert captured["timestamp"] == "2026-07-26T12:00:00Z"

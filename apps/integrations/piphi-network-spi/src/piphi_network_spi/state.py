@@ -329,9 +329,21 @@ async def refresh_all_state() -> None:
     for config_id in registry.ids():
         entry = get_entry_or_404(config_id)
         config = SPISensorRuntimeConfig.model_validate(entry["config"])
-        state_payload = await run_hardware_operation(config_to_sensor_config(config), read_state)
-        state_payload = {**state_payload, "availability": "available", "stale": False, "error_class": None}
-        registry.update_state(config_id, state_payload)
+        previous_snapshot = registry.state_snapshots.get(config_id, {})
+        previous = previous_snapshot.get("state") if isinstance(previous_snapshot, dict) else None
+        try:
+            state_payload = await run_hardware_operation(config_to_sensor_config(config), read_state)
+            state_payload = {**state_payload, "availability": "available", "stale": False, "error_class": None}
+        except Exception as exc:
+            state_payload = unavailable_state(exc, previous=previous)
+            registry.update_state(config_id, state_payload, device_id=entry["device_id"])
+            append_runtime_event("spi.sensor.refresh_failed", entry, {"error_class": state_payload["error_class"]})
+            schedule_state_telemetry(entry, state_payload)
+            continue
+        registry.update_state(config_id, state_payload, device_id=entry["device_id"])
+        if previous and previous.get("availability") != "available":
+            append_runtime_event("spi.sensor.recovered", entry)
+        schedule_state_telemetry(entry, state_payload)
 
 
 starter.state.provide(refresh_all_state, source=INTEGRATION_ID)

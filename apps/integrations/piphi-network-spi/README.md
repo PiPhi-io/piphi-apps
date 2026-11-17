@@ -35,6 +35,8 @@ docker run --rm --cap-drop ALL --security-opt no-new-privileges \
 
 The image runs non-root with no host device mapping or capabilities. Mock hardware remains disabled by default.
 
+The package passes the runtime auth context to outbound Core telemetry. It does not provide a standalone ingress-auth boundary, so the API must remain on Core's private container network and must not be published directly. Hardware refreshes are not blindly retried: each cycle makes one bounded attempt, records classified stale/unavailable state on failure, and records recovery after a later successful cycle.
+
 ## Configuration
 
 - `adapter`: `mock` only

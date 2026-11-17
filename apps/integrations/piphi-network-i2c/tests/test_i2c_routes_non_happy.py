@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from copy import deepcopy
 
 import pytest
@@ -8,6 +9,7 @@ from fastapi.testclient import TestClient
 from piphi_network_i2c import create_app, sensors
 from piphi_network_i2c import state as state_module
 from piphi_network_i2c.routes import commands as command_routes
+from piphi_network_i2c.routes import discovery as discovery_routes
 
 
 @pytest.fixture(autouse=True)
@@ -44,6 +46,42 @@ def test_discover_rejects_unselectable_usb_backend(
 
     assert response.status_code == 400
     assert "Unsupported I2C adapter" in response.text
+
+
+def test_discovery_permission_preflight_fails_before_io(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    io_attempted = False
+
+    def forbidden_io(_config):
+        nonlocal io_attempted
+        io_attempted = True
+        raise AssertionError("discovery I/O must not run")
+
+    monkeypatch.setattr(
+        discovery_routes,
+        "preflight_target",
+        lambda _config: (_ for _ in ()).throw(PermissionError("mapped node denied")),
+    )
+    monkeypatch.setattr(discovery_routes, "discover_devices", forbidden_io)
+
+    response = client.post(
+        "/discover",
+        json={
+            "inputs": {
+                "adapter": "linux_i2c",
+                "adapter_id": "display-one",
+                "bus": 1,
+                "address": "0x76",
+                "sensor_model": "bme280",
+            }
+        },
+    )
+
+    assert response.status_code == 503
+    assert "permission_denied" in response.text
+    assert io_attempted is False
 
 
 def test_initial_config_failure_leaves_no_registry_entry(
@@ -186,16 +224,65 @@ def test_config_rejects_duplicate_target_claim(client: TestClient, monkeypatch: 
     monkeypatch.setenv("PIPHI_ALLOW_MOCK_HARDWARE", "true")
     first = client.post(
         "/config",
-        json={"id": "first", "adapter": "mock", "address": "0x76", "sensor_model": "bme280"},
+        json={
+            "id": "first",
+            "adapter": "mock",
+            "adapter_id": "display-one",
+            "address": "0x76",
+            "sensor_model": "bme280",
+        },
     )
     duplicate = client.post(
         "/config",
-        json={"id": "second", "adapter": "mock", "address": "0x76", "sensor_model": "bme680"},
+        json={
+            "id": "second",
+            "adapter": "mock",
+            "adapter_id": "display-two",
+            "address": "0x76",
+            "sensor_model": "bme680",
+        },
     )
 
     assert first.status_code == 200
     assert duplicate.status_code == 409
     assert "already claimed" in duplicate.text
+
+
+def test_background_refresh_records_offline_state_once_and_recovery(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PIPHI_ALLOW_MOCK_HARDWARE", "true")
+    config = state_module.I2CSensorRuntimeConfig(
+        id="background-i2c", adapter="mock", address="0x76", sensor_model="bme280"
+    )
+    entry = state_module.entry_for_config(config)
+    state_module.registry.set(config.id, entry)
+    state_module.registry.update_state(
+        config.id,
+        {"connected": True, "availability": "available", "temperature_c": 21.0},
+        device_id=entry["device_id"],
+    )
+    attempts = 0
+
+    def fail_once(_config):
+        nonlocal attempts
+        attempts += 1
+        raise PermissionError("offline")
+
+    monkeypatch.setattr(state_module, "read_state", fail_once)
+    asyncio.run(state_module.refresh_all_state())
+
+    failed = state_module.registry.state_snapshots[config.id]["state"]
+    assert attempts == 1
+    assert failed["availability"] == "stale"
+    assert failed["error_class"] == "permission_denied"
+
+    monkeypatch.setattr(state_module, "read_state", lambda _config: {"connected": True, "temperature_c": 22.0})
+    asyncio.run(state_module.refresh_all_state())
+
+    recovered = state_module.registry.state_snapshots[config.id]["state"]
+    assert recovered["availability"] == "available"
+    assert any(event["event_type"] == "i2c.sensor.recovered" for event in state_module.registry.recent_events)
 
 
 def test_command_rejects_unsupported_command(client: TestClient) -> None:
@@ -307,20 +394,20 @@ def test_entities_include_gas_capability_for_bme680(
     assert "gas_ohms" in response.json()["entities"][0]["capabilities"]
 
 
-def test_entities_include_pm_capabilities_for_pmsa003i(
+@pytest.mark.parametrize("sensor_model", ["aht20", "pmsa003i"])
+def test_removed_unselectable_models_are_rejected_for_all_backends(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
+    sensor_model: str,
 ) -> None:
     monkeypatch.setenv("PIPHI_ALLOW_MOCK_HARDWARE", "true")
-    assert client.post("/config", json={"id": "pm-dev", "adapter": "mock", "sensor_model": "pmsa003i"}).status_code == 200
+    response = client.post(
+        "/config",
+        json={"id": "unsupported", "adapter": "mock", "sensor_model": sensor_model},
+    )
 
-    response = client.get("/entities")
-
-    assert response.status_code == 200
-    capabilities = response.json()["entities"][0]["capabilities"]
-    assert "pm2_5_standard_ugm3" in capabilities
-    assert "particles_0_3um_per_0_1l" in capabilities
-    assert "temperature_c" not in capabilities
+    assert response.status_code == 422
+    assert state_module.registry.entries == {}
 
 
 def test_state_telemetry_uses_stable_runtime_identity(
@@ -350,6 +437,7 @@ def test_state_telemetry_uses_stable_runtime_identity(
     assert captured["config_id"] == "i2c-config-1"
     assert captured["device_id"] == "i2c-device-1"
     assert captured["container_id"] == "container-1"
+    assert captured["auth_context"] is state_module.runtime.auth
     assert captured["metrics"] == {"connected": True, "temperature_c": 22.5}
     assert captured["units"] == {"connected": "bool", "temperature_c": "C"}
     assert captured["timestamp"] == "2026-07-26T12:00:00Z"

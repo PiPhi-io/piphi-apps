@@ -45,7 +45,7 @@ UI_CONFIG_SCHEMA = {
         {"name": "adapter_id", "label": "Opaque adapter ID", "type": "text", "required": False},
         {"name": "bus", "label": "I2C Bus", "type": "number", "required": True, "default": 1},
         {"name": "address", "label": "Address", "type": "text", "required": False, "placeholder": "0x76"},
-        {"name": "sensor_model", "label": "Sensor Model", "type": "select", "required": True, "options": ["auto", "bme680", "bme280", "bmp280", "aht20", "pmsa003i", "generic"], "default": "auto"},
+        {"name": "sensor_model", "label": "Sensor Model", "type": "select", "required": True, "options": ["auto", "bme680", "bme280", "bmp280", "generic"], "default": "auto"},
         {"name": "alias", "label": "Alias", "type": "text", "required": False},
         {"name": "poll_interval_seconds", "label": "Poll Interval", "type": "number", "required": True, "default": 30},
     ]
@@ -57,7 +57,7 @@ class I2CSensorRuntimeConfig(RuntimeConfig):
     adapter_id: str | None = Field(default=None, min_length=8, max_length=64, pattern=r"^[a-z0-9_-]+$")
     bus: int = Field(default=1, ge=0, le=255, strict=True)
     address: str | int | None = None
-    sensor_model: Literal["auto", "bme680", "bme280", "bmp280", "aht20", "pmsa003i", "generic"] = "auto"
+    sensor_model: Literal["auto", "bme680", "bme280", "bmp280", "generic"] = "auto"
     poll_interval_seconds: int = Field(default=30, ge=5, le=3600, strict=True)
     alias: str | None = Field(default=None, max_length=128)
 
@@ -120,8 +120,6 @@ def entry_for_config(config: I2CSensorRuntimeConfig) -> dict[str, Any]:
     sensor_config = config_to_sensor_config(config)
     adapter_uid = adapter_fingerprint(sensor_config)
     default_addresses = {
-        "aht20": 0x38,
-        "pmsa003i": 0x12,
         "bme680": 0x76,
         "bme280": 0x76,
         "bmp280": 0x76,
@@ -355,11 +353,24 @@ def read_current_state() -> dict[str, Any]:
 
 
 async def refresh_state_for_config(config: I2CSensorRuntimeConfig) -> dict[str, Any]:
+    entry = get_entry_or_404(config.id)
     sensor_config = config_to_sensor_config(config)
-    preflight_target(sensor_config)
-    state_payload = await run_hardware_operation(sensor_config, read_state)
-    state_payload = {**state_payload, "availability": "available", "stale": False, "error_class": None}
-    registry.update_state(config.id, state_payload)
+    previous_snapshot = registry.state_snapshots.get(config.id, {})
+    previous = previous_snapshot.get("state") if isinstance(previous_snapshot, dict) else None
+    try:
+        preflight_target(sensor_config)
+        state_payload = await run_hardware_operation(sensor_config, read_state)
+        state_payload = {**state_payload, "availability": "available", "stale": False, "error_class": None}
+    except Exception as exc:
+        state_payload = unavailable_state(exc, previous=previous)
+        registry.update_state(config.id, state_payload, device_id=entry["device_id"])
+        append_runtime_event("i2c.sensor.refresh_failed", entry, {"error_class": state_payload["error_class"]})
+        schedule_state_telemetry(entry, state_payload)
+        return state_payload
+    registry.update_state(config.id, state_payload, device_id=entry["device_id"])
+    if previous and previous.get("availability") != "available":
+        append_runtime_event("i2c.sensor.recovered", entry)
+    schedule_state_telemetry(entry, state_payload)
     return state_payload
 
 
@@ -367,11 +378,7 @@ async def refresh_all_state() -> None:
     for config_id in registry.ids():
         entry = get_entry_or_404(config_id)
         config = I2CSensorRuntimeConfig.model_validate(entry["config"])
-        sensor_config = config_to_sensor_config(config)
-        preflight_target(sensor_config)
-        state_payload = await run_hardware_operation(sensor_config, read_state)
-        state_payload = {**state_payload, "availability": "available", "stale": False, "error_class": None}
-        registry.update_state(config_id, state_payload)
+        await refresh_state_for_config(config)
 
 
 starter.state.provide(refresh_all_state, source=INTEGRATION_ID)

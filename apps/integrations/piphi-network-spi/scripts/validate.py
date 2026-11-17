@@ -29,6 +29,8 @@ def main() -> None:
     assert "/unbind" not in source and "/bind" not in source
     dockerfile = (ROOT / "Dockerfile").read_text()
     assert "@sha256:" in dockerfile and "USER piphi" in dockerfile
+    assert "standalone ingress-auth boundary" in (ROOT / "README.md").read_text()
+    assert (ROOT / "CHANGELOG.md").exists()
 
 
 if __name__ == "__main__":

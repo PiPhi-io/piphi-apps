@@ -4,12 +4,14 @@ Version 0.1.4 is qualified only with mocked sysfs/device nodes, fake adapters, p
 
 ## Software-enforced invariants
 
-- The container runs non-root, non-privileged, drops all capabilities, and maps only `/dev/i2c-1`.
+- The container runs non-root, non-privileged, drops all capabilities, and maps only `/dev/i2c-1`. The orchestrator must add the host node's numeric GID with `--group-add`; denied access fails preflight before discovery or sensor I/O.
 - `linux_i2c` requires bus 1, an explicit non-reserved address, and a provisioned opaque adapter ID.
-- Duplicate adapter/address claims are rejected and operations on one adapter are serialized behind a bounded service queue and deadline.
+- Canonical backend/node/bus/address claims ignore caller display IDs. Duplicate claims are rejected and operations on one target are serialized behind a bounded service queue and deadline.
 - Kernel-driver ownership fails closed. The runtime never requests `I2C_SLAVE_FORCE`, writes bind/unbind controls, or changes host permissions.
 - Handles close in `finally`; blocking calls run outside the event loop; diagnostics expose hashes/counts/classes rather than paths, aliases, serials, or config IDs.
 - SPI physical backends are disabled because the old Blinka implementation could not honor exact bus/CS selection.
+- Outbound Core telemetry receives the runtime auth context. Inbound HTTP authorization is supplied by Core's private runtime network, not by this package; direct host/public exposure is unsupported.
+- Refresh reads are attempted once rather than blindly retried. Offline failures become classified stale/unavailable snapshots, and a later successful read records recovery.
 
 ## Not qualified
 

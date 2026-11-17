@@ -30,6 +30,12 @@ def main() -> None:
     assert "/unbind" not in source and "/bind" not in source
     dockerfile = (ROOT / "Dockerfile").read_text()
     assert "@sha256:" in dockerfile and "USER piphi" in dockerfile
+    readme = (ROOT / "README.md").read_text()
+    assert '--group-add "$I2C_DEVICE_GID"' in readme
+    assert "standalone ingress-auth boundary" in readme
+    options = manifest["runtime"]["linux"]["discovery"]["inputs"][4]["options"]
+    assert options == ["auto", "bme680", "bme280", "bmp280", "generic"]
+    assert (ROOT / "CHANGELOG.md").exists()
 
 
 if __name__ == "__main__":

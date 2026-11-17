@@ -6,7 +6,6 @@ import random
 import threading
 import time
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any
 
 KNOWN_ADAPTERS = {"linux_spi", "ft232h", "mock"}
@@ -17,8 +16,8 @@ MAX_BAUDRATE = 1_000_000
 MIN_POLL_INTERVAL_SECONDS = 5
 MAX_POLL_INTERVAL_SECONDS = 3600
 OPERATION_TIMEOUT_SECONDS = 10.0
-_adapter_locks: dict[tuple[str, int], threading.Lock] = {}
-_adapter_locks_guard = threading.Lock()
+_target_locks: dict[tuple[str, str, int, int], threading.Lock] = {}
+_target_locks_guard = threading.Lock()
 
 
 @dataclass(frozen=True)
@@ -84,18 +83,24 @@ def adapter_fingerprint(config: SensorConfig) -> str:
     return hashlib.sha256(identity.encode("utf-8")).hexdigest()[:16]
 
 
-def adapter_key(config: SensorConfig) -> tuple[str, str]:
-    return (config.adapter, adapter_fingerprint(config))
+def exact_device_node(config: SensorConfig) -> str:
+    """Return the backend-selected node without using caller display identity."""
+    if config.adapter == "linux_spi":
+        return f"/dev/spidev{config.bus}.{config.chip_select}"
+    if config.adapter == "ft232h":
+        return f"usb://ft232h/{config.bus}.{config.chip_select}"
+    return f"mock://spi{config.bus}.{config.chip_select}"
 
 
-def target_key(config: SensorConfig) -> tuple[str, str, int]:
-    return (*adapter_key(config), config.chip_select)
+def target_key(config: SensorConfig) -> tuple[str, str, int, int]:
+    """Canonical ownership key; adapter_id is intentionally display-only."""
+    return (config.adapter, exact_device_node(config), config.bus, config.chip_select)
 
 
 def run_serialized(config: SensorConfig, operation: Any) -> Any:
-    key = adapter_key(config)
-    with _adapter_locks_guard:
-        lock = _adapter_locks.setdefault(key, threading.Lock())
+    key = target_key(config)
+    with _target_locks_guard:
+        lock = _target_locks.setdefault(key, threading.Lock())
     with lock:
         return operation(config)
 
@@ -189,34 +194,11 @@ def require_mock_enabled() -> None:
 
 
 def hardware_diagnostics() -> dict[str, Any]:
-    spi_node_count = sum(1 for _ in Path("/dev").glob("spidev*"))
     return {
-        "default_adapter": "linux_spi",
+        "default_adapter": "mock",
+        "supported_adapters": ["mock"],
         "mock_enabled": mock_hardware_allowed(),
-        "linux_spi": {
-            "device_node_count": spi_node_count,
-            "available": False,
-            "status": "experimental_unverified_backend_disabled",
-            "board": _module_available("board"),
-            "busio": _module_available("busio"),
-            "digitalio": _module_available("digitalio"),
-        },
-        "ft232h": {
-            "board": _module_available("board"),
-            "busio": _module_available("busio"),
-            "digitalio": _module_available("digitalio"),
-            "adafruit_bme280": _module_available("adafruit_bme280"),
-            "adafruit_bme680": _module_available("adafruit_bme680"),
-        },
     }
-
-
-def _module_available(module_name: str) -> bool:
-    try:
-        __import__(module_name)
-    except ImportError:
-        return False
-    return True
 
 
 def _deinit(value: Any) -> None:

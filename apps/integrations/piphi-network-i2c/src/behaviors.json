@@ -4,7 +4,7 @@
     {
       "id": "i2c_environmental_sensor",
       "name": "I2C Environmental Sensor",
-      "description": "Environmental and particulate sensors connected through a local I2C adapter.",
+      "description": "Bosch environmental sensors connected through the exact local I2C node.",
       "deviceClass": "environmental_sensor",
       "entityType": "sensor",
       "capabilities": [
@@ -13,19 +13,13 @@
         "humidity_percent",
         "pressure_hpa",
         "gas_ohms",
-        "pm1_0_standard_ugm3",
-        "pm2_5_standard_ugm3",
-        "pm10_standard_ugm3",
-        "pm1_0_env_ugm3",
-        "pm2_5_env_ugm3",
-        "pm10_env_ugm3",
         "refresh"
       ],
       "intents": [
         {
           "id": "monitor_environment",
           "label": "Monitor the environment",
-          "description": "React to temperature, humidity, pressure, gas resistance, and particulate changes."
+          "description": "React to temperature, humidity, pressure, and gas-resistance changes."
         }
       ],
       "triggers": [
@@ -149,27 +143,6 @@
           "ui": {
             "group": "only_if"
           }
-        },
-        {
-          "id": "pm25_threshold",
-          "label": "PM2.5 threshold",
-          "type": "number",
-          "capability": "sensor.pm25_ugm3",
-          "operators": [
-            ">",
-            ">=",
-            "<",
-            "<=",
-            "eq"
-          ],
-          "runtime": {
-            "source": "state",
-            "field": "pm2_5_env_ugm3",
-            "operator": ">"
-          },
-          "ui": {
-            "group": "only_if"
-          }
         }
       ],
       "actions": [
@@ -209,125 +182,7 @@
       }
     }
   ],
-  "templates": [
-    {
-      "id": "i2c_pm25_guard",
-      "label": "Recheck elevated I2C PM2.5",
-      "description": "Refresh the selected I2C sensor when PM2.5 exceeds 35 µg/m³, with a 15-minute cooldown.",
-      "category": "Air quality",
-      "deviceKey": "i2c_environmental_sensor",
-      "config": {
-        "automation_schema_version": "automation.behavior.v2",
-        "triggers": [
-          {
-            "id": "state_changed",
-            "label": "I2C reading changes",
-            "type": "integration_event",
-            "event": "device.state_changed",
-            "capability": "telemetry.state",
-            "enabled": true,
-            "sourceRef": {
-              "integrationId": "{{integrationId}}",
-              "integrationKey": "{{integrationKey}}",
-              "configId": "{{configId}}",
-              "behaviorDeviceKey": "i2c_environmental_sensor",
-              "optionKey": "state_changed",
-              "capability": "telemetry.state"
-            }
-          }
-        ],
-        "trigger": {
-          "id": "state_changed",
-          "label": "I2C reading changes",
-          "type": "integration_event",
-          "event": "device.state_changed",
-          "capability": "telemetry.state",
-          "enabled": true
-        },
-        "intent": "air_quality_monitoring",
-        "conditionTree": {
-          "id": "i2c_pm25_guard_condition",
-          "label": "PM2.5 is above 35 µg/m³",
-          "field": "pm2_5_env_ugm3",
-          "operator": ">",
-          "value": 35,
-          "sourceRef": {
-            "integrationId": "{{integrationId}}",
-            "integrationKey": "{{integrationKey}}",
-            "configId": "{{configId}}",
-            "behaviorDeviceKey": "i2c_environmental_sensor",
-            "optionKey": "pm25_threshold",
-            "capability": "sensor.pm25_ugm3"
-          }
-        },
-        "actions": [
-          {
-            "id": "i2c_pm25_guard_action",
-            "label": "Refresh I2C sensor",
-            "action": "refresh",
-            "capability": "device.refresh",
-            "sourceRef": {
-              "integrationId": "{{integrationId}}",
-              "integrationKey": "{{integrationKey}}",
-              "configId": "{{configId}}",
-              "behaviorDeviceKey": "i2c_environmental_sensor",
-              "optionKey": "refresh",
-              "capability": "device.refresh"
-            },
-            "target": {
-              "mode": "selection",
-              "configIds": [
-                "{{configId}}"
-              ]
-            }
-          }
-        ],
-        "safety": {
-          "staleDataMode": "block",
-          "maxAgeSeconds": 300,
-          "requireFreshTrigger": true,
-          "dryRunFirst": true
-        },
-        "failure": {
-          "strategy": "follow_edges",
-          "fallbackBehaviorId": "",
-          "conditionTree": {
-            "op": "and",
-            "children": []
-          }
-        },
-        "stop": {
-          "never": true
-        },
-        "override": {
-          "mode": "continue"
-        },
-        "execution": {
-          "failureStrategy": "follow_edges",
-          "fallbackBehaviorId": "",
-          "dispatchMode": "runtime"
-        },
-        "policies": {
-          "execution": {
-            "failureStrategy": "follow_edges",
-            "fallbackBehaviorId": "",
-            "dispatchMode": "runtime"
-          },
-          "freshness": {
-            "staleDataMode": "block"
-          },
-          "manualOverride": {
-            "mode": "continue"
-          },
-          "cooldownSeconds": 900
-        }
-      },
-      "metadata": {
-        "recommended": true,
-        "requiresReview": true
-      }
-    }
-  ],
+  "templates": [],
   "telemetry": {
     "capabilityMappings": [
       {
@@ -349,54 +204,6 @@
       {
         "nativeMetric": "gas_ohms",
         "capability": "sensor.gas_ohms"
-      },
-      {
-        "nativeMetric": "pm1_0_standard_ugm3",
-        "capability": "sensor.pm1_standard_ugm3"
-      },
-      {
-        "nativeMetric": "pm2_5_standard_ugm3",
-        "capability": "sensor.pm25_standard_ugm3"
-      },
-      {
-        "nativeMetric": "pm10_standard_ugm3",
-        "capability": "sensor.pm10_standard_ugm3"
-      },
-      {
-        "nativeMetric": "pm1_0_env_ugm3",
-        "capability": "sensor.pm1_ugm3"
-      },
-      {
-        "nativeMetric": "pm2_5_env_ugm3",
-        "capability": "sensor.pm25_ugm3"
-      },
-      {
-        "nativeMetric": "pm10_env_ugm3",
-        "capability": "sensor.pm10_ugm3"
-      },
-      {
-        "nativeMetric": "particles_0_3um_per_0_1l",
-        "capability": "sensor.particles_03um"
-      },
-      {
-        "nativeMetric": "particles_0_5um_per_0_1l",
-        "capability": "sensor.particles_05um"
-      },
-      {
-        "nativeMetric": "particles_1_0um_per_0_1l",
-        "capability": "sensor.particles_10um"
-      },
-      {
-        "nativeMetric": "particles_2_5um_per_0_1l",
-        "capability": "sensor.particles_25um"
-      },
-      {
-        "nativeMetric": "particles_5_0um_per_0_1l",
-        "capability": "sensor.particles_50um"
-      },
-      {
-        "nativeMetric": "particles_10um_per_0_1l",
-        "capability": "sensor.particles_100um"
       }
     ]
   }

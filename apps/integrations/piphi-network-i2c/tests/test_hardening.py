@@ -5,12 +5,16 @@ import threading
 import time
 
 import pytest
+from fastapi import HTTPException
 
 from piphi_network_i2c import sensors, state
 
 
 def test_per_adapter_operations_are_serialized() -> None:
-    config = sensors.SensorConfig(adapter="mock", adapter_id="adapter01")
+    configs = [
+        sensors.SensorConfig(adapter="mock", adapter_id="display-one", address=0x76),
+        sensors.SensorConfig(adapter="mock", adapter_id="display-two", address=0x76),
+    ]
     active = 0
     maximum = 0
     guard = threading.Lock()
@@ -24,12 +28,56 @@ def test_per_adapter_operations_are_serialized() -> None:
         with guard:
             active -= 1
 
-    threads = [threading.Thread(target=sensors.run_serialized, args=(config, operation)) for _ in range(3)]
+    threads = [
+        threading.Thread(target=sensors.run_serialized, args=(configs[index % 2], operation))
+        for index in range(4)
+    ]
     for thread in threads:
         thread.start()
     for thread in threads:
         thread.join()
     assert maximum == 1
+
+
+def test_canonical_target_key_ignores_caller_display_identity() -> None:
+    first = sensors.SensorConfig(adapter="linux_i2c", bus=1, address=0x76, adapter_id="display-one")
+    second = sensors.SensorConfig(adapter="linux_i2c", bus=1, address=0x76, adapter_id="display-two")
+
+    assert sensors.target_key(first) == sensors.target_key(second)
+    assert sensors.target_key(
+        sensors.SensorConfig(adapter="mock", sensor_model="bme280", adapter_id="display-one")
+    ) == sensors.target_key(
+        sensors.SensorConfig(
+            adapter="mock", sensor_model="bme280", address=0x76, adapter_id="display-two"
+        )
+    )
+
+
+def test_concurrent_duplicate_claims_with_different_display_ids_allow_one(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PIPHI_ALLOW_MOCK_HARDWARE", "true")
+    state.registry.entries.clear()
+    state.registry.state_snapshots.clear()
+    configs = [
+        state.I2CSensorRuntimeConfig(
+            id="claim-one", adapter="mock", adapter_id="display-one", sensor_model="bme280"
+        ),
+        state.I2CSensorRuntimeConfig(
+            id="claim-two", adapter="mock", adapter_id="display-two", address="0x76", sensor_model="bme680"
+        ),
+    ]
+
+    async def apply_both():
+        return await asyncio.gather(*(state.apply_config(config) for config in configs), return_exceptions=True)
+
+    results = asyncio.run(apply_both())
+
+    conflicts = [result for result in results if isinstance(result, HTTPException) and result.status_code == 409]
+    assert len(conflicts) == 1
+    assert len(state.registry.entries) == 1
+    state.registry.entries.clear()
+    state.registry.state_snapshots.clear()
 
 
 def test_operation_deadline_and_queue_saturation(monkeypatch: pytest.MonkeyPatch) -> None:

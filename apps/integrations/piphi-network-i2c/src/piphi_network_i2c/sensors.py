@@ -13,21 +13,19 @@ DEFAULT_ADDRESSES: dict[str, tuple[int, ...]] = {
     "bme680": (0x76, 0x77),
     "bme280": (0x76, 0x77),
     "bmp280": (0x76, 0x77),
-    "aht20": (0x38,),
-    "pmsa003i": (0x12,),
 }
 BLINKA_I2C_ADAPTERS = {"ft232h"}
 BOARD_I2C_ADAPTERS = {"mcp2221a", "ft232h"}
 DEFAULT_MCP2221_I2C_CLOCK = 100_000
 SUPPORTED_ADAPTERS = {"linux_i2c", "mock"}
-SUPPORTED_MODELS = {"auto", "bme680", "bme280", "bmp280", "aht20", "pmsa003i", "generic"}
+SUPPORTED_MODELS = {"auto", "bme680", "bme280", "bmp280", "generic"}
 MIN_POLL_INTERVAL_SECONDS = 5
 MAX_POLL_INTERVAL_SECONDS = 3600
 MAX_BUS_NUMBER = 255
 OPERATION_TIMEOUT_SECONDS = 10.0
 CHIP_IDS = {0x60: "bme280", 0x58: "bmp280", 0x61: "bme680"}
-_adapter_locks: dict[tuple[str, int], threading.Lock] = {}
-_adapter_locks_guard = threading.Lock()
+_target_locks: dict[tuple[str, str, int, int], threading.Lock] = {}
+_target_locks_guard = threading.Lock()
 
 
 @dataclass(frozen=True)
@@ -82,11 +80,6 @@ def validate_config(config: SensorConfig) -> None:
         )
     if config.adapter == "ft232h" and config.bus != 1:
         raise ValueError("FT232H exposes one Blinka I2C bus; bus must be 1")
-    if config.adapter == "linux_i2c" and config.sensor_model in {"aht20", "pmsa003i"}:
-        raise ValueError(
-            f"sensor_model={config.sensor_model} is not supported on linux_i2c because its "
-            "Blinka driver cannot honor the selected bus"
-        )
     if (
         config.sensor_model in DEFAULT_ADDRESSES
         and config.address is not None
@@ -112,12 +105,22 @@ def adapter_fingerprint(config: SensorConfig) -> str:
     return hashlib.sha256(identity.encode("utf-8")).hexdigest()[:16]
 
 
-def adapter_key(config: SensorConfig) -> tuple[str, str]:
-    return (config.adapter, adapter_fingerprint(config))
+def exact_device_node(config: SensorConfig) -> str:
+    """Return the backend-selected node without using caller display identity."""
+    if config.adapter == "linux_i2c":
+        return f"/dev/i2c-{config.bus}"
+    return f"mock://i2c-{config.bus}"
 
 
-def target_key(config: SensorConfig) -> tuple[str, str, int | None]:
-    return (*adapter_key(config), config.address)
+def canonical_address(config: SensorConfig) -> int:
+    if config.address is not None:
+        return config.address
+    return DEFAULT_ADDRESSES.get(config.sensor_model, (0x76,))[0]
+
+
+def target_key(config: SensorConfig) -> tuple[str, str, int, int]:
+    """Canonical ownership key; adapter_id is intentionally display-only."""
+    return (config.adapter, exact_device_node(config), config.bus, canonical_address(config))
 
 
 def preflight_target(config: SensorConfig, *, dev_root: Path = Path("/dev"), sys_root: Path = Path("/sys")) -> None:
@@ -137,9 +140,9 @@ def preflight_target(config: SensorConfig, *, dev_root: Path = Path("/dev"), sys
 
 
 def run_serialized(config: SensorConfig, operation: Any) -> Any:
-    key = adapter_key(config)
-    with _adapter_locks_guard:
-        lock = _adapter_locks.setdefault(key, threading.Lock())
+    key = target_key(config)
+    with _target_locks_guard:
+        lock = _target_locks.setdefault(key, threading.Lock())
     with lock:
         return operation(config)
 
