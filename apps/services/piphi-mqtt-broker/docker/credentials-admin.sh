@@ -10,8 +10,17 @@ audit_file="${MQTT_SECURITY_AUDIT_FILE:-/mosquitto/log/security-audit.jsonl}"
 action="reload"
 [ "${1:-}" = "--disconnect-existing" ] && action="reload-and-disconnect"
 
+audit() {
+  result="$1"
+  mkdir -p "$(dirname "$audit_file")"
+  printf '{"timestamp":"%s","action":"%s","result":"%s"}\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$action" "$result" >> "$audit_file"
+  chmod 0640 "$audit_file"
+  sync "$audit_file"
+}
+
 cleanup() {
   node /app/dist/src/cli.js --rollback-identity >/dev/null 2>&1 || true
+  node /app/dist/src/cli.js --recover-identity >/dev/null 2>&1 || true
   rm -rf "$MQTT_IDENTITY_CANDIDATE_DIR"
 }
 trap cleanup EXIT HUP INT TERM
@@ -28,26 +37,28 @@ if [ "${PIPHI_TEST_HARD_CRASH_AFTER_IDENTITY_SWAP:-}" = "true" ]; then kill -KIL
 if [ "${PIPHI_TEST_FAIL_IDENTITY_STEP:-}" = "after-pointer-swap" ]; then exit 1; fi
 
 if [ "$action" = "reload-and-disconnect" ]; then
+  audit "restart-requested"
   if ! kill -TERM 1; then
     node /app/dist/src/cli.js --rollback-identity
+    audit "restart-failed-rolled-back"
     exit 1
   fi
   node /app/dist/src/cli.js --commit-identity
-  printf '{"timestamp":"%s","action":"%s","result":"applied"}\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$action" >> "$audit_file"
-  chmod 0640 "$audit_file"
   trap - EXIT HUP INT TERM
 else
+  audit "reload-requested"
   if ! kill -HUP 1; then
     node /app/dist/src/cli.js --rollback-identity
+    audit "reload-failed-rolled-back"
     exit 1
   fi
   if [ "${PIPHI_TEST_FAIL_IDENTITY_STEP:-}" = "after-reload" ]; then
     node /app/dist/src/cli.js --rollback-identity
     kill -HUP 1 || true
+    audit "reload-injected-failure-rolled-back"
     exit 1
   fi
-  printf '{"timestamp":"%s","action":"%s","result":"applied"}\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$action" >> "$audit_file"
-  chmod 0640 "$audit_file"
   node /app/dist/src/cli.js --commit-identity
+  audit "applied"
   trap - EXIT HUP INT TERM
 fi

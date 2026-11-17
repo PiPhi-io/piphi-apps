@@ -173,6 +173,28 @@ for failure_step in before-pointer-swap after-pointer-swap after-reload; do
   printf '%s' 'alpha-two' > "$secrets/alpha-password"
 done
 
+marker_crash_password_hash="$(docker exec "$name" sha256sum /mosquitto/config/identity/current/passwordfile | cut -d' ' -f1)"
+printf '%s' 'alpha-three' > "$secrets/alpha-password"
+if docker exec -e PIPHI_TEST_CRASH_BEFORE_IDENTITY_MARKER_RENAME=true "$name" /app/docker/credentials-admin.sh >/dev/null 2>&1; then
+  echo "Pre-rename marker interruption unexpectedly succeeded" >&2
+  exit 1
+fi
+printf '%s' 'alpha-two' > "$secrets/alpha-password"
+test "$(docker exec "$name" sha256sum /mosquitto/config/identity/current/passwordfile | cut -d' ' -f1)" = "$marker_crash_password_hash"
+docker exec "$name" test ! -f /mosquitto/config/identity/transaction.json
+test "$(docker exec "$name" find /mosquitto/config/identity -maxdepth 1 -name '.transaction-*.tmp' | wc -l)" -eq 0
+
+current_before_truncation="$(docker exec "$name" readlink /mosquitto/config/identity/current)"
+docker exec "$name" sh -c 'printf %s '\''{"previous":'\'' > /mosquitto/config/identity/transaction.json'
+if docker exec "$name" node /app/dist/src/cli.js --recover-identity >/dev/null 2>&1; then
+  echo "Truncated identity transaction marker was accepted" >&2
+  exit 1
+fi
+test "$(docker exec "$name" readlink /mosquitto/config/identity/current)" = "$current_before_truncation"
+docker exec "$name" test -f /mosquitto/config/identity/transaction.json
+docker exec "$name" rm /mosquitto/config/identity/transaction.json
+docker exec "$name" node /app/dist/src/cli.js --recover-identity
+
 generation_count_before="$(docker exec "$name" find /mosquitto/config/identity/generations -mindepth 1 -maxdepth 1 -type d | wc -l)"
 printf '%s' 'alpha-three' > "$secrets/alpha-password"
 docker exec -e PIPHI_TEST_HARD_CRASH_AFTER_IDENTITY_SWAP=true "$name" /app/docker/credentials-admin.sh >/dev/null 2>&1 || true

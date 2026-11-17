@@ -77,6 +77,9 @@ symlink consumed by Mosquitto. A durable transaction marker permits startup to
 restore the prior pointer after interruption. Generations are not automatically
 deleted, so recovery cannot remove the only prior valid identity; operators may
 archive old generations only after confirming they are not the current target.
+The marker itself is written and synced under a temporary name, atomically
+renamed, then followed by a directory sync. A malformed marker blocks recovery
+without changing `current`; it is never interpreted as “no transaction.”
 
 After atomically replacing policy/secret mounts, reload credentials and ACLs:
 

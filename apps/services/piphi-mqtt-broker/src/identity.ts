@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { chmod, lstat, mkdir, open, readFile, readlink, realpath, rename, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, open, readFile, readdir, readlink, realpath, rename, rm, symlink, writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { isAbsolute, relative, resolve } from "node:path";
 
@@ -182,7 +182,24 @@ async function syncPath(path: string): Promise<void> {
 }
 
 async function currentTarget(config: BrokerConfig): Promise<string | null> {
-  try { return await readlink(`${config.identityRoot}/current`); } catch { return null; }
+  try {
+    return await readlink(`${config.identityRoot}/current`);
+  } catch (error: unknown) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw error;
+  }
+}
+
+function validGenerationTarget(value: unknown): value is string {
+  return typeof value === "string" && /^generations\/generation-[A-Za-z0-9-]+$/.test(value);
+}
+
+async function assertValidGeneration(config: BrokerConfig, target: string): Promise<void> {
+  if (!validGenerationTarget(target)) throw new Error("Identity generation target is invalid");
+  const base = `${config.identityRoot}/${target}`;
+  const password = await lstat(`${base}/passwordfile`).catch(() => null);
+  const acl = await lstat(`${base}/aclfile`).catch(() => null);
+  if (!password?.isFile() || !acl?.isFile()) throw new Error("Identity generation is incomplete");
 }
 
 async function swapCurrent(config: BrokerConfig, target: string): Promise<void> {
@@ -201,20 +218,44 @@ export async function activateIdentityCandidate(config: BrokerConfig): Promise<v
   await rename(config.identityCandidateDir, generationPath);
   await syncPath(`${config.identityRoot}/generations`);
   const transaction: IdentityTransaction = { previous: await currentTarget(config), next: `generations/${generationName}` };
-  await writeFile(markerPath(config), `${JSON.stringify(transaction)}\n`, { mode: 0o600, flag: "wx" });
-  await syncPath(markerPath(config));
+  if (transaction.previous) await assertValidGeneration(config, transaction.previous);
+  const temporaryMarker = `${config.identityRoot}/.transaction-${randomUUID()}.tmp`;
+  await writeFile(temporaryMarker, `${JSON.stringify(transaction)}\n`, { mode: 0o600, flag: "wx" });
+  await syncPath(temporaryMarker);
+  if (process.env.PIPHI_TEST_CRASH_BEFORE_IDENTITY_MARKER_RENAME === "true") process.exit(87);
+  await rename(temporaryMarker, markerPath(config));
+  await syncPath(config.identityRoot);
   await swapCurrent(config, transaction.next);
   if (process.env.PIPHI_TEST_CRASH_AFTER_IDENTITY_SWAP === "true") process.exit(86);
 }
 
 async function readTransaction(config: BrokerConfig): Promise<IdentityTransaction | null> {
-  try { return JSON.parse(await readFile(markerPath(config), "utf8")) as IdentityTransaction; } catch { return null; }
+  let raw: string;
+  try {
+    raw = await readFile(markerPath(config), "utf8");
+  } catch (error: unknown) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw error;
+  }
+  let transaction: Partial<IdentityTransaction>;
+  try {
+    transaction = JSON.parse(raw) as Partial<IdentityTransaction>;
+  } catch {
+    throw new Error("Identity transaction marker is malformed");
+  }
+  if ((transaction.previous !== null && !validGenerationTarget(transaction.previous)) || !validGenerationTarget(transaction.next)) {
+    throw new Error("Identity transaction marker is invalid");
+  }
+  return transaction as IdentityTransaction;
 }
 
 export async function rollbackIdentityTransaction(config: BrokerConfig): Promise<void> {
   const transaction = await readTransaction(config);
   if (!transaction) return;
-  if (transaction.previous) await swapCurrent(config, transaction.previous);
+  if (transaction.previous) {
+    await assertValidGeneration(config, transaction.previous);
+    await swapCurrent(config, transaction.previous);
+  }
   else await rm(`${config.identityRoot}/current`, { force: true });
   await rm(markerPath(config), { force: true });
   await syncPath(config.identityRoot);
@@ -228,7 +269,16 @@ export async function commitIdentityTransaction(config: BrokerConfig): Promise<v
 export async function recoverIdentityTransaction(config: BrokerConfig): Promise<void> {
   await mkdir(config.identityRoot, { recursive: true, mode: 0o750 });
   await rollbackIdentityTransaction(config);
-  const entries = await lstat(`${config.identityRoot}/current`).catch(() => null);
+  const current = `${config.identityRoot}/current`;
+  const entries = await lstat(current).catch((error: NodeJS.ErrnoException) => {
+    if (error.code === "ENOENT") return null;
+    throw error;
+  });
   if (entries && !entries.isSymbolicLink()) throw new Error("Identity current pointer must be a symbolic link");
+  const target = entries ? await readlink(current) : null;
+  if (target) await assertValidGeneration(config, target);
   await rm(config.identityCandidateDir, { recursive: true, force: true });
+  const temporaryMarkers = await readdir(config.identityRoot);
+  await Promise.all(temporaryMarkers.filter((name) => /^\.transaction-.*\.tmp$/.test(name)).map((name) => rm(`${config.identityRoot}/${name}`, { force: true })));
+  await syncPath(config.identityRoot);
 }

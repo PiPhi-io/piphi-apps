@@ -10,6 +10,7 @@ acl_candidate="${MQTT_IDENTITY_CANDIDATE_DIR}/aclfile"
 
 cleanup() {
   node /app/dist/src/cli.js --rollback-identity >/dev/null 2>&1 || true
+  node /app/dist/src/cli.js --recover-identity >/dev/null 2>&1 || true
   rm -rf "$MQTT_IDENTITY_CANDIDATE_DIR"
   rm -f "${config_file}.candidate"
 }
