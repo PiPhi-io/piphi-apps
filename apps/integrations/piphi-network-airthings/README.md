@@ -6,18 +6,28 @@ This integration targets consumer Airthings accounts and polls the latest cloud 
 
 ## Current scope
 
-- Discovers devices from an Airthings consumer account
-- Configures one PiPhi runtime entity per Airthings serial number
-- Polls `latest-samples` on a configurable interval
+- Discovers devices only within an explicitly selected Airthings consumer account
+- Uses a stable privacy-safe device reference outside the adapter; account IDs, serial numbers, names, homes, and segments stay inside the configuration/provider boundary
+- Polls latest samples no faster than every six minutes, matching Home Assistant's quota-conscious cadence
 - Reports a fresh Core health heartbeat on every successful poll while preserving
   the Airthings device timestamp on measurement telemetry. Repeated cloud samples
   therefore prove the connection is healthy without making old readings look new.
 - Emits telemetry and runtime events on success and failure
 - Supports refresh commands, config sync, diagnostics, and health endpoints through the PiPhi Python runtime SDK
 
-The declared Consumer Cloud scope is implementation-complete and is enforced by
-`docs/capability-catalog.json`. Automated runtime and experience-package checks
-pass; validation against physical devices remains an explicit pre-GA gate.
+The declared Consumer Cloud scope is implementation-complete and enforced by
+`docs/capability-catalog.json`. Automated provider-contract tests and exact-image
+qualification are release gates. Physical-device testing is optional follow-up
+evidence, not a publication blocker.
+
+Successful state keeps source observation time (`source_observed_at`) separate
+from fetch time (`fetched_at`). Samples older than one hour are explicitly stale,
+future or timezone-naive timestamps are rejected, and outages retain the last
+good values with `available=false`, `stale=true`, and a redacted error class.
+
+Diagnostics are authenticated and allowlisted. They contain aggregate counts and
+freshness timestamps only—not credentials, account IDs, serial numbers, device
+names, raw provider payloads, or upstream response bodies.
 
 ## API assumptions
 
@@ -25,9 +35,9 @@ The implementation is based on Airthings’ published consumer API onboarding pl
 
 - Consumer API access is created from the Airthings dashboard integrations page
 - OAuth tokens are issued by `https://accounts-api.airthings.com/v1/token`
-- Device data is requested from the consumer cloud API using `devices` and `latest-samples` endpoints
+- Device data is requested from the documented Consumer API `devices` and paginated `sensors` endpoints
 
-The consumer docs are not as indexable as the business docs, so the exact path conventions are implemented conservatively and kept configurable inside the cloud client if Airthings changes them.
+Sensor pagination follows `pageNumber`, `hasNext`, and `totalPages` with hard page and record limits. Rate limiting honors `X-RateLimit-Retry-After` and avoids immediate retry loops.
 
 ## Local development
 

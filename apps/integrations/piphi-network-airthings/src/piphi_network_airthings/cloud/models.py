@@ -58,9 +58,16 @@ def _coerce_datetime(value: Any) -> str:
                 return datetime.fromtimestamp(numeric, tz=UTC).isoformat()
         except (OverflowError, OSError, TypeError, ValueError):
             pass
-    if isinstance(value, str) and value:
-        return value
-    return datetime.now(tz=UTC).isoformat()
+    if isinstance(value, str) and value.strip():
+        normalized = value.strip().replace("Z", "+00:00")
+        try:
+            parsed = datetime.fromisoformat(normalized)
+        except ValueError as exc:
+            raise ValueError("Airthings sample timestamp is invalid.") from exc
+        if parsed.tzinfo is None:
+            raise ValueError("Airthings sample timestamp must include a timezone.")
+        return parsed.astimezone(UTC).isoformat()
+    raise ValueError("Airthings sample timestamp is missing.")
 
 
 def _coerce_float(value: Any) -> float | None:
@@ -108,7 +115,6 @@ class AirthingsCloudDevice:
     sensors: list[str] = field(default_factory=list)
     home: str | None = None
     segment_name: str | None = None
-    raw: dict[str, Any] = field(default_factory=dict)
 
     @property
     def model_name(self) -> str:
@@ -118,18 +124,15 @@ class AirthingsCloudDevice:
             return self.device_type.replace("_", " ").title()
         return "Airthings Device"
 
-    def to_discovery_record(self) -> dict[str, Any]:
+    def to_discovery_record(self, *, device_ref: str) -> dict[str, Any]:
         return {
-            "id": self.serial_number,
-            "serial_number": self.serial_number,
-            "device_id": self.serial_number,
-            "name": self.name or self.model_name,
+            "id": device_ref,
+            "device_ref": device_ref,
+            "device_id": device_ref,
+            "name": self.model_name,
             "device_model": self.device_type,
             "model": self.device_type,
             "metadata": {
-                "serial_number": self.serial_number,
-                "home": self.home,
-                "segment_name": self.segment_name,
                 "device_type": self.device_type,
                 "sensors": list(self.sensors),
             },
@@ -143,7 +146,6 @@ class AirthingsLatestSample:
     metrics: dict[str, float | int | None]
     units: dict[str, str]
     relay_device_type: str | None = None
-    raw: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
     def from_api_payload(cls, serial_number: str, payload: dict[str, Any]) -> "AirthingsLatestSample":
@@ -188,7 +190,6 @@ class AirthingsLatestSample:
                 metrics=metrics,
                 units=units,
                 relay_device_type=payload.get("relayDeviceType"),
-                raw=dict(payload),
             )
 
         data = payload.get("data") if isinstance(payload.get("data"), dict) else payload
@@ -213,7 +214,6 @@ class AirthingsLatestSample:
             metrics=metrics,
             units=units,
             relay_device_type=data.get("relayDeviceType"),
-            raw=dict(data),
         )
 
     def state_payload(self) -> dict[str, Any]:
@@ -222,7 +222,7 @@ class AirthingsLatestSample:
             "sampled_at": self.recorded_at,
             "relay_device_type": self.relay_device_type,
             "metadata": {
-                "serial_number": self.serial_number,
+                "source": "airthings_consumer_cloud",
             },
         }
 

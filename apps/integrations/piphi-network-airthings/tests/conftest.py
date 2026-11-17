@@ -49,7 +49,6 @@ class FakeAirthingsCloudClient(AirthingsCloudClient):
                 sensors=list(record.get("sensors") or []),
                 home=record.get("home"),
                 segment_name=record.get("segmentName"),
-                raw=dict(record),
             )
             for record in self.devices.values()
         ]

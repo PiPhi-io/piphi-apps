@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, Request
-from pydantic import BaseModel, Field, SecretStr
+from pydantic import BaseModel, Field, SecretStr, model_validator
 
 from piphi_runtime_kit_python import (
     AutomationActionRequest,
@@ -48,6 +48,7 @@ from piphi_runtime_kit_python.runtime.errors import CoreDeliveryError
 from .cloud.client import (
     AirthingsCloudAuthError,
     AirthingsCloudClient,
+    AirthingsCloudContractError,
     AirthingsCloudError,
     AirthingsCloudRateLimitError,
     AirthingsCloudRequestError,
@@ -69,7 +70,10 @@ manifest = load_manifest()
 INTEGRATION_ID = str(manifest.get("id") or "airthings-consumer-cloud-api")
 INTEGRATION_NAME = str(manifest.get("name") or "Airthings (Consumer Cloud)")
 INTEGRATION_VERSION = str(manifest.get("version") or "0.1.0")
-DEFAULT_POLL_INTERVAL_SECONDS = 300
+MIN_POLL_INTERVAL_SECONDS = 360
+DEFAULT_POLL_INTERVAL_SECONDS = MIN_POLL_INTERVAL_SECONDS
+MAX_SAMPLE_AGE_SECONDS = 3600
+MAX_SAMPLE_FUTURE_SKEW_SECONDS = 300
 MOLD_RISK_WINDOW_HOURS = 48
 logger = logging.getLogger(__name__)
 
@@ -98,6 +102,8 @@ automation_registry = AutomationRegistry(
 poll_tasks: dict[str, asyncio.Task[Any]] = {}
 poll_status: dict[str, dict[str, Any]] = {}
 runtime_credentials: dict[str, AirthingsCredentials] = {}
+runtime_device_serials: dict[str, str] = {}
+runtime_account_ids: dict[str, str] = {}
 
 
 async def _refresh_all_state() -> None:
@@ -141,10 +147,21 @@ class AirthingsCloudConfig(RuntimeConfig):
     client_id: str
     client_secret: SecretStr
     account_id: str
-    serial_number: str
+    device_ref: str | None = None
+    serial_number: SecretStr | None = None
     device_name: str | None = None
     device_model: str | None = None
-    poll_interval_seconds: int = Field(default=DEFAULT_POLL_INTERVAL_SECONDS, ge=60, le=86400)
+    poll_interval_seconds: int = Field(
+        default=DEFAULT_POLL_INTERVAL_SECONDS,
+        ge=MIN_POLL_INTERVAL_SECONDS,
+        le=86400,
+    )
+
+    @model_validator(mode="after")
+    def require_device_selection(self) -> "AirthingsCloudConfig":
+        if not str(self.device_ref or "").strip() and self.serial_number is None:
+            raise ValueError("device_ref is required")
+        return self
 
 
 class DeconfigurePayload(BaseModel):
@@ -172,6 +189,8 @@ async def reset_runtime_state() -> None:
     poll_tasks.clear()
     poll_status.clear()
     runtime_credentials.clear()
+    runtime_device_serials.clear()
+    runtime_account_ids.clear()
     registry.entries.clear()
     registry.state_snapshots.clear()
     registry.recent_events.clear()
@@ -201,18 +220,42 @@ def _config_id(config: AirthingsCloudConfig) -> str:
 
 
 def _device_id(config: AirthingsCloudConfig) -> str:
-    return str(config.serial_number).strip()
+    return str(config.device_ref or "").strip()
+
+
+def _device_ref(account_id: str, serial_number: str) -> str:
+    return hashlib.sha256(
+        f"airthings-device-v1\0{account_id}\0{serial_number}".encode()
+    ).hexdigest()[:32]
+
+
+def _entry_serial(entry: dict[str, Any]) -> str:
+    serial = runtime_device_serials.get(str(entry["config_id"]))
+    if serial is None:
+        raise AirthingsCloudAuthError(
+            "Airthings device selection is not available; reconfigure the integration."
+        )
+    return serial
+
+
+def _entry_account_id(entry: dict[str, Any]) -> str:
+    account_id = runtime_account_ids.get(str(entry["config_id"]))
+    if account_id is None:
+        raise AirthingsCloudAuthError(
+            "Airthings account selection is not available; reconfigure the integration."
+        )
+    return account_id
 
 
 def _entry_log_label(entry: dict[str, Any]) -> str:
     reference = hashlib.sha256(
-        str(entry.get("config_id") or entry.get("serial_number") or "unknown").encode()
+        str(entry.get("config_id") or entry.get("device_ref") or "unknown").encode()
     ).hexdigest()[:12]
     return f"config_ref={reference} device_model={entry.get('device_model') or 'unknown'}"
 
 
 def _entry_name(entry: dict[str, Any]) -> str:
-    return str(entry.get("device_name") or entry.get("serial_number") or entry.get("config_id"))
+    return str(entry.get("device_model") or "Airthings device")
 
 
 def _config_log_label(config: AirthingsCloudConfig) -> str:
@@ -245,8 +288,20 @@ def _parse_sample_timestamp(recorded_at: str) -> datetime:
     normalized = str(recorded_at).replace("Z", "+00:00")
     parsed = datetime.fromisoformat(normalized)
     if parsed.tzinfo is None:
-        return parsed.replace(tzinfo=UTC)
+        raise ValueError("sample timestamp must include a timezone")
     return parsed.astimezone(UTC)
+
+
+def _sample_freshness(recorded_at: str, fetched_at: str) -> tuple[bool, int]:
+    source_time = _parse_sample_timestamp(recorded_at)
+    fetch_time = _parse_sample_timestamp(fetched_at)
+    age_seconds = int((fetch_time - source_time).total_seconds())
+    if age_seconds < -MAX_SAMPLE_FUTURE_SKEW_SECONDS:
+        raise AirthingsCloudContractError(
+            "Airthings latest sample timestamp was unexpectedly in the future."
+        )
+    normalized_age = max(age_seconds, 0)
+    return normalized_age > MAX_SAMPLE_AGE_SECONDS, normalized_age
 
 
 def _mold_history(entry: dict[str, Any]) -> list[dict[str, Any]]:
@@ -306,7 +361,10 @@ def _compute_mold_risk_level(
     history[:] = retained
 
     window_seconds = float(timedelta(hours=MOLD_RISK_WINDOW_HOURS).total_seconds())
-    poll_interval_seconds = max(int(entry.get("poll_interval_seconds") or DEFAULT_POLL_INTERVAL_SECONDS), 60)
+    poll_interval_seconds = max(
+        int(entry.get("poll_interval_seconds") or DEFAULT_POLL_INTERVAL_SECONDS),
+        MIN_POLL_INTERVAL_SECONDS,
+    )
     weighted_exposure = 0.0
     covered_seconds = 0.0
 
@@ -473,6 +531,8 @@ def _record_measurement_delivery(
         entry.pop("pending_sample_at", None)
     try:
         delivered = task.result()
+    except asyncio.CancelledError:
+        return
     except Exception:
         return
     if delivered:
@@ -506,8 +566,8 @@ def _latest_poll_metadata() -> dict[str, str | None]:
 async def _fetch_latest_sample(entry: dict[str, Any]) -> tuple[AirthingsCloudDevice | None, AirthingsLatestSample]:
     sample = await cloud_client.latest_sample(
         credentials=_entry_credentials(entry),
-        account_id=str(entry["account_id"]),
-        serial_number=str(entry["serial_number"]),
+        account_id=_entry_account_id(entry),
+        serial_number=_entry_serial(entry),
     )
     return None, sample
 
@@ -529,17 +589,19 @@ def _update_state_snapshot(
     state_payload = sample.state_payload()
     if mold_risk_level is not None:
         state_payload[MOLD_RISK_METRIC_KEY] = mold_risk_level
+    stale, stale_age_seconds = _sample_freshness(sample.recorded_at, polled_at)
     registry.update_state(
         config_id,
         {
             **state_payload,
             "connected": True,
-            "available": True,
-            "stale": False,
+            "available": not stale,
+            "stale": stale,
+            "stale_age_seconds": stale_age_seconds,
             "source_observed_at": sample.recorded_at,
             "fetched_at": polled_at,
             "last_success_at": polled_at,
-            "serial_number": entry["serial_number"],
+            "device_ref": entry["device_ref"],
             "device_model": entry.get("device_model"),
             "name": _entry_name(entry),
             "last_polled_at": polled_at,
@@ -570,7 +632,7 @@ def _update_state_snapshot(
             telemetry_client=telemetry_client,
             auth_context=runtime.auth,
             config_id=str(entry["config_id"]),
-            device_id=str(entry["serial_number"]),
+            device_id=str(entry["device_ref"]),
             metrics=filtered_metrics,
             container_id=entry.get("container_id"),
             units=filtered_units,
@@ -609,7 +671,7 @@ def _update_state_snapshot(
         telemetry_client=telemetry_client,
         auth_context=runtime.auth,
         config_id=str(entry["config_id"]),
-        device_id=str(entry["serial_number"]),
+        device_id=str(entry["device_ref"]),
         metrics={"connected": True, "read_failed": False},
         container_id=entry.get("container_id"),
         timestamp=polled_at,
@@ -700,7 +762,7 @@ async def poll_once(config_id: str) -> None:
                     "connected": False,
                     "available": False,
                     "stale": True,
-                    "serial_number": entry["serial_number"],
+                    "device_ref": entry["device_ref"],
                     "device_model": entry.get("device_model"),
                     "name": _entry_name(entry),
                     "last_error": safe_error,
@@ -714,7 +776,7 @@ async def poll_once(config_id: str) -> None:
                 telemetry_client=telemetry_client,
                 auth_context=runtime.auth,
                 config_id=str(config_id),
-                device_id=str(entry["serial_number"]),
+                device_id=str(entry["device_ref"]),
                 metrics={"connected": False, "read_failed": True},
                 container_id=entry.get("container_id"),
                 timestamp=registry.state_snapshots.get(config_id, {}).get("last_updated"),
@@ -765,8 +827,15 @@ async def _ensure_known_device(config: AirthingsCloudConfig) -> AirthingsCloudDe
         )
     except AirthingsCloudError as exc:
         _raise_http_for_cloud_error(exc)
+    requested_ref = str(config.device_ref or "").strip()
+    requested_serial = (
+        config.serial_number.get_secret_value().strip()
+        if config.serial_number is not None
+        else ""
+    )
     for device in devices:
-        if device.serial_number == config.serial_number:
+        candidate_ref = _device_ref(config.account_id, device.serial_number)
+        if candidate_ref == requested_ref or device.serial_number == requested_serial:
             logger.info(
                 "airthings_device_matched %s discovered_name=%s discovered_model=%s available_sensors=%s",
                 _config_log_label(config),
@@ -784,13 +853,15 @@ async def _ensure_known_device(config: AirthingsCloudConfig) -> AirthingsCloudDe
 async def apply_config(config: AirthingsCloudConfig) -> dict[str, Any]:
     config_id = _config_id(config)
     logger.info("airthings_config_apply_started %s", _config_log_label(config))
+    device = await _ensure_known_device(config)
+    selected_device_ref = _device_ref(config.account_id, device.serial_number)
     duplicate = next(
         (
             existing_id
             for existing_id, existing in registry.entries.items()
             if existing_id != config_id
-            and str(existing.get("account_id")) == config.account_id
-            and str(existing.get("serial_number")) == config.serial_number
+            and runtime_account_ids.get(existing_id) == config.account_id
+            and str(existing.get("device_ref")) == selected_device_ref
         ),
         None,
     )
@@ -799,28 +870,27 @@ async def apply_config(config: AirthingsCloudConfig) -> dict[str, Any]:
             status_code=409,
             detail="The selected Airthings account and device are already configured.",
         )
-    device = await _ensure_known_device(config)
     previous_entry = registry.get(config_id)
     previous_sample_at = (
         previous_entry.get("last_delivered_sample_at")
         if previous_entry is not None
-        and str(previous_entry.get("serial_number")) == str(config.serial_number)
+        and str(previous_entry.get("device_ref")) == selected_device_ref
         else None
     )
     await remove_config(config_id)
     entry = {
         "config_id": config_id,
-        "device_id": _device_id(config),
+        "device_id": selected_device_ref,
         "container_id": getattr(config, "container_id", None),
         "integration_id": getattr(config, "integration_id", None) or INTEGRATION_ID,
-        "account_id": config.account_id,
-        "serial_number": config.serial_number,
-        "device_name": config.device_name or device.name,
+        "device_ref": selected_device_ref,
         "device_model": config.device_model or device.device_type,
         "poll_interval_seconds": config.poll_interval_seconds,
         "known_sensors": list(device.sensors),
     }
     runtime_credentials[config_id] = _credentials(config)
+    runtime_device_serials[config_id] = device.serial_number
+    runtime_account_ids[config_id] = config.account_id
     if previous_sample_at:
         entry["last_delivered_sample_at"] = previous_sample_at
     registry.set(config_id, entry)
@@ -828,7 +898,7 @@ async def apply_config(config: AirthingsCloudConfig) -> dict[str, Any]:
         config_id,
         {
             "connected": False,
-            "serial_number": entry["serial_number"],
+            "device_ref": entry["device_ref"],
             "device_model": entry.get("device_model"),
             "name": _entry_name(entry),
         },
@@ -855,7 +925,7 @@ async def apply_config(config: AirthingsCloudConfig) -> dict[str, Any]:
                 "connected": False,
                 "available": False,
                 "stale": True,
-                "serial_number": entry["serial_number"],
+                "device_ref": entry["device_ref"],
                 "device_model": entry.get("device_model"),
                 "name": _entry_name(entry),
                 "last_error": initial_error,
@@ -885,7 +955,6 @@ async def apply_config(config: AirthingsCloudConfig) -> dict[str, Any]:
         event_type="device.configured",
         device=entry,
         payload={
-            "serial_number": entry["serial_number"],
             "device_model": entry.get("device_model"),
             "initial_error": initial_error,
         },
@@ -905,13 +974,15 @@ async def remove_config(config_id: str) -> bool:
     removed = registry.remove(config_id)
     poll_status.pop(config_id, None)
     runtime_credentials.pop(config_id, None)
+    runtime_device_serials.pop(config_id, None)
+    runtime_account_ids.pop(config_id, None)
     if removed is None:
         logger.info("airthings_config_remove_skipped config_id=%s reason=not_found", config_id)
         return False
     _schedule_runtime_event_delivery(
         event_type="device.deconfigured",
         device=removed,
-        payload={"serial_number": removed.get("serial_number")},
+        payload={"device_ref": removed.get("device_ref")},
     )
     logger.info("airthings_config_remove_completed %s", _entry_log_label(removed))
     return True
@@ -922,19 +993,25 @@ async def _discover_devices(
     client_id: str,
     client_secret: str,
     account_id: str,
-    serial_number: str | None = None,
+    device_ref: str | None = None,
 ) -> list[dict[str, Any]]:
     credentials = AirthingsCredentials(client_id=client_id, client_secret=client_secret)
     devices = await cloud_client.list_devices(credentials, account_id=account_id)
-    if serial_number:
-        devices = [device for device in devices if device.serial_number == serial_number]
+    if device_ref:
+        devices = [
+            device
+            for device in devices
+            if _device_ref(account_id, device.serial_number) == device_ref
+        ]
     logger.info(
         "airthings_discovery_completed filtered=%s discovered=%s",
-        bool(serial_number),
+        bool(device_ref),
         len(devices),
     )
     return [
-        device.to_discovery_record()
+        device.to_discovery_record(
+            device_ref=_device_ref(account_id, device.serial_number)
+        )
         for device in devices
     ]
 
@@ -967,6 +1044,8 @@ def _poll_error_class(exc: Exception) -> str:
         return "authentication"
     if isinstance(exc, AirthingsCloudRateLimitError):
         return "rate_limit"
+    if isinstance(exc, AirthingsCloudContractError):
+        return "provider_contract"
     if isinstance(exc, AirthingsCloudRequestError):
         return "transient_outage"
     return "runtime_error"
@@ -1005,7 +1084,7 @@ def _build_entities_payload() -> list[dict[str, Any]]:
         sample = None
         if latest_state:
             sample = AirthingsLatestSample(
-                serial_number=str(entry["serial_number"]),
+                serial_number="redacted",
                 recorded_at=str(latest_state.get("sampled_at") or ""),
                 metrics={
                     key: latest_state.get(key)
@@ -1026,10 +1105,9 @@ def _build_entities_payload() -> list[dict[str, Any]]:
                 },
                 units={},
                 relay_device_type=latest_state.get("relay_device_type"),
-                raw=latest_state.get("metadata", {}).get("raw", {}),
             )
         device = AirthingsCloudDevice(
-            serial_number=str(entry["serial_number"]),
+            serial_number="redacted",
             name=_entry_name(entry),
             device_type=entry.get("device_model"),
             sensors=list(entry.get("known_sensors") or []),
@@ -1039,7 +1117,7 @@ def _build_entities_payload() -> list[dict[str, Any]]:
                 "id": f"device:{config_id}",
                 "name": _entry_name(entry),
                 "config_id": config_id,
-                "device_id": entry["serial_number"],
+                "device_id": entry["device_ref"],
                 "device_class": "air_quality_monitor",
                 "entity_type": "sensor",
                 "capabilities": capabilities_for_device(device, sample),
@@ -1057,7 +1135,6 @@ def _build_entities_payload() -> list[dict[str, Any]]:
                     "recommended_widgets": ["sensor-card", "stat"],
                 },
                 "metadata": {
-                    "serial_number": entry["serial_number"],
                     "device_model": entry.get("device_model"),
                 },
             }
@@ -1134,7 +1211,7 @@ async def ui_config() -> dict[str, Any]:
             "title": "Airthings Consumer Cloud Setup",
             "description": "Connect PiPhi to an Airthings consumer account device using your Airthings Consumer API client credentials.",
             "type": "object",
-            "required": ["client_id", "client_secret", "account_id", "serial_number"],
+            "required": ["client_id", "client_secret", "account_id", "device_ref"],
             "properties": {
                 "client_id": {
                     "type": "string",
@@ -1151,10 +1228,10 @@ async def ui_config() -> dict[str, Any]:
                     "title": "Account ID",
                     "description": "Explicit consumer account ID shown by the Airthings API; PiPhi never chooses the first account.",
                 },
-                "serial_number": {
+                "device_ref": {
                     "type": "string",
-                    "title": "Serial Number",
-                    "description": "Airthings serial number for the monitor you want PiPhi to track.",
+                    "title": "Device",
+                    "description": "Privacy-safe device reference returned by discovery.",
                 },
                 "device_name": {
                     "type": "string",
@@ -1168,7 +1245,7 @@ async def ui_config() -> dict[str, Any]:
                     "type": "integer",
                     "title": "Poll Interval Seconds",
                     "default": DEFAULT_POLL_INTERVAL_SECONDS,
-                    "minimum": 60,
+                    "minimum": MIN_POLL_INTERVAL_SECONDS,
                 },
             },
         },
@@ -1176,11 +1253,8 @@ async def ui_config() -> dict[str, Any]:
             "client_secret": {
                 "ui:widget": "password",
             },
-            "serial_number": {
-                "placeholder": "2930046980",
-            },
             "poll_interval_seconds": {
-                "help": "Airthings cloud samples are typically updated every 5 minutes, so lower values often do not produce fresher data.",
+                "help": "Airthings cloud samples are typically updated every 5 minutes. PiPhi enforces Home Assistant's 6-minute minimum cadence.",
             },
         },
     }
@@ -1201,14 +1275,14 @@ async def discover(
         raise HTTPException(status_code=400, detail="Discovery requires client_id, client_secret, and an explicit account_id.")
     logger.info(
         "airthings_discovery_started filtered=%s",
-        bool(str(inputs.get("serial_number") or "").strip()),
+        bool(str(inputs.get("device_ref") or "").strip()),
     )
     try:
         devices = await _discover_devices(
             client_id=client_id,
             client_secret=client_secret,
             account_id=account_id,
-            serial_number=str(inputs.get("serial_number") or "").strip() or None,
+            device_ref=str(inputs.get("device_ref") or "").strip() or None,
         )
     except AirthingsCloudError as exc:
         _raise_http_for_cloud_error(exc)
@@ -1229,7 +1303,7 @@ async def config(payload: AirthingsCloudConfig, request: Request) -> RuntimeConf
         config_id=_config_id(payload),
         container_id=entry.get("container_id"),
         metadata={
-            "serial_number": entry["serial_number"],
+            "device_ref": entry["device_ref"],
             "device_model": entry.get("device_model"),
         },
     )
@@ -1345,7 +1419,7 @@ async def command(payload: IntegrationCommandRequest, request: Request) -> dict[
         matching_config_ids = [
             candidate_id
             for candidate_id, entry in registry.entries.items()
-            if str(entry.get("serial_number")) == str(payload.device_id)
+            if str(entry.get("device_ref")) == str(payload.device_id)
         ]
         if len(matching_config_ids) > 1:
             raise HTTPException(

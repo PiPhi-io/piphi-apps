@@ -8,7 +8,13 @@ from piphi_network_airthings.cloud.models import (
     AirthingsLatestSample,
     capabilities_for_device,
 )
-from piphi_network_airthings.runtime import _compute_mold_risk_level, _filtered_telemetry_payload
+from piphi_network_airthings.cloud.client import AirthingsCloudRequestError
+from piphi_network_airthings.runtime import (
+    AirthingsCloudConfig,
+    _compute_mold_risk_level,
+    _filtered_telemetry_payload,
+    _sample_freshness,
+)
 
 
 def test_filtered_telemetry_payload_drops_none_metrics_and_unmatched_units() -> None:
@@ -43,7 +49,7 @@ def test_compute_mold_risk_level_for_wave_mini_uses_rolling_history() -> None:
         "config_id": "cfg-1",
         "serial_number": "2950068674",
         "device_model": "WAVE_MINI",
-        "poll_interval_seconds": 300,
+        "poll_interval_seconds": 360,
     }
 
     first = AirthingsLatestSample(
@@ -106,24 +112,55 @@ def test_sample_rejects_nonfinite_and_out_of_range_metrics_without_raw_payload()
     assert sample.metrics["humidity_percent"] is None
     assert sample.metrics["co2_ppm"] == 850.0
     assert sample.metrics["battery_percent"] is None
-    assert sample.state_payload()["metadata"] == {"serial_number": "2930046980"}
+    assert sample.state_payload()["metadata"] == {"source": "airthings_consumer_cloud"}
     assert "privateUpstreamField" not in str(sample.state_payload())
 
 
-def test_sample_rejects_overflowing_numbers_and_uses_safe_measurement_time() -> None:
-    sample = AirthingsLatestSample.from_api_payload(
-        "2930046980",
-        {
-            "data": {
-                "recorded": 10**10000,
-                "co2": 10**10000,
-                "battery": "1e999",
-                "rssi": "-1e999",
-            }
-        },
-    )
+def test_sample_rejects_overflowing_numbers_and_invalid_measurement_time() -> None:
+    import pytest
 
-    assert sample.metrics["co2_ppm"] is None
-    assert sample.metrics["battery_percent"] is None
-    assert sample.metrics["rssi_dbm"] is None
-    assert datetime.fromisoformat(sample.recorded_at).tzinfo is not None
+    with pytest.raises(ValueError, match="timestamp"):
+        AirthingsLatestSample.from_api_payload(
+            "2930046980",
+            {
+                "data": {
+                    "recorded": 10**10000,
+                    "co2": 10**10000,
+                    "battery": "1e999",
+                    "rssi": "-1e999",
+                }
+            },
+        )
+
+
+def test_config_enforces_home_assistant_six_minute_poll_floor() -> None:
+    import pytest
+
+    with pytest.raises(ValueError):
+        AirthingsCloudConfig.model_validate(
+            {
+                "id": "cfg",
+                "client_id": "client",
+                "client_secret": "secret",
+                "account_id": "account",
+                "device_ref": "device-ref",
+                "poll_interval_seconds": 359,
+            }
+        )
+
+
+def test_sample_freshness_marks_old_data_stale_and_rejects_future_data() -> None:
+    stale, age = _sample_freshness(
+        "2026-11-16T10:00:00+00:00",
+        "2026-11-16T12:00:01+00:00",
+    )
+    assert stale is True
+    assert age == 7201
+
+    import pytest
+
+    with pytest.raises(AirthingsCloudRequestError, match="future"):
+        _sample_freshness(
+            "2026-11-16T12:06:00+00:00",
+            "2026-11-16T12:00:00+00:00",
+        )
