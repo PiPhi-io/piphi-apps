@@ -11,40 +11,100 @@
       "capabilities": [
         "connected",
         "datapoint_value",
+        "datapoint_stale",
         "read_datapoint",
         "write_datapoint"
       ],
       "targeting": {
-        "scopes": ["config", "selection"],
+        "scopes": [
+          "config",
+          "selection"
+        ],
         "fanout": {
           "supported": false,
           "defaultMode": "selection",
-          "allowedModes": ["config", "selection"]
+          "allowedModes": [
+            "config",
+            "selection"
+          ]
         }
       },
       "freshness": {
         "maxAgeSeconds": 3600,
         "staleDataMode": "block"
       },
-      "ui": {"icon": "activity", "category": "bridge"},
+      "ui": {
+        "icon": "activity",
+        "category": "bridge"
+      },
       "triggers": [
         {
           "id": "datapoint_changed",
           "label": "Datapoint changed",
           "description": "Start when KNX feedback changes after initialization.",
           "capability": "datapoint_value",
-          "runtime": {"event": "datapoint.changed", "source": "integration"},
-          "freshness": {"maxAgeSeconds": 3600, "staleDataMode": "block"},
-          "ui": {"group": "when"}
+          "runtime": {
+            "event": "datapoint.changed",
+            "source": "integration"
+          },
+          "freshness": {
+            "maxAgeSeconds": 3600,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "when"
+          }
         },
         {
           "id": "gateway_offline",
           "label": "KNX interface offline",
           "description": "Start when the KNX/IP session disconnects.",
           "capability": "connected",
-          "runtime": {"event": "gateway.offline", "source": "integration"},
-          "freshness": {"maxAgeSeconds": 300, "staleDataMode": "block"},
-          "ui": {"group": "when"}
+          "runtime": {
+            "event": "gateway.offline",
+            "source": "integration"
+          },
+          "freshness": {
+            "maxAgeSeconds": 300,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "when"
+          }
+        },
+        {
+          "id": "datapoint_stale",
+          "label": "Datapoint became stale",
+          "description": "Start once when configured feedback exceeds its freshness limit.",
+          "capability": "datapoint_stale",
+          "runtime": {
+            "event": "datapoint.stale",
+            "source": "integration"
+          },
+          "freshness": {
+            "maxAgeSeconds": 300,
+            "staleDataMode": "allow"
+          },
+          "ui": {
+            "group": "when"
+          }
+        },
+        {
+          "id": "datapoint_recovered",
+          "label": "Datapoint recovered",
+          "description": "Start when fresh KNX feedback arrives after a stale period.",
+          "capability": "datapoint_stale",
+          "runtime": {
+            "event": "datapoint.recovered",
+            "source": "integration"
+          },
+          "freshness": {
+            "maxAgeSeconds": 300,
+            "staleDataMode": "allow"
+          },
+          "ui": {
+            "group": "when"
+          }
         }
       ],
       "intents": [],
@@ -55,13 +115,89 @@
           "description": "Run only when the latest feedback equals the chosen value.",
           "type": "text",
           "capability": "datapoint_value",
-          "operators": ["eq", "neq"],
-          "runtime": {"source": "state", "field": "value", "operator": "eq"},
-          "freshness": {"maxAgeSeconds": 3600, "staleDataMode": "block"},
-          "ui": {"group": "only_if"},
+          "operators": [
+            "eq",
+            "neq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "value",
+            "operator": "eq"
+          },
+          "freshness": {
+            "maxAgeSeconds": 3600,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "only_if"
+          },
           "params": [
-            {"name": "value", "label": "Value", "type": "text", "required": true}
+            {
+              "name": "value",
+              "label": "Value",
+              "type": "text",
+              "required": true
+            }
           ]
+        },
+        {
+          "id": "datapoint_in_range",
+          "label": "Datapoint is in range",
+          "description": "Run only when fresh numeric feedback is inside the selected inclusive range.",
+          "type": "number",
+          "capability": "datapoint_value",
+          "operators": [
+            "between"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "value",
+            "operator": "between"
+          },
+          "freshness": {
+            "maxAgeSeconds": 3600,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "only_if"
+          },
+          "params": [
+            {
+              "name": "minimum",
+              "label": "Minimum",
+              "type": "number",
+              "required": true
+            },
+            {
+              "name": "maximum",
+              "label": "Maximum",
+              "type": "number",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "datapoint_is_stale",
+          "label": "Datapoint is stale",
+          "description": "Run only when the datapoint has exceeded its configured freshness limit.",
+          "type": "boolean",
+          "capability": "datapoint_stale",
+          "operators": [
+            "eq"
+          ],
+          "runtime": {
+            "source": "state",
+            "field": "stale",
+            "operator": "eq"
+          },
+          "freshness": {
+            "maxAgeSeconds": 300,
+            "staleDataMode": "allow"
+          },
+          "ui": {
+            "group": "only_if"
+          },
+          "params": []
         }
       ],
       "actions": [
@@ -70,26 +206,91 @@
           "label": "Read datapoint",
           "description": "Request the configured feedback group address.",
           "capability": "read_datapoint",
-          "capabilityRequirements": ["read_datapoint"],
-          "runtime": {"command": "read_datapoint", "endpoint": "/command", "method": "POST", "timeoutSeconds": 10},
-          "safety": {"riskLevel": "low", "requiresConfirmation": false, "liveRunAllowed": true},
-          "targeting": {"fanoutSafe": false, "supportsMultiTarget": false, "scopes": ["config", "selection"]},
-          "failure": {"strategy": "stop", "retry": {"maxAttempts": 1, "delaySeconds": 0, "backoff": "fixed"}, "timeoutSeconds": 10, "continueOnPartialFailure": false, "idempotent": true},
-          "ui": {"group": "do_this"}
+          "capabilityRequirements": [
+            "read_datapoint"
+          ],
+          "runtime": {
+            "command": "read_datapoint",
+            "endpoint": "/command",
+            "method": "POST",
+            "timeoutSeconds": 10
+          },
+          "safety": {
+            "riskLevel": "low",
+            "requiresConfirmation": false,
+            "liveRunAllowed": true
+          },
+          "targeting": {
+            "fanoutSafe": false,
+            "supportsMultiTarget": false,
+            "scopes": [
+              "config",
+              "selection"
+            ]
+          },
+          "failure": {
+            "strategy": "stop",
+            "retry": {
+              "maxAttempts": 1,
+              "delaySeconds": 0,
+              "backoff": "fixed"
+            },
+            "timeoutSeconds": 10,
+            "continueOnPartialFailure": false,
+            "idempotent": true
+          },
+          "ui": {
+            "group": "do_this"
+          }
         },
         {
           "id": "write_datapoint",
           "label": "Write datapoint",
           "description": "Write a validated value to an explicitly allowlisted datapoint.",
           "capability": "write_datapoint",
-          "capabilityRequirements": ["write_datapoint"],
-          "runtime": {"command": "write_datapoint", "endpoint": "/command", "method": "POST", "timeoutSeconds": 10},
-          "safety": {"riskLevel": "medium", "requiresConfirmation": true, "liveRunAllowed": true},
-          "targeting": {"fanoutSafe": false, "supportsMultiTarget": false, "scopes": ["config", "selection"]},
-          "failure": {"strategy": "stop", "retry": {"maxAttempts": 1, "delaySeconds": 0, "backoff": "fixed"}, "timeoutSeconds": 10, "continueOnPartialFailure": false, "idempotent": false},
-          "ui": {"group": "do_this"},
+          "capabilityRequirements": [
+            "write_datapoint"
+          ],
+          "runtime": {
+            "command": "write_datapoint",
+            "endpoint": "/command",
+            "method": "POST",
+            "timeoutSeconds": 10
+          },
+          "safety": {
+            "riskLevel": "medium",
+            "requiresConfirmation": true,
+            "liveRunAllowed": true
+          },
+          "targeting": {
+            "fanoutSafe": false,
+            "supportsMultiTarget": false,
+            "scopes": [
+              "config",
+              "selection"
+            ]
+          },
+          "failure": {
+            "strategy": "stop",
+            "retry": {
+              "maxAttempts": 1,
+              "delaySeconds": 0,
+              "backoff": "fixed"
+            },
+            "timeoutSeconds": 10,
+            "continueOnPartialFailure": false,
+            "idempotent": false
+          },
+          "ui": {
+            "group": "do_this"
+          },
           "params": [
-            {"name": "value", "label": "Value", "type": "text", "required": true}
+            {
+              "name": "value",
+              "label": "Value",
+              "type": "text",
+              "required": true
+            }
           ]
         }
       ],

@@ -12,6 +12,7 @@ from .state import manager, runtime
 
 async def startup_sync(_runtime: Any, _client: Any) -> None:
     await manager.restore()
+    manager.start_staleness_monitor()
 
 
 @asynccontextmanager
