@@ -135,7 +135,7 @@ async def test_list_devices_and_latest_sample_mapping() -> None:
         ("POST", "/v1/token", ""),
         ("GET", "/v1/accounts", ""),
         ("GET", "/v1/accounts/account-1/devices", ""),
-        ("GET", "/v1/accounts/account-1/sensors", "sn=2930046980"),
+        ("GET", "/v1/accounts/account-1/sensors", "sn=2930046980&pageNumber=1"),
     ]
 
 
@@ -270,5 +270,106 @@ async def test_multiple_accounts_require_exact_selected_account() -> None:
     assert "canary" not in rendered
     assert "not-owned" not in rendered
 
-    assert "upstream-secret-body" not in str(exc_info.value)
-    assert str(exc_info.value) == "Airthings token request failed with status 500."
+    assert str(exc_info.value) == (
+        "The selected Airthings account is not accessible with these credentials."
+    )
+
+
+@pytest.mark.asyncio
+async def test_latest_sample_follows_bounded_provider_pagination() -> None:
+    requested_pages: list[int] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v1/token":
+            return httpx.Response(200, json={"access_token": "token", "expires_in": 3600})
+        if request.url.path == "/v1/accounts":
+            return httpx.Response(200, json={"accounts": [{"id": "account-1"}]})
+        if request.url.path.endswith("/sensors"):
+            page = int(request.url.params["pageNumber"])
+            requested_pages.append(page)
+            if page == 1:
+                return httpx.Response(200, json={"results": [], "hasNext": True, "totalPages": 2})
+            return httpx.Response(
+                200,
+                json={
+                    "results": [
+                        {
+                            "serialNumber": "device-1",
+                            "recorded": "2026-11-16T12:00:00+00:00",
+                            "sensors": [{"sensorType": "temp", "value": 21.0}],
+                        }
+                    ],
+                    "hasNext": False,
+                    "totalPages": 2,
+                },
+            )
+        raise AssertionError(request.url)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http_client:
+        client = AirthingsCloudClient(
+            accounts_base_url="https://example.test",
+            consumer_base_url="https://example.test",
+            http_client=http_client,
+        )
+        sample = await client.latest_sample(
+            credentials=AirthingsCredentials("client", "secret"),
+            account_id="account-1",
+            serial_number="device-1",
+        )
+
+    assert requested_pages == [1, 2]
+    assert sample.metrics["temperature_c"] == 21.0
+
+
+@pytest.mark.asyncio
+async def test_latest_sample_rejects_unbounded_pagination() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v1/token":
+            return httpx.Response(200, json={"access_token": "token", "expires_in": 3600})
+        if request.url.path == "/v1/accounts":
+            return httpx.Response(200, json={"accounts": [{"id": "account-1"}]})
+        return httpx.Response(200, json={"results": [], "hasNext": True, "totalPages": 21})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http_client:
+        client = AirthingsCloudClient(
+            accounts_base_url="https://example.test",
+            consumer_base_url="https://example.test",
+            http_client=http_client,
+        )
+        with pytest.raises(AirthingsCloudRequestError, match="bounded page limit"):
+            await client.latest_sample(
+                credentials=AirthingsCredentials("client", "secret"),
+                account_id="account-1",
+                serial_number="device-1",
+            )
+
+
+@pytest.mark.asyncio
+async def test_provider_rate_limit_header_controls_jittered_retry(monkeypatch) -> None:
+    attempts = 0
+    sleeps: list[float] = []
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            return httpx.Response(
+                429,
+                headers={
+                    "X-RateLimit-Retry-After": "7",
+                    "Retry-After": "1",
+                },
+            )
+        return httpx.Response(200, json={"ok": True})
+
+    async def capture_sleep(delay: float) -> None:
+        sleeps.append(delay)
+
+    monkeypatch.setattr("piphi_network_airthings.cloud.client.random.uniform", lambda _a, _b: 1.05)
+    monkeypatch.setattr("piphi_network_airthings.cloud.client.asyncio.sleep", capture_sleep)
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http_client:
+        client = AirthingsCloudClient(http_client=http_client, retry_attempts=2)
+        response = await client._request("GET", "https://example.test/rate-limited")
+
+    assert response.status_code == 200
+    assert sleeps == pytest.approx([7.35])

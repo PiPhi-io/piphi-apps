@@ -5,7 +5,8 @@ import base64
 import hashlib
 import logging
 import os
-from dataclasses import dataclass
+import random
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from urllib.parse import urlparse
@@ -24,9 +25,17 @@ DEFAULT_RETRY_ATTEMPTS = 3
 DEFAULT_RETRY_DELAY_SECONDS = 1.0
 MAX_RETRY_DELAY_SECONDS = 3600.0
 TOKEN_EXPIRY_SAFETY_SECONDS = 120
+MAX_DEVICE_RECORDS = 500
+MAX_ACCOUNT_RECORDS = 100
+MAX_SENSOR_PAGES = 20
+MAX_SENSOR_RECORDS = 1000
 ACCOUNTS_BASE_URL_ENV = "PIPHI_AIRTHINGS_ACCOUNTS_BASE_URL"
 CONSUMER_BASE_URL_ENV = "PIPHI_AIRTHINGS_CONSUMER_BASE_URL"
 ALLOW_INSECURE_TEST_ENDPOINTS_ENV = "PIPHI_AIRTHINGS_ALLOW_INSECURE_TEST_ENDPOINTS"
+
+
+def _jittered_delay(delay: float) -> float:
+    return min(MAX_RETRY_DELAY_SECONDS, max(delay, 0.0) * random.uniform(1.0, 1.1))
 
 
 class AirthingsCloudError(RuntimeError):
@@ -43,6 +52,10 @@ class AirthingsCloudRateLimitError(AirthingsCloudError):
 
 class AirthingsCloudRequestError(AirthingsCloudError):
     """Raised for unexpected Airthings consumer cloud request failures."""
+
+
+class AirthingsCloudContractError(AirthingsCloudRequestError):
+    """Raised when a successful provider response violates its documented contract."""
 
 
 def _environment_base_url(name: str, default: str, *, allow_insecure: bool) -> str:
@@ -79,19 +92,19 @@ def airthings_cloud_client_from_environment() -> AirthingsCloudClient:
     )
 
 
-@dataclass(slots=True)
+@dataclass(slots=True, repr=False)
 class AirthingsCredentials:
     client_id: str
-    client_secret: str
+    client_secret: str = field(repr=False)
 
     def cache_key(self) -> str:
         material = f"{self.client_id}\0{self.client_secret}".encode("utf-8")
         return hashlib.sha256(material).hexdigest()
 
 
-@dataclass(slots=True)
+@dataclass(slots=True, repr=False)
 class _TokenRecord:
-    access_token: str
+    access_token: str = field(repr=False)
     expires_at: datetime
 
     def is_expired(self) -> bool:
@@ -165,6 +178,7 @@ class AirthingsCloudClient:
                         )
                     except ValueError:
                         delay = self.retry_delay_seconds * attempt
+                    delay = _jittered_delay(delay)
                     logger.warning(
                         "Airthings API rate limit on %s %s attempt=%s/%s retry_in_seconds=%.2f",
                         method,
@@ -178,7 +192,7 @@ class AirthingsCloudClient:
                 if response.status_code >= 500:
                     if attempt >= self.retry_attempts:
                         return response
-                    delay = self.retry_delay_seconds * attempt
+                    delay = _jittered_delay(self.retry_delay_seconds * attempt)
                     logger.warning(
                         "Airthings API server error on %s %s status=%s attempt=%s/%s retry_in_seconds=%.2f",
                         method,
@@ -195,7 +209,7 @@ class AirthingsCloudClient:
                 last_error = exc
                 if attempt >= self.retry_attempts:
                     break
-                delay = self.retry_delay_seconds * attempt
+                delay = _jittered_delay(self.retry_delay_seconds * attempt)
                 logger.warning(
                     "Airthings API request error on %s %s attempt=%s/%s retry_in_seconds=%.2f error=%r",
                     method,
@@ -245,11 +259,25 @@ class AirthingsCloudClient:
             raise AirthingsCloudRequestError(
                 f"Airthings token request failed with status {response.status_code}."
             )
-        payload = response.json()
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            raise AirthingsCloudContractError(
+                "Airthings token response returned invalid JSON."
+            ) from exc
+        if not isinstance(payload, dict):
+            raise AirthingsCloudContractError(
+                "Airthings token response returned an unexpected payload."
+            )
         access_token = str(payload.get("access_token") or "")
-        expires_in = int(payload.get("expires_in") or 3600)
+        try:
+            expires_in = int(payload.get("expires_in") or 3600)
+        except (TypeError, ValueError) as exc:
+            raise AirthingsCloudContractError(
+                "Airthings token response contained an invalid expiry."
+            ) from exc
         if not access_token:
-            raise AirthingsCloudRequestError("Airthings token response did not include an access_token.")
+            raise AirthingsCloudContractError("Airthings token response did not include an access_token.")
         expires_at = datetime.now(tz=UTC) + timedelta(
             seconds=max(expires_in - TOKEN_EXPIRY_SAFETY_SECONDS, 60)
         )
@@ -288,10 +316,23 @@ class AirthingsCloudClient:
                 f"Airthings account lookup failed with status {response.status_code}."
             )
 
-        payload = response.json()
-        raw_accounts = payload.get("accounts") if isinstance(payload.get("accounts"), list) else payload
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            raise AirthingsCloudContractError(
+                "Airthings account lookup returned invalid JSON."
+            ) from exc
+        raw_accounts = (
+            payload.get("accounts")
+            if isinstance(payload, dict) and isinstance(payload.get("accounts"), list)
+            else payload
+        )
         if not isinstance(raw_accounts, list):
-            raise AirthingsCloudRequestError("Airthings account lookup returned an unexpected payload.")
+            raise AirthingsCloudContractError("Airthings account lookup returned an unexpected payload.")
+        if len(raw_accounts) > MAX_ACCOUNT_RECORDS:
+            raise AirthingsCloudContractError(
+                "Airthings account lookup exceeded the bounded record limit."
+            )
 
         account_ids: list[str] = []
         for item in raw_accounts:
@@ -299,9 +340,13 @@ class AirthingsCloudClient:
                 continue
             account_id = str(item.get("id") or item.get("accountId") or "").strip()
             if account_id:
+                if account_id in account_ids:
+                    raise AirthingsCloudContractError(
+                        "Airthings account lookup returned duplicate account records."
+                    )
                 account_ids.append(account_id)
         if not account_ids:
-            raise AirthingsCloudRequestError("Airthings account lookup returned no account ids.")
+            raise AirthingsCloudContractError("Airthings account lookup returned no account ids.")
         return account_ids
 
     async def _validate_account_id(self, credentials: AirthingsCredentials, account_id: str) -> str:
@@ -333,15 +378,38 @@ class AirthingsCloudClient:
             raise AirthingsCloudRequestError(
                 f"Airthings device discovery failed with status {response.status_code}."
             )
-        payload = response.json()
-        raw_devices = payload.get("devices") if isinstance(payload.get("devices"), list) else payload
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            raise AirthingsCloudContractError(
+                "Airthings device discovery returned invalid JSON."
+            ) from exc
+        raw_devices = (
+            payload.get("devices")
+            if isinstance(payload, dict) and isinstance(payload.get("devices"), list)
+            else payload
+        )
+        if not isinstance(raw_devices, list):
+            raise AirthingsCloudContractError(
+                "Airthings device discovery returned an unexpected payload."
+            )
+        if len(raw_devices) > MAX_DEVICE_RECORDS:
+            raise AirthingsCloudContractError(
+                "Airthings device discovery exceeded the bounded record limit."
+            )
         devices: list[AirthingsCloudDevice] = []
+        seen_serial_numbers: set[str] = set()
         for item in raw_devices:
             if not isinstance(item, dict):
                 continue
             serial_number = str(item.get("serialNumber") or item.get("serial_number") or "").strip()
             if not serial_number:
                 continue
+            if serial_number in seen_serial_numbers:
+                raise AirthingsCloudContractError(
+                    "Airthings device discovery returned duplicate device records."
+                )
+            seen_serial_numbers.add(serial_number)
             devices.append(
                 AirthingsCloudDevice(
                     serial_number=serial_number,
@@ -350,7 +418,6 @@ class AirthingsCloudClient:
                     sensors=list(item.get("sensors") or []),
                     home=item.get("home"),
                     segment_name=item.get("segmentName"),
-                    raw=dict(item),
                 )
             )
         logger.info(
@@ -368,35 +435,91 @@ class AirthingsCloudClient:
     ) -> AirthingsLatestSample:
         access_token = await self._access_token(credentials)
         account_id = await self._validate_account_id(credentials, account_id)
-        response = await self._request(
-            "GET",
-            f"{self.consumer_base_url}/v1/accounts/{account_id}/sensors",
-            headers={"Authorization": f"Bearer {access_token}"},
-            params={"sn": serial_number},
-        )
-        if response.status_code in {401, 403}:
-            self._clear_cached_auth(credentials)
-            raise AirthingsCloudAuthError(
-                "Airthings consumer cloud token was rejected while reading a device."
+        matching_results: list[dict[str, Any]] = []
+        page_number = 1
+        total_record_count = 0
+        while True:
+            response = await self._request(
+                "GET",
+                f"{self.consumer_base_url}/v1/accounts/{account_id}/sensors",
+                headers={"Authorization": f"Bearer {access_token}"},
+                params={"sn": serial_number, "pageNumber": page_number},
             )
-        if response.status_code >= 400:
-            raise AirthingsCloudRequestError(
-                f"Airthings latest sample failed with status {response.status_code}."
-            )
-        payload = response.json()
-        raw_results = payload.get("results") if isinstance(payload.get("results"), list) else payload
-        if not isinstance(raw_results, list):
-            raise AirthingsCloudRequestError("Airthings latest sample returned an unexpected payload.")
-
-        for item in raw_results:
-            if not isinstance(item, dict):
-                continue
-            item_serial = str(item.get("serialNumber") or item.get("serial_number") or "").strip()
-            if item_serial == serial_number:
-                logger.info(
-                    "Airthings sample fetched",
+            if response.status_code in {401, 403}:
+                self._clear_cached_auth(credentials)
+                raise AirthingsCloudAuthError(
+                    "Airthings consumer cloud token was rejected while reading a device."
                 )
-                return AirthingsLatestSample.from_api_payload(serial_number, item)
+            if response.status_code >= 400:
+                raise AirthingsCloudRequestError(
+                    f"Airthings latest sample failed with status {response.status_code}."
+                )
+            try:
+                payload = response.json()
+            except ValueError as exc:
+                raise AirthingsCloudContractError(
+                    "Airthings latest sample returned invalid JSON."
+                ) from exc
+            raw_results = (
+                payload.get("results")
+                if isinstance(payload, dict) and isinstance(payload.get("results"), list)
+                else payload
+            )
+            if not isinstance(raw_results, list):
+                raise AirthingsCloudContractError(
+                    "Airthings latest sample returned an unexpected payload."
+                )
+            total_record_count += len(raw_results)
+            if total_record_count > MAX_SENSOR_RECORDS:
+                raise AirthingsCloudContractError(
+                    "Airthings sensor response exceeded the bounded record limit."
+                )
+            for item in raw_results:
+                if not isinstance(item, dict):
+                    continue
+                item_serial = str(
+                    item.get("serialNumber") or item.get("serial_number") or ""
+                ).strip()
+                if item_serial == serial_number:
+                    matching_results.append(item)
+
+            has_next = bool(payload.get("hasNext")) if isinstance(payload, dict) else False
+            total_pages = payload.get("totalPages") if isinstance(payload, dict) else None
+            if total_pages is not None:
+                try:
+                    parsed_total_pages = int(total_pages)
+                except (TypeError, ValueError) as exc:
+                    raise AirthingsCloudContractError(
+                        "Airthings sensor pagination metadata was invalid."
+                    ) from exc
+                if parsed_total_pages < 1 or parsed_total_pages > MAX_SENSOR_PAGES:
+                    raise AirthingsCloudContractError(
+                        "Airthings sensor pagination exceeded the bounded page limit."
+                    )
+                has_next = has_next or page_number < parsed_total_pages
+            if not has_next:
+                break
+            if page_number >= MAX_SENSOR_PAGES:
+                raise AirthingsCloudContractError(
+                    "Airthings sensor pagination exceeded the bounded page limit."
+                )
+            page_number += 1
+
+        if len(matching_results) > 1:
+            raise AirthingsCloudContractError(
+                "Airthings latest sample returned duplicate device records."
+            )
+        if matching_results:
+            try:
+                sample = AirthingsLatestSample.from_api_payload(
+                    serial_number, matching_results[0]
+                )
+            except ValueError as exc:
+                raise AirthingsCloudContractError(
+                    "Airthings latest sample contained an invalid timestamp."
+                ) from exc
+            logger.info("Airthings sample fetched pages=%s", page_number)
+            return sample
 
         raise AirthingsCloudRequestError(
             "The selected Airthings device was not found in the selected cloud account."

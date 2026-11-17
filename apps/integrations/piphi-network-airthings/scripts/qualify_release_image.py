@@ -266,6 +266,7 @@ def configure_and_assert_state(base_url: str, headers: dict[str, str]) -> None:
             "integration_id": "airthings-consumer-cloud-api",
             "client_id": CLIENT_ID,
             "client_secret": CLIENT_SECRET,
+            "account_id": "account-1",
             "serial_number": SERIAL_NUMBER,
             "poll_interval_seconds": 86400,
         },
@@ -276,6 +277,17 @@ def configure_and_assert_state(base_url: str, headers: dict[str, str]) -> None:
     latest_state = ((state.get("entries") or {}).get(CONFIG_ID) or {}).get("latest_state") or {}
     if latest_state.get("co2_ppm") != 812.0 or latest_state.get("connected") is not True:
         raise AssertionError(f"release image state was not populated from the fixture: {state}")
+    privacy_surfaces = {
+        "state": state,
+        "entities": request_json(f"{base_url}/entities", headers=headers),
+        "events": request_json(f"{base_url}/events", headers=headers),
+        "diagnostics": request_json(f"{base_url}/diagnostics", headers=headers),
+    }
+    for surface, payload in privacy_surfaces.items():
+        rendered = json.dumps(payload, sort_keys=True)
+        for private_value in (SERIAL_NUMBER, "account-1", CLIENT_ID, CLIENT_SECRET, ACCESS_TOKEN):
+            if private_value in rendered:
+                raise AssertionError(f"{surface} exposed private Airthings configuration data")
 
 
 def qualify(args: argparse.Namespace) -> dict[str, Any]:
@@ -324,6 +336,29 @@ def qualify(args: argparse.Namespace) -> dict[str, Any]:
             raise AssertionError(f"health version does not match {args.version}: {health}")
         if contract.get("version") != args.version:
             raise AssertionError(f"contract version does not match {args.version}: {contract}")
+        discovery = request_json(
+            f"{base_url}/discover",
+            method="POST",
+            headers=auth_headers,
+            payload={
+                "inputs": {
+                    "client_id": CLIENT_ID,
+                    "client_secret": CLIENT_SECRET,
+                    "account_id": "account-1",
+                }
+            },
+        )
+        rendered_discovery = json.dumps(discovery, sort_keys=True)
+        for private_value in (
+            SERIAL_NUMBER,
+            "account-1",
+            CLIENT_ID,
+            CLIENT_SECRET,
+            ACCESS_TOKEN,
+            "Qualification Wave Plus",
+        ):
+            if private_value in rendered_discovery:
+                raise AssertionError("discovery exposed private Airthings data")
         configure_and_assert_state(base_url, auth_headers)
         first_refresh = request_json(
             f"{base_url}/command",

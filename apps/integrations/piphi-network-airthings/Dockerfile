@@ -1,8 +1,15 @@
+FROM python:3.12-slim AS resolver
+
+WORKDIR /build
+RUN python -m pip install --no-cache-dir "pdm==2.29.7"
+COPY pyproject.toml pdm.lock /build/
+RUN pdm export --prod --output /requirements.txt
+
 FROM python:3.12-slim
 
 ARG RELEASE_VERSION=0.0.0-unqualified
 ARG SOURCE_REVISION=0000000000000000000000000000000000000000
-ARG SOURCE_REPOSITORY=https://github.com/PiPhi-io/piphi-network-airthings
+ARG SOURCE_REPOSITORY=https://github.com/PiPhi-io/piphi-apps
 ARG MANIFEST_SHA256=unqualified
 ARG BEHAVIORS_SHA256=unqualified
 
@@ -26,10 +33,13 @@ RUN groupadd --system --gid 10001 piphi \
     && chown piphi:piphi /var/lib/piphi \
     && python -m pip install --upgrade pip
 
-COPY pyproject.toml README.md /app/
+COPY pyproject.toml pdm.lock README.md /app/
 COPY src /app/src
+COPY --from=resolver /requirements.txt /tmp/requirements.txt
 
-RUN python -m pip install .
+RUN python -m pip install --require-hashes --requirement /tmp/requirements.txt \
+    && python -m pip install --no-deps . \
+    && rm -rf /tmp/requirements.txt /root/.cache
 
 USER piphi
 

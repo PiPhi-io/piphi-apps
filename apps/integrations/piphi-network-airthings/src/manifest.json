@@ -2,7 +2,7 @@
   "manifest_version": "1.0",
   "id": "airthings-consumer-cloud-api",
   "name": "Airthings (Consumer Cloud)",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "Cloud integration for Airthings consumer accounts using the official Airthings Consumer API.",
   "maintainer": {
     "name": "PiPhi Network",
@@ -18,7 +18,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "piphinetwork/airthings-consumer-cloud:0.1.7",
+        "image": "ghcr.io/piphi-io/airthings-consumer-cloud:0.1.8",
         "ports": [
           {
             "container": 3669,
@@ -52,11 +52,11 @@
             "description": "Consumer API client secret for the Airthings account that owns the devices."
           },
           {
-            "name": "serial_number",
-            "label": "Serial Number Filter",
+            "name": "account_id",
+            "label": "Account ID",
             "type": "text",
-            "required": false,
-            "description": "Optional serial number filter to narrow discovery to a single Airthings device."
+            "required": true,
+            "description": "Explicit Airthings consumer account ID. PiPhi never silently selects an account."
           }
         ]
       }
@@ -83,10 +83,10 @@
             "required": true
           },
           {
-            "name": "serial_number",
-            "label": "Serial Number Filter",
+            "name": "account_id",
+            "label": "Account ID",
             "type": "text",
-            "required": false
+            "required": true
           }
         ]
       }
@@ -113,10 +113,10 @@
             "required": true
           },
           {
-            "name": "serial_number",
-            "label": "Serial Number Filter",
+            "name": "account_id",
+            "label": "Account ID",
             "type": "text",
-            "required": false
+            "required": true
           }
         ]
       }
@@ -146,7 +146,7 @@
   },
   "identity": {
     "fields": [
-      "serial_number"
+      "device_ref"
     ]
   },
   "ui": {

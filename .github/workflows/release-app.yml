@@ -120,7 +120,7 @@ jobs:
         with:
           python-version: ${{ needs.plan.outputs.python_version }}
       - name: Prepare BACnet qualification Python
-        if: needs.plan.outputs.package_id == 'piphi-network-bacnet'
+        if: needs.plan.outputs.package_id == 'piphi-network-bacnet' || needs.plan.outputs.package_id == 'airthings-consumer-cloud-api'
         uses: actions/setup-python@v5
         with:
           python-version: ${{ needs.plan.outputs.python_version }}
@@ -128,7 +128,7 @@ jobs:
         if: needs.plan.outputs.python_wheel == 'true'
         run: python -m pip install "pdm==2.29.7"
       - name: Install BACnet qualification dependencies
-        if: needs.plan.outputs.package_id == 'piphi-network-bacnet'
+        if: needs.plan.outputs.package_id == 'piphi-network-bacnet' || needs.plan.outputs.package_id == 'airthings-consumer-cloud-api'
         working-directory: ${{ needs.plan.outputs.app_path }}
         run: |
           python -m pip install "pdm==2.29.7"
@@ -139,6 +139,32 @@ jobs:
         run: |
           docker build --tag piphi-network-bacnet:release-candidate .
           pdm run python scripts/qualify_release_image.py --image piphi-network-bacnet:release-candidate
+      - name: Compute source contract digests
+        id: contracts
+        working-directory: ${{ needs.plan.outputs.app_path }}
+        run: |
+          echo "manifest_sha256=$(sha256sum '${{ needs.plan.outputs.manifest }}' | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          if [[ -f src/behaviors.json ]]; then
+            echo "behaviors_sha256=$(sha256sum src/behaviors.json | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          else
+            echo "behaviors_sha256=not-applicable" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Build and qualify Airthings release candidate
+        if: needs.plan.outputs.package_id == 'airthings-consumer-cloud-api'
+        working-directory: ${{ needs.plan.outputs.app_path }}
+        run: |
+          docker build --tag airthings-consumer-cloud-api:release-candidate \
+            --build-arg RELEASE_VERSION='${{ needs.plan.outputs.version }}' \
+            --build-arg SOURCE_REVISION='${{ github.sha }}' \
+            --build-arg SOURCE_REPOSITORY='https://github.com/PiPhi-io/piphi-apps' \
+            --build-arg MANIFEST_SHA256='${{ steps.contracts.outputs.manifest_sha256 }}' \
+            --build-arg BEHAVIORS_SHA256='${{ steps.contracts.outputs.behaviors_sha256 }}' .
+          pdm run python scripts/qualify_release_image.py \
+            --image airthings-consumer-cloud-api:release-candidate \
+            --version '${{ needs.plan.outputs.version }}' \
+            --revision '${{ github.sha }}' \
+            --manifest-sha256 '${{ steps.contracts.outputs.manifest_sha256 }}' \
+            --behaviors-sha256 '${{ steps.contracts.outputs.behaviors_sha256 }}'
       - name: Log in to GHCR
         if: needs.plan.outputs.ghcr_required == 'true' && inputs.publish
         uses: docker/login-action@v3
@@ -162,6 +188,12 @@ jobs:
           platforms: ${{ needs.plan.outputs.platforms }}
           push: ${{ inputs.publish }}
           tags: ${{ needs.plan.outputs.tags }}
+          build-args: |
+            RELEASE_VERSION=${{ needs.plan.outputs.version }}
+            SOURCE_REVISION=${{ github.sha }}
+            SOURCE_REPOSITORY=https://github.com/PiPhi-io/piphi-apps
+            MANIFEST_SHA256=${{ steps.contracts.outputs.manifest_sha256 }}
+            BEHAVIORS_SHA256=${{ steps.contracts.outputs.behaviors_sha256 }}
           provenance: mode=max
           sbom: true
           cache-from: type=gha,scope=${{ needs.plan.outputs.package_id }}
@@ -172,6 +204,16 @@ jobs:
         run: >-
           pdm run python scripts/qualify_release_image.py
           --image '${{ needs.plan.outputs.image }}@${{ steps.build.outputs.digest }}'
+      - name: Qualify immutable published Airthings image
+        if: needs.plan.outputs.package_id == 'airthings-consumer-cloud-api' && inputs.publish
+        working-directory: ${{ needs.plan.outputs.app_path }}
+        run: >-
+          pdm run python scripts/qualify_release_image.py
+          --image '${{ needs.plan.outputs.image }}@${{ steps.build.outputs.digest }}'
+          --version '${{ needs.plan.outputs.version }}'
+          --revision '${{ github.sha }}'
+          --manifest-sha256 '${{ steps.contracts.outputs.manifest_sha256 }}'
+          --behaviors-sha256 '${{ steps.contracts.outputs.behaviors_sha256 }}'
       - name: Attest published image
         if: inputs.publish
         uses: actions/attest-build-provenance@v2

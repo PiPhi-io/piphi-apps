@@ -105,7 +105,7 @@ def test_release_script_updates_catalog_and_experience_versions() -> None:
 def test_release_image_binds_source_manifest_and_behavior_provenance() -> None:
     root = Path(__file__).resolve().parent.parent
     dockerfile = (root / "Dockerfile").read_text()
-    workflow = (root / ".github" / "workflows" / "release.yml").read_text()
+    workflow = (root.parents[2] / ".github" / "workflows" / "release-app.yml").read_text()
     required_labels = {
         "org.opencontainers.image.version": "RELEASE_VERSION",
         "org.opencontainers.image.revision": "SOURCE_REVISION",
@@ -113,74 +113,40 @@ def test_release_image_binds_source_manifest_and_behavior_provenance() -> None:
         "io.piphi.manifest.sha256": "MANIFEST_SHA256",
         "io.piphi.behaviors.sha256": "BEHAVIORS_SHA256",
     }
-    workflow_labels = {
-        "org.opencontainers.image.version=${{ steps.version.outputs.version }}",
-        "org.opencontainers.image.revision=${{ steps.contracts.outputs.revision }}",
-        "org.opencontainers.image.source=https://github.com/PiPhi-io/piphi-network-airthings",
-        "io.piphi.manifest.sha256=${{ steps.contracts.outputs.manifest_sha256 }}",
-        "io.piphi.behaviors.sha256=${{ steps.contracts.outputs.behaviors_sha256 }}",
-    }
-
     for label, build_argument in required_labels.items():
         assert f"ARG {build_argument}=" in dockerfile
         assert f'{label}="${{{build_argument}}}"' in dockerfile
-    assert workflow_labels <= set(workflow.splitlines()) | {
-        line.strip() for line in workflow.splitlines()
-    }
-    assert "revision=$(git rev-parse HEAD)" in workflow
-    assert "manifest_sha256=$(sha256sum src/manifest.json" in workflow
+    assert "SOURCE_REVISION=${{ github.sha }}" in workflow
+    assert "SOURCE_REPOSITORY=https://github.com/PiPhi-io/piphi-apps" in workflow
+    assert "manifest_sha256=$(sha256sum" in workflow
     assert "behaviors_sha256=$(sha256sum src/behaviors.json" in workflow
-    assert workflow.index("Validate bumped release contract") < workflow.index(
-        "Commit release metadata"
-    )
-    assert workflow.index("Publish immutable release revision") < workflow.index(
-        "Promote qualified digest without rebuilding"
-    )
 
 
-def test_release_workflow_recovers_only_missing_images_without_overwriting_tags() -> None:
+def test_release_workflow_uses_protected_monorepo_publication() -> None:
     root = Path(__file__).resolve().parent.parent
-    workflow = (root / ".github" / "workflows" / "release.yml").read_text()
+    workflow = (root.parents[2] / ".github" / "workflows" / "release-app.yml").read_text()
 
-    assert "existing_tag:" in workflow
-    assert "permissions: {}" in workflow
-    assert "preflight:" in workflow
-    assert 'git fetch --no-tags origin "refs/tags/${EXISTING_TAG}"' in workflow
-    assert 'TAG_COMMIT=$(git rev-parse "FETCH_HEAD^{commit}")' in workflow
-    assert "needs: preflight" in workflow
-    assert "ref: ${{ needs.preflight.outputs.tag_commit || github.ref }}" in workflow
-    assert '[[ "${EXISTING_TAG}" == "${TAG}" ]]' in workflow
-    assert workflow.count("if: ${{ needs.preflight.outputs.existing_tag == '' }}") == 2
-    assert "Recovery publication from an existing tag must set push_latest=false" in workflow
-    assert "python scripts/assert_docker_tag_absent.py" in workflow
-    assert workflow.index("Log in to Docker Hub") < workflow.index(
-        "Prove immutable version tag is absent"
-    )
+    assert "Require the protected default branch" in workflow
+    assert "Ensure release tag does not exist" in workflow
+    assert '"registry": "ghcr.io"' in (root / "piphi-app.json").read_text()
 
 
 def test_release_workflow_qualifies_exact_image_before_publishing_revision() -> None:
     root = Path(__file__).resolve().parent.parent
-    workflow = (root / ".github" / "workflows" / "release.yml").read_text()
+    workflow = (root.parents[2] / ".github" / "workflows" / "release-app.yml").read_text()
 
-    assert "Build and stage immutable multi-architecture candidate" in workflow
-    assert "Qualify exact release candidate across restart" in workflow
-    assert "python scripts/qualify_release_image.py" in workflow
-    assert '--image "${RELEASE_IMAGE}@${{ steps.build.outputs.digest }}"' in workflow
-    assert "--version \"${{ steps.version.outputs.version }}\"" in workflow
-    assert "--revision \"${{ steps.contracts.outputs.revision }}\"" in workflow
-    assert "--manifest-sha256 \"${{ steps.contracts.outputs.manifest_sha256 }}\"" in workflow
-    assert "--behaviors-sha256 \"${{ steps.contracts.outputs.behaviors_sha256 }}\"" in workflow
-    assert workflow.index("Qualify exact release candidate across restart") < workflow.index(
-        "Publish immutable release revision"
-    )
+    assert "Build and qualify Airthings release candidate" in workflow
+    assert "Qualify immutable published Airthings image" in workflow
+    assert "pdm run python scripts/qualify_release_image.py" in workflow
+    assert "--image '${{ needs.plan.outputs.image }}@${{ steps.build.outputs.digest }}'" in workflow
+    assert "--version '${{ needs.plan.outputs.version }}'" in workflow
+    assert "--revision '${{ github.sha }}'" in workflow
+    assert "--manifest-sha256 '${{ steps.contracts.outputs.manifest_sha256 }}'" in workflow
+    assert "--behaviors-sha256 '${{ steps.contracts.outputs.behaviors_sha256 }}'" in workflow
+    assert workflow.index("Build and qualify Airthings release candidate") < workflow.index(
+        "Build and optionally publish"
+    ) < workflow.index("Qualify immutable published Airthings image")
     assert workflow.count("uses: docker/build-push-action@v6") == 1
-    assert "Promote qualified digest without rebuilding" in workflow
-    assert 'SOURCE="${RELEASE_IMAGE}@${{ steps.build.outputs.digest }}"' in workflow
-    assert "python scripts/verify_published_image.py" in workflow
-    assert '--image "${RELEASE_IMAGE}:latest"' in workflow
-    assert workflow.index("Publish immutable release revision") < workflow.index(
-        "Promote qualified digest without rebuilding"
-    ) < workflow.index("Verify promoted digest and platforms")
 
 
 def test_capability_catalog_marks_declared_scope_implementation_complete() -> None:
@@ -195,7 +161,9 @@ def test_capability_catalog_marks_declared_scope_implementation_complete() -> No
         "status": "implementation_complete",
         "scope": "Airthings Consumer Cloud devices and readings declared by this integration",
         "automated_validation": "passed",
-        "physical_device_validation": "pending",
+        "provider_contract_validation": "passed",
+        "exact_image_validation": "required",
+        "physical_device_validation": "optional_follow_up",
     }
     assert set(manifest["capabilities"]) <= rows.keys()
     assert all(rows[capability]["status"] == "implemented" for capability in manifest["capabilities"])

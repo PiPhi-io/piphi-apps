@@ -49,13 +49,13 @@ async def test_runtime_auth_bootstraps_once_and_rejects_takeover(
     fake_cloud_client.devices = {}
     bootstrap = await async_client.post(
         "/discover",
-        json={"inputs": {"client_id": "client-1", "client_secret": "secret-1"}},
+        json={"inputs": {"client_id": "client-1", "client_secret": "secret-1", "account_id": "account-1"}},
     )
     assert bootstrap.status_code == 200
 
     takeover = await async_client.post(
         "/discover",
-        json={"inputs": {"client_id": "client-2", "client_secret": "secret-2"}},
+        json={"inputs": {"client_id": "client-2", "client_secret": "secret-2", "account_id": "account-1"}},
         headers=build_runtime_auth_headers(
             container_id="container-attacker",
             internal_token="attacker-token",
@@ -122,6 +122,7 @@ async def test_wrong_auth_mutating_endpoints_have_no_side_effects(
         "id": "cfg-protected",
         "client_id": "client-1",
         "client_secret": "secret-1",
+        "account_id": "account-1",
         "serial_number": serial_number,
     }
     assert (await async_client.post("/config", json=valid_config)).status_code == 200
@@ -175,15 +176,21 @@ async def test_discover_returns_cloud_devices(async_client, fake_cloud_client) -
             "inputs": {
                 "client_id": "client-1",
                 "client_secret": "secret-1",
+                "account_id": "account-1",
             }
         },
     )
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["devices"][0]["serial_number"] == "2930046980"
-    assert payload["devices"][0]["device_model"] == "WAVE_PLUS"
-    assert payload["devices"][0]["client_id"] == "client-1"
+    device = payload["devices"][0]
+    assert len(device["device_ref"]) == 32
+    assert device["device_model"] == "WAVE_PLUS"
+    rendered = str(payload)
+    assert "2930046980" not in rendered
+    assert "client-1" not in rendered
+    assert "secret-1" not in rendered
+    assert "Basement" not in rendered
 
 
 @pytest.mark.asyncio
@@ -202,14 +209,14 @@ async def test_discover_accepts_flat_core_payload(async_client, fake_cloud_clien
         json={
             "client_id": "client-1",
             "client_secret": "secret-1",
-            "serial_number": "2930046980",
+            "account_id": "account-1",
+            "device_ref": "unknown-ref",
         },
     )
 
     assert response.status_code == 200
     payload = response.json()
-    assert len(payload["devices"]) == 1
-    assert payload["devices"][0]["serial_number"] == "2930046980"
+    assert payload["devices"] == []
     assert fake_cloud_client.list_devices_calls == ["client-1"]
 
 
@@ -265,12 +272,14 @@ async def test_config_sync_configures_and_refreshes_multiple_devices(async_clien
                     "id": "cfg-1",
                     "client_id": "client-1",
                     "client_secret": "secret-1",
+                    "account_id": "account-1",
                     "serial_number": "2930046980",
                 },
                 {
                     "id": "cfg-2",
                     "client_id": "client-1",
                     "client_secret": "secret-1",
+                    "account_id": "account-1",
                     "serial_number": "2950123456",
                 },
             ],
@@ -353,8 +362,9 @@ async def test_unchanged_cloud_sample_keeps_measurement_time_and_sends_fresh_pol
             "id": "cfg-heartbeat",
             "client_id": "client-1",
             "client_secret": "secret-1",
+            "account_id": "account-1",
             "serial_number": "2930046980",
-            "poll_interval_seconds": 300,
+                "poll_interval_seconds": 360,
         },
     )
     assert response.status_code == 200
@@ -376,8 +386,8 @@ async def test_unchanged_cloud_sample_keeps_measurement_time_and_sends_fresh_pol
     assert all(datetime.fromisoformat(delivery["timestamp"]).tzinfo is not None for delivery in heartbeat_deliveries)
 
     diagnostics = (await async_client.get("/diagnostics")).json()["diagnostics"]
-    status = diagnostics["poll_status"]["cfg-heartbeat"]
-    state = diagnostics["state_snapshots"]["cfg-heartbeat"]["state"]
+    status = diagnostics["poll_status"]
+    state = (await async_client.get("/state")).json()["entries"]["cfg-heartbeat"]["latest_state"]
     assert status["last_polled_at"] == heartbeat_deliveries[-1]["timestamp"]
     assert status["last_sample_recorded_at"] == sampled_at
     assert state["last_polled_at"] == heartbeat_deliveries[-1]["timestamp"]
@@ -421,8 +431,9 @@ async def test_reapplying_config_preserves_measurement_deduplication(
         "id": "cfg-office",
         "client_id": "client-1",
         "client_secret": "secret-1",
+        "account_id": "account-1",
         "serial_number": "2930046980",
-        "poll_interval_seconds": 300,
+        "poll_interval_seconds": 360,
     }
 
     assert (await async_client.post("/config", json=config_payload)).status_code == 200
@@ -439,7 +450,7 @@ async def test_reapplying_config_preserves_measurement_deduplication(
 
 
 @pytest.mark.asyncio
-async def test_same_device_configs_remain_isolated_by_config_id(
+async def test_duplicate_account_device_is_rejected(
     async_client,
     fake_cloud_client,
 ) -> None:
@@ -457,21 +468,19 @@ async def test_same_device_configs_remain_isolated_by_config_id(
     common_payload = {
         "client_id": "client-1",
         "client_secret": "secret-1",
+        "account_id": "account-1",
         "serial_number": "2930046980",
-        "poll_interval_seconds": 300,
+        "poll_interval_seconds": 360,
     }
 
     assert (
         await async_client.post("/config", json={"id": "cfg-old", **common_payload})
     ).status_code == 200
-    assert (
-        await async_client.post("/config", json={"id": "cfg-current", **common_payload})
-    ).status_code == 200
-
-    diagnostics = (await async_client.get("/diagnostics")).json()["diagnostics"]
-    assert diagnostics["active_config_ids"] == ["cfg-old", "cfg-current"]
-    assert diagnostics["poll_task_ids"] == ["cfg-current", "cfg-old"]
-    assert set(diagnostics["poll_status"]) == {"cfg-old", "cfg-current"}
+    response = await async_client.post(
+        "/config", json={"id": "cfg-current", **common_payload}
+    )
+    assert response.status_code == 409
+    assert "already configured" in response.json()["detail"]
 
 
 @pytest.mark.asyncio
@@ -498,6 +507,7 @@ async def test_device_only_command_rejects_ambiguous_same_serial_configs(
                 "id": config_id,
                 "client_id": client_id,
                 "client_secret": f"{client_id}-secret",
+                "account_id": client_id,
                 "serial_number": serial_number,
             },
         )
@@ -509,8 +519,8 @@ async def test_device_only_command_rejects_ambiguous_same_serial_configs(
         json={"command": "refresh", "device_id": serial_number},
     )
 
-    assert response.status_code == 409
-    assert "matches multiple configurations" in response.json()["detail"]
+    assert response.status_code == 400
+    assert "must include" in response.json()["detail"]
     assert len(fake_cloud_client.latest_sample_calls) == initial_reads
 
 
@@ -539,6 +549,7 @@ async def test_refresh_rejects_unknown_args_without_logging_secret_values(
             "container_id": "container-1",
             "client_id": "client-1",
             "client_secret": "secret-1",
+            "account_id": "account-1",
             "serial_number": "2930046980",
         },
     )
@@ -584,8 +595,9 @@ async def test_invalid_replacement_keeps_existing_device_config(
     common_payload = {
         "client_id": "client-1",
         "client_secret": "secret-1",
+        "account_id": "account-1",
         "serial_number": "2930046980",
-        "poll_interval_seconds": 300,
+        "poll_interval_seconds": 360,
     }
     assert (
         await async_client.post("/config", json={"id": "cfg-working", **common_payload})
@@ -649,8 +661,9 @@ async def test_failed_measurement_delivery_is_retried_on_next_poll(
             "id": "cfg-retry",
             "client_id": "client-1",
             "client_secret": "secret-1",
+            "account_id": "account-1",
             "serial_number": "2930046980",
-            "poll_interval_seconds": 300,
+            "poll_interval_seconds": 360,
         },
     )
     assert response.status_code == 200
@@ -684,6 +697,7 @@ async def test_config_apply_records_initial_read_error(async_client, fake_cloud_
             "id": "cfg-1",
             "client_id": "client-1",
             "client_secret": "secret-1",
+            "account_id": "account-1",
             "serial_number": "2930046980",
         },
     )
@@ -699,7 +713,9 @@ async def test_config_apply_records_initial_read_error(async_client, fake_cloud_
     diagnostics_payload = diagnostics_response.json()
 
     assert state_payload["entries"]["cfg-1"]["config_id"] == "cfg-1"
-    assert state_payload["entries"]["cfg-1"]["device_id"] == "2930046980"
+    device_id = state_payload["entries"]["cfg-1"]["device_id"]
+    assert len(device_id) == 32
+    assert "2930046980" not in str(state_payload)
     assert state_payload["entries"]["cfg-1"]["latest_state"]["connected"] is False
     assert (
         state_payload["entries"]["cfg-1"]["latest_state"]["last_error"]
@@ -712,7 +728,8 @@ async def test_config_apply_records_initial_read_error(async_client, fake_cloud_
         if event["event_type"] == "airthings.cloud.initial_read.failed"
     )
     assert failed_event["payload"]["error"] == "Airthings consumer cloud request failed."
-    assert "cfg-1" in diagnostics_payload["diagnostics"]["poll_task_ids"]
+    assert diagnostics_payload["diagnostics"]["poll_task_count"] == 1
+    assert "cfg-1" not in str(diagnostics_payload)
 
 
 @pytest.mark.asyncio
@@ -738,6 +755,7 @@ async def test_poll_events_emit_once_per_offline_and_recovery_transition(
             "id": "cfg-transitions",
             "client_id": "client-1",
             "client_secret": "secret-1",
+            "account_id": "account-1",
             "serial_number": serial_number,
         },
     )
@@ -761,7 +779,8 @@ async def test_poll_events_emit_once_per_offline_and_recovery_transition(
 
 @pytest.mark.asyncio
 async def test_discover_returns_auth_error_when_token_exchange_fails(async_client, fake_cloud_client) -> None:
-    async def fail_list_devices(_credentials):
+    async def fail_list_devices(_credentials, *, account_id):
+        del account_id
         raise AirthingsCloudAuthError("Airthings consumer cloud credentials were rejected.")
 
     fake_cloud_client.list_devices = fail_list_devices
@@ -772,6 +791,7 @@ async def test_discover_returns_auth_error_when_token_exchange_fails(async_clien
             "inputs": {
                 "client_id": "client-1",
                 "client_secret": "secret-1",
+                "account_id": "account-1",
             }
         },
     )
