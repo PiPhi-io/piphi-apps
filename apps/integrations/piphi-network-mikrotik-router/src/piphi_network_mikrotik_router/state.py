@@ -146,24 +146,49 @@ async def refresh_entry(entry: dict[str, Any]) -> dict[str, Any]:
 
 
 async def _refresh_entry_serialized(entry: dict[str, Any]) -> dict[str, Any]:
+    if entry.get("requires_user_action"):
+        state = {
+            "connected": False,
+            "reason": str(entry.get("permanent_failure") or "reconfiguration_required"),
+            "remediation": str(entry.get("remediation") or "reconfigure"),
+            "last_attempt_at": entry.get("last_attempt_at"),
+            "last_success_at": entry.get("last_success_at"),
+            "stale": bool(entry.get("last_success_at")),
+            "stale_age_seconds": _stale_age_seconds(entry.get("last_success_at")),
+            "requires_user_action": True,
+        }
+        entry["latest_metrics"] = state
+        registry.update_state(entry["config_id"], state, device_id=entry["device_id"])
+        return state
     if float(entry.get("circuit_open_until", 0)) > time.monotonic():
         state = {
             "connected": False,
             "reason": "circuit_open",
             "remediation": "retry_later",
+            "last_attempt_at": entry.get("last_attempt_at"),
             "stale": bool(entry.get("last_success_at")),
             "last_success_at": entry.get("last_success_at"),
+            "stale_age_seconds": _stale_age_seconds(entry.get("last_success_at")),
+            "requires_user_action": False,
         }
         entry["latest_metrics"] = state
         registry.update_state(entry["config_id"], state, device_id=entry["device_id"])
         return state
+    attempted_at = _now()
+    entry["last_attempt_at"] = attempted_at
     password = router_passwords.get(str(entry["config_id"]))
     if not password:
         state = {
             "connected": False,
             "reason": "missing_router_credentials",
             "remediation": "reauthenticate",
+            "last_attempt_at": attempted_at,
+            "last_success_at": entry.get("last_success_at"),
+            "stale": bool(entry.get("last_success_at")),
+            "stale_age_seconds": _stale_age_seconds(entry.get("last_success_at")),
+            "requires_user_action": True,
         }
+        _schedule_failure(entry, retryable=False, reason="missing_router_credentials")
         entry["latest_metrics"] = state
         registry.update_state(entry["config_id"], state, device_id=entry["device_id"])
         return state
@@ -186,14 +211,16 @@ async def _refresh_entry_serialized(entry: dict[str, Any]) -> dict[str, Any]:
             "connected": False,
             "reason": exc.reason,
             "remediation": _remediation_for(exc.reason),
-            "last_attempt_at": _now(),
+            "last_attempt_at": attempted_at,
             "last_success_at": entry.get("last_success_at"),
             "stale": bool(entry.get("last_success_at")),
+            "stale_age_seconds": _stale_age_seconds(entry.get("last_success_at")),
+            "requires_user_action": not exc.retryable,
         }
         _emit_connectivity_transition(entry, state)
         entry["latest_metrics"] = state
         registry.update_state(entry["config_id"], state, device_id=entry["device_id"])
-        _schedule_failure(entry, retryable=exc.retryable)
+        _schedule_failure(entry, retryable=exc.retryable, reason=exc.reason)
         return state
     except (httpx.HTTPError, OSError, TypeError, ValueError) as exc:
         logger.warning(
@@ -205,14 +232,18 @@ async def _refresh_entry_serialized(entry: dict[str, Any]) -> dict[str, Any]:
             "connected": False,
             "reason": "router_resource_fetch_failed",
             "remediation": "reconfigure",
-            "last_attempt_at": _now(),
+            "last_attempt_at": attempted_at,
             "last_success_at": entry.get("last_success_at"),
             "stale": bool(entry.get("last_success_at")),
+            "stale_age_seconds": _stale_age_seconds(entry.get("last_success_at")),
+            "requires_user_action": True,
         }
         _emit_connectivity_transition(entry, state)
         entry["latest_metrics"] = state
         registry.update_state(entry["config_id"], state, device_id=entry["device_id"])
-        _schedule_failure(entry, retryable=False)
+        _schedule_failure(
+            entry, retryable=False, reason="router_resource_fetch_failed"
+        )
         return state
 
 
@@ -233,13 +264,19 @@ async def _apply_resources(
         "last_attempt_at": observed_at,
         "last_success_at": observed_at,
         "stale": False,
+        "stale_age_seconds": 0,
+        "requires_user_action": False,
     }
     _emit_connectivity_transition(entry, metrics)
     registry.update_state(entry["config_id"], metrics, device_id=entry["device_id"])
     entry["latest_metrics"] = metrics
+    entry["last_attempt_at"] = observed_at
     entry["last_success_at"] = observed_at
     entry["failure_count"] = 0
     entry["circuit_open_until"] = 0.0
+    entry["requires_user_action"] = False
+    entry.pop("permanent_failure", None)
+    entry.pop("remediation", None)
     entry["next_poll_at"] = time.monotonic() + max(
         60, int(entry.get("config", {}).get("poll_interval_seconds") or 300)
     )
@@ -262,7 +299,16 @@ async def _apply_resources(
     return metrics
 
 
-def _schedule_failure(entry: dict[str, Any], *, retryable: bool) -> None:
+def _schedule_failure(
+    entry: dict[str, Any], *, retryable: bool, reason: str | None = None
+) -> None:
+    if not retryable:
+        entry["failure_count"] = 0
+        entry["requires_user_action"] = True
+        entry["permanent_failure"] = reason or "reconfiguration_required"
+        entry["remediation"] = _remediation_for(entry["permanent_failure"])
+        entry["next_poll_at"] = float("inf")
+        return
     failures = int(entry.get("failure_count", 0)) + 1
     entry["failure_count"] = failures
     base = min(900, 60 * (2 ** min(failures - 1, 4))) if retryable else 900
@@ -272,6 +318,16 @@ def _schedule_failure(entry: dict[str, Any], *, retryable: bool) -> None:
     if failures >= 5:
         entry["circuit_open_until"] = time.monotonic() + 300
         entry["next_poll_at"] = entry["circuit_open_until"]
+
+
+def _stale_age_seconds(last_success_at: Any) -> int | None:
+    if not last_success_at:
+        return None
+    try:
+        observed = datetime.fromisoformat(str(last_success_at))
+    except ValueError:
+        return None
+    return max(0, int((datetime.now(UTC) - observed).total_seconds()))
 
 
 def _remediation_for(reason: str) -> str:

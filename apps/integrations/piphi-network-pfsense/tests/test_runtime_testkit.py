@@ -13,6 +13,7 @@ from piphi_runtime_testkit_python import (
 
 from piphi_network_pfsense.main import app
 from piphi_network_pfsense.pfsense_client import PfSenseSnapshot
+from piphi_network_pfsense.service import _opaque_child_id
 from piphi_network_pfsense.state import (
     pfsense_service,
     registry,
@@ -149,7 +150,8 @@ async def test_testkit_captures_runtime_telemetry_entities_and_transition_events
             assert entities_response.status_code == 200
             entities = assert_entities_response(entities_response.json())["entities"]
             assert any(
-                entity["device_id"] == f"{appliance_device_id}:client:aa:bb:cc:dd:ee:ff"
+                    entity["device_id"]
+                    == f"{appliance_device_id}:client:{_opaque_child_id('client', 'aa:bb:cc:dd:ee:ff')}"
                 for entity in entities
             )
 

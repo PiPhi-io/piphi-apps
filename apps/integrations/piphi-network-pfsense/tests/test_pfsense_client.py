@@ -125,6 +125,30 @@ async def test_optional_inventory_certificates_ha_and_logs_are_collected_safely(
 
 
 @pytest.mark.anyio
+async def test_optional_endpoint_failure_survives_as_scoped_error() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/v2/status/logs/auth":
+            return httpx.Response(403)
+        if request.url.path == "/api/v2/status/system":
+            return httpx.Response(200, json={"data": {"serial": "TEST"}})
+        if request.url.path == "/api/v2/system/restapi/version":
+            return httpx.Response(200, json={"data": {"current_version": "2.9.0"}})
+        if request.url.path == "/api/v2/system/version":
+            return httpx.Response(200, json={"data": {"version": "fixture"}})
+        return httpx.Response(200, json={"data": []})
+
+    client = PfRestV2Client(
+        config(collect_security_logs=True), transport=httpx.MockTransport(handler)
+    )
+    try:
+        snapshot = await client.read_snapshot()
+    finally:
+        await client.close()
+    assert snapshot.system["serial"] == "TEST"
+    assert snapshot.endpoint_errors == {"log_auth": "permission_denied"}
+
+
+@pytest.mark.anyio
 async def test_required_auth_failure_is_safe_and_actionable() -> None:
     transport = httpx.MockTransport(
         lambda _request: httpx.Response(401, json={"message": "bad key"})

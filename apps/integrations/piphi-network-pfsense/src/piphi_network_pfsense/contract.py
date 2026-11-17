@@ -234,8 +234,11 @@ CONFIG_SCHEMA: dict[str, Any] = {
             },
             "allowed_services": {
                 "type": "array",
-                "title": "Services allowed to restart",
-                "items": {"type": "string"},
+                "title": "Low-risk observability agents allowed for service control",
+                "items": {
+                    "type": "string",
+                    "enum": ["collectd", "node_exporter", "telegraf"],
+                },
                 "default": [],
             },
             "enable_wake_on_lan": {

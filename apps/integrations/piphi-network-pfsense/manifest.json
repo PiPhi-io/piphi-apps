@@ -101,7 +101,7 @@
     "website": "https://piphi.io"
   },
   "license": "Apache-2.0",
-  "image": "piphinetwork/piphi-network-pfsense:0.1.9",
+  "image": "ghcr.io/piphi-io/piphi-network-pfsense:0.1.9",
   "platforms": [
     "linux"
   ],
@@ -109,7 +109,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "piphinetwork/piphi-network-pfsense:0.1.9",
+        "image": "ghcr.io/piphi-io/piphi-network-pfsense:0.1.9",
         "ports": [
           {
             "container": 8090,

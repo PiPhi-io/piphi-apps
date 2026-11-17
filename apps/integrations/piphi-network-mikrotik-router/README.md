@@ -91,6 +91,6 @@ makes no broad RouterOS hardware compatibility claim.
 ## Docker
 
 ```bash
-docker build -t docker.io/piphinetwork/piphi-network-mikrotik-router:0.1.1 .
-docker run --rm -p 4218:4218 docker.io/piphinetwork/piphi-network-mikrotik-router:0.1.1
+docker build -t ghcr.io/piphi-io/piphi-network-mikrotik-router:0.1.1 .
+docker run --rm -p 4218:4218 ghcr.io/piphi-io/piphi-network-mikrotik-router:0.1.1
 ```

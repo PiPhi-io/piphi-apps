@@ -6,12 +6,13 @@ from types import SimpleNamespace
 import pytest
 from fastapi import HTTPException
 
-from piphi_network_pfsense.pfsense_client import PfSenseSnapshot
+from piphi_network_pfsense.pfsense_client import PfSenseError, PfSenseSnapshot
 from piphi_network_pfsense.schemas import DeviceConfig
 from piphi_network_pfsense.service import (
     ActiveFirewall,
     PfSenseRuntimeService,
     _appliance_device_id,
+    _opaque_child_id,
     apply_interface_rates,
     main_metrics,
     snapshot_to_state,
@@ -98,6 +99,11 @@ def test_snapshot_is_normalized_into_firewall_state() -> None:
     )
 
     assert state["connected"] is True
+    assert state["last_attempt_at"]
+    assert state["last_success_at"]
+    assert state["stale"] is False
+    assert state["stale_age_seconds"] == 0
+    assert "serial" not in state
     assert state["interfaces_up"] == 1
     assert state["gateways_online"] == 1
     assert state["gateways_offline"] == 1
@@ -109,8 +115,17 @@ def test_snapshot_is_normalized_into_firewall_state() -> None:
     assert "public_key" not in state["vpn_tunnels"][0]
     assert state["client_count"] == 2
     assert state["clients_online"] == 1
+    serialized_clients = str(state["clients"])
+    assert "192.0.2." not in serialized_clients
+    assert "office-pc" not in serialized_clients
+    assert "aa:bb:cc:dd:ee:ff" not in serialized_clients
+    assert "interface" not in serialized_clients
     assert (
-        next(item for item in state["clients"] if item["id"] == "aa:bb:cc:dd:ee:ff")[
+        next(
+            item
+            for item in state["clients"]
+            if item["id"] == _opaque_child_id("client", "aa:bb:cc:dd:ee:ff")
+        )[
             "source"
         ]
         == "dhcp+arp"
@@ -269,7 +284,7 @@ async def test_control_actions_require_opt_in_and_exact_allowlists() -> None:
             allowed_ping_hosts=["1.1.1.1"],
             enable_service_restart=True,
             enable_service_start=True,
-            allowed_services=["unbound"],
+            allowed_services=["telegraf"],
             enable_wake_on_lan=True,
             wake_on_lan_targets=[
                 {
@@ -282,12 +297,12 @@ async def test_control_actions_require_opt_in_and_exact_allowlists() -> None:
         )
     )
     await enabled.diagnostic_ping("firewall-1", host="1.1.1.1", count=2)
-    await enabled.restart_service("firewall-1", service_name="UNBOUND")
-    await enabled.start_service("firewall-1", service_name="Unbound")
+    await enabled.restart_service("firewall-1", service_name="TELEGRAF")
+    await enabled.start_service("firewall-1", service_name="Telegraf")
     wake = await enabled.wake_on_lan("firewall-1", target_id="OFFICE-PC")
     assert client.pings == [("1.1.1.1", 2)]
-    assert client.restarts == ["unbound"]
-    assert client.starts == ["unbound"]
+    assert client.restarts == ["telegraf"]
+    assert client.starts == ["telegraf"]
     assert client.wakes == [("lan", "aa:bb:cc:dd:ee:ff")]
     assert wake["target_label"] == "Office PC"
 
@@ -298,7 +313,7 @@ async def test_control_actions_require_opt_in_and_exact_allowlists() -> None:
     assert target_denied.value.status_code == 403
     assert service_denied.value.status_code == 403
     assert client.pings == [("1.1.1.1", 2)]
-    assert client.restarts == ["unbound"]
+    assert client.restarts == ["telegraf"]
 
 
 @pytest.mark.anyio
@@ -441,3 +456,66 @@ def test_log_deduplication_and_certificate_alert_levels(monkeypatch) -> None:
         "network.certificate.expiring",
     ]
     assert "message" not in events[0]["payload"]
+
+
+def test_retryable_outage_recovers_but_permanent_failure_requires_action(
+    monkeypatch,
+) -> None:
+    events: list[dict] = []
+    states: list[dict] = []
+
+    class Registry:
+        def update_state(self, _config_id, state, **_kwargs):
+            states.append(state)
+
+    monkeypatch.setattr(
+        "piphi_network_pfsense.service.schedule_event_delivery",
+        lambda **kwargs: events.append(kwargs),
+    )
+    monkeypatch.setattr(
+        "piphi_network_pfsense.service.schedule_telemetry_delivery",
+        lambda **_kwargs: None,
+    )
+    client = ActionClient()
+    service = PfSenseRuntimeService(
+        registry=Registry(),
+        runtime=SimpleNamespace(process_state=object(), auth=object()),
+        telemetry=object(),
+        event_client=object(),
+    )
+    snapshot = PfSenseSnapshot(
+        system={"serial": "SERIAL-1"},
+        api_version={"current_version": "2.9.0"},
+    )
+    device_id = _appliance_device_id(snapshot)
+    active = ActiveFirewall(
+        config=DeviceConfig(id="firewall-1", host="pfsense.test", api_key="key"),
+        entry={"config_id": "firewall-1", "device_id": device_id},
+        client=client,
+        last_state={"connected": True, "last_success_at": "2026-01-01T00:00:00+00:00"},
+    )
+
+    assert service._mark_failure(
+        active, PfSenseError("connection_failed", retryable=True, remediation="retry")
+    )
+    assert states[-1]["stale"] is True
+    assert states[-1]["stale_age_seconds"] is not None
+    assert [event["event_type"] for event in events] == ["network.appliance.offline"]
+
+    service._apply_snapshot(active, snapshot)
+    assert [event["event_type"] for event in events][-1] == (
+        "network.appliance.recovered"
+    )
+    assert active.requires_user_action is False
+
+    assert not service._mark_failure(
+        active,
+        PfSenseError(
+            "authentication_failed",
+            retryable=False,
+            remediation="reauthenticate",
+        ),
+    )
+    assert active.requires_user_action is True
+    assert states[-1]["requires_user_action"] is True
+    assert states[-1]["circuit_open"] is False

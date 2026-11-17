@@ -165,12 +165,19 @@ async def test_runtime_fails_closed_without_credentials_or_on_fetch_error(
     entry = state.make_entry(config)
     state.registry.set(config.id, entry)
     try:
-        assert (await state.refresh_entry(entry))[
-            "reason"
-        ] == "missing_router_credentials"
+        missing_credentials = await state.refresh_entry(entry)
+        assert missing_credentials["reason"] == "missing_router_credentials"
+        assert missing_credentials["last_attempt_at"]
         state.router_passwords[config.id] = "private-password"
         result = await state.refresh_entry(entry)
         assert result["connected"] is False
+        assert result["reason"] == "missing_router_credentials"
+        assert result["last_attempt_at"] == missing_credentials["last_attempt_at"]
+        assert result["requires_user_action"] is True
+        assert entry["next_poll_at"] == float("inf")
+        entry["requires_user_action"] = False
+        entry.pop("permanent_failure", None)
+        result = await state.refresh_entry(entry)
         assert result["reason"] == "router_resource_fetch_failed"
         assert result["last_attempt_at"]
         assert result["stale"] is False

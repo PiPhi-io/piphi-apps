@@ -24,5 +24,9 @@
     {"status": 404, "reason": "endpoint_or_version_unsupported", "remediation": "reconfigure_api_version"},
     {"status": 429, "reason": "rate_limited", "remediation": "retry"}
   ],
+  "service_control": {
+    "allowed_low_risk": ["collectd", "node_exporter", "telegraf"],
+    "policy": "all critical and unclassified services are denied during configuration and command dispatch"
+  },
   "forbidden": ["firewall rule mutation", "route mutation", "user mutation", "VPN secret mutation", "arbitrary API path", "shell execution"]
 }

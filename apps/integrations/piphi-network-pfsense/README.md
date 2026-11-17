@@ -94,9 +94,9 @@ Configure the runtime through `POST /config`:
   "collect_ha_status": false,
   "enable_diagnostic_ping": true,
   "allowed_ping_hosts": ["1.1.1.1", "gateway.example.lan"],
-  "enable_service_restart": true,
-  "enable_service_start": true,
-  "allowed_services": ["unbound"],
+  "enable_service_restart": false,
+  "enable_service_start": false,
+  "allowed_services": [],
   "enable_wake_on_lan": true,
   "wake_on_lan_targets": [
     {
@@ -140,6 +140,13 @@ accepts only a configured target ID, keeping its interface and MAC immutable to
 the caller. Service operations require confirmation and prevent multi-firewall
 fanout. Every operational action must be enabled independently.
 
+Service control is fail-closed even when a name appears in `allowed_services`.
+Only the explicitly classified observability agents `collectd`,
+`node_exporter`, and `telegraf` are accepted. DNS, DHCP, routing, VPN, HA,
+web/API, authentication, firewall, unknown, and all other services are rejected
+during configuration and rechecked at command dispatch. Do not use service
+control for network-plane recovery.
+
 Gateway, interface, and service up/down transitions are delivered as Runtime
 SDK integration events and exposed as behavior triggers. The widget source is
 under `widgets/pfsense-overview`. A second client/security widget displays
@@ -172,7 +179,7 @@ safe reason/remediation classes and aggregate status.
 ## Container
 
 ```bash
-docker build -t piphinetwork/piphi-network-pfsense:0.1.9 .
+docker build -t ghcr.io/piphi-io/piphi-network-pfsense:0.1.9 .
 ```
 
 The container does not require host networking, privileged mode, or access to
@@ -180,23 +187,12 @@ the pfSense filesystem.
 
 ## Releases
 
-Create and push a semantic version tag such as `v0.1.0`, then dispatch the
-Release workflow from `main` with that tag as `release_ref`. Running the
-workflow from `main` keeps the publishing definition on the reviewed default
-branch, while every build and verification step checks out the immutable tag. The tag must match
-`manifest.json`, `pyproject.toml`, the runtime version constant, the Docker Hub
-image reference, and both widget package/manifest versions. A passing release
-publishes multi-platform `linux/amd64` and `linux/arm64` images to
-`piphinetwork/piphi-network-pfsense`, generates provenance and an SBOM, and
-creates a GitHub Release containing Python distributions, the packaged
-integration, and SHA-256 checksums.
-
-Docker Hub authentication uses the `piphinetwork` organization access token
-stored in the GitHub Actions secret `DOCKERHUB_TOKEN`. Grant that secret to
-this repository and scope the token to image pull and push for
-`piphinetwork/piphi-network-pfsense` only. Do not grant image deletion or
-organization administration, and rotate the token on its configured expiry
-schedule.
+Use the monorepo **Release one app package** workflow with package ID
+`piphi-network-pfsense`, the committed version, and `publish=false` for
+qualification. Publishing creates the immutable tag
+`apps/piphi-network-pfsense/v0.1.9` and the managed GHCR image
+`ghcr.io/piphi-io/piphi-network-pfsense:0.1.9`; do not create standalone `v*`
+tags or Docker Hub releases.
 
 ## Upstream status
 

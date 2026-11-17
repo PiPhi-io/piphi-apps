@@ -7,6 +7,40 @@ from typing import Literal
 from piphi_runtime_kit_python import RuntimeConfig
 from pydantic import BaseModel, Field, SecretStr, field_validator, model_validator
 
+SAFE_SERVICE_CONTROLS = frozenset({"collectd", "node_exporter", "telegraf"})
+CRITICAL_SERVICE_MARKERS = (
+    "api",
+    "auth",
+    "carp",
+    "dhcp",
+    "dns",
+    "filter",
+    "firewall",
+    "gateway",
+    "haproxy",
+    "ipsec",
+    "kea",
+    "openvpn",
+    "php-fpm",
+    "radius",
+    "route",
+    "routing",
+    "sshd",
+    "unbound",
+    "vpn",
+    "web",
+    "wireguard",
+)
+
+
+def classify_service_control(service_name: str) -> str:
+    normalized = service_name.strip().casefold()
+    if any(marker in normalized for marker in CRITICAL_SERVICE_MARKERS):
+        return "critical-denied"
+    if normalized in SAFE_SERVICE_CONTROLS:
+        return "low-risk-observability"
+    return "unclassified-denied"
+
 
 class WakeOnLanTarget(BaseModel):
     """A named, immutable Wake-on-LAN destination exposed to automations."""
@@ -126,6 +160,16 @@ class DeviceConfig(RuntimeConfig):
         ) and not self.allowed_services:
             raise ValueError(
                 "allowed_services must not be empty when service control is enabled"
+            )
+        denied_services = [
+            service
+            for service in self.allowed_services
+            if classify_service_control(service) != "low-risk-observability"
+        ]
+        if denied_services:
+            raise ValueError(
+                "allowed_services contains critical or unclassified services; "
+                "only explicitly classified observability agents are permitted"
             )
         if self.enable_wake_on_lan and not self.wake_on_lan_targets:
             raise ValueError(

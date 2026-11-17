@@ -14,6 +14,7 @@ import httpx
 
 HOSTNAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9.-]{0,251}\Z")
 MAX_RESPONSE_BYTES = 262_144
+MAX_ENDPOINT_CONCURRENCY = 2
 
 
 @dataclass(frozen=True)
@@ -98,17 +99,12 @@ async def fetch_resources(
         verify=ca_bundle_path or True,
         transport=transport,
     ) as client:
+        endpoint_slots = asyncio.Semaphore(MAX_ENDPOINT_CONCURRENCY)
         try:
-            resource_response, license_response = await asyncio.gather(
-                client.get(url), client.get(_license_url(host))
+            resource_payload, license_payload = await asyncio.gather(
+                _bounded_json(client, url, endpoint_slots),
+                _bounded_json(client, _license_url(host), endpoint_slots),
             )
-            for response in (resource_response, license_response):
-                response.raise_for_status()
-            for response in (resource_response, license_response):
-                if len(response.content) > MAX_RESPONSE_BYTES:
-                    raise RouterOSError("response_size_limit_exceeded", retryable=False)
-            resource_payload = json.loads(resource_response.content)
-            license_payload = json.loads(license_response.content)
             resources = parse_resources(resource_payload)
         except httpx.HTTPStatusError as exc:
             status = exc.response.status_code
@@ -170,3 +166,33 @@ async def fetch_resources(
             appliance_identifier=software_id,
             routeros_version=str(version) if version else None,
         )
+
+
+async def _bounded_json(
+    client: httpx.AsyncClient, url: str, endpoint_slots: asyncio.Semaphore
+) -> object:
+    response: httpx.Response | None = None
+    try:
+        async with endpoint_slots:
+            response = await client.send(client.build_request("GET", url), stream=True)
+            response.raise_for_status()
+            declared = response.headers.get("content-length")
+            if declared is not None:
+                try:
+                    if int(declared) > MAX_RESPONSE_BYTES:
+                        raise RouterOSError(
+                            "response_size_limit_exceeded", retryable=False
+                        )
+                except ValueError as exc:
+                    raise RouterOSError("invalid_content_length", retryable=False) from exc
+            body = bytearray()
+            async for chunk in response.aiter_bytes():
+                body.extend(chunk)
+                if len(body) > MAX_RESPONSE_BYTES:
+                    raise RouterOSError(
+                        "response_size_limit_exceeded", retryable=False
+                    )
+        return json.loads(body)
+    finally:
+        if response is not None:
+            await response.aclose()

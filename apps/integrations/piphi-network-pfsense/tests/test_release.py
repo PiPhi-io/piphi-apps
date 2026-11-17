@@ -15,7 +15,11 @@ CI_WORKFLOW = REPO_ROOT / ".github/workflows/apps-ci.yml"
 def test_current_release_metadata_is_consistent() -> None:
     version = json.loads((ROOT / "manifest.json").read_text())["version"]
     result = subprocess.run(
-        [sys.executable, str(CHECK_RELEASE), f"v{version}"],
+        [
+            sys.executable,
+            str(CHECK_RELEASE),
+            f"apps/piphi-network-pfsense/v{version}",
+        ],
         cwd=ROOT,
         check=False,
         capture_output=True,
@@ -26,7 +30,11 @@ def test_current_release_metadata_is_consistent() -> None:
 
 def test_release_check_rejects_a_mismatched_tag() -> None:
     result = subprocess.run(
-        [sys.executable, str(CHECK_RELEASE), "v9.9.9"],
+        [
+            sys.executable,
+            str(CHECK_RELEASE),
+            "apps/piphi-network-pfsense/v9.9.9",
+        ],
         cwd=ROOT,
         check=False,
         capture_output=True,

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import json
 import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -16,6 +17,7 @@ from .schemas import DeviceConfig
 MAX_RESPONSE_BYTES = 1_048_576
 MAX_ROWS = 1_000
 MAX_LOG_ROWS = 200
+MAX_ENDPOINT_CONCURRENCY = 4
 
 
 class PfSenseError(RuntimeError):
@@ -87,6 +89,7 @@ class PfRestV2Client:
         self._collect_security_logs = config.collect_security_logs
         self._collect_certificates = config.collect_certificates
         self._collect_ha_status = config.collect_ha_status
+        self._endpoint_slots = asyncio.Semaphore(MAX_ENDPOINT_CONCURRENCY)
         self._client = httpx.AsyncClient(
             base_url=config.base_url,
             headers={
@@ -162,18 +165,40 @@ class PfRestV2Client:
         )
         values: dict[str, Any] = {}
         endpoint_errors: dict[str, str] = {}
+        failures: dict[str, BaseException] = {}
         for name, result in zip(names, results, strict=True):
             if isinstance(result, BaseException):
-                endpoint_errors[name] = str(result)
+                failures[name] = result
+                endpoint_errors[name] = (
+                    result.reason
+                    if isinstance(result, PfSenseError)
+                    else "invalid_response"
+                )
             else:
                 values[name] = result
 
         essential = {"version", "api_version", "interfaces", "gateways", "services"}
         denied_or_invalid = sorted(essential & endpoint_errors.keys())
         if denied_or_invalid:
+            errors = [failures[name] for name in denied_or_invalid]
+            permanent = next(
+                (
+                    error
+                    for error in errors
+                    if not isinstance(error, PfSenseError) or not error.retryable
+                ),
+                None,
+            )
+            selected = permanent or errors[0]
             raise PfSenseError(
                 "pfSense baseline profile is unavailable: "
-                + ", ".join(denied_or_invalid)
+                + ", ".join(denied_or_invalid),
+                retryable=isinstance(selected, PfSenseError) and selected.retryable,
+                remediation=(
+                    selected.remediation
+                    if isinstance(selected, PfSenseError)
+                    else "reconfigure"
+                ),
             )
 
         certificates = [
@@ -291,9 +316,24 @@ class PfRestV2Client:
     async def _request(
         self, method: str, path: str, *, payload: dict[str, Any] | None = None
     ) -> Any:
+        response: httpx.Response | None = None
         try:
-            response = await self._client.request(method, path, json=payload)
-            response.raise_for_status()
+            async with self._endpoint_slots:
+                request = self._client.build_request(method, path, json=payload)
+                response = await self._client.send(request, stream=True)
+                response.raise_for_status()
+                declared = response.headers.get("content-length")
+                if declared is not None:
+                    try:
+                        if int(declared) > MAX_RESPONSE_BYTES:
+                            raise PfSenseError("response_size_limit_exceeded")
+                    except ValueError as exc:
+                        raise PfSenseError("invalid_content_length") from exc
+                body = bytearray()
+                async for chunk in response.aiter_bytes():
+                    body.extend(chunk)
+                    if len(body) > MAX_RESPONSE_BYTES:
+                        raise PfSenseError("response_size_limit_exceeded")
         except httpx.HTTPStatusError as exc:
             status = exc.response.status_code
             if status in {401, 403}:
@@ -321,35 +361,55 @@ class PfRestV2Client:
                 if reason == "tls_validation_failed"
                 else "retry",
             ) from exc
-
-        if len(response.content) > MAX_RESPONSE_BYTES:
-            raise PfSenseError("response_size_limit_exceeded")
+        finally:
+            if response is not None:
+                await response.aclose()
 
         try:
-            payload = response.json()
-        except ValueError as exc:
-            raise PfSenseError(f"pfSense returned non-JSON data for {path}") from exc
-        if not isinstance(payload, dict) or "data" not in payload:
-            raise PfSenseError(f"pfSense returned an invalid API envelope for {path}")
-        return payload["data"]
+            decoded = json.loads(body)
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise PfSenseError("invalid_json_response") from exc
+        if not isinstance(decoded, dict) or "data" not in decoded:
+            raise PfSenseError("invalid_api_envelope")
+        return decoded["data"]
 
 
 _SECRET = re.compile(
     r"(?i)(authorization|password|passwd|token|api[-_ ]?key|secret)\s*[:=]\s*\S+"
 )
+_IPV4 = re.compile(r"(?<![\w:])(?:\d{1,3}\.){3}\d{1,3}(?![\w:])")
+_IPV6 = re.compile(r"(?i)(?<![\w:])(?:[0-9a-f]{0,4}:){2,7}[0-9a-f]{0,4}(?![\w:])")
+_HOST = re.compile(
+    r"(?i)\b(?=[a-z0-9.-]*[a-z])[a-z0-9-]+(?:\.[a-z0-9-]+)+\b"
+)
+_USERNAME = re.compile(
+    r"(?i)\b(?:user(?:name)?|login|account)\s*(?:=|:|for\s+)\s*[^\s,;]+"
+)
+_QUERY = re.compile(r"(?i)(https?://[^\s?#]+)(?:\?[^\s#]*)?(?:#[^\s]*)?")
+
+
+def redact_log_text(value: str) -> str:
+    bounded = value.strip()[:4096]
+    bounded = _SECRET.sub(r"\1=[redacted]", bounded)
+    bounded = _USERNAME.sub("user=[redacted]", bounded)
+    bounded = _QUERY.sub(r"\1?[query-redacted]", bounded)
+    bounded = _IPV4.sub("[ip]", bounded)
+    bounded = _IPV6.sub("[ip]", bounded)
+    return _HOST.sub("[host]", bounded)[:512]
 
 
 def _structured_log_record(record: dict[str, Any]) -> dict[str, Any]:
     """Reduce an untrusted appliance log row to bounded, non-identifying fields."""
-    message = str(record.get("text") or record.get("message") or "")[:4096]
-    message = _SECRET.sub(r"\1=[redacted]", message)
+    message = redact_log_text(str(record.get("text") or record.get("message") or ""))
     event_id = hashlib.sha256(message.encode()).hexdigest()[:24]
+    action = str(record.get("action") or "unknown").casefold()
+    severity = str(record.get("severity") or record.get("level") or "unknown").casefold()
     return {
         "event_id": event_id,
         "timestamp": str(record.get("timestamp") or record.get("time") or "")[:64],
-        "action": str(record.get("action") or "unknown")[:32],
-        "severity": str(record.get("severity") or record.get("level") or "unknown")[
-            :16
-        ],
-        "interface": str(record.get("interface") or record.get("if") or "")[:32],
+        "action": action if action in {"allow", "block", "reject"} else "unknown",
+        "severity": severity
+        if severity in {"debug", "info", "notice", "warning", "error", "critical"}
+        else "unknown",
+        "interface_present": bool(record.get("interface") or record.get("if")),
     }
