@@ -57,7 +57,20 @@ async def test_config_entities_feedback_reads_writes_and_persistence(fake_knx) -
         manager.sessions["office"].updated_at["light"] = (
             datetime.now(UTC) - timedelta(hours=2)
         ).isoformat()
-        assert (await client.get("/entities")).json()["entities"][0]["state"]["quality"] == "stale"
+        stale_entity = (await client.get("/entities")).json()["entities"][0]
+        assert stale_entity["state"]["quality"] == "stale"
+        assert stale_entity["state"]["stale"] is True
+        stale_events = (await client.get("/events")).json()["events"]
+        assert sum(item["event_type"] == "datapoint.stale" for item in stale_events) == 1
+
+        # Repeated reads do not create an event storm; fresh feedback emits recovery once.
+        await client.get("/entities")
+        stale_events = (await client.get("/events")).json()["events"]
+        assert sum(item["event_type"] == "datapoint.stale" for item in stale_events) == 1
+        fake.receive("light", False)
+        recovered_events = (await client.get("/events")).json()["events"]
+        assert sum(item["event_type"] == "datapoint.recovered" for item in recovered_events) == 1
+        assert (await client.get("/entities")).json()["entities"][0]["state"]["quality"] == "fresh"
 
         write = await client.post(
             "/command",

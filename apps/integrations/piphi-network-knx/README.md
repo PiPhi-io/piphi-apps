@@ -2,7 +2,7 @@
 
 A monitoring-first KNX/IP integration built on the pinned `xknx==4.1.1` protocol stack.
 
-Version 0.2.3 deliberately supports a smaller surface than Home Assistant KNX, but applies production safety and lifecycle rules to that surface. It owns one exclusive KNX/IP tunnel per configuration, exposes only explicitly reviewed group addresses, and never accepts a caller-supplied address or raw telegram.
+Version 0.2.4 deliberately supports a smaller surface than Home Assistant KNX, but applies production safety and lifecycle rules to that surface. It owns one exclusive KNX/IP tunnel per configuration, exposes only explicitly reviewed group addresses, and never accepts a caller-supplied address or raw telegram.
 
 ## Supported
 
@@ -12,12 +12,13 @@ Version 0.2.3 deliberately supports a smaller surface than Home Assistant KNX, b
 - Binary sensor, numeric sensor, switch, and light datapoint entities
 - Separate command and feedback group addresses
 - Initialization reads, push feedback, connection-derived availability, and stale/uninitialized quality
+- Deduplicated `datapoint.stale` and `datapoint.recovered` transitions, stale/range automation conditions, and degraded diagnostics
 - Typed reads and opt-in writes with explicit per-datapoint allowlisting
 - Bounded xknx rate, bounded outgoing queue, write timeout with unknown-outcome reporting, and no automatic write retry
 - Atomic reconfiguration, duplicate endpoint rejection, orderly shutdown, and durable configuration replay
 - Runtime-token authentication for every operational endpoint; only `/health` is public
 
-## Intentionally unsupported in 0.2.3
+## Intentionally unsupported in 0.2.4
 
 - KNX IP Secure, KNX Data Secure, routing, or secure routing
 - ETS `.knxproj` or `.knxkeys` import
@@ -66,6 +67,7 @@ Use a dedicated tunnel endpoint. Verify every group address, DPT, and read/write
 
 - `connected` reflects the xknx session, not configuration presence.
 - `uninitialized` means no feedback has been observed; `stale` means feedback exceeded the configured age.
+- Staleness is checked continuously and on entity/diagnostic reads. A stale transition is emitted once; only fresh feedback clears it and emits recovery.
 - A successful write response means xknx completed its transport send path. It does **not** claim actuator feedback. The entity remains feedback-driven.
 - Queue saturation or expiry before transmission is reported as `not_sent`. A timeout after transmission starts is reported as an unknown outcome. Neither case is retried automatically.
 - `allow_writes` and each datapoint's `writable` field must both be true.

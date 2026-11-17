@@ -21,6 +21,7 @@ REQUIRED_ENDPOINTS = ["health", "entities", "command", "config", "ui_config"]
 CAPABILITIES: dict[str, dict[str, Any]] = {
     "connected": {"kind": "sensor", "unit": "bool"},
     "datapoint_value": {"kind": "sensor"},
+    "datapoint_stale": {"kind": "sensor", "unit": "bool"},
     "read_datapoint": {"kind": "action"},
     "write_datapoint": {"kind": "action"},
 }

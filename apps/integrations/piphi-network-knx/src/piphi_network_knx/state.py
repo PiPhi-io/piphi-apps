@@ -52,6 +52,8 @@ class Session:
     client: KnxClient
     values: dict[str, Any] = field(default_factory=dict)
     updated_at: dict[str, str] = field(default_factory=dict)
+    stale_datapoints: set[str] = field(default_factory=set)
+    last_connected: bool = True
 
 
 class KnxSessionManager:
@@ -60,6 +62,7 @@ class KnxSessionManager:
         self.sessions: dict[str, Session] = {}
         self._lock = asyncio.Lock()
         self._pending_endpoints: set[tuple[str, int]] = set()
+        self._staleness_task: asyncio.Task[None] | None = None
         self.persistence_path = Path(os.getenv("PIPHI_KNX_CONFIG_PATH", "./data/knx-configs.json"))
 
     async def apply(self, config: DeviceConfig, *, persist: bool = True) -> None:
@@ -102,7 +105,12 @@ class KnxSessionManager:
                 detail={"error": "knx_connection_failed", "message": str(exc)},
             ) from exc
 
-        candidate = Session(config=config, entry=entry, client=client)
+        candidate = Session(
+            config=config,
+            entry=entry,
+            client=client,
+            last_connected=client.connected,
+        )
         old_session: Session | None
         try:
             async with self._lock:
@@ -169,6 +177,7 @@ class KnxSessionManager:
         return True
 
     async def stop_all(self) -> None:
+        await self.stop_staleness_monitor()
         sessions = list(self.sessions.values())
         self.sessions.clear()
         await asyncio.gather(*(item.client.stop() for item in sessions), return_exceptions=True)
@@ -186,6 +195,43 @@ class KnxSessionManager:
                 await self.apply(config, persist=False)
             except HTTPException:
                 continue
+
+    def start_staleness_monitor(self) -> None:
+        if self._staleness_task is None or self._staleness_task.done():
+            self._staleness_task = asyncio.create_task(
+                self._monitor_staleness(), name="knx-staleness-monitor"
+            )
+
+    async def stop_staleness_monitor(self) -> None:
+        if self._staleness_task is None:
+            return
+        self._staleness_task.cancel()
+        await asyncio.gather(self._staleness_task, return_exceptions=True)
+        self._staleness_task = None
+
+    async def _monitor_staleness(self) -> None:
+        while True:
+            await asyncio.sleep(5)
+            self.check_staleness()
+
+    def check_staleness(self, now: datetime | None = None) -> None:
+        observed_at = now or datetime.now(UTC)
+        for session in self.sessions.values():
+            for datapoint in session.config.datapoints:
+                updated_at = session.updated_at.get(datapoint.id)
+                if updated_at is None or datapoint.id in session.stale_datapoints:
+                    continue
+                age = observed_at - datetime.fromisoformat(updated_at)
+                if age.total_seconds() <= datapoint.stale_after_seconds:
+                    continue
+                session.stale_datapoints.add(datapoint.id)
+                append_runtime_event(
+                    "datapoint.stale",
+                    session.entry,
+                    {"datapoint_id": datapoint.id, "age_seconds": int(age.total_seconds())},
+                    severity="warning",
+                )
+            self._publish_state(session)
 
     def get(self, config_id: str) -> Session:
         session = self.sessions.get(config_id)
@@ -242,6 +288,7 @@ class KnxSessionManager:
         }
 
     def entities(self) -> list[dict[str, Any]]:
+        self.check_staleness()
         result: list[dict[str, Any]] = []
         for session in self.sessions.values():
             for datapoint in session.config.datapoints:
@@ -256,7 +303,12 @@ class KnxSessionManager:
                         "config_id": session.entry["config_id"],
                         "device_id": session.entry["device_id"],
                         "entity_type": datapoint.entity_type,
-                        "capabilities": ["connected", "datapoint_value", *command_ids],
+                        "capabilities": [
+                            "connected",
+                            "datapoint_value",
+                            "datapoint_stale",
+                            *command_ids,
+                        ],
                         "available_commands": [
                             {"id": item, "label": item.replace("_", " ").title(), "kind": "action"}
                             for item in command_ids
@@ -265,6 +317,7 @@ class KnxSessionManager:
                             "value": session.values.get(datapoint.id),
                             "available": session.client.connected,
                             "quality": quality,
+                            "stale": datapoint.id in session.stale_datapoints,
                             "updated_at": session.updated_at.get(datapoint.id),
                             "dpt": datapoint.dpt,
                             "unit": _unit_for(datapoint),
@@ -277,12 +330,12 @@ class KnxSessionManager:
         updated_at = session.updated_at.get(datapoint.id)
         if updated_at is None:
             return "uninitialized"
-        age = datetime.now(UTC) - datetime.fromisoformat(updated_at)
-        if age.total_seconds() > datapoint.stale_after_seconds:
+        if datapoint.id in session.stale_datapoints:
             return "stale"
         return "fresh"
 
     def diagnostics(self) -> dict[str, Any]:
+        self.check_staleness()
         return {
             "sessions": [
                 {
@@ -292,6 +345,14 @@ class KnxSessionManager:
                     "datapoint_count": len(session.config.datapoints),
                     "initialized_datapoints": len(session.values),
                     "writes_enabled": session.config.allow_writes,
+                    "stale_datapoint_count": len(session.stale_datapoints),
+                    "degraded_reason": (
+                        "gateway_disconnected"
+                        if not session.client.connected
+                        else "datapoint_stale"
+                        if session.stale_datapoints
+                        else None
+                    ),
                 }
                 for index, session in enumerate(self.sessions.values(), start=1)
             ]
@@ -310,6 +371,8 @@ class KnxSessionManager:
         if session is None:
             return
         previous = session.values.get(datapoint_id)
+        recovered = datapoint_id in session.stale_datapoints
+        session.stale_datapoints.discard(datapoint_id)
         session.values[datapoint_id] = value
         session.updated_at[datapoint_id] = datetime.now(UTC).isoformat()
         self._publish_state(session)
@@ -319,11 +382,20 @@ class KnxSessionManager:
                 session.entry,
                 {"datapoint_id": datapoint_id, "value": value},
             )
+        if recovered:
+            append_runtime_event(
+                "datapoint.recovered",
+                session.entry,
+                {"datapoint_id": datapoint_id},
+            )
 
     def _connection_changed(self, config_id: str, connected: bool) -> None:
         session = self.sessions.get(config_id)
         if session is None:
             return
+        if session.last_connected == connected:
+            return
+        session.last_connected = connected
         self._publish_state(session)
         append_runtime_event(
             "gateway.online" if connected else "gateway.offline",
@@ -338,6 +410,7 @@ class KnxSessionManager:
                 "transport": session.config.transport,
                 "datapoints": session.values.copy(),
                 "updated_at": session.updated_at.copy(),
+                "stale_datapoints": sorted(session.stale_datapoints),
                 "config_id": session.entry["config_id"],
             },
             device_id=session.entry["device_id"],

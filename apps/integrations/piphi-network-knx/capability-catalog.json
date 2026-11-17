@@ -2,7 +2,7 @@
   "catalog_version": "1.1",
   "integration_id": "piphi-network-knx",
   "coverage_mode": "explicit_group_address_dpt_and_write_policy_negotiation",
-  "reviewed_at": "2026-11-15",
+  "reviewed_at": "2026-11-17",
   "sources": {
     "knx_group_objects": "https://support.knx.org/hc/en-us/articles/360008521939-Group-Object",
     "knx_dpts": "https://support.knx.org/hc/en-us/articles/15392604906514-Interworking-Datapoint-types",
@@ -13,19 +13,47 @@
     {
       "id": "bounded-knx-ip-runtime",
       "status": "implemented",
-      "scope": ["automatic-udp-and-tcp-tunnelling-with-reviewed-datapoints"],
-      "source_refs": ["xknx", "knx_group_objects", "knx_dpts", "core_vocabulary"],
-      "reason": "Owns one tunnel per config, derives availability from xknx, bounds outgoing traffic, restores configuration, and exposes only explicitly mapped DPTs.",
-      "state": ["connected", "datapoint_value"],
-      "events": ["datapoint.changed", "gateway.offline"],
-      "conditions": ["datapoint_equals"],
-      "actions": ["read_datapoint", "write_datapoint"]
+      "scope": [
+        "automatic-udp-and-tcp-tunnelling-with-reviewed-datapoints"
+      ],
+      "source_refs": [
+        "xknx",
+        "knx_group_objects",
+        "knx_dpts",
+        "core_vocabulary"
+      ],
+      "reason": "Owns one tunnel per config, derives availability from xknx, bounds outgoing traffic, restores configuration, and emits deduplicated stale/recovered transitions for explicitly mapped DPTs.",
+      "state": [
+        "connected",
+        "datapoint_value",
+        "datapoint_stale"
+      ],
+      "events": [
+        "datapoint.changed",
+        "gateway.offline",
+        "datapoint.stale",
+        "datapoint.recovered"
+      ],
+      "conditions": [
+        "datapoint_equals",
+        "datapoint_in_range",
+        "datapoint_is_stale"
+      ],
+      "actions": [
+        "read_datapoint",
+        "write_datapoint"
+      ]
     },
     {
       "id": "initial-semantic-slice",
       "status": "implemented",
-      "scope": ["binary-sensor-sensor-switch-and-light"],
-      "source_refs": ["knx_dpts", "xknx"],
+      "scope": [
+        "binary-sensor-sensor-switch-and-light"
+      ],
+      "source_refs": [
+        "knx_dpts",
+        "xknx"
+      ],
       "reason": "Supports DPT 1.001, 5.001 and 9.001 with strict entity compatibility, separate feedback and command addresses, write opt-in, value bounds and no blind retry.",
       "state": [],
       "events": [],
@@ -35,24 +63,54 @@
     {
       "id": "project-secure-routing-and-broad-entities",
       "status": "planned",
-      "scope": ["ets-project-import-knx-secure-routing-and-additional-dpts"],
-      "source_refs": ["knx_group_objects", "knx_dpts", "xknx"],
+      "scope": [
+        "ets-project-import-knx-secure-routing-and-additional-dpts"
+      ],
+      "source_refs": [
+        "knx_group_objects",
+        "knx_dpts",
+        "xknx"
+      ],
       "reason": "Project parsing, key lifecycle, routing identity, Data Secure and broader semantic entities require separate qualification and hardware fixtures.",
-      "state": ["project_hash", "knx_secure_enabled", "bus_load", "datapoint_stale"],
-      "events": ["project.changed", "datapoint.stale", "datapoint.recovered"],
-      "conditions": ["datapoint_in_range", "datapoint_is_stale"],
-      "actions": ["reload_project", "set_cover_position", "set_target_temperature"]
+      "state": [
+        "project_hash",
+        "knx_secure_enabled",
+        "bus_load"
+      ],
+      "events": [
+        "project.changed"
+      ],
+      "conditions": [],
+      "actions": [
+        "reload_project",
+        "set_cover_position",
+        "set_target_temperature"
+      ]
     },
     {
       "id": "unsafe-or-sensitive-surface",
       "status": "excluded",
-      "scope": ["all-installations"],
-      "source_refs": ["knx_group_objects", "xknx"],
+      "scope": [
+        "all-installations"
+      ],
+      "source_refs": [
+        "knx_group_objects",
+        "xknx"
+      ],
       "reason": "Raw telegrams, unknown DPT writes, broad scans, commissioning, topology mutation and secret exposure remain outside the integration.",
-      "state": ["secure_keys", "raw_telegram", "full_project_topology"],
+      "state": [
+        "secure_keys",
+        "raw_telegram",
+        "full_project_topology"
+      ],
       "events": [],
       "conditions": [],
-      "actions": ["send_arbitrary_telegram", "write_unknown_datapoint_type", "scan_all_group_addresses", "program_individual_address"]
+      "actions": [
+        "send_arbitrary_telegram",
+        "write_unknown_datapoint_type",
+        "scan_all_group_addresses",
+        "program_individual_address"
+      ]
     }
   ]
 }
