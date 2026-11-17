@@ -15,9 +15,10 @@ def test_require_mock_enabled_raises_without_env(monkeypatch: pytest.MonkeyPatch
 def test_hardware_diagnostics_exposes_only_used_backends() -> None:
     diagnostics = sensors.hardware_diagnostics()
 
-    assert "ft232h" in diagnostics
-    assert "shared_libraries" not in diagnostics
-    assert "spidev" not in diagnostics["linux_spi"]
+    assert diagnostics["default_adapter"] == "mock"
+    assert diagnostics["supported_adapters"] == ["mock"]
+    assert "linux_spi" not in diagnostics
+    assert "ft232h" not in diagnostics
 
 
 def test_discover_devices_probes_instead_of_projecting_config(
@@ -38,14 +39,18 @@ def test_discover_devices_probes_instead_of_projecting_config(
 
 
 def test_normalize_config_rejects_ignored_or_unsafe_settings() -> None:
-    with pytest.raises(ValueError, match="bus must be 0"):
+    with pytest.raises(ValueError, match="mock-only 0.1.4: bus"):
         sensors.normalize_config({"bus": 1, "sensor_model": "bme280"})
-    with pytest.raises(ValueError, match="chip_select"):
+    with pytest.raises(ValueError, match="mock-only 0.1.4: chip_select"):
         sensors.normalize_config({"chip_select": 9, "sensor_model": "bme280"})
-    with pytest.raises(ValueError, match="baudrate"):
+    with pytest.raises(ValueError, match="mock-only 0.1.4: baudrate"):
         sensors.normalize_config({"baudrate": 1, "sensor_model": "bme280"})
     with pytest.raises(ValueError, match="explicit sensor_model"):
         sensors.normalize_config({"adapter": "linux_spi", "sensor_model": "auto"})
+    with pytest.raises(ValueError, match="exact spidev/USB-node selection"):
+        sensors.normalize_config({"adapter": "linux_spi", "sensor_model": "bme280"})
+    with pytest.raises(ValueError, match="exact spidev/USB-node selection"):
+        sensors.normalize_config({"adapter": "ft232h", "sensor_model": "bme280"})
 
 
 def test_spi_read_passes_baudrate_and_deinitializes_handles(
@@ -113,3 +118,14 @@ def test_discover_devices_mock_requires_opt_in(
         sensors.discover_devices(
             sensors.SensorConfig(adapter="mock", bus=0, chip_select=0, sensor_model="bme680")
         )
+
+
+def test_mock_discovery_has_no_physical_transport_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PIPHI_ALLOW_MOCK_HARDWARE", "true")
+
+    device = sensors.discover_devices(sensors.SensorConfig(adapter="mock", sensor_model="bme680"))[0]
+
+    assert device["adapter"] == "mock"
+    assert {"bus", "chip_select", "baudrate"}.isdisjoint(device)

@@ -1,13 +1,14 @@
 from __future__ import annotations
 
+import asyncio
 from copy import deepcopy
 
-from fastapi.testclient import TestClient
 import pytest
+from fastapi.testclient import TestClient
 
-from piphi_network_spi import create_app
-from piphi_network_spi.routes import commands as command_routes
+from piphi_network_spi import create_app, sensors
 from piphi_network_spi import state as state_module
+from piphi_network_spi.routes import commands as command_routes
 
 
 @pytest.fixture(autouse=True)
@@ -28,6 +29,34 @@ def test_discover_mock_requires_opt_in(client: TestClient) -> None:
 
     assert response.status_code == 400
     assert "Mock hardware is disabled" in response.text
+
+
+def test_discovery_defaults_to_mock_without_physical_defaults(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PIPHI_ALLOW_MOCK_HARDWARE", "true")
+
+    response = client.post("/discover", json={"inputs": {"sensor_model": "bme680"}})
+
+    assert response.status_code == 200
+    device = response.json()["devices"][0]
+    assert device["adapter"] == "mock"
+    assert {"bus", "chip_select", "baudrate"}.isdisjoint(device)
+
+
+@pytest.mark.parametrize("field", ["bus", "chip_select", "baudrate"])
+def test_discovery_rejects_physical_transport_fields(
+    client: TestClient,
+    field: str,
+) -> None:
+    response = client.post(
+        "/discover",
+        json={"inputs": {"adapter": "mock", "sensor_model": "bme280", field: 0}},
+    )
+
+    assert response.status_code == 400
+    assert field in response.text
 
 
 def test_initial_config_failure_leaves_no_registry_entry(client: TestClient) -> None:
@@ -86,12 +115,14 @@ def test_command_refresh_returns_503_and_updates_state_on_sensor_failure(
     response = client.post("/command", json={"command": "refresh", "device_id": "spi-dev"})
 
     assert response.status_code == 503
-    assert "spi read failed" in response.text
+    assert "io_error" in response.text
 
     state = client.get("/state").json()
     snapshot = state["state_snapshots"]["spi-dev"]["state"]
     assert snapshot["connected"] is False
-    assert snapshot["error"] == "spi read failed"
+    assert snapshot["error_class"] == "io_error"
+    assert snapshot["availability"] == "stale"
+    assert "spi read failed" not in response.text
     assert any(event["event_type"] == "spi.sensor.refresh_failed" for event in state_module.registry.recent_events)
 
 
@@ -103,7 +134,7 @@ def test_config_sync_invalid_typed_config_returns_422(client: TestClient) -> Non
             "configs": [
                 {
                     "id": "spi-dev",
-                    "adapter": "linux_spi",
+                    "adapter": "mock",
                     "chip_select": "nope",
                 }
             ],
@@ -113,6 +144,29 @@ def test_config_sync_invalid_typed_config_returns_422(client: TestClient) -> Non
 
     assert response.status_code == 422
     assert response.json()["detail"][0]["loc"][-1] == "chip_select"
+
+
+@pytest.mark.parametrize("field", ["bus", "chip_select", "baudrate"])
+def test_config_rejects_physical_transport_fields_before_io(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    field: str,
+) -> None:
+    io_attempted = False
+
+    def forbidden_io(_config):
+        nonlocal io_attempted
+        io_attempted = True
+
+    monkeypatch.setattr(state_module, "read_state", forbidden_io)
+    response = client.post(
+        "/config",
+        json={"id": "bad", "adapter": "mock", "sensor_model": "bme280", field: 0},
+    )
+
+    assert response.status_code == 422
+    assert io_attempted is False
+    assert state_module.registry.entries == {}
 
 
 def test_state_without_configs_does_not_touch_hardware(client: TestClient) -> None:
@@ -144,15 +198,84 @@ def test_config_rejects_invalid_hardware_targets_before_io(
 def test_config_rejects_duplicate_target_claim(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PIPHI_ALLOW_MOCK_HARDWARE", "true")
     first = client.post(
-        "/config", json={"id": "first", "adapter": "mock", "sensor_model": "bme280"}
+        "/config",
+        json={"id": "first", "adapter": "mock", "adapter_id": "display-one", "sensor_model": "bme280"},
     )
+    io_attempts = 0
+
+    def forbidden_io(_config):
+        nonlocal io_attempts
+        io_attempts += 1
+        raise AssertionError("duplicate claim must not reach hardware I/O")
+
+    monkeypatch.setattr(state_module, "read_state", forbidden_io)
     duplicate = client.post(
-        "/config", json={"id": "second", "adapter": "mock", "sensor_model": "bme680"}
+        "/config",
+        json={"id": "second", "adapter": "mock", "adapter_id": "display-two", "sensor_model": "bme680"},
     )
 
     assert first.status_code == 200
     assert duplicate.status_code == 409
     assert "already claimed" in duplicate.text
+    assert io_attempts == 0
+
+
+def test_failed_config_releases_target_reservation(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PIPHI_ALLOW_MOCK_HARDWARE", "true")
+    monkeypatch.setattr(
+        state_module,
+        "read_state",
+        lambda _config: (_ for _ in ()).throw(RuntimeError("probe failed")),
+    )
+
+    failed = client.post(
+        "/config",
+        json={"id": "failed", "adapter": "mock", "sensor_model": "bme280"},
+    )
+    monkeypatch.setattr(state_module, "read_state", sensors.mock_state)
+    replacement = client.post(
+        "/config",
+        json={"id": "replacement", "adapter": "mock", "sensor_model": "bme280"},
+    )
+
+    assert failed.status_code == 503
+    assert replacement.status_code == 200
+    assert set(state_module.registry.entries) == {"replacement"}
+
+
+def test_background_refresh_records_offline_state_once_and_recovery(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PIPHI_ALLOW_MOCK_HARDWARE", "true")
+    config = state_module.SPISensorRuntimeConfig(id="background-spi", adapter="mock", sensor_model="bme280")
+    entry = state_module.entry_for_config(config)
+    state_module.registry.set(config.id, entry)
+    state_module.registry.update_state(
+        config.id,
+        {"connected": True, "availability": "available", "temperature_c": 21.0},
+        device_id=entry["device_id"],
+    )
+    attempts = 0
+
+    def fail_once(_config):
+        nonlocal attempts
+        attempts += 1
+        raise FileNotFoundError("offline")
+
+    monkeypatch.setattr(state_module, "read_state", fail_once)
+    asyncio.run(state_module.refresh_all_state())
+
+    failed = state_module.registry.state_snapshots[config.id]["state"]
+    assert attempts == 1
+    assert failed["availability"] == "stale"
+    assert failed["error_class"] == "unavailable"
+
+    monkeypatch.setattr(state_module, "read_state", lambda _config: {"connected": True, "temperature_c": 22.0})
+    asyncio.run(state_module.refresh_all_state())
+
+    recovered = state_module.registry.state_snapshots[config.id]["state"]
+    assert recovered["availability"] == "available"
+    assert any(event["event_type"] == "spi.sensor.recovered" for event in state_module.registry.recent_events)
 
 
 def test_deconfigure_without_payload_returns_default_not_removed(client: TestClient) -> None:
@@ -168,6 +291,23 @@ def test_command_rejects_unsupported_command(client: TestClient) -> None:
 
     assert response.status_code == 400
     assert "Unsupported command" in response.text
+
+
+def test_refresh_classifies_recovery_transition(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PIPHI_ALLOW_MOCK_HARDWARE", "true")
+    assert client.post(
+        "/config", json={"id": "recovering", "adapter": "mock", "sensor_model": "bme280"}
+    ).status_code == 200
+    state_module.registry.update_state(
+        "recovering", {"connected": False, "availability": "unavailable", "error_class": "unavailable"}
+    )
+
+    response = client.post("/command", json={"command": "refresh", "device_id": "recovering"})
+
+    assert response.status_code == 200
+    snapshot = client.get("/state").json()["state_snapshots"]["recovering"]["state"]
+    assert snapshot["availability"] == "available"
+    assert any(event["event_type"] == "spi.sensor.recovered" for event in state_module.registry.recent_events)
 
 
 def test_command_refresh_replays_without_repeating_sensor_read(
@@ -282,6 +422,7 @@ def test_state_telemetry_uses_stable_runtime_identity(
     assert captured["config_id"] == "spi-config-1"
     assert captured["device_id"] == "spi-device-1"
     assert captured["container_id"] == "container-1"
+    assert captured["auth_context"] is state_module.runtime.auth
     assert captured["metrics"] == {"connected": True, "pressure_hpa": 1013.2}
     assert captured["units"] == {"connected": "bool", "pressure_hpa": "hPa"}
     assert captured["timestamp"] == "2026-07-26T12:00:00Z"

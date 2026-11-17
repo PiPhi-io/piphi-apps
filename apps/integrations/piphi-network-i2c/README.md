@@ -1,26 +1,19 @@
 # piphi_network_i2c
 
-PiPhi integration runtime for local I2C environmental sensors.
+PiPhi integration runtime for an I2C environmental-sensor contract.
 
-Supported first-pass devices:
+Mock-mode sensor shapes:
 
 - BME680
 - BME280
 - BMP280
-- AHT20 / AHTx0
-- PMSA003I / PM2.5 particulate sensor
 - Generic I2C address discovery
 
-The runtime is designed for sensors connected directly to the host I2C bus or through USB bridges such as the Adafruit MCP2221A breakout (product 4471) and FT232H boards. Direct hardware reads require the matching optional Python hardware packages to be installed on the runtime host.
+Version 0.1.4 accepts only the explicitly enabled `mock` backend. It requests no host devices. `linux_i2c`, MCP2221A, FT232H, and every other physical backend are rejected before preflight or I/O.
 
 The HTTP contract uses `piphi-runtime-kit-python` for runtime auth context, typed config apply/sync, discovery responses, entities, health, diagnostics, and local events.
 
-Direct Linux I2C reads prefer the Pimoroni libraries:
-
-- `pimoroni/bme680-python`
-- `pimoroni/bme280-python`
-
-AHT20 reads use `adafruit/Adafruit_CircuitPython_AHTx0`. PMSA003I particulate reads use `adafruit/Adafruit_CircuitPython_PM25`. MCP2221A bridge discovery plus BME280 and BME680 reads now prefer `EasyMCP2221` through its SMBus-compatible interface. FT232H bridge reads use the Adafruit Blinka/CircuitPython stack, and MCP2221A can still fall back to Blinka-based sensor access when the SMBus path is unavailable.
+Experimental physical driver code may remain in the source for future work, but it is unreachable through the 0.1.4 configuration, discovery, and command contracts. No raw-register endpoint, forced I2C takeover, kernel-driver unbind, or generic write API is exposed.
 
 ## Run
 
@@ -33,30 +26,31 @@ The API listens on port `3674` by default.
 
 ## Container
 
-The release workflow publishes `piphinetwork/i2c-integration` for `linux/amd64` and `linux/arm64`.
-I2C adapters expose host device nodes dynamically, so the current manifest runs this hardware
-integration as a privileged container. Only install it on a trusted PiPhi host.
+The release target is `ghcr.io/piphi-io/i2c-integration:0.1.4`. It runs as a non-root user, drops all capabilities, enables no-new-privileges, and requests no host device mapping or supplementary groups.
 
 ```bash
-docker run --rm --privileged \
-  -p 3674:3674 \
+docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges \
+  -e PIPHI_ALLOW_MOCK_HARDWARE=true \
+  -p 127.0.0.1:3674:3674 \
   -v piphi-i2c-state:/.piphinetwork \
-  piphinetwork/i2c-integration:0.1.0
+  ghcr.io/piphi-io/i2c-integration:0.1.4
 ```
 
-Mock mode remains disabled in published images. For a container-only contract test, add
-`-e PIPHI_ALLOW_MOCK_HARDWARE=true` and configure the `mock` adapter.
+Mock mode remains disabled by default and must be explicitly enabled as shown for local contract testing.
 
 ## Configuration
 
 The `/ui-config` endpoint exposes these fields:
 
-- `adapter`: `linux_i2c`, `mcp2221a`, `ft232h`, or `mock`
-- `bus`: Linux I2C bus number, usually `1`
+- `adapter`: `mock` only
+- `adapter_id`: optional opaque identity for deterministic mock targets
+- `bus`: mock bus identity
 - `address`: Optional hex or decimal address, such as `0x76`
-- `sensor_model`: `auto`, `bme680`, `bme280`, `bmp280`, `aht20`, `pmsa003i`, or `generic`
+- `sensor_model`: `auto`, `bme680`, `bme280`, `bmp280`, or `generic`
 - `poll_interval_seconds`: Suggested poll cadence
 
-The default adapter is `linux_i2c`. For MCP2221A usage install `EasyMCP2221` and use `adapter=mcp2221a`. The `bus` field maps to the MCP2221A device index and is usually `1`. For AHT20 or Blinka fallback access on MCP2221A, set `BLINKA_MCP2221=1`. For FT232H usage set `BLINKA_FT232H=1` and use `adapter=ft232h`.
+Physical I2C is not deployable or qualified in this release. Core must first implement a governed dynamic supplementary device GID mechanism for an exact device mapping; app-local `group_add` or `device_gid` fields are unsupported and are not used. See `docs/software-qualification.md`.
+
+The manifest omits a fixed host port and requires Core-allocated private ingress. The loopback publishing above is for local development only. The package passes the runtime auth context to outbound Core telemetry. It does not provide a standalone ingress-auth boundary, so the API must remain on Core's private container network and must not be published directly. Hardware reads are not automatically retried: each refresh cycle makes one bounded attempt, records classified stale/unavailable state on failure, and records recovery after a later successful cycle.
 
 Mock readings are disabled by default. For local UI or SDK-contract development without hardware, set `PIPHI_ALLOW_MOCK_HARDWARE=true` and use `adapter=mock`.

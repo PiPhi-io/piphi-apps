@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import ValidationError
 from piphi_runtime_kit_python import (
     RuntimeConfigApplyResponse,
     RuntimeConfigRemoveResponse,
@@ -13,6 +12,7 @@ from piphi_runtime_kit_python import (
     build_config_remove_response,
 )
 from piphi_runtime_kit_python.fastapi import sync_runtime_auth_from_fastapi_payload
+from pydantic import ValidationError
 
 from ..state import (
     SPISensorRuntimeConfig,
@@ -35,7 +35,7 @@ async def configure(payload: SPISensorRuntimeConfig, request: Request) -> Runtim
     return build_config_apply_response(
         config_id=payload.config_id or payload.id,
         container_id=payload.container_id,
-        metadata={"adapter": payload.adapter, "bus": payload.bus, "sensor_model": payload.sensor_model},
+        metadata={"adapter": payload.adapter, "sensor_model": payload.sensor_model},
     )
 
 

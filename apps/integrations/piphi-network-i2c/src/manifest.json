@@ -2,14 +2,14 @@
   "manifest_version": "1.0",
   "id": "piphi-network-i2c",
   "name": "PiPhi Network I2C Sensors",
-  "version": "0.1.3",
-  "description": "Local I2C sensor integration for BME680, BME280, BMP280, AHT20, PMSA003I particulate sensors, and generic I2C devices.",
+  "version": "0.1.4",
+  "description": "Mock-only I2C sensor contract; physical backends are not deployable in version 0.1.4.",
   "maintainer": {
     "name": "PiPhi Integrations Team",
     "website": "https://github.com/PiPhi-io"
   },
   "license": "Apache-2.0",
-  "image": "piphinetwork/i2c-integration:0.1.3",
+  "image": "ghcr.io/piphi-io/i2c-integration:0.1.4",
   "platforms": [
     "linux"
   ],
@@ -17,11 +17,10 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "piphinetwork/i2c-integration:0.1.3",
+        "image": "ghcr.io/piphi-io/i2c-integration:0.1.4",
         "ports": [
           {
             "container": 3674,
-            "host": 3674,
             "protocol": "tcp"
           }
         ],
@@ -30,6 +29,9 @@
           "PIPHI_ALLOW_MOCK_HARDWARE": "false"
         },
         "privileged": false,
+        "read_only": true,
+        "cap_drop": ["ALL"],
+        "security_opt": ["no-new-privileges:true"],
         "restart_policy": {
           "name": "unless-stopped",
           "maximum_retry_count": 0
@@ -44,12 +46,16 @@
             "type": "select",
             "required": true,
             "options": [
-              "linux_i2c",
-              "mcp2221a",
-              "ft232h",
               "mock"
             ],
-            "description": "Use linux_i2c for direct GPIO headers, mcp2221a for Adafruit product 4471, ft232h for FT232H bridges, or mock only when PIPHI_ALLOW_MOCK_HARDWARE=true."
+            "description": "Version 0.1.4 supports mock operation only. Physical I2C requires a future governed Core mechanism for dynamic supplementary device GID resolution."
+          },
+          {
+            "name": "adapter_id",
+            "label": "Opaque Adapter ID",
+            "type": "text",
+            "required": false,
+            "description": "Optional non-secret opaque identity for deterministic mock targets."
           },
           {
             "name": "bus",
@@ -75,8 +81,6 @@
               "bme680",
               "bme280",
               "bmp280",
-              "aht20",
-              "pmsa003i",
               "generic"
             ]
           },
@@ -85,7 +89,7 @@
             "label": "Actively scan the full bus",
             "type": "boolean",
             "required": false,
-            "description": "Maintenance-only: sends probe traffic to every normal 7-bit address. Leave disabled on unknown or shared buses."
+            "description": "Mock discovery option only; version 0.1.4 never scans a physical bus."
           }
         ]
       }
@@ -95,6 +99,7 @@
     "base_url": "http://127.0.0.1:3674",
     "required": [
       "health",
+      "diagnostics",
       "entities",
       "state",
       "command",
@@ -103,6 +108,7 @@
     ],
     "endpoints": {
       "health": "/health",
+      "diagnostics": "/diagnostics",
       "discover": "/discover",
       "entities": "/entities",
       "state": "/state",
@@ -120,6 +126,7 @@
     "required": true,
     "editable_fields": [
       "adapter",
+      "adapter_id",
       "bus",
       "address",
       "sensor_model",
@@ -127,14 +134,14 @@
     ],
     "identity_fields": [
       "adapter",
-      "bus",
+      "adapter_id",
       "address"
     ]
   },
   "identity": {
     "fields": [
       "adapter",
-      "bus",
+      "adapter_id",
       "address"
     ]
   },
@@ -208,168 +215,6 @@
         "default_widget": "stat"
       }
     },
-    "pm1_0_standard_ugm3": {
-      "kind": "sensor",
-      "value_kind": "numeric",
-      "unit": "ug/m3",
-      "dashboard": {
-        "allowed_widgets": [
-          "stat",
-          "sensor-card",
-          "line-chart",
-          "air-quality-card"
-        ],
-        "default_widget": "stat"
-      }
-    },
-    "pm2_5_standard_ugm3": {
-      "kind": "sensor",
-      "value_kind": "numeric",
-      "unit": "ug/m3",
-      "dashboard": {
-        "allowed_widgets": [
-          "stat",
-          "sensor-card",
-          "line-chart",
-          "air-quality-card"
-        ],
-        "default_widget": "stat"
-      }
-    },
-    "pm10_standard_ugm3": {
-      "kind": "sensor",
-      "value_kind": "numeric",
-      "unit": "ug/m3",
-      "dashboard": {
-        "allowed_widgets": [
-          "stat",
-          "sensor-card",
-          "line-chart",
-          "air-quality-card"
-        ],
-        "default_widget": "stat"
-      }
-    },
-    "pm1_0_env_ugm3": {
-      "kind": "sensor",
-      "value_kind": "numeric",
-      "unit": "ug/m3",
-      "dashboard": {
-        "allowed_widgets": [
-          "stat",
-          "sensor-card",
-          "line-chart",
-          "air-quality-card"
-        ],
-        "default_widget": "stat"
-      }
-    },
-    "pm2_5_env_ugm3": {
-      "kind": "sensor",
-      "value_kind": "numeric",
-      "unit": "ug/m3",
-      "dashboard": {
-        "allowed_widgets": [
-          "stat",
-          "sensor-card",
-          "line-chart",
-          "air-quality-card"
-        ],
-        "default_widget": "stat"
-      }
-    },
-    "pm10_env_ugm3": {
-      "kind": "sensor",
-      "value_kind": "numeric",
-      "unit": "ug/m3",
-      "dashboard": {
-        "allowed_widgets": [
-          "stat",
-          "sensor-card",
-          "line-chart",
-          "air-quality-card"
-        ],
-        "default_widget": "stat"
-      }
-    },
-    "particles_0_3um_per_0_1l": {
-      "kind": "sensor",
-      "value_kind": "numeric",
-      "unit": "count/0.1L",
-      "dashboard": {
-        "allowed_widgets": [
-          "stat",
-          "sensor-card",
-          "line-chart"
-        ],
-        "default_widget": "stat"
-      }
-    },
-    "particles_0_5um_per_0_1l": {
-      "kind": "sensor",
-      "value_kind": "numeric",
-      "unit": "count/0.1L",
-      "dashboard": {
-        "allowed_widgets": [
-          "stat",
-          "sensor-card",
-          "line-chart"
-        ],
-        "default_widget": "stat"
-      }
-    },
-    "particles_1_0um_per_0_1l": {
-      "kind": "sensor",
-      "value_kind": "numeric",
-      "unit": "count/0.1L",
-      "dashboard": {
-        "allowed_widgets": [
-          "stat",
-          "sensor-card",
-          "line-chart"
-        ],
-        "default_widget": "stat"
-      }
-    },
-    "particles_2_5um_per_0_1l": {
-      "kind": "sensor",
-      "value_kind": "numeric",
-      "unit": "count/0.1L",
-      "dashboard": {
-        "allowed_widgets": [
-          "stat",
-          "sensor-card",
-          "line-chart"
-        ],
-        "default_widget": "stat"
-      }
-    },
-    "particles_5_0um_per_0_1l": {
-      "kind": "sensor",
-      "value_kind": "numeric",
-      "unit": "count/0.1L",
-      "dashboard": {
-        "allowed_widgets": [
-          "stat",
-          "sensor-card",
-          "line-chart"
-        ],
-        "default_widget": "stat"
-      }
-    },
-    "particles_10um_per_0_1l": {
-      "kind": "sensor",
-      "value_kind": "numeric",
-      "unit": "count/0.1L",
-      "dashboard": {
-        "allowed_widgets": [
-          "stat",
-          "sensor-card",
-          "line-chart"
-        ],
-        "default_widget": "stat"
-      }
-    },
     "refresh": {
       "kind": "action",
       "value_kind": "command",
@@ -429,6 +274,11 @@
         "auto_install": true
       }
     ]
+  },
+  "runtime_contract": {
+    "version": 1,
+    "port_binding": "core_allocated",
+    "port_env": "PIPHI_I2C_PORT"
   },
   "onboarding": {
     "mode": "discovery"

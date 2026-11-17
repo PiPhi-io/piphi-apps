@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import os
 import random
 import threading
@@ -8,36 +9,37 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
-
 DEFAULT_ADDRESSES: dict[str, tuple[int, ...]] = {
     "bme680": (0x76, 0x77),
     "bme280": (0x76, 0x77),
     "bmp280": (0x76, 0x77),
-    "aht20": (0x38,),
-    "pmsa003i": (0x12,),
 }
 BLINKA_I2C_ADAPTERS = {"ft232h"}
 BOARD_I2C_ADAPTERS = {"mcp2221a", "ft232h"}
 DEFAULT_MCP2221_I2C_CLOCK = 100_000
-SUPPORTED_ADAPTERS = {"linux_i2c", "mcp2221a", "ft232h", "mock"}
-SUPPORTED_MODELS = {"auto", "bme680", "bme280", "bmp280", "aht20", "pmsa003i", "generic"}
+# Version 0.1.4 exposes only the mock backend. Physical driver helpers below are
+# retained as experimental implementation code, but public config validation
+# keeps them unreachable until Core can govern dynamic supplementary device GIDs.
+SUPPORTED_ADAPTERS = {"mock"}
+SUPPORTED_MODELS = {"auto", "bme680", "bme280", "bmp280", "generic"}
 MIN_POLL_INTERVAL_SECONDS = 5
 MAX_POLL_INTERVAL_SECONDS = 3600
 MAX_BUS_NUMBER = 255
 OPERATION_TIMEOUT_SECONDS = 10.0
 CHIP_IDS = {0x60: "bme280", 0x58: "bmp280", 0x61: "bme680"}
-_adapter_locks: dict[tuple[str, int], threading.Lock] = {}
-_adapter_locks_guard = threading.Lock()
+_operation_locks: dict[tuple[str, str, int], threading.Lock] = {}
+_operation_locks_guard = threading.Lock()
 
 
 @dataclass(frozen=True)
 class SensorConfig:
-    adapter: str = "linux_i2c"
+    adapter: str = "mock"
     bus: int = 1
     address: int | None = None
     sensor_model: str = "auto"
     poll_interval_seconds: int = 30
     allow_scan: bool = False
+    adapter_id: str | None = None
 
 
 def parse_address(value: Any) -> int | None:
@@ -53,12 +55,13 @@ def parse_address(value: Any) -> int | None:
 def normalize_config(payload: dict[str, Any] | None) -> SensorConfig:
     data = payload or {}
     config = SensorConfig(
-        adapter=str(data.get("adapter") or "linux_i2c").strip().lower(),
+        adapter=str(data.get("adapter") or "mock").strip().lower(),
         bus=int(data.get("bus", 1)),
         address=parse_address(data.get("address")),
         sensor_model=str(data.get("sensor_model") or "auto").strip().lower(),
         poll_interval_seconds=int(data.get("poll_interval_seconds") or 30),
         allow_scan=data.get("allow_scan") is True,
+        adapter_id=(str(data["adapter_id"]).strip().lower() if data.get("adapter_id") else None),
     )
     validate_config(config)
     return config
@@ -80,29 +83,74 @@ def validate_config(config: SensorConfig) -> None:
         )
     if config.adapter == "ft232h" and config.bus != 1:
         raise ValueError("FT232H exposes one Blinka I2C bus; bus must be 1")
-    if config.adapter == "linux_i2c" and config.sensor_model in {"aht20", "pmsa003i"}:
-        raise ValueError(
-            f"sensor_model={config.sensor_model} is not supported on linux_i2c because its "
-            "Blinka driver cannot honor the selected bus"
-        )
-    if config.sensor_model in DEFAULT_ADDRESSES and config.address is not None:
-        if config.address not in DEFAULT_ADDRESSES[config.sensor_model]:
-            allowed = ", ".join(f"0x{value:02X}" for value in DEFAULT_ADDRESSES[config.sensor_model])
-            raise ValueError(f"{config.sensor_model} address must be one of: {allowed}")
+    if (
+        config.sensor_model in DEFAULT_ADDRESSES
+        and config.address is not None
+        and config.address not in DEFAULT_ADDRESSES[config.sensor_model]
+    ):
+        allowed = ", ".join(f"0x{value:02X}" for value in DEFAULT_ADDRESSES[config.sensor_model])
+        raise ValueError(f"{config.sensor_model} address must be one of: {allowed}")
+    if config.adapter == "linux_i2c":
+        if config.bus != 1:
+            raise ValueError("The container maps only /dev/i2c-1; linux_i2c bus must be 1")
+        if not config.adapter_id:
+            raise ValueError("linux_i2c requires a provisioned opaque adapter_id")
+    if config.adapter_id is not None and not _valid_adapter_id(config.adapter_id):
+        raise ValueError("adapter_id must be 8-64 lowercase opaque characters")
 
 
-def adapter_key(config: SensorConfig) -> tuple[str, int]:
-    return (config.adapter, config.bus)
+def _valid_adapter_id(value: str) -> bool:
+    return 8 <= len(value) <= 64 and all(char.islower() or char.isdigit() or char in "-_" for char in value)
 
 
-def target_key(config: SensorConfig) -> tuple[str, int, int | None]:
-    return (*adapter_key(config), config.address)
+def adapter_fingerprint(config: SensorConfig) -> str:
+    identity = config.adapter_id or f"{config.adapter}:development"
+    return hashlib.sha256(identity.encode("utf-8")).hexdigest()[:16]
+
+
+def exact_device_node(config: SensorConfig) -> str:
+    """Return the backend-selected node without using caller display identity."""
+    if config.adapter == "linux_i2c":
+        return f"/dev/i2c-{config.bus}"
+    return f"mock://i2c-{config.bus}"
+
+
+def canonical_address(config: SensorConfig) -> int:
+    if config.address is not None:
+        return config.address
+    return DEFAULT_ADDRESSES.get(config.sensor_model, (0x76,))[0]
+
+
+def target_key(config: SensorConfig) -> tuple[str, str, int, int]:
+    """Canonical ownership key; adapter_id is intentionally display-only."""
+    return (config.adapter, exact_device_node(config), config.bus, canonical_address(config))
+
+
+def operation_key(config: SensorConfig) -> tuple[str, str, int]:
+    """Serialize every operation sharing one exact adapter/bus node."""
+    return (config.adapter, exact_device_node(config), config.bus)
+
+
+def preflight_target(config: SensorConfig, *, dev_root: Path = Path("/dev"), sys_root: Path = Path("/sys")) -> None:
+    """Fail closed before a driver opens the selected node; never mutates sysfs."""
+    if config.adapter == "mock":
+        require_mock_enabled()
+        return
+    node = dev_root / f"i2c-{config.bus}"
+    if not node.exists():
+        raise FileNotFoundError(f"selected I2C device node is unavailable: i2c-{config.bus}")
+    if not os.access(node, os.R_OK | os.W_OK):
+        raise PermissionError(f"selected I2C device node is not readable/writable: i2c-{config.bus}")
+    if config.address is not None:
+        driver = sys_root / "bus" / "i2c" / "devices" / f"{config.bus}-{config.address:04x}" / "driver"
+        if driver.exists():
+            raise BlockingIOError("selected I2C address is owned by a kernel driver; automatic unbind is forbidden")
 
 
 def run_serialized(config: SensorConfig, operation: Any) -> Any:
-    key = adapter_key(config)
-    with _adapter_locks_guard:
-        lock = _adapter_locks.setdefault(key, threading.Lock())
+    key = operation_key(config)
+    with _operation_locks_guard:
+        lock = _operation_locks.setdefault(key, threading.Lock())
     with lock:
         return operation(config)
 
@@ -349,39 +397,10 @@ def require_mock_enabled() -> None:
 
 
 def hardware_diagnostics() -> dict[str, Any]:
-    i2c_nodes = sorted(str(path) for path in Path("/dev").glob("i2c-*"))
     return {
-        "default_adapter": "linux_i2c",
+        "default_adapter": "mock",
+        "supported_adapters": ["mock"],
         "mock_enabled": mock_hardware_allowed(),
-        "linux_i2c": {
-            "device_nodes": i2c_nodes,
-            "available": bool(i2c_nodes),
-            "smbus2": _module_available("smbus2"),
-            "pimoroni_bme280": _module_available("bme280"),
-            "pimoroni_bme680": _module_available("bme680"),
-            "adafruit_pm25": _module_available("adafruit_pm25"),
-        },
-        "mcp2221a": {
-            "easy_mcp2221": _module_available("EasyMCP2221"),
-            "blinka_env_enabled": _blinka_env_enabled("BLINKA_MCP2221"),
-            "board": _module_available("board"),
-            "busio": _module_available("busio"),
-            "pimoroni_bme280": _module_available("bme280"),
-            "pimoroni_bme680": _module_available("bme680"),
-            "adafruit_pm25": _module_available("adafruit_pm25"),
-            "ahtx0": _module_available("adafruit_ahtx0"),
-            "adafruit_bme280": _module_available("adafruit_bme280"),
-            "adafruit_bme680": _module_available("adafruit_bme680"),
-        },
-        "ft232h": {
-            "blinka_env_enabled": _blinka_env_enabled("BLINKA_FT232H"),
-            "board": _module_available("board"),
-            "busio": _module_available("busio"),
-            "adafruit_pm25": _module_available("adafruit_pm25"),
-            "ahtx0": _module_available("adafruit_ahtx0"),
-            "adafruit_bme280": _module_available("adafruit_bme280"),
-            "adafruit_bme680": _module_available("adafruit_bme680"),
-        },
     }
 
 

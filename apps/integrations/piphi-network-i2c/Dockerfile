@@ -1,20 +1,18 @@
-FROM python:3.12-slim AS builder
+FROM python:3.12-slim@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b AS builder
 
 ENV PIP_NO_CACHE_DIR=1
 
 WORKDIR /build
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends build-essential git \
-    && rm -rf /var/lib/apt/lists/*
-
-COPY pyproject.toml README.md /build/
+COPY pyproject.toml pdm.lock README.md /build/
 COPY src /build/src
 
-RUN python -m pip install --upgrade pip \
-    && python -m pip install --prefix=/install '.[hardware]'
+RUN python -m pip install 'pdm==2.26.7' \
+    && pdm export --prod -G hardware --output /tmp/requirements.txt \
+    && python -m pip install --ignore-installed --prefix=/install --require-hashes -r /tmp/requirements.txt \
+    && python -m pip install --prefix=/install --no-deps .
 
-FROM python:3.12-slim
+FROM python:3.12-slim@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \

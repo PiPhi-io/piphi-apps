@@ -1,14 +1,15 @@
 from __future__ import annotations
 
+import asyncio
 from copy import deepcopy
 
-from fastapi.testclient import TestClient
 import pytest
+from fastapi.testclient import TestClient
 
-from piphi_network_i2c import create_app
-from piphi_network_i2c import sensors
-from piphi_network_i2c.routes import commands as command_routes
+from piphi_network_i2c import create_app, sensors
 from piphi_network_i2c import state as state_module
+from piphi_network_i2c.routes import commands as command_routes
+from piphi_network_i2c.routes import discovery as discovery_routes
 
 
 @pytest.fixture(autouse=True)
@@ -31,7 +32,7 @@ def test_discover_mock_requires_opt_in(client: TestClient) -> None:
     assert "Mock hardware is disabled" in response.text
 
 
-def test_discover_mcp2221a_without_easy_mcp_returns_empty_list(
+def test_discover_rejects_unselectable_usb_backend(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -43,8 +44,107 @@ def test_discover_mcp2221a_without_easy_mcp_returns_empty_list(
 
     response = client.post("/discover", json={"inputs": {"adapter": "mcp2221a", "sensor_model": "auto"}})
 
-    assert response.status_code == 200
-    assert response.json()["devices"] == []
+    assert response.status_code == 400
+    assert "Unsupported I2C adapter" in response.text
+
+
+def test_discovery_rejects_physical_backend_before_preflight_or_io(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    preflight_attempted = False
+    io_attempted = False
+
+    def forbidden_io(_config):
+        nonlocal io_attempted
+        io_attempted = True
+        raise AssertionError("discovery I/O must not run")
+
+    def forbidden_preflight(_config):
+        nonlocal preflight_attempted
+        preflight_attempted = True
+        raise AssertionError("physical backend must be rejected before preflight")
+
+    monkeypatch.setattr(discovery_routes, "preflight_target", forbidden_preflight)
+    monkeypatch.setattr(discovery_routes, "discover_devices", forbidden_io)
+
+    response = client.post(
+        "/discover",
+        json={
+            "inputs": {
+                "adapter": "linux_i2c",
+                "adapter_id": "display-one",
+                "bus": 1,
+                "address": "0x76",
+                "sensor_model": "bme280",
+            }
+        },
+    )
+
+    assert response.status_code == 400
+    assert "Unsupported I2C adapter: linux_i2c" in response.text
+    assert preflight_attempted is False
+    assert io_attempted is False
+
+
+def test_config_rejects_physical_backend_before_preflight_or_io(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    preflight_attempted = False
+    io_attempted = False
+
+    def forbidden_preflight(_config):
+        nonlocal preflight_attempted
+        preflight_attempted = True
+
+    def forbidden_io(_config):
+        nonlocal io_attempted
+        io_attempted = True
+
+    monkeypatch.setattr(state_module, "preflight_target", forbidden_preflight)
+    monkeypatch.setattr(state_module, "read_state", forbidden_io)
+
+    response = client.post(
+        "/config",
+        json={"id": "physical", "adapter": "linux_i2c", "address": "0x76", "sensor_model": "bme280"},
+    )
+
+    assert response.status_code == 422
+    assert preflight_attempted is False
+    assert io_attempted is False
+    assert state_module.registry.entries == {}
+
+
+def test_command_rejects_legacy_physical_config_before_preflight_or_io(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state_module.registry.entries["physical"] = {
+        "config_id": "physical",
+        "device_id": "physical",
+        "config": {"id": "physical", "adapter": "linux_i2c", "address": "0x76", "sensor_model": "bme280"},
+    }
+    preflight_attempted = False
+    io_attempted = False
+
+    def forbidden_preflight(_config):
+        nonlocal preflight_attempted
+        preflight_attempted = True
+
+    def forbidden_io(_config):
+        nonlocal io_attempted
+        io_attempted = True
+
+    monkeypatch.setattr(command_routes, "preflight_target", forbidden_preflight)
+    monkeypatch.setattr(command_routes, "read_state", forbidden_io)
+
+    response = client.post("/command", json={"command": "refresh", "device_id": "physical"})
+
+    assert response.status_code == 400
+    assert "physical_backend_not_deployable" in response.text
+    assert preflight_attempted is False
+    assert io_attempted is False
 
 
 def test_initial_config_failure_leaves_no_registry_entry(
@@ -62,8 +162,8 @@ def test_initial_config_failure_leaves_no_registry_entry(
         json={"id": "i2c-dev", "adapter": "mcp2221a", "address": "0x76", "sensor_model": "bme280"},
     )
 
-    assert response.status_code == 503
-    assert "EasyMCP2221 missing" in response.text
+    assert response.status_code == 422
+    assert "mcp2221a" in response.text
     assert state_module.registry.entries == {}
     assert state_module.registry.state_snapshots == {}
 
@@ -126,12 +226,14 @@ def test_command_refresh_returns_503_and_updates_state_on_sensor_failure(
     response = client.post("/command", json={"command": "refresh", "device_id": "i2c-dev"})
 
     assert response.status_code == 503
-    assert "sensor read failed" in response.text
+    assert "io_error" in response.text
 
     state = client.get("/state").json()
     snapshot = state["state_snapshots"]["i2c-dev"]["state"]
     assert snapshot["connected"] is False
-    assert snapshot["error"] == "sensor read failed"
+    assert snapshot["error_class"] == "io_error"
+    assert snapshot["availability"] == "stale"
+    assert "sensor read failed" not in response.text
     assert any(event["event_type"] == "i2c.sensor.refresh_failed" for event in state_module.registry.recent_events)
 
 
@@ -143,7 +245,7 @@ def test_config_sync_invalid_typed_config_returns_422(client: TestClient) -> Non
             "configs": [
                 {
                     "id": "i2c-dev",
-                    "adapter": "linux_i2c",
+                    "adapter": "mock",
                     "bus": "not-a-number",
                 }
             ],
@@ -166,10 +268,9 @@ def test_state_without_configs_does_not_touch_hardware(client: TestClient) -> No
     "payload",
     [
         {"id": "bad", "adapter": "unknown", "address": "0x76", "sensor_model": "bme280"},
-        {"id": "bad", "adapter": "linux_i2c", "address": "0x02", "sensor_model": "bme280"},
-        {"id": "bad", "adapter": "linux_i2c", "address": "0x76", "bus": -1, "sensor_model": "bme280"},
-        {"id": "bad", "adapter": "linux_i2c", "address": "0x76", "sensor_model": "aht20"},
-        {"id": "bad", "adapter": "linux_i2c", "sensor_model": "bme280"},
+        {"id": "bad", "adapter": "mock", "address": "0x02", "sensor_model": "bme280"},
+        {"id": "bad", "adapter": "mock", "address": "0x76", "bus": -1, "sensor_model": "bme280"},
+        {"id": "bad", "adapter": "mock", "address": "0x76", "sensor_model": "aht20"},
     ],
 )
 def test_config_rejects_invalid_hardware_targets_before_io(
@@ -185,16 +286,102 @@ def test_config_rejects_duplicate_target_claim(client: TestClient, monkeypatch: 
     monkeypatch.setenv("PIPHI_ALLOW_MOCK_HARDWARE", "true")
     first = client.post(
         "/config",
-        json={"id": "first", "adapter": "mock", "address": "0x76", "sensor_model": "bme280"},
+        json={
+            "id": "first",
+            "adapter": "mock",
+            "adapter_id": "display-one",
+            "address": "0x76",
+            "sensor_model": "bme280",
+        },
+    )
+    io_attempts = 0
+
+    def forbidden_io(_config):
+        nonlocal io_attempts
+        io_attempts += 1
+        raise AssertionError("duplicate claim must not reach hardware I/O")
+
+    monkeypatch.setattr(state_module, "read_state", forbidden_io)
+    monkeypatch.setattr(
+        state_module,
+        "preflight_target",
+        lambda _config: (_ for _ in ()).throw(AssertionError("duplicate claim must not reach preflight")),
     )
     duplicate = client.post(
         "/config",
-        json={"id": "second", "adapter": "mock", "address": "0x76", "sensor_model": "bme680"},
+        json={
+            "id": "second",
+            "adapter": "mock",
+            "adapter_id": "display-two",
+            "address": "0x76",
+            "sensor_model": "bme680",
+        },
     )
 
     assert first.status_code == 200
     assert duplicate.status_code == 409
     assert "already claimed" in duplicate.text
+    assert io_attempts == 0
+
+
+def test_failed_config_releases_target_reservation(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PIPHI_ALLOW_MOCK_HARDWARE", "true")
+    monkeypatch.setattr(
+        state_module,
+        "read_state",
+        lambda _config: (_ for _ in ()).throw(RuntimeError("probe failed")),
+    )
+
+    failed = client.post(
+        "/config",
+        json={"id": "failed", "adapter": "mock", "address": "0x76", "sensor_model": "bme280"},
+    )
+    monkeypatch.setattr(state_module, "read_state", sensors.mock_state)
+    replacement = client.post(
+        "/config",
+        json={"id": "replacement", "adapter": "mock", "address": "0x76", "sensor_model": "bme280"},
+    )
+
+    assert failed.status_code == 503
+    assert replacement.status_code == 200
+    assert set(state_module.registry.entries) == {"replacement"}
+
+
+def test_background_refresh_records_offline_state_once_and_recovery(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PIPHI_ALLOW_MOCK_HARDWARE", "true")
+    config = state_module.I2CSensorRuntimeConfig(
+        id="background-i2c", adapter="mock", address="0x76", sensor_model="bme280"
+    )
+    entry = state_module.entry_for_config(config)
+    state_module.registry.set(config.id, entry)
+    state_module.registry.update_state(
+        config.id,
+        {"connected": True, "availability": "available", "temperature_c": 21.0},
+        device_id=entry["device_id"],
+    )
+    attempts = 0
+
+    def fail_once(_config):
+        nonlocal attempts
+        attempts += 1
+        raise PermissionError("offline")
+
+    monkeypatch.setattr(state_module, "read_state", fail_once)
+    asyncio.run(state_module.refresh_all_state())
+
+    failed = state_module.registry.state_snapshots[config.id]["state"]
+    assert attempts == 1
+    assert failed["availability"] == "stale"
+    assert failed["error_class"] == "permission_denied"
+
+    monkeypatch.setattr(state_module, "read_state", lambda _config: {"connected": True, "temperature_c": 22.0})
+    asyncio.run(state_module.refresh_all_state())
+
+    recovered = state_module.registry.state_snapshots[config.id]["state"]
+    assert recovered["availability"] == "available"
+    assert any(event["event_type"] == "i2c.sensor.recovered" for event in state_module.registry.recent_events)
 
 
 def test_command_rejects_unsupported_command(client: TestClient) -> None:
@@ -202,6 +389,23 @@ def test_command_rejects_unsupported_command(client: TestClient) -> None:
 
     assert response.status_code == 400
     assert "Unsupported command" in response.text
+
+
+def test_refresh_classifies_recovery_transition(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PIPHI_ALLOW_MOCK_HARDWARE", "true")
+    assert client.post(
+        "/config", json={"id": "recovering", "adapter": "mock", "sensor_model": "bme280"}
+    ).status_code == 200
+    state_module.registry.update_state(
+        "recovering", {"connected": False, "availability": "unavailable", "error_class": "unavailable"}
+    )
+
+    response = client.post("/command", json={"command": "refresh", "device_id": "recovering"})
+
+    assert response.status_code == 200
+    snapshot = client.get("/state").json()["state_snapshots"]["recovering"]["state"]
+    assert snapshot["availability"] == "available"
+    assert any(event["event_type"] == "i2c.sensor.recovered" for event in state_module.registry.recent_events)
 
 
 def test_command_refresh_replays_without_repeating_sensor_read(
@@ -289,20 +493,20 @@ def test_entities_include_gas_capability_for_bme680(
     assert "gas_ohms" in response.json()["entities"][0]["capabilities"]
 
 
-def test_entities_include_pm_capabilities_for_pmsa003i(
+@pytest.mark.parametrize("sensor_model", ["aht20", "pmsa003i"])
+def test_removed_unselectable_models_are_rejected_for_all_backends(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
+    sensor_model: str,
 ) -> None:
     monkeypatch.setenv("PIPHI_ALLOW_MOCK_HARDWARE", "true")
-    assert client.post("/config", json={"id": "pm-dev", "adapter": "mock", "sensor_model": "pmsa003i"}).status_code == 200
+    response = client.post(
+        "/config",
+        json={"id": "unsupported", "adapter": "mock", "sensor_model": sensor_model},
+    )
 
-    response = client.get("/entities")
-
-    assert response.status_code == 200
-    capabilities = response.json()["entities"][0]["capabilities"]
-    assert "pm2_5_standard_ugm3" in capabilities
-    assert "particles_0_3um_per_0_1l" in capabilities
-    assert "temperature_c" not in capabilities
+    assert response.status_code == 422
+    assert state_module.registry.entries == {}
 
 
 def test_state_telemetry_uses_stable_runtime_identity(
@@ -332,6 +536,7 @@ def test_state_telemetry_uses_stable_runtime_identity(
     assert captured["config_id"] == "i2c-config-1"
     assert captured["device_id"] == "i2c-device-1"
     assert captured["container_id"] == "container-1"
+    assert captured["auth_context"] is state_module.runtime.auth
     assert captured["metrics"] == {"connected": True, "temperature_c": 22.5}
     assert captured["units"] == {"connected": "bool", "temperature_c": "C"}
     assert captured["timestamp"] == "2026-07-26T12:00:00Z"

@@ -1,50 +1,62 @@
 from __future__ import annotations
 
+import hashlib
 import os
 import random
 import threading
 import time
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any
 
-SUPPORTED_ADAPTERS = {"linux_spi", "ft232h", "mock"}
+KNOWN_ADAPTERS = {"linux_spi", "ft232h", "mock"}
+SUPPORTED_ADAPTERS = {"mock"}
 SUPPORTED_MODELS = {"auto", "bme680", "bme280", "bmp280"}
+PHYSICAL_CONFIG_FIELDS = {"bus", "chip_select", "baudrate"}
 MIN_BAUDRATE = 10_000
 MAX_BAUDRATE = 1_000_000
 MIN_POLL_INTERVAL_SECONDS = 5
 MAX_POLL_INTERVAL_SECONDS = 3600
 OPERATION_TIMEOUT_SECONDS = 10.0
-_adapter_locks: dict[tuple[str, int], threading.Lock] = {}
-_adapter_locks_guard = threading.Lock()
+_operation_locks: dict[tuple[str, str, int], threading.Lock] = {}
+_operation_locks_guard = threading.Lock()
 
 
 @dataclass(frozen=True)
 class SensorConfig:
-    adapter: str = "linux_spi"
+    # Physical settings are internal experimental constants in 0.1.4. Public
+    # normalization rejects caller values for them while physical helpers remain
+    # unreachable for future backend work.
+    adapter: str = "mock"
     bus: int = 0
     chip_select: int = 0
     sensor_model: str = "auto"
     baudrate: int = 100000
     poll_interval_seconds: int = 30
+    adapter_id: str | None = None
 
 
 def normalize_config(payload: dict[str, Any] | None) -> SensorConfig:
     data = payload or {}
+    forbidden = sorted(PHYSICAL_CONFIG_FIELDS.intersection(data))
+    if forbidden:
+        raise ValueError(
+            f"Physical SPI settings are unavailable for mock-only 0.1.4: {', '.join(forbidden)}"
+        )
     config = SensorConfig(
-        adapter=str(data.get("adapter") or "linux_spi").strip().lower(),
-        bus=int(data.get("bus", 0)),
-        chip_select=int(data.get("chip_select", 0)),
+        adapter=str(data.get("adapter") or "mock").strip().lower(),
+        bus=0,
+        chip_select=0,
         sensor_model=str(data.get("sensor_model") or "auto").strip().lower(),
-        baudrate=int(data.get("baudrate") or 100000),
+        baudrate=100_000,
         poll_interval_seconds=int(data.get("poll_interval_seconds") or 30),
+        adapter_id=(str(data["adapter_id"]).strip().lower() if data.get("adapter_id") else None),
     )
     validate_config(config)
     return config
 
 
 def validate_config(config: SensorConfig) -> None:
-    if config.adapter not in SUPPORTED_ADAPTERS:
+    if config.adapter not in KNOWN_ADAPTERS:
         raise ValueError(f"Unsupported SPI adapter: {config.adapter}")
     if config.sensor_model not in SUPPORTED_MODELS:
         raise ValueError(f"Unsupported SPI sensor_model: {config.sensor_model}")
@@ -63,20 +75,54 @@ def validate_config(config: SensorConfig) -> None:
         )
     if config.adapter != "mock" and config.sensor_model == "auto":
         raise ValueError("Physical SPI targets require an explicit sensor_model for safe probing")
+    if config.adapter not in SUPPORTED_ADAPTERS:
+        raise ValueError(
+            f"Unsupported SPI backend: {config.adapter}; exact spidev/USB-node selection is not implemented"
+        )
+    if config.adapter_id is not None and not _valid_adapter_id(config.adapter_id):
+        raise ValueError("adapter_id must be 8-64 lowercase opaque characters")
 
 
-def adapter_key(config: SensorConfig) -> tuple[str, int]:
-    return (config.adapter, config.bus)
+def _valid_adapter_id(value: str) -> bool:
+    return 8 <= len(value) <= 64 and all(char.islower() or char.isdigit() or char in "-_" for char in value)
 
 
-def target_key(config: SensorConfig) -> tuple[str, int, int]:
-    return (*adapter_key(config), config.chip_select)
+def adapter_fingerprint(config: SensorConfig) -> str:
+    identity = config.adapter_id or f"{config.adapter}:development"
+    return hashlib.sha256(identity.encode("utf-8")).hexdigest()[:16]
+
+
+def exact_device_node(config: SensorConfig) -> str:
+    """Return the backend-selected node without using caller display identity."""
+    if config.adapter == "linux_spi":
+        return f"/dev/spidev{config.bus}.{config.chip_select}"
+    if config.adapter == "ft232h":
+        return f"usb://ft232h/{config.bus}.{config.chip_select}"
+    return "mock://spi"
+
+
+def target_key(config: SensorConfig) -> tuple[str, ...]:
+    """Canonical ownership key; adapter_id is intentionally display-only."""
+    if config.adapter == "mock":
+        return ("mock", "mock://spi")
+    return (config.adapter, exact_device_node(config), config.bus, config.chip_select)
+
+
+def operation_key(config: SensorConfig) -> tuple[str, ...]:
+    """Serialize the whole physical adapter/bus, independent of chip select."""
+    if config.adapter == "linux_spi":
+        adapter_node = f"/dev/spidev{config.bus}"
+    elif config.adapter == "ft232h":
+        adapter_node = "usb://ft232h"
+    else:
+        return ("mock", "mock://spi")
+    return (config.adapter, adapter_node, config.bus)
 
 
 def run_serialized(config: SensorConfig, operation: Any) -> Any:
-    key = adapter_key(config)
-    with _adapter_locks_guard:
-        lock = _adapter_locks.setdefault(key, threading.Lock())
+    key = operation_key(config)
+    with _operation_locks_guard:
+        lock = _operation_locks.setdefault(key, threading.Lock())
     with lock:
         return operation(config)
 
@@ -85,20 +131,24 @@ def discover_devices(config: SensorConfig) -> list[dict[str, Any]]:
     if config.adapter == "mock":
         require_mock_enabled()
         model = "bme280" if config.sensor_model == "auto" else config.sensor_model
-    else:
-        model = probe_sensor(config)
-    return [
-        {
-            "id": f"spi-{model}-{config.bus}-{config.chip_select}",
-            "name": f"SPI {model.upper()} bus {config.bus} CS{config.chip_select}",
-            "device_id": f"spi-{config.bus}-{config.chip_select}",
+        return [{
+            "id": f"spi-mock-{model}",
+            "name": f"SPI {model.upper()} mock sensor",
+            "device_id": f"spi-mock-{model}",
             "adapter": config.adapter,
-            "bus": config.bus,
-            "chip_select": config.chip_select,
             "model": model,
-            "baudrate": config.baudrate,
-        }
-    ]
+        }]
+    model = probe_sensor(config)
+    return [{
+        "id": f"spi-{model}-{config.bus}-{config.chip_select}",
+        "name": f"SPI {model.upper()} bus {config.bus} CS{config.chip_select}",
+        "device_id": f"spi-{config.bus}-{config.chip_select}",
+        "adapter": config.adapter,
+        "bus": config.bus,
+        "chip_select": config.chip_select,
+        "model": model,
+        "baudrate": config.baudrate,
+    }]
 
 
 def read_state(config: SensorConfig) -> dict[str, Any]:
@@ -141,10 +191,7 @@ def mock_state(config: SensorConfig) -> dict[str, Any]:
     return {
         "connected": True,
         "adapter": config.adapter,
-        "bus": config.bus,
-        "chip_select": config.chip_select,
         "sensor_model": config.sensor_model,
-        "baudrate": config.baudrate,
         "temperature_c": round(21 + rng.random() * 4, 2),
         "humidity_percent": round(40 + rng.random() * 15, 2),
         "pressure_hpa": round(1006 + rng.random() * 14, 2),
@@ -170,33 +217,11 @@ def require_mock_enabled() -> None:
 
 
 def hardware_diagnostics() -> dict[str, Any]:
-    spi_nodes = sorted(str(path) for path in Path("/dev").glob("spidev*"))
     return {
-        "default_adapter": "linux_spi",
+        "default_adapter": "mock",
+        "supported_adapters": ["mock"],
         "mock_enabled": mock_hardware_allowed(),
-        "linux_spi": {
-            "device_nodes": spi_nodes,
-            "available": bool(spi_nodes),
-            "board": _module_available("board"),
-            "busio": _module_available("busio"),
-            "digitalio": _module_available("digitalio"),
-        },
-        "ft232h": {
-            "board": _module_available("board"),
-            "busio": _module_available("busio"),
-            "digitalio": _module_available("digitalio"),
-            "adafruit_bme280": _module_available("adafruit_bme280"),
-            "adafruit_bme680": _module_available("adafruit_bme680"),
-        },
     }
-
-
-def _module_available(module_name: str) -> bool:
-    try:
-        __import__(module_name)
-    except ImportError:
-        return False
-    return True
 
 
 def _deinit(value: Any) -> None:
