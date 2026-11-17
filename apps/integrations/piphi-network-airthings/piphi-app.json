@@ -24,7 +24,7 @@
     {
       "id": "airthings-consumer-cloud-api",
       "type": "integration",
-      "version": "0.1.8",
+      "version": "0.1.9",
       "manifest": "src/manifest.json",
       "release": {
         "tag": "apps/{package_id}/v{version}",
@@ -52,7 +52,7 @@
     {
       "id": "io.piphi.airthings-air-quality",
       "type": "widget",
-      "version": "0.1.8",
+      "version": "0.1.9",
       "manifest": "experiences/air-quality/package.source.json",
       "release": {
         "tag": "apps/{package_id}/v{version}",

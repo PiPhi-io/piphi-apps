@@ -29,6 +29,11 @@ Diagnostics are authenticated and allowlisted. They contain aggregate counts and
 freshness timestamps only—not credentials, account IDs, serial numbers, device
 names, raw provider payloads, or upstream response bodies.
 
+The manifest includes Marketplace Metadata v2 with explicit cloud-account,
+credential, network-access, compatibility, privacy, and draft-governance
+declarations. New registry publication remains `draft`, `unverified`, and at
+zero rollout until a separate review promotes it.
+
 ## API assumptions
 
 The implementation is based on Airthings’ published consumer API onboarding plus the shared Airthings OAuth/device endpoint patterns:

@@ -2,7 +2,7 @@
   "manifest_version": "1.0",
   "id": "airthings-consumer-cloud-api",
   "name": "Airthings (Consumer Cloud)",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "Cloud integration for Airthings consumer accounts using the official Airthings Consumer API.",
   "maintainer": {
     "name": "PiPhi Network",
@@ -14,11 +14,16 @@
     "windows",
     "macos"
   ],
+  "runtime_requirements": [
+    "cloud_account",
+    "internet_access",
+    "secrets_or_api_tokens"
+  ],
   "runtime": {
     "linux": {
       "type": "container",
       "container": {
-        "image": "ghcr.io/piphi-io/airthings-consumer-cloud:0.1.8",
+        "image": "ghcr.io/piphi-io/airthings-consumer-cloud:0.1.9",
         "ports": [
           {
             "container": 3669,
@@ -324,6 +329,78 @@
       ]
     }
   ],
+  "marketplace": {
+    "metadata_version": 2,
+    "display_name": "Airthings Consumer Cloud",
+    "summary": "Monitor indoor air quality from supported Airthings devices through the official Consumer API.",
+    "category": "air_quality",
+    "regions": [
+      "Global"
+    ],
+    "languages": [
+      "en"
+    ],
+    "publisher": {
+      "name": "PiPhi Network",
+      "website_url": "https://piphi.io",
+      "support_url": "https://github.com/PiPhi-io/piphi-apps/issues",
+      "security_contact": "support@piphi.io"
+    },
+    "access": [
+      {
+        "id": "credentials",
+        "label": "Airthings Consumer API credentials",
+        "reason": "Authenticates only to the explicitly configured Airthings consumer account; credentials remain outside state, telemetry, events, diagnostics, discovery output, logs, and errors.",
+        "required": true
+      },
+      {
+        "id": "cloud_account",
+        "label": "Airthings account and device readings",
+        "reason": "Lists devices in the selected account and reads their latest air-quality measurements through the official Consumer API.",
+        "required": true
+      },
+      {
+        "id": "internet_access",
+        "label": "Outbound HTTPS access",
+        "reason": "Connects to Airthings OAuth and Consumer API endpoints for authentication, device discovery, and quota-conscious polling.",
+        "required": true
+      }
+    ],
+    "compatibility": [
+      {
+        "brand": "Airthings",
+        "model": "Wave Plus, Wave Radon, Wave Mini, Wave Enhance, View Plus, View Radon, and Corentium Home 2 devices available through the Consumer API"
+      }
+    ],
+    "documentation_url": "https://github.com/PiPhi-io/piphi-apps/tree/main/apps/integrations/piphi-network-airthings",
+    "support_url": "https://github.com/PiPhi-io/piphi-apps/issues",
+    "changelog_url": "https://github.com/PiPhi-io/piphi-apps/releases?q=airthings-consumer-cloud-api",
+    "quality_tier": "unrated",
+    "governance": {
+      "schema_version": 1,
+      "publication_status": "draft",
+      "rollout_percent": 0,
+      "lifecycle_status": "active",
+      "qualification": {
+        "status": "unverified"
+      }
+    },
+    "device_types": [
+      "indoor air quality monitor",
+      "radon monitor"
+    ],
+    "protocols": [
+      "Airthings Consumer API",
+      "OAuth 2.0",
+      "HTTPS"
+    ],
+    "discovery_methods": [
+      "authenticated account device discovery"
+    ],
+    "connectivity": "cloud",
+    "offline_support": "none",
+    "privacy_url": "https://github.com/PiPhi-io/piphi-apps/blob/main/apps/integrations/piphi-network-airthings/docs/privacy.md"
+  },
   "onboarding": {
     "mode": "account"
   }
