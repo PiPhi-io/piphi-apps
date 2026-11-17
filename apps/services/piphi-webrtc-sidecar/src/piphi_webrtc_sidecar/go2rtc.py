@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import os
-import re
 from collections.abc import Mapping
 from contextlib import suppress
 from pathlib import Path
@@ -37,19 +36,8 @@ class Go2RtcError(RuntimeError):
         )
 
 
-_CAMERA_SOURCE_PATTERN = re.compile(r"(?i)\brtsps?://[^\s\"']+")
-
-
-def _safe_response_detail(response: httpx.Response) -> str:
-    detail = " ".join(response.text.strip().split())
-    return _CAMERA_SOURCE_PATTERN.sub("<camera-source>", detail)[:300]
-
-
-def _safe_response_error(response: httpx.Response) -> str:
-    detail = _safe_response_detail(response)
-    if not detail:
-        return f"status {response.status_code}"
-    return f"status {response.status_code}: {detail}"
+def _safe_native_eof_detail(response: httpx.Response) -> str | None:
+    return "EOF" if response.text.strip().upper() == "EOF" else None
 
 
 def validate_source_url(value: str) -> str:
@@ -81,10 +69,25 @@ class Go2RtcClient:
     def _client(self, timeout: float) -> httpx.AsyncClient:
         return httpx.AsyncClient(timeout=timeout, transport=self.transport)
 
+    async def _request(
+        self,
+        method: str,
+        path: str,
+        *,
+        request_timeout: float,
+        operation: str,
+        **kwargs,
+    ) -> httpx.Response:
+        try:
+            async with self._client(request_timeout) as client:
+                return await client.request(method, f"{self.base_url}{path}", **kwargs)
+        except httpx.HTTPError:
+            raise Go2RtcError(f"go2rtc {operation} request failed") from None
+
     async def health(self) -> dict[str, object]:
-        async with self._client(3.0) as client:
-            response = await client.get(f"{self.base_url}/api")
-        response.raise_for_status()
+        response = await self._request("GET", "/api", request_timeout=3.0, operation="health")
+        if response.status_code != 200:
+            raise Go2RtcError(f"go2rtc health failed with status {response.status_code}")
         try:
             payload = response.json()
         except ValueError as exc:
@@ -134,34 +137,43 @@ class Go2RtcClient:
         )
 
     async def _upsert_stream(self, name: str, source: str) -> None:
-        async with self._client(8.0) as client:
-            response = await client.put(
-                f"{self.base_url}/api/streams",
-                params={"name": name, "src": source},
-            )
+        response = await self._request(
+            "PUT",
+            "/api/streams",
+            request_timeout=8.0,
+            operation="stream configuration",
+            params={"name": name, "src": source},
+        )
         if response.status_code not in {200, 201, 204}:
             raise Go2RtcError(
                 f"go2rtc stream configuration failed with status {response.status_code}"
             )
 
     async def remove_stream(self, name: str) -> None:
-        async with self._client(5.0) as client:
-            response = await client.delete(f"{self.base_url}/api/streams", params={"src": name})
+        response = await self._request(
+            "DELETE",
+            "/api/streams",
+            request_timeout=5.0,
+            operation="stream removal",
+            params={"src": name},
+        )
         if response.status_code not in {200, 202, 204, 404}:
             raise Go2RtcError(f"go2rtc stream removal failed with status {response.status_code}")
 
     async def exchange_offer(self, name: str, sdp: str) -> str:
-        async with self._client(12.0) as client:
-            response = await client.post(
-                f"{self.base_url}/api/webrtc",
-                params={"src": name},
-                headers={"content-type": "application/json"},
-                json={"type": "offer", "sdp": sdp},
-            )
+        response = await self._request(
+            "POST",
+            "/api/webrtc",
+            request_timeout=12.0,
+            operation="WebRTC exchange",
+            params={"src": name},
+            headers={"content-type": "application/json"},
+            json={"type": "offer", "sdp": sdp},
+        )
         if response.status_code not in {200, 201}:
-            detail = _safe_response_detail(response)
+            detail = _safe_native_eof_detail(response)
             raise Go2RtcError(
-                f"go2rtc WebRTC exchange failed with {_safe_response_error(response)}",
+                f"go2rtc WebRTC exchange failed with status {response.status_code}",
                 operation="webrtc_exchange",
                 status_code=response.status_code,
                 response_detail=detail,
@@ -176,8 +188,13 @@ class Go2RtcClient:
         return answer
 
     async def snapshot(self, name: str) -> tuple[str, bytes]:
-        async with self._client(10.0) as client:
-            response = await client.get(f"{self.base_url}/api/frame.jpeg", params={"src": name})
+        response = await self._request(
+            "GET",
+            "/api/frame.jpeg",
+            request_timeout=10.0,
+            operation="snapshot",
+            params={"src": name},
+        )
         if response.status_code != 200:
             raise Go2RtcError(f"go2rtc snapshot failed with status {response.status_code}")
         if len(response.content) > 8 * 1024 * 1024:

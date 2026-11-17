@@ -17,7 +17,8 @@
       "pdm install --check",
       "pdm run pip-audit",
       "pdm run ruff check .",
-      "pdm run pytest"
+      "pdm run pytest",
+      "pdm run python scripts/smoke_container.py --build --image piphi-webrtc-sidecar:ci-smoke"
     ],
     "build_container": true
   },

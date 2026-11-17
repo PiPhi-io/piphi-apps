@@ -19,6 +19,20 @@ class BridgeUnavailableError(RuntimeError):
     """Raised when the private upstream bridge cannot serve a request."""
 
 
+class BridgeControlPlaneError(BridgeUnavailableError):
+    """Raised with a sanitized message when the private bridge API is unavailable."""
+
+
+class WyzeAccountValidationError(BridgeUnavailableError):
+    """Raised when the bridge cannot prove access to an authorized Wyze camera."""
+
+
+ACCOUNT_VALIDATION_ERROR = (
+    "The Wyze account exposed no authorized cameras; credentials may be rejected or the account "
+    "may be empty."
+)
+
+
 @dataclass(frozen=True)
 class BridgeRuntimeConfig:
     advertised_host: str
@@ -137,20 +151,30 @@ class WyzeBridgeSupervisor:
     ) -> None:
         loop = asyncio.get_running_loop()
         deadline = loop.time() + _readiness_timeout_seconds()
+        account_error: WyzeAccountValidationError | None = None
         while loop.time() < deadline:
             if process.returncode is not None:
                 self._state = "degraded"
                 self._last_error = "The embedded Wyze bridge exited before it became ready."
                 raise BridgeUnavailableError(self._last_error)
             try:
-                await self._request_camera_payload(runtime_config, timeout=2.0)
+                payload = await self._request_camera_payload(runtime_config, timeout=2.0)
+                self._validate_authorized_cameras(payload, runtime_config)
                 await self._probe_rtsp_listener(timeout=2.0)
-            except (httpx.HTTPError, ValueError):
+            except WyzeAccountValidationError as exc:
+                account_error = exc
+                await asyncio.sleep(0.25)
+                continue
+            except (BridgeControlPlaneError, ValueError):
                 await asyncio.sleep(0.25)
                 continue
             return
         self._state = "degraded"
-        self._last_error = "The embedded Wyze bridge did not become ready in time."
+        self._last_error = (
+            str(account_error)
+            if account_error is not None
+            else "The embedded Wyze bridge did not become ready in time."
+        )
         raise BridgeUnavailableError(self._last_error)
 
     async def _monitor_process(self) -> None:
@@ -215,15 +239,15 @@ class WyzeBridgeSupervisor:
             raise BridgeUnavailableError("The Wyze bridge is not configured and running.")
         try:
             payload = await self._request_camera_payload(config, timeout=8.0)
-        except (httpx.HTTPError, ValueError) as exc:
+            cameras = self._validate_authorized_cameras(payload, config)
+        except BridgeUnavailableError:
             self._state = "degraded"
             self._last_error = "The embedded Wyze bridge is not responding."
-            raise BridgeUnavailableError(self._last_error) from exc
+            raise BridgeUnavailableError(self._last_error) from None
 
         self._state = "running"
         self._last_error = None
 
-        cameras = self._normalize_cameras(payload)
         if config.enabled_camera_names:
             allowed = {name.casefold() for name in config.enabled_camera_names}
             cameras = [camera for camera in cameras if camera["name"].casefold() in allowed]
@@ -235,15 +259,20 @@ class WyzeBridgeSupervisor:
         *,
         timeout: float,
     ) -> object:
-        async with httpx.AsyncClient(
-            timeout=timeout,
-            auth=httpx.BasicAuth(config.web_username, config.web_password),
-        ) as client:
-            response = await client.get(f"{UPSTREAM_CONTROL_URL}/api")
-        response.raise_for_status()
-        payload = response.json()
-        WyzeBridgeSupervisor._camera_items(payload)
-        return payload
+        try:
+            async with httpx.AsyncClient(
+                timeout=timeout,
+                auth=httpx.BasicAuth(config.web_username, config.web_password),
+            ) as client:
+                response = await client.get(f"{UPSTREAM_CONTROL_URL}/api")
+            response.raise_for_status()
+            payload = response.json()
+            WyzeBridgeSupervisor._camera_items(payload)
+            return payload
+        except (httpx.HTTPError, ValueError):
+            raise BridgeControlPlaneError(
+                "The embedded Wyze bridge control plane is unavailable."
+            ) from None
 
     @staticmethod
     async def _probe_rtsp_listener(*, timeout: float) -> None:
@@ -252,10 +281,10 @@ class WyzeBridgeSupervisor:
                 asyncio.open_connection("127.0.0.1", INTERNAL_RTSP_PORT),
                 timeout=timeout,
             )
-        except (OSError, TimeoutError) as exc:
-            raise ValueError("Wyze RTSP listener is unavailable") from exc
-        writer.close()
-        await writer.wait_closed()
+            writer.close()
+            await writer.wait_closed()
+        except (OSError, TimeoutError):
+            raise ValueError("Wyze RTSP listener is unavailable") from None
 
     @staticmethod
     def _bridge_environment(
@@ -316,6 +345,22 @@ class WyzeBridgeSupervisor:
                 }
             )
         return normalized
+
+    @staticmethod
+    def _validate_authorized_cameras(
+        payload: object,
+        config: BridgeRuntimeConfig,
+    ) -> list[dict[str, Any]]:
+        cameras = WyzeBridgeSupervisor._normalize_cameras(payload)
+        if not cameras:
+            raise WyzeAccountValidationError(ACCOUNT_VALIDATION_ERROR)
+        if config.enabled_camera_names:
+            authorized_names = {camera["name"].casefold() for camera in cameras}
+            if not any(name.casefold() in authorized_names for name in config.enabled_camera_names):
+                raise WyzeAccountValidationError(
+                    "The Wyze account exposed none of the configured authorized cameras."
+                )
+        return cameras
 
     @staticmethod
     def _camera_items(payload: object) -> Mapping[Any, Any] | list[Any]:

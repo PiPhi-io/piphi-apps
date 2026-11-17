@@ -70,3 +70,11 @@ def test_manifest_declares_a_shared_zero_setup_camera_media_service() -> None:
     assert "discover" not in manifest["api"]["endpoints"]
     assert "config" not in manifest["api"]["endpoints"]
     assert "entities" not in manifest["api"]["endpoints"]
+
+
+def test_package_ci_requires_the_real_pinned_container_smoke() -> None:
+    app_metadata = json.loads((ROOT / "piphi-app.json").read_text())
+
+    assert (
+        "pdm run python scripts/smoke_container.py --build --image piphi-webrtc-sidecar:ci-smoke"
+    ) in app_metadata["ci"]["commands"]

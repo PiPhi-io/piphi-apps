@@ -107,8 +107,8 @@ async def open_camera_session(request: OpenCameraSession) -> dict[str, object]:
             },
         ) from exc
     except (Go2RtcError, httpx.HTTPError, ValueError) as exc:
-        logger.warning("camera media signaling failed: %s", exc)
-        raise HTTPException(status_code=502, detail="camera WebRTC signaling failed") from exc
+        logger.warning("camera media signaling failed (%s)", type(exc).__name__)
+        raise HTTPException(status_code=502, detail="camera WebRTC signaling failed") from None
     return {
         "contract_version": CAMERA_MEDIA_CONTRACT_VERSION,
         "message_type": "camera.session.opened",

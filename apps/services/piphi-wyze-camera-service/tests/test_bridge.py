@@ -6,7 +6,14 @@ import httpx
 import pytest
 
 from piphi_wyze_camera_service import bridge as bridge_module
-from piphi_wyze_camera_service.bridge import BridgeRuntimeConfig, WyzeBridgeSupervisor
+from piphi_wyze_camera_service.bridge import (
+    ACCOUNT_VALIDATION_ERROR,
+    BridgeControlPlaneError,
+    BridgeRuntimeConfig,
+    BridgeUnavailableError,
+    WyzeAccountValidationError,
+    WyzeBridgeSupervisor,
+)
 from piphi_wyze_camera_service.schemas import WyzeBridgeConfig
 
 
@@ -130,7 +137,9 @@ async def test_configure_waits_for_authenticated_readiness(monkeypatch) -> None:
 async def test_readiness_requires_valid_camera_schema_and_rtsp_listener() -> None:
     process = Mock(returncode=None)
     supervisor = WyzeBridgeSupervisor()
-    supervisor._request_camera_payload = AsyncMock(return_value={"cameras": {}})
+    supervisor._request_camera_payload = AsyncMock(
+        return_value={"cameras": {"doggy-cam": {"nickname": "Doggy Cam"}}}
+    )
     supervisor._probe_rtsp_listener = AsyncMock(return_value=None)
 
     await supervisor._wait_until_ready(process, runtime_config())
@@ -152,8 +161,62 @@ async def test_authenticated_readiness_rejects_arbitrary_json(monkeypatch) -> No
 
     monkeypatch.setattr(bridge_module.httpx, "AsyncClient", client_factory)
 
-    with pytest.raises(ValueError, match="camera mapping"):
+    with pytest.raises(BridgeControlPlaneError, match="control plane is unavailable"):
         await WyzeBridgeSupervisor._request_camera_payload(runtime_config(), timeout=1.0)
+
+
+def test_empty_account_and_rejected_credentials_have_a_deterministic_contract() -> None:
+    with pytest.raises(WyzeAccountValidationError) as captured:
+        WyzeBridgeSupervisor._validate_authorized_cameras({"cameras": {}}, runtime_config())
+
+    assert str(captured.value) == ACCOUNT_VALIDATION_ERROR
+
+
+@pytest.mark.asyncio
+async def test_empty_camera_api_never_claims_authenticated_readiness(monkeypatch) -> None:
+    process = Mock(returncode=None)
+    supervisor = WyzeBridgeSupervisor()
+    supervisor._request_camera_payload = AsyncMock(return_value={"cameras": {}})
+    supervisor._probe_rtsp_listener = AsyncMock(return_value=None)
+    loop = Mock()
+    loop.time = Mock(side_effect=[0.0, 0.0, 2.0])
+    monkeypatch.setattr(bridge_module.asyncio, "get_running_loop", lambda: loop)
+    monkeypatch.setattr(bridge_module.asyncio, "sleep", AsyncMock())
+    monkeypatch.setattr(bridge_module, "_readiness_timeout_seconds", lambda: 1.0)
+
+    with pytest.raises(BridgeUnavailableError) as captured:
+        await supervisor._wait_until_ready(process, runtime_config())
+
+    assert str(captured.value) == ACCOUNT_VALIDATION_ERROR
+    assert supervisor.status()["state"] == "degraded"
+    supervisor._probe_rtsp_listener.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_control_plane_transport_failure_redacts_request_and_web_credentials(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config_with_secrets = runtime_config()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError(
+            f"failed request {request.url} as {config_with_secrets.web_password}",
+            request=request,
+        )
+
+    client = httpx.AsyncClient
+    monkeypatch.setattr(
+        bridge_module.httpx,
+        "AsyncClient",
+        lambda **kwargs: client(transport=httpx.MockTransport(handler), **kwargs),
+    )
+    with pytest.raises(BridgeControlPlaneError) as captured:
+        await WyzeBridgeSupervisor._request_camera_payload(config_with_secrets, timeout=1.0)
+
+    rendered = str(captured.value)
+    assert config_with_secrets.web_password not in rendered
+    assert bridge_module.UPSTREAM_CONTROL_URL not in rendered
+    assert "failed request" not in rendered
 
 
 @pytest.mark.asyncio

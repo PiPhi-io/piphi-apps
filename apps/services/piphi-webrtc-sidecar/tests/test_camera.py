@@ -88,7 +88,27 @@ async def test_go2rtc_client_sanitizes_upstream_signaling_errors() -> None:
         await client.exchange_offer("piphi_camera_1", "v=0\r\n")
 
     message = str(captured.value)
-    assert "unsupported codecs" in message
+    assert message == "go2rtc WebRTC exchange failed with status 500"
+    assert "unsupported codecs" not in message
     assert "camera-secret" not in message
     assert "camera.local" not in message
-    assert "<camera-source>" in message
+
+
+@pytest.mark.anyio
+async def test_go2rtc_transport_failure_never_exposes_request_source_credentials() -> None:
+    source = "rtsps://raw-user:raw-password@private-camera.local/live"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError(f"failed request {request.url}", request=request)
+
+    client = Go2RtcClient("http://127.0.0.1:1984", httpx.MockTransport(handler))
+
+    with pytest.raises(Go2RtcError) as captured:
+        await client.upsert_stream("piphi_camera_1", source)
+
+    message = str(captured.value)
+    assert message == "go2rtc stream configuration request failed"
+    assert "rtsps://" not in message
+    assert "raw-user" not in message
+    assert "raw-password" not in message
+    assert "private-camera.local" not in message

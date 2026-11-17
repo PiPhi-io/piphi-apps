@@ -20,6 +20,12 @@ account onboarding, saved camera entities, and the handoff to PiPhi Camera Media
 - `GET /v1/wyze-bridge/cameras` returns authorized camera descriptors to trusted PiPhi
   consumers. Stream URLs are sensitive and must never be logged or exposed to widgets.
 
+Configuration becomes ready only after the authenticated bridge API exposes at least one
+authorized camera and the private RTSP listener accepts connections. If the API remains empty,
+configuration fails with the deterministic message that credentials may be rejected or the
+account may be empty. When camera names are configured, at least one must match the authorized
+inventory. This contract is fixture-tested without contacting a real Wyze account.
+
 Every route except `/health` requires `Authorization: Bearer <token>` when
 `PIPHI_SIDECAR_TOKEN` (preferred) or `PIPHI_INTEGRATION_INTERNAL_TOKEN` is configured. Production
 fails closed when neither token is present. Diagnostics and contract metadata remain private to

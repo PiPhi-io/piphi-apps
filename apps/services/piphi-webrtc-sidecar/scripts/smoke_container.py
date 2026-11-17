@@ -7,9 +7,11 @@ import subprocess
 import time
 import urllib.error
 import urllib.request
+from pathlib import Path
 from uuid import uuid4
 
 TOKEN = "piphi-container-smoke-token"
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def docker(*args: str) -> str:
@@ -208,7 +210,17 @@ def smoke(image: str) -> dict[str, object]:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Smoke-test the packaged go2rtc media service")
     parser.add_argument("--image", default="piphi-webrtc-sidecar:ha-baseline")
+    parser.add_argument(
+        "--build",
+        action="store_true",
+        help="Build the exact package image before running the smoke test",
+    )
     args = parser.parse_args()
+    if args.build:
+        subprocess.run(
+            ["docker", "build", "--pull=false", "--tag", args.image, str(ROOT)],
+            check=True,
+        )
     print(json.dumps(smoke(args.image), indent=2, sort_keys=True))
     return 0
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from unittest.mock import AsyncMock, Mock
 
 import httpx
 import pytest
@@ -206,6 +207,40 @@ async def test_sidecar_rejects_browser_audience_and_extra_source_fields() -> Non
     assert response.status_code == 422
     assert "top-secret" not in response.text
     assert "camera.local" not in response.text
+
+
+@pytest.mark.anyio
+async def test_transport_failure_is_redacted_from_response_and_logs(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    source = "rtsps://raw-user:raw-password@private-camera.local/live"
+    request = httpx.Request("PUT", "http://127.0.0.1/api/streams", params={"src": source})
+    failure = httpx.ConnectError(f"failed request {request.url}", request=request)
+    broker = Mock(open=AsyncMock(side_effect=failure))
+    monkeypatch.setattr("piphi_webrtc_sidecar.routes.media_sidecar.media_session_broker", broker)
+    caplog.set_level("WARNING")
+    transport = httpx.ASGITransport(app=app)
+
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            "/v1/camera-media/sessions",
+            json={
+                "source": {
+                    "camera_id": "front-door",
+                    "source_url": source,
+                    "source_protocol": "rtsps",
+                },
+                "offer": {"type": "offer", "sdp": "v=0"},
+            },
+        )
+
+    evidence = response.text + caplog.text
+    assert response.status_code == 502
+    assert "raw-user" not in evidence
+    assert "raw-password" not in evidence
+    assert "private-camera.local" not in evidence
+    assert source not in evidence
 
 
 @pytest.mark.anyio

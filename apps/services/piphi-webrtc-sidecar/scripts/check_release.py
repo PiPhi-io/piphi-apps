@@ -16,6 +16,10 @@ manifest = json.loads((ROOT / "manifest.json").read_text(encoding="utf-8"))
 project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
 dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
 settings = (ROOT / "src/piphi_webrtc_sidecar/settings.py").read_text(encoding="utf-8")
+app_metadata = json.loads((ROOT / "piphi-app.json").read_text(encoding="utf-8"))
+required_smoke = (
+    "pdm run python scripts/smoke_container.py --build --image piphi-webrtc-sidecar:ci-smoke"
+)
 
 expected_image = f"ghcr.io/piphi-io/piphi-webrtc-sidecar:{version}"
 checks = {
@@ -26,6 +30,8 @@ checks = {
     == expected_image,
     "container label version": f"ARG APP_VERSION={version}" in dockerfile,
     "runtime package version": f'INTEGRATION_VERSION = "{version}"' in settings,
+    "required pinned go2rtc container smoke": required_smoke
+    in app_metadata.get("ci", {}).get("commands", []),
 }
 failed = [label for label, passed in checks.items() if not passed]
 if failed:
