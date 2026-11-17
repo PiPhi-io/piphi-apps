@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
-from piphi_runtime_kit_python import build_event_ingest_response, build_event_list_response
+from piphi_runtime_kit_python import (
+    build_event_ingest_response,
+    build_event_list_response,
+)
 
 from ..state import append_runtime_event, get_entry_or_404, registry
 

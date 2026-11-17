@@ -5,11 +5,10 @@ from pathlib import Path
 
 import httpx
 import pytest
+
 from piphi_network_mikrotik_router import state
-from piphi_network_mikrotik_router.routeros import RouterResources
-
 from piphi_network_mikrotik_router.main import app
-
+from piphi_network_mikrotik_router.routeros import RouterResources
 
 ROOT = Path(__file__).parents[1]
 CATALOG = json.loads((ROOT / "capability-catalog.json").read_text())
@@ -46,11 +45,15 @@ def test_catalog_is_reviewable_and_has_no_duplicate_role_entries() -> None:
 
     for role in ROLES:
         all_items = [item for group in CATALOG["groups"] for item in group[role]]
-        assert len(all_items) == len(set(all_items)), f"duplicate {role} catalog entries"
+        assert len(all_items) == len(set(all_items)), (
+            f"duplicate {role} catalog entries"
+        )
 
 
 def test_only_implemented_capabilities_are_advertised() -> None:
-    implemented_capabilities = _by_status("implemented", "state") | _by_status("implemented", "actions")
+    implemented_capabilities = _by_status("implemented", "state") | _by_status(
+        "implemented", "actions"
+    )
     implemented_actions = _by_status("implemented", "actions")
     planned_or_excluded = {
         item
@@ -61,10 +64,24 @@ def test_only_implemented_capabilities_are_advertised() -> None:
 
     manifest_capabilities = set(MANIFEST["capabilities"])
     manifest_commands = set(MANIFEST["commands"])
-    entity_capabilities = {capability for entity in MANIFEST["entities"] for capability in entity["capabilities"]}
-    entity_commands = {command["id"] for entity in MANIFEST["entities"] for command in entity["available_commands"]}
-    behavior_capabilities = {capability for device in BEHAVIORS["devices"] for capability in device["capabilities"]}
-    behavior_actions = {action["id"] for device in BEHAVIORS["devices"] for action in device["actions"]}
+    entity_capabilities = {
+        capability
+        for entity in MANIFEST["entities"]
+        for capability in entity["capabilities"]
+    }
+    entity_commands = {
+        command["id"]
+        for entity in MANIFEST["entities"]
+        for command in entity["available_commands"]
+    }
+    behavior_capabilities = {
+        capability
+        for device in BEHAVIORS["devices"]
+        for capability in device["capabilities"]
+    }
+    behavior_actions = {
+        action["id"] for device in BEHAVIORS["devices"] for action in device["actions"]
+    }
 
     assert manifest_capabilities == implemented_capabilities
     assert manifest_commands == implemented_actions
@@ -74,30 +91,61 @@ def test_only_implemented_capabilities_are_advertised() -> None:
     assert behavior_actions == implemented_actions
     assert set(ENTITY_EXAMPLE["capabilities"]) == implemented_capabilities
     assert set(ENTITY_EXAMPLE["commands"]) == implemented_actions
-    assert not planned_or_excluded & (manifest_capabilities | manifest_commands | entity_capabilities | entity_commands | behavior_actions)
+    assert not planned_or_excluded & (
+        manifest_capabilities
+        | manifest_commands
+        | entity_capabilities
+        | entity_commands
+        | behavior_actions
+    )
 
 
 def test_implemented_behavior_events_and_conditions_are_declared() -> None:
-    behavior_events = {trigger["runtime"]["event"] for device in BEHAVIORS["devices"] for trigger in device["triggers"]}
-    behavior_conditions = {condition["id"] for device in BEHAVIORS["devices"] for condition in device["conditions"]}
+    behavior_events = {
+        trigger["runtime"]["event"]
+        for device in BEHAVIORS["devices"]
+        for trigger in device["triggers"]
+    }
+    behavior_conditions = {
+        condition["id"]
+        for device in BEHAVIORS["devices"]
+        for condition in device["conditions"]
+    }
     assert behavior_events == _by_status("implemented", "events")
     assert behavior_conditions == _by_status("implemented", "conditions")
 
 
 @pytest.mark.anyio
-async def test_config_apply_emits_the_implemented_behavior_event(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_config_apply_emits_the_implemented_behavior_event(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     async def resources(*_args, **_kwargs):
         return RouterResources(10, 20, "catalog-device", "7.20")
 
     monkeypatch.setattr(state, "fetch_resources", resources)
     transport = httpx.ASGITransport(app=app)
     config_id = "capability-catalog-test"
-    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://testserver"
+    ) as client:
         try:
-            response = await client.post("/config", json={"id": config_id, "host": "127.0.0.1", "alias": "Coverage Test", "username": "monitor", "password": "secret"})
+            response = await client.post(
+                "/config",
+                json={
+                    "id": config_id,
+                    "host": "127.0.0.1",
+                    "alias": "Coverage Test",
+                    "username": "monitor",
+                    "password": "secret",
+                },
+            )
             assert response.status_code == 200
             events = (await client.get("/events")).json()["events"]
-            assert any(event["event_type"] == "runtime.config.applied" and event["config_id"] == config_id for event in events)
+            assert any(
+                event["event_type"] == "runtime.config.applied"
+                and event["config_id"] == config_id
+                for event in events
+            )
         finally:
             await client.post(f"/deconfigure/{config_id}")
 
@@ -132,7 +180,9 @@ async def test_config_rejects_auth_failure_without_saving(monkeypatch) -> None:
 @pytest.mark.parametrize("command", ["set_power", "identify", "send_arbitrary_command"])
 async def test_unimplemented_and_unsafe_commands_fail_closed(command: str) -> None:
     transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://testserver"
+    ) as client:
         response = await client.post(
             "/command",
             json={

@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "default_profile": "baseline-monitoring",
+  "profiles": {
+    "baseline-monitoring": {
+      "required": [
+        "GET /api/v2/status/system",
+        "GET /api/v2/system/version",
+        "GET /api/v2/system/restapi/version",
+        "GET /api/v2/status/interfaces",
+        "GET /api/v2/status/gateways",
+        "GET /api/v2/status/services"
+      ]
+    },
+    "client-inventory": {"required": ["GET /api/v2/status/dhcp_server/leases", "GET /api/v2/diagnostics/arp_table"]},
+    "security-logs": {"required": ["GET /api/v2/status/logs/firewall", "GET /api/v2/status/logs/auth", "GET /api/v2/status/logs/dhcp", "GET /api/v2/status/logs/system"]},
+    "certificates": {"required": ["GET /api/v2/system/certificates"]},
+    "high-availability": {"required": ["GET /api/v2/status/carp", "GET /api/v2/firewall/virtual_ips", "GET /api/v2/system/hasync"]},
+    "vpn-status": {"required": ["GET /api/v2/status/openvpn/clients", "GET /api/v2/status/openvpn/servers", "GET /api/v2/status/ipsec/sas", "GET /api/v2/status/wireguard/tunnels"]}
+  },
+  "denial_matrix": [
+    {"status": 401, "reason": "authentication_failed", "remediation": "reauthenticate"},
+    {"status": 403, "reason": "permission_denied", "remediation": "reconfigure_permissions"},
+    {"status": 404, "reason": "endpoint_or_version_unsupported", "remediation": "reconfigure_api_version"},
+    {"status": 429, "reason": "rate_limited", "remediation": "retry"}
+  ],
+  "forbidden": ["firewall rule mutation", "route mutation", "user mutation", "VPN secret mutation", "arbitrary API path", "shell execution"]
+}

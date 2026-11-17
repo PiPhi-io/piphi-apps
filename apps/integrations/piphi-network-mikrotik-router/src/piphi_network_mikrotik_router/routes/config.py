@@ -51,7 +51,9 @@ async def configure(payload: DeviceConfig, request: Request):
 
 @router.post("/config/sync")
 async def sync_config(snapshot: RuntimeConfigSnapshot, request: Request):
-    runtime.auth.sync_from_headers(request.headers, payload_container_id=snapshot.container_id)
+    runtime.auth.sync_from_headers(
+        request.headers, payload_container_id=snapshot.container_id
+    )
     typed_configs = validate_typed_configs(snapshot.configs, DeviceConfig)
     return await config_sync.apply_snapshot(
         snapshot=snapshot.model_copy(update={"configs": typed_configs}),

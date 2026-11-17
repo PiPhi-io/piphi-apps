@@ -3,7 +3,7 @@
   "manifest_version": "1.0",
   "id": "piphi-network-pfsense",
   "name": "PiPhi Network pfSense",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "pfSense monitoring, transition events, and opt-in allow-listed operations for PiPhi Network.",
   "metadata": {
     "generator": "piphi-network-create",
@@ -69,14 +69,14 @@
     "compatibility": [
       {
         "brand": "pfSense",
-        "model": "pfSense Community Edition with pfREST v2",
+        "model": "Unverified pfSense CE with operator-qualified pfREST v2 pair",
         "regions": [
           "WW"
         ]
       },
       {
         "brand": "Netgate",
-        "model": "pfSense Plus with pfREST v2",
+        "model": "Unverified pfSense Plus with operator-qualified pfREST v2 pair",
         "regions": [
           "WW"
         ]
@@ -101,7 +101,7 @@
     "website": "https://piphi.io"
   },
   "license": "Apache-2.0",
-  "image": "piphinetwork/piphi-network-pfsense:0.1.8",
+  "image": "piphinetwork/piphi-network-pfsense:0.1.9",
   "platforms": [
     "linux"
   ],
@@ -109,7 +109,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "piphinetwork/piphi-network-pfsense:0.1.8",
+        "image": "piphinetwork/piphi-network-pfsense:0.1.9",
         "ports": [
           {
             "container": 8090,
@@ -364,7 +364,7 @@
       {
         "id": "io.piphi.pfsense.overview",
         "name": "pfSense Internet & Router",
-        "version": "0.1.8",
+        "version": "0.1.9",
         "entry": "/widgets/pfsense-overview/dist/widget.js",
         "runtime": "prebuilt_bundle",
         "certification": {
@@ -407,7 +407,7 @@
       {
         "id": "io.piphi.pfsense.client-security",
         "name": "pfSense Devices & Security",
-        "version": "0.1.8",
+        "version": "0.1.9",
         "entry": "/widgets/pfsense-client-security/dist/widget.js",
         "runtime": "prebuilt_bundle",
         "certification": {

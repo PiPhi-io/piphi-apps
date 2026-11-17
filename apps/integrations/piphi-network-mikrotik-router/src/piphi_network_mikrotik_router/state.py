@@ -26,6 +26,8 @@ from .settings import INTEGRATION_ID, INTEGRATION_NAME, INTEGRATION_VERSION
 
 logger = logging.getLogger(__name__)
 router_passwords: dict[str, str] = {}
+appliance_locks: dict[str, asyncio.Lock] = {}
+configuration_lock = asyncio.Lock()
 
 starter = create_runtime_starter(
     integration_id=INTEGRATION_ID,
@@ -41,6 +43,12 @@ automations = AutomationRegistry(
         os.getenv("PIPHI_AUTOMATION_LEDGER_PATH", "./data/automation-actions.sqlite3")
     )
 )
+for _event_type, _label in {
+    "runtime.config.applied": "Router configuration applied",
+    "network.appliance.offline": "Router became unavailable",
+    "network.appliance.recovered": "Router recovered",
+}.items():
+    automations.event(_event_type, label=_label)
 
 capabilities = CAPABILITIES
 commands = COMMANDS
@@ -80,6 +88,13 @@ def get_entry_or_404(config_id: str) -> dict[str, Any]:
 
 
 async def apply_config(config: DeviceConfig) -> None:
+    config_id = str(config.config_id or config.id)
+    lock = appliance_locks.setdefault(config_id, asyncio.Lock())
+    async with configuration_lock, lock:
+        await _apply_config_serialized(config)
+
+
+async def _apply_config_serialized(config: DeviceConfig) -> None:
     entry = make_entry(config)
     password = config.secret_password()
     resources = await fetch_resources(
@@ -124,9 +139,32 @@ async def apply_config(config: DeviceConfig) -> None:
 
 
 async def refresh_entry(entry: dict[str, Any]) -> dict[str, Any]:
+    config_id = str(entry["config_id"])
+    lock = appliance_locks.setdefault(config_id, asyncio.Lock())
+    async with lock:
+        return await _refresh_entry_serialized(entry)
+
+
+async def _refresh_entry_serialized(entry: dict[str, Any]) -> dict[str, Any]:
+    if float(entry.get("circuit_open_until", 0)) > time.monotonic():
+        state = {
+            "connected": False,
+            "reason": "circuit_open",
+            "remediation": "retry_later",
+            "stale": bool(entry.get("last_success_at")),
+            "last_success_at": entry.get("last_success_at"),
+        }
+        entry["latest_metrics"] = state
+        registry.update_state(entry["config_id"], state, device_id=entry["device_id"])
+        return state
     password = router_passwords.get(str(entry["config_id"]))
     if not password:
-        state = {"connected": False, "reason": "missing_router_credentials"}
+        state = {
+            "connected": False,
+            "reason": "missing_router_credentials",
+            "remediation": "reauthenticate",
+        }
+        entry["latest_metrics"] = state
         registry.update_state(entry["config_id"], state, device_id=entry["device_id"])
         return state
     config = DeviceConfig.model_validate({**entry["config"], "password": password})
@@ -147,10 +185,13 @@ async def refresh_entry(entry: dict[str, Any]) -> dict[str, Any]:
         state = {
             "connected": False,
             "reason": exc.reason,
+            "remediation": _remediation_for(exc.reason),
             "last_attempt_at": _now(),
             "last_success_at": entry.get("last_success_at"),
             "stale": bool(entry.get("last_success_at")),
         }
+        _emit_connectivity_transition(entry, state)
+        entry["latest_metrics"] = state
         registry.update_state(entry["config_id"], state, device_id=entry["device_id"])
         _schedule_failure(entry, retryable=exc.retryable)
         return state
@@ -160,11 +201,24 @@ async def refresh_entry(entry: dict[str, Any]) -> dict[str, Any]:
             _private_router_ref(entry),
             type(exc).__name__,
         )
-        state = {"connected": False, "reason": "router_resource_fetch_failed", "last_attempt_at": _now(), "last_success_at": entry.get("last_success_at"), "stale": bool(entry.get("last_success_at"))}
+        state = {
+            "connected": False,
+            "reason": "router_resource_fetch_failed",
+            "remediation": "reconfigure",
+            "last_attempt_at": _now(),
+            "last_success_at": entry.get("last_success_at"),
+            "stale": bool(entry.get("last_success_at")),
+        }
+        _emit_connectivity_transition(entry, state)
+        entry["latest_metrics"] = state
         registry.update_state(entry["config_id"], state, device_id=entry["device_id"])
         _schedule_failure(entry, retryable=False)
         return state
-async def _apply_resources(entry: dict[str, Any], resources: RouterResources) -> dict[str, Any]:
+
+
+async def _apply_resources(
+    entry: dict[str, Any], resources: RouterResources
+) -> dict[str, Any]:
     observed_device_id = _opaque_device_id(resources.appliance_identifier)
     if (
         str(entry.get("device_id", "")).startswith("mikrotik-")
@@ -176,15 +230,16 @@ async def _apply_resources(entry: dict[str, Any], resources: RouterResources) ->
         "connected": True,
         "cpu_load_percent": resources.cpu_load_percent,
         "memory_used_percent": resources.memory_used_percent,
-        "routeros_version": resources.routeros_version,
         "last_attempt_at": observed_at,
         "last_success_at": observed_at,
         "stale": False,
     }
+    _emit_connectivity_transition(entry, metrics)
     registry.update_state(entry["config_id"], metrics, device_id=entry["device_id"])
     entry["latest_metrics"] = metrics
     entry["last_success_at"] = observed_at
     entry["failure_count"] = 0
+    entry["circuit_open_until"] = 0.0
     entry["next_poll_at"] = time.monotonic() + max(
         60, int(entry.get("config", {}).get("poll_interval_seconds") or 300)
     )
@@ -214,10 +269,56 @@ def _schedule_failure(entry: dict[str, Any], *, retryable: bool) -> None:
     digest = int(sha256(str(entry["config_id"]).encode()).hexdigest()[:4], 16)
     jitter = (digest % 21 - 10) / 100
     entry["next_poll_at"] = time.monotonic() + base * (1 + jitter)
+    if failures >= 5:
+        entry["circuit_open_until"] = time.monotonic() + 300
+        entry["next_poll_at"] = entry["circuit_open_until"]
+
+
+def _remediation_for(reason: str) -> str:
+    if reason == "authentication_failed":
+        return "reauthenticate"
+    if reason in {"permission_denied", "routeros_rest_unsupported"}:
+        return "reconfigure_permissions"
+    if reason in {"tls_validation_failed", "unsupported_routeros_version"}:
+        return "reconfigure_transport_or_version"
+    return (
+        "retry"
+        if reason
+        in {
+            "rate_limited",
+            "routeros_server_error",
+            "connection_timeout",
+            "connection_failed",
+        }
+        else "reconfigure"
+    )
+
+
+def _emit_connectivity_transition(
+    entry: dict[str, Any], current: dict[str, Any]
+) -> None:
+    previous = entry.get("latest_metrics") or {}
+    if "connected" not in previous or previous.get("connected") == current.get(
+        "connected"
+    ):
+        return
+    append_runtime_event(
+        "network.appliance.recovered"
+        if current.get("connected")
+        else "network.appliance.offline",
+        entry,
+        {
+            "connected": bool(current.get("connected")),
+            "reason": current.get("reason"),
+            "remediation": current.get("remediation"),
+        },
+    )
 
 
 def _opaque_device_id(appliance_identifier: str) -> str:
-    digest = sha256(f"{INTEGRATION_ID}\0{appliance_identifier}".encode()).hexdigest()[:24]
+    digest = sha256(f"{INTEGRATION_ID}\0{appliance_identifier}".encode()).hexdigest()[
+        :24
+    ]
     return f"mikrotik-{digest}"
 
 
@@ -245,6 +346,7 @@ async def poll_routers() -> None:
 async def remove_config(config_id: str) -> bool:
     entry = registry.remove(config_id)
     router_passwords.pop(config_id, None)
+    appliance_locks.pop(config_id, None)
     if entry is None:
         return False
     append_runtime_event(
@@ -299,6 +401,8 @@ def _register_automation_actions() -> None:
 
 
 _register_automation_actions()
+
+
 async def _refresh_all_state() -> None:
     for entry_id in registry.ids():
         entry = registry.get(entry_id)

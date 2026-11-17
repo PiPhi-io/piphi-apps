@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from functools import partial
@@ -11,9 +13,25 @@ import httpx
 
 from .schemas import DeviceConfig
 
+MAX_RESPONSE_BYTES = 1_048_576
+MAX_ROWS = 1_000
+MAX_LOG_ROWS = 200
+
 
 class PfSenseError(RuntimeError):
-    """Safe, credential-free error returned by the pfSense transport."""
+    """Safe, credential-free and actionable pfREST failure."""
+
+    def __init__(
+        self,
+        reason: str,
+        *,
+        retryable: bool = False,
+        remediation: str = "reconfigure",
+    ) -> None:
+        super().__init__(reason)
+        self.reason = reason
+        self.retryable = retryable
+        self.remediation = remediation
 
 
 @dataclass(slots=True)
@@ -120,7 +138,7 @@ class PfRestV2Client:
         if self._collect_security_logs:
             for log_name in ("firewall", "auth", "dhcp", "system"):
                 requests[f"log_{log_name}"] = partial(
-                    self._get_list, f"/api/v2/status/logs/{log_name}"
+                    self._get_log_rows, f"/api/v2/status/logs/{log_name}"
                 )
         if self._collect_vpn_status:
             requests.update(
@@ -190,7 +208,7 @@ class PfRestV2Client:
                 for key in ("pfsyncenabled", "pfsyncpeerip", "pfsyncinterface")
             },
             logs={
-                name: values.get(f"log_{name}", [])[:200]
+                name: values.get(f"log_{name}", [])
                 for name in ("firewall", "auth", "dhcp", "system")
                 if f"log_{name}" in values
             },
@@ -253,7 +271,13 @@ class PfRestV2Client:
             isinstance(item, dict) for item in data
         ):
             raise PfSenseError(f"pfSense returned an invalid list for {path}")
+        if len(data) > MAX_ROWS:
+            raise PfSenseError("response_row_limit_exceeded")
         return data
+
+    async def _get_log_rows(self, path: str) -> list[dict[str, Any]]:
+        data = await self._get_list(path)
+        return [_structured_log_record(item) for item in data[:MAX_LOG_ROWS]]
 
     async def _post_object(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
         data = await self._request("POST", path, payload=payload)
@@ -274,13 +298,32 @@ class PfRestV2Client:
             status = exc.response.status_code
             if status in {401, 403}:
                 raise PfSenseError(
-                    f"pfSense denied {path} with HTTP {status}; check API-key privileges"
+                    "authentication_failed" if status == 401 else "permission_denied",
+                    remediation="reauthenticate"
+                    if status == 401
+                    else "reconfigure_permissions",
                 ) from exc
-            raise PfSenseError(f"pfSense returned HTTP {status} for {path}") from exc
-        except httpx.RequestError as exc:
             raise PfSenseError(
-                f"Unable to reach pfSense at {self._client.base_url}: {exc.__class__.__name__}"
+                f"pfSense returned HTTP {status} for {path}",
+                retryable=status in {408, 429} or status >= 500,
             ) from exc
+        except httpx.RequestError as exc:
+            reason = (
+                "tls_validation_failed"
+                if isinstance(exc, httpx.ConnectError)
+                and "certificate" in str(exc).casefold()
+                else "connection_failed"
+            )
+            raise PfSenseError(
+                reason,
+                retryable=reason == "connection_failed",
+                remediation="reconfigure_tls"
+                if reason == "tls_validation_failed"
+                else "retry",
+            ) from exc
+
+        if len(response.content) > MAX_RESPONSE_BYTES:
+            raise PfSenseError("response_size_limit_exceeded")
 
         try:
             payload = response.json()
@@ -289,3 +332,24 @@ class PfRestV2Client:
         if not isinstance(payload, dict) or "data" not in payload:
             raise PfSenseError(f"pfSense returned an invalid API envelope for {path}")
         return payload["data"]
+
+
+_SECRET = re.compile(
+    r"(?i)(authorization|password|passwd|token|api[-_ ]?key|secret)\s*[:=]\s*\S+"
+)
+
+
+def _structured_log_record(record: dict[str, Any]) -> dict[str, Any]:
+    """Reduce an untrusted appliance log row to bounded, non-identifying fields."""
+    message = str(record.get("text") or record.get("message") or "")[:4096]
+    message = _SECRET.sub(r"\1=[redacted]", message)
+    event_id = hashlib.sha256(message.encode()).hexdigest()[:24]
+    return {
+        "event_id": event_id,
+        "timestamp": str(record.get("timestamp") or record.get("time") or "")[:64],
+        "action": str(record.get("action") or "unknown")[:32],
+        "severity": str(record.get("severity") or record.get("level") or "unknown")[
+            :16
+        ],
+        "interface": str(record.get("interface") or record.get("if") or "")[:32],
+    }

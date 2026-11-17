@@ -12,7 +12,8 @@ Wake-on-LAN are explicit, allow-listed actions and are disabled by default.
 ## Requirements
 
 - Python 3.11 or newer
-- A supported pfSense CE or pfSense Plus release
+- A pfSense CE or pfSense Plus installation whose exact release and pfREST v2
+  combination has been qualified by the operator
 - The community `pfSense-pkg-RESTAPI` v2 package
 - HTTPS connectivity from the PiPhi runtime to the pfSense management address
 - A dedicated API key with only the endpoint privileges enabled below
@@ -48,6 +49,13 @@ firewall is marked unavailable, if any is denied or malformed. Optional endpoint
 failures remain scoped to their selected feature. Use a separate pfREST API key
 containing only these exact endpoint privileges and the explicitly selected
 optional privileges; no administrator role is required or recommended.
+
+Selecting an optional profile makes every endpoint in that profile essential
+during setup. `permission-contract.json` is the machine-readable privilege and
+denial matrix. CI verifies deterministic fake pfREST responses and sanitized
+recorded schemas only. No physical appliance or firmware combination is
+qualified by this package, and no compatibility beyond the exact locally tested
+image/version pair should be inferred.
 
 ## Local development
 
@@ -155,10 +163,16 @@ reported under `endpoint_errors` in state and diagnostics so a least-privilege
 API key can be expanded deliberately rather than requiring administrator
 access.
 
+Requests for one firewall are serialized. Responses are limited to 1 MiB,
+ordinary collections to 1,000 rows, and each log stream to 200 reduced records.
+Retries use bounded exponential backoff with deterministic jitter; five
+consecutive failures open the circuit for five minutes. Diagnostics expose only
+safe reason/remediation classes and aggregate status.
+
 ## Container
 
 ```bash
-docker build -t piphinetwork/piphi-network-pfsense:0.1.8 .
+docker build -t piphinetwork/piphi-network-pfsense:0.1.9 .
 ```
 
 The container does not require host networking, privileged mode, or access to

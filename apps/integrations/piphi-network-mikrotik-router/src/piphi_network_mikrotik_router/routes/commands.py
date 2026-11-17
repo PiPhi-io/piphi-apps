@@ -12,23 +12,28 @@ router = APIRouter(tags=["commands"])
 
 @router.post("/command")
 async def command(payload: dict[str, Any], request: Request):
-    command_name = str(payload.get("command") or payload.get("capability_id") or "").strip()
+    command_name = str(
+        payload.get("command") or payload.get("capability_id") or ""
+    ).strip()
     if not command_name:
         raise HTTPException(status_code=400, detail="Missing command")
     if command_name not in commands:
-        raise HTTPException(status_code=400, detail=f"Unsupported command: {command_name}")
+        raise HTTPException(
+            status_code=400, detail=f"Unsupported command: {command_name}"
+        )
 
     target = payload.get("target") if isinstance(payload.get("target"), dict) else {}
     device_id = str(
-        payload.get("device_id")
-        or target.get("device_id")
-        or "configured-router"
+        payload.get("device_id") or target.get("device_id") or "configured-router"
     )
     config_id = str(payload.get("config_id") or target.get("config_id") or device_id)
     requirements = payload.get("capability_requirements")
     requested_capabilities = [
         str(item).strip()
-        for item in ([payload.get("capability")] + (requirements if isinstance(requirements, list) else []))
+        for item in (
+            [payload.get("capability")]
+            + (requirements if isinstance(requirements, list) else [])
+        )
         if str(item or "").strip()
     ]
     unsupported_capability = next(

@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "routeros_group_policies": ["read", "rest-api"],
+  "required": ["GET /rest/system/resource", "GET /rest/system/license"],
+  "denial_matrix": [
+    {"status": 401, "reason": "authentication_failed", "retryable": false, "remediation": "reauthenticate"},
+    {"status": 403, "reason": "permission_denied", "retryable": false, "remediation": "reconfigure_permissions"},
+    {"status": 404, "reason": "routeros_rest_unsupported", "retryable": false, "remediation": "reconfigure_permissions"},
+    {"status": 429, "reason": "rate_limited", "retryable": true, "remediation": "retry"},
+    {"status": 503, "reason": "routeros_server_error", "retryable": true, "remediation": "retry"}
+  ],
+  "forbidden_policies": ["write", "policy", "test", "sensitive", "reboot", "ftp"],
+  "forbidden": ["firewall mutation", "route mutation", "user mutation", "VPN mutation", "arbitrary REST path", "console execution"]
+}

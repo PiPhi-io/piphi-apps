@@ -101,18 +101,22 @@ class DeviceConfig(RuntimeConfig):
             raise ValueError("verify_tls must be false when scheme is http")
         if self.ca_bundle_path and not self.verify_tls:
             raise ValueError("ca_bundle_path requires verify_tls=true")
-        if (self.scheme == "http" or not self.verify_tls) and not self.allow_insecure_transport:
+        if (
+            self.scheme == "http" or not self.verify_tls
+        ) and not self.allow_insecure_transport:
             raise ValueError(
                 "allow_insecure_transport must be explicitly enabled for lab-only insecure transport"
             )
-        if (
-            self.scheme == "http" or not self.verify_tls
-        ) and os.getenv("PIPHI_PFSENSE_LAB_ALLOW_INSECURE") != "true":
+        if (self.scheme == "http" or not self.verify_tls) and os.getenv(
+            "PIPHI_PFSENSE_LAB_ALLOW_INSECURE"
+        ) != "true":
             raise ValueError(
                 "insecure transport is disabled by the deployment; set the lab-only environment gate"
             )
         if self.ca_bundle_path and not _approved_ca_path(self.ca_bundle_path):
-            raise ValueError("ca_bundle_path must use an approved read-only certificate mount")
+            raise ValueError(
+                "ca_bundle_path must use an approved read-only certificate mount"
+            )
         if self.enable_diagnostic_ping and not self.allowed_ping_hosts:
             raise ValueError(
                 "allowed_ping_hosts must not be empty when diagnostic ping is enabled"

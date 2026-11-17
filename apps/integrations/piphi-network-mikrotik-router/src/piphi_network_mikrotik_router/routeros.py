@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import ipaddress
+import json
 import math
 import re
 from dataclasses import dataclass
@@ -12,6 +13,7 @@ from urllib.parse import urlsplit
 import httpx
 
 HOSTNAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9.-]{0,251}\Z")
+MAX_RESPONSE_BYTES = 262_144
 
 
 @dataclass(frozen=True)
@@ -59,7 +61,9 @@ def _license_url(host: str) -> str:
 
 
 def parse_resources(payload: object) -> RouterResources:
-    row = payload[0] if isinstance(payload, list) and payload else payload
+    if isinstance(payload, list) and len(payload) != 1:
+        raise ValueError("RouterOS resource response must contain exactly one row")
+    row = payload[0] if isinstance(payload, list) else payload
     if not isinstance(row, dict):
         raise TypeError("RouterOS resource response must be an object")
     try:
@@ -100,8 +104,12 @@ async def fetch_resources(
             )
             for response in (resource_response, license_response):
                 response.raise_for_status()
-            resources = parse_resources(resource_response.json())
-            license_payload = license_response.json()
+            for response in (resource_response, license_response):
+                if len(response.content) > MAX_RESPONSE_BYTES:
+                    raise RouterOSError("response_size_limit_exceeded", retryable=False)
+            resource_payload = json.loads(resource_response.content)
+            license_payload = json.loads(license_response.content)
+            resources = parse_resources(resource_payload)
         except httpx.HTTPStatusError as exc:
             status = exc.response.status_code
             if status == 401:
@@ -109,11 +117,15 @@ async def fetch_resources(
             if status == 403:
                 raise RouterOSError("permission_denied", retryable=False) from exc
             if status == 404:
-                raise RouterOSError("routeros_rest_unsupported", retryable=False) from exc
+                raise RouterOSError(
+                    "routeros_rest_unsupported", retryable=False
+                ) from exc
             if status == 429:
                 raise RouterOSError("rate_limited", retryable=True) from exc
             raise RouterOSError(
-                "routeros_server_error" if status >= 500 else "routeros_request_rejected",
+                "routeros_server_error"
+                if status >= 500
+                else "routeros_request_rejected",
                 retryable=status >= 500,
             ) from exc
         except httpx.TimeoutException as exc:
@@ -124,8 +136,10 @@ async def fetch_resources(
                 if "certificate" in str(exc).casefold()
                 else "connection_failed"
             )
-            raise RouterOSError(reason, retryable=reason == "connection_failed") from exc
-        except (TypeError, ValueError) as exc:
+            raise RouterOSError(
+                reason, retryable=reason == "connection_failed"
+            ) from exc
+        except (json.JSONDecodeError, TypeError, ValueError) as exc:
             raise RouterOSError("invalid_routeros_response", retryable=False) from exc
 
         license_row = (
@@ -136,15 +150,20 @@ async def fetch_resources(
         if not isinstance(license_row, dict):
             raise RouterOSError("invalid_routeros_identity", retryable=False)
         software_id = str(license_row.get("software-id") or "").strip()
-        if not software_id:
+        if not software_id or len(software_id) > 128:
             raise RouterOSError("missing_routeros_identity", retryable=False)
-        resource_row = resource_response.json()
+        resource_row = resource_payload
         resource_row = (
             resource_row[0]
             if isinstance(resource_row, list) and resource_row
             else resource_row
         )
-        version = resource_row.get("version") if isinstance(resource_row, dict) else None
+        version = (
+            resource_row.get("version") if isinstance(resource_row, dict) else None
+        )
+        major_match = re.match(r"^(\d+)(?:\.|$)", str(version or ""))
+        if major_match is None or int(major_match.group(1)) != 7:
+            raise RouterOSError("unsupported_routeros_version", retryable=False)
         return RouterResources(
             resources.cpu_load_percent,
             resources.memory_used_percent,

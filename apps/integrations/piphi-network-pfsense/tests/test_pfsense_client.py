@@ -64,6 +64,7 @@ async def test_baseline_permission_failure_fails_the_snapshot() -> None:
     finally:
         await client.close()
 
+
 @pytest.mark.anyio
 async def test_optional_inventory_certificates_ha_and_logs_are_collected_safely() -> (
     None
@@ -119,7 +120,8 @@ async def test_optional_inventory_certificates_ha_and_logs_are_collected_safely(
     assert "crt" not in snapshot.certificates[0]
     assert "prv" not in snapshot.certificates[0]
     assert "password" not in snapshot.ha_sync
-    assert snapshot.logs["firewall"][0]["text"] == "blocked packet"
+    assert "text" not in snapshot.logs["firewall"][0]
+    assert snapshot.logs["firewall"][0]["event_id"]
 
 
 @pytest.mark.anyio
@@ -134,7 +136,8 @@ async def test_required_auth_failure_is_safe_and_actionable() -> None:
     finally:
         await client.close()
 
-    assert "check API-key privileges" in str(exc_info.value)
+    assert exc_info.value.reason == "authentication_failed"
+    assert exc_info.value.remediation == "reauthenticate"
     assert "secret-key" not in str(exc_info.value)
 
 

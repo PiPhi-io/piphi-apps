@@ -1,0 +1,11 @@
+{
+  "catalog_version": "1.0",
+  "integration_id": "piphi-network-pfsense",
+  "qualification": "software-fixtures-only",
+  "groups": [
+    {"id": "baseline-health", "status": "implemented", "state": ["connected", "api_latency_ms", "cpu_usage_percent", "memory_usage_percent", "disk_usage_percent", "interface_count", "interfaces_up", "gateway_count", "gateways_online", "gateways_offline", "service_count", "services_running", "services_down"], "actions": ["refresh"]},
+    {"id": "selected-read-profiles", "status": "implemented", "state": ["dhcp_lease_count", "dhcp_online_lease_count", "vpn_tunnel_count", "vpn_tunnels_up", "client_count", "clients_online", "certificate_count", "certificates_expiring", "certificates_expired", "ha_enabled", "ha_sync_enabled", "security_log_count"], "actions": []},
+    {"id": "allowlisted-operations", "status": "implemented", "state": [], "actions": ["diagnostic_ping", "restart_service", "start_service", "wake_on_lan"]},
+    {"id": "dangerous-administration", "status": "excluded", "state": ["raw_logs", "private_keys", "vpn_secrets", "raw_configuration"], "actions": ["change_firewall", "change_routes", "change_users", "change_vpn", "arbitrary_api", "shell"]}
+  ]
+}

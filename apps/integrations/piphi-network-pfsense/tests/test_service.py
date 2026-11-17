@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from types import SimpleNamespace
 
 import pytest
@@ -200,7 +201,10 @@ async def test_reconfigure_rejects_identity_change_without_replacing_session() -
             self.closed = False
 
         async def read_snapshot(self) -> PfSenseSnapshot:
-            return PfSenseSnapshot(system={"serial": self.serial})
+            return PfSenseSnapshot(
+                system={"serial": self.serial},
+                api_version={"current_version": "2.9.0"},
+            )
 
         async def close(self) -> None:
             self.closed = True
@@ -295,6 +299,36 @@ async def test_control_actions_require_opt_in_and_exact_allowlists() -> None:
     assert service_denied.value.status_code == 403
     assert client.pings == [("1.1.1.1", 2)]
     assert client.restarts == ["unbound"]
+
+
+@pytest.mark.anyio
+async def test_operations_are_serialized_per_firewall() -> None:
+    service, client = action_service(
+        DeviceConfig(
+            id="firewall-1",
+            host="pfsense.test",
+            api_key="key",
+            enable_diagnostic_ping=True,
+            allowed_ping_hosts=["1.1.1.1"],
+        )
+    )
+    in_flight = 0
+    maximum = 0
+
+    async def slow_ping(host: str, *, count: int):
+        nonlocal in_flight, maximum
+        in_flight += 1
+        maximum = max(maximum, in_flight)
+        await asyncio.sleep(0.01)
+        in_flight -= 1
+        return {"result_code": 0}
+
+    client.diagnostic_ping = slow_ping  # type: ignore[method-assign]
+    await asyncio.gather(
+        service.diagnostic_ping("firewall-1", host="1.1.1.1", count=1),
+        service.diagnostic_ping("firewall-1", host="1.1.1.1", count=1),
+    )
+    assert maximum == 1
 
 
 def test_transition_events_are_emitted_only_for_changed_children(monkeypatch) -> None:
