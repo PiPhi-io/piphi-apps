@@ -30,6 +30,20 @@ test("release metadata and GHCR image stay aligned", () => {
   assert.equal(manifest.config.schema.properties.allow_plaintext.default, false);
   assert.equal(manifest.config.schema.properties.tls_enabled.default, true);
   assert.equal(manifest.config.schema.properties.tls_require_client_certificate.default, true);
+  assert.deepEqual(manifest.config.schema.required, [
+    "listener_port",
+    "auth_policy_file",
+    "tls_ca_file",
+    "tls_cert_file",
+    "tls_key_file",
+    "health_tls_cert_file",
+    "health_tls_key_file",
+  ]);
+  assert.deepEqual(manifest.runtime.linux.container.volumes.at(-1), {
+    host: "/var/lib/piphi/mqtt/secrets",
+    container: "/run/secrets",
+    read_only: true,
+  });
   assert.deepEqual(releasePackage.publishing.primary, {
     registry: "ghcr.io",
     repository: "piphi-io/mqtt-broker",

@@ -4,11 +4,15 @@ set -eu
 audit_file="${MQTT_SECURITY_AUDIT_FILE:-/mosquitto/log/security-audit.jsonl}"
 
 [ "${MQTT_TLS_ENABLED:-false}" = "true" ] || { echo "TLS is not enabled" >&2; exit 1; }
+node /app/dist/src/cli.js --validate-paths
 source_cert_file="${MQTT_TLS_SOURCE_CERT_FILE:-${MQTT_TLS_CERT_FILE:-}}"
 source_key_file="${MQTT_TLS_SOURCE_KEY_FILE:-${MQTT_TLS_KEY_FILE:-}}"
 : "${source_cert_file:?MQTT_TLS_CERT_FILE is required}"
 : "${source_key_file:?MQTT_TLS_KEY_FILE is required}"
 source_ca_file="${MQTT_TLS_SOURCE_CA_FILE:-${MQTT_TLS_CA_FILE:-}}"
+source_cert_file="$(realpath "$source_cert_file")"
+source_key_file="$(realpath "$source_key_file")"
+if [ -n "$source_ca_file" ]; then source_ca_file="$(realpath "$source_ca_file")"; fi
 
 cert_digest="$(openssl x509 -in "$source_cert_file" -pubkey -noout | sha256sum | cut -d' ' -f1)"
 key_digest="$(openssl pkey -in "$source_key_file" -pubout | sha256sum | cut -d' ' -f1)"

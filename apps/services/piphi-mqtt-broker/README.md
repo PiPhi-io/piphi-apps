@@ -23,6 +23,12 @@ dedicated health-client material before production startup. The plaintext
 examples in this document are an explicit development or legacy migration
 profile only; they are not production defaults.
 
+The manifest declares `/var/lib/piphi/mqtt/secrets` as a read-only
+`/run/secrets` mount and requires the policy, CA, server certificate/key, and
+health-client certificate/key path fields. It supplies conventional path
+defaults but no certificate, key, password, or policy content; provisioning those
+files remains an onboarding prerequisite.
+
 ## Credential handling
 
 Mount a policy and one read-only password secret per principal:
@@ -64,6 +70,13 @@ the password and ACL databases transactionally, and never places passwords in a 
 argument or generated broker config. `MQTT_PASSWORD` remains a compatibility
 fallback for single-principal upgrades and should not be used for shared
 production infrastructure.
+
+Each activation creates an immutable directory below
+`/mosquitto/config/identity/generations` and atomically swaps the `current`
+symlink consumed by Mosquitto. A durable transaction marker permits startup to
+restore the prior pointer after interruption. Generations are not automatically
+deleted, so recovery cannot remove the only prior valid identity; operators may
+archive old generations only after confirming they are not the current target.
 
 After atomically replacing policy/secret mounts, reload credentials and ACLs:
 

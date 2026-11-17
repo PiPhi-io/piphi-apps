@@ -8,7 +8,7 @@
     {"id":"namespace_isolation","status":"implemented","scope":"one explicit or compatibly inferred namespace per managed principal; default deny outside it"},
     {"id":"reserved_topic_protection","status":"implemented","scope":"explicit deny for $SYS/# and $CONTROL/#; broker $SYS publication disabled"},
     {"id":"tls_and_mtls","status":"implemented","scope":"TLS 1.2 or newer with separately mounted server and health-client identities"},
-    {"id":"credential_and_certificate_rotation","status":"implemented","scope":"candidate validation, payload-free audit record, and forced reauthentication by restart"},
+    {"id":"credential_and_certificate_rotation","status":"implemented","scope":"immutable identity generations, atomic current-pointer activation, durable interruption recovery, TLS candidate validation, payload-free audit, and forced reauthentication by restart"},
     {"id":"bounded_broker_resources","status":"implemented","scope":"broker-enforced listener connections, packet/payload bytes, inflight count, offline queue count/bytes, broker heap, keepalive, and persistent-client age"},
     {"id":"authenticated_lifecycle_probes","status":"implemented","scope":"authenticated MQTT 5 liveness and readiness/startup round-trip; readiness/startup also verify persistence writability"},
     {"id":"retained_and_session_persistence","status":"implemented","scope":"single-node Mosquitto persistence with clean-stop restore qualification"},

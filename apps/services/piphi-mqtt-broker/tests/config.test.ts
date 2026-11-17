@@ -32,8 +32,8 @@ test("renderMosquittoConfig enables ACLs and resource limits", () => {
   const config = loadBrokerConfig(authenticated);
   const rendered = renderMosquittoConfig(config);
   assert.match(rendered, /listener 1883 0.0.0.0/);
-  assert.match(rendered, /password_file \/mosquitto\/config\/passwordfile/);
-  assert.match(rendered, /acl_file \/mosquitto\/config\/aclfile/);
+  assert.match(rendered, /password_file \/mosquitto\/config\/identity\/current\/passwordfile/);
+  assert.match(rendered, /acl_file \/mosquitto\/config\/identity\/current\/aclfile/);
   assert.match(rendered, /max_packet_size 1048576/);
   assert.match(rendered, /memory_limit 268435456/);
   assert.match(rendered, /connection_messages false/);

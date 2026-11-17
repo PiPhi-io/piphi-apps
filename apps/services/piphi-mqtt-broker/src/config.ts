@@ -10,6 +10,8 @@ export interface BrokerConfig {
   password: string | null;
   passwordSecretFile: string | null;
   authPolicyFile: string | null;
+  identityRoot: string;
+  identityCandidateDir: string;
   passwordFile: string;
   aclFile: string;
   configOutputPath: string;
@@ -40,8 +42,7 @@ const DEFAULTS = {
   persistence: true,
   persistenceLocation: "/mosquitto/data/",
   logDest: "stdout" as const,
-  passwordFile: "/mosquitto/config/passwordfile",
-  aclFile: "/mosquitto/config/aclfile",
+  identityRoot: "/mosquitto/config/identity",
   configOutputPath: "/mosquitto/config/mosquitto.conf",
   topicPrefix: "piphi",
   tlsEnabled: false,
@@ -109,6 +110,7 @@ function absolutePath(value: string, name: string, allowedRoots: readonly string
 
 export function loadBrokerConfig(env: NodeJS.ProcessEnv = process.env): BrokerConfig {
   const tlsEnabled = readBoolean(env.MQTT_TLS_ENABLED, DEFAULTS.tlsEnabled);
+  const identityRoot = absolutePath(env.MQTT_IDENTITY_ROOT?.trim() || DEFAULTS.identityRoot, "MQTT_IDENTITY_ROOT", ["/mosquitto/config/"]);
   const config: BrokerConfig = {
     host: safeToken(env.MQTT_HOST?.trim() || DEFAULTS.host, "MQTT_HOST", /^[A-Za-z0-9:._-]+$/),
     port: readManagedPort(env),
@@ -121,8 +123,10 @@ export function loadBrokerConfig(env: NodeJS.ProcessEnv = process.env): BrokerCo
     password: optional(env.MQTT_PASSWORD),
     passwordSecretFile: optional(env.MQTT_PASSWORD_SECRET_FILE),
     authPolicyFile: optional(env.MQTT_AUTH_POLICY_FILE),
-    passwordFile: absolutePath(env.MQTT_PASSWORD_FILE?.trim() || DEFAULTS.passwordFile, "MQTT_PASSWORD_FILE", ["/mosquitto/config/"]),
-    aclFile: absolutePath(env.MQTT_ACL_FILE?.trim() || DEFAULTS.aclFile, "MQTT_ACL_FILE", ["/mosquitto/config/"]),
+    identityRoot,
+    identityCandidateDir: absolutePath(env.MQTT_IDENTITY_CANDIDATE_DIR?.trim() || `${identityRoot}/candidate`, "MQTT_IDENTITY_CANDIDATE_DIR", [`${identityRoot}/`]),
+    passwordFile: `${identityRoot}/current/passwordfile`,
+    aclFile: `${identityRoot}/current/aclfile`,
     configOutputPath: absolutePath(env.MQTT_CONFIG_OUTPUT?.trim() || DEFAULTS.configOutputPath, "MQTT_CONFIG_OUTPUT", ["/mosquitto/config/"]),
     topicPrefix: safeToken(env.MQTT_TOPIC_PREFIX?.trim() || DEFAULTS.topicPrefix, "MQTT_TOPIC_PREFIX", /^[A-Za-z0-9_-]+(?:\/[A-Za-z0-9_-]+)*$/),
     tlsEnabled,
@@ -160,3 +164,36 @@ export function loadBrokerConfig(env: NodeJS.ProcessEnv = process.env): BrokerCo
 
   return config;
 }
+
+function resolvedWithin(root: string, candidate: string): boolean {
+  const child = relative(root, candidate);
+  return child !== "" && child !== ".." && !child.startsWith("../") && !isAbsolute(child);
+}
+
+async function confinedRealpath(value: string, name: string): Promise<string> {
+  const candidate = await realpath(value);
+  for (const root of ["/run/secrets", "/mosquitto/config"]) {
+    const resolvedRoot = await realpath(root).catch(() => null);
+    if (resolvedRoot && resolvedWithin(resolvedRoot, candidate)) return candidate;
+  }
+  throw new Error(`${name} resolves outside an allowed secret directory`);
+}
+
+export async function confineBrokerInputPaths(config: BrokerConfig): Promise<BrokerConfig> {
+  const fields = [
+    ["authPolicyFile", "MQTT_AUTH_POLICY_FILE"],
+    ["passwordSecretFile", "MQTT_PASSWORD_SECRET_FILE"],
+    ["tlsCaFile", "MQTT_TLS_CA_FILE"],
+    ["tlsCertFile", "MQTT_TLS_CERT_FILE"],
+    ["tlsKeyFile", "MQTT_TLS_KEY_FILE"],
+    ["healthTlsCertFile", "MQTT_HEALTH_TLS_CERT_FILE"],
+    ["healthTlsKeyFile", "MQTT_HEALTH_TLS_KEY_FILE"],
+  ] as const;
+  for (const [field, name] of fields) {
+    const value = config[field];
+    if (value) config[field] = await confinedRealpath(value, name);
+  }
+  return config;
+}
+import { realpath } from "node:fs/promises";
+import { isAbsolute, relative } from "node:path";

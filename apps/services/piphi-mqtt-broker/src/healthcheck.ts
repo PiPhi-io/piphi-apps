@@ -4,13 +4,13 @@ import { randomUUID } from "node:crypto";
 import { promisify } from "node:util";
 import { connectAsync } from "mqtt";
 
-import { loadBrokerConfig } from "./config.js";
+import { confineBrokerInputPaths, loadBrokerConfig } from "./config.js";
 import { loadIdentityPolicy } from "./identity.js";
 
 const execFileAsync = promisify(execFile);
 
 async function main(): Promise<void> {
-  const config = loadBrokerConfig();
+  const config = await confineBrokerInputPaths(loadBrokerConfig());
   const policy = await loadIdentityPolicy(config);
   const health = policy.principals.find((principal) => principal.health);
   if (!health) throw new Error("Health principal is not configured");

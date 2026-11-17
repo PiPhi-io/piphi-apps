@@ -9,8 +9,8 @@ secrets="${TMPDIR:-/tmp}/piphi-mqtt-smoke-$$"
 cleanup() {
   docker rm -f "$name" >/dev/null 2>&1 || true
   docker rm -f "$failure_name" >/dev/null 2>&1 || true
-  if [ -d "$secrets/restored-data" ]; then
-    docker run --rm --entrypoint sh -v "$secrets:/cleanup" "$image" -c 'chmod -R 0777 /cleanup/restored-data' >/dev/null 2>&1 || true
+  if [ -d "$secrets" ]; then
+    docker run --rm --entrypoint sh -v "$secrets:/cleanup" "$image" -c 'chmod -R 0777 /cleanup' >/dev/null 2>&1 || true
   fi
   rm -rf "$secrets"
 }
@@ -55,8 +55,8 @@ docker exec "$name" sh -ec '
   mosquitto_pub -V mqttv5 -h 127.0.0.1 -u piphi -P smoke-secret -t piphi/test -m ok -q 1
   wait "$subscriber"
   test "$(cat /tmp/message)" = ok
-  ! grep -q smoke-secret /mosquitto/config/passwordfile
-  test "$(stat -c %a /mosquitto/config/passwordfile)" = 640
+  ! grep -q smoke-secret /mosquitto/config/identity/current/passwordfile
+  test "$(stat -c %a /mosquitto/config/identity/current/passwordfile)" = 640
 '
 
 docker exec "$name" sh -ec 'head -c 1048577 /dev/zero | mosquitto_pub -V mqttv5 -h 127.0.0.1 -u piphi -P smoke-secret -t piphi/oversized -s -q 1 -r' >/dev/null 2>&1 || true
@@ -145,45 +145,63 @@ docker exec "$name" /app/docker/credentials-admin.sh >/dev/null
 docker exec "$name" grep -q '"action":"reload"' /mosquitto/log/security-audit.jsonl
 
 ln -s /etc/hostname "$secrets/escaped-password"
+ln -s /etc/hostname "$secrets/escaped-policy"
 sed 's#/run/secrets/alpha-password#/run/secrets/escaped-password#' "$secrets/policy.json" > "$secrets/policy-escape.json"
 if docker exec -e MQTT_AUTH_POLICY_FILE=/run/secrets/policy-escape.json "$name" node /app/dist/src/cli.js --credentials-only >/dev/null 2>&1; then
   echo "Resolved password path escaped its secret directory" >&2
   exit 1
 fi
+if docker exec -e MQTT_AUTH_POLICY_FILE=/run/secrets/escaped-policy "$name" node /app/dist/src/cli.js --validate-paths >/dev/null 2>&1; then
+  echo "Resolved auth policy path escaped its secret directory" >&2
+  exit 1
+fi
 
-for failure_step in after-password-install after-acl-install after-reload; do
-  active_password_hash="$(docker exec "$name" sha256sum /mosquitto/config/passwordfile | cut -d' ' -f1)"
-  active_acl_hash="$(docker exec "$name" sha256sum /mosquitto/config/aclfile | cut -d' ' -f1)"
+for failure_step in before-pointer-swap after-pointer-swap after-reload; do
+  active_password_hash="$(docker exec "$name" sha256sum /mosquitto/config/identity/current/passwordfile | cut -d' ' -f1)"
+  active_acl_hash="$(docker exec "$name" sha256sum /mosquitto/config/identity/current/aclfile | cut -d' ' -f1)"
   printf '%s' 'alpha-three' > "$secrets/alpha-password"
   if docker exec -e PIPHI_TEST_FAIL_IDENTITY_STEP="$failure_step" "$name" /app/docker/credentials-admin.sh >/dev/null 2>&1; then
     echo "Injected identity transaction failure was accepted" >&2
     exit 1
   fi
   sleep 1
-  test "$(docker exec "$name" sha256sum /mosquitto/config/passwordfile | cut -d' ' -f1)" = "$active_password_hash"
-  test "$(docker exec "$name" sha256sum /mosquitto/config/aclfile | cut -d' ' -f1)" = "$active_acl_hash"
+  test "$(docker exec "$name" sha256sum /mosquitto/config/identity/current/passwordfile | cut -d' ' -f1)" = "$active_password_hash"
+  test "$(docker exec "$name" sha256sum /mosquitto/config/identity/current/aclfile | cut -d' ' -f1)" = "$active_acl_hash"
   docker exec "$name" mosquitto_pub -V mqttv5 -h 127.0.0.1 -u alpha -P alpha-two -t piphi/alpha/rollback -m rollback-ok -q 1
   rejected_candidate="$(docker exec "$name" mosquitto_pub -V mqttv5 -h 127.0.0.1 -u alpha -P alpha-three -t piphi/alpha/rollback -m denied -q 1 2>&1 || true)"
   echo "$rejected_candidate" | grep -q 'Not authorized'
   printf '%s' 'alpha-two' > "$secrets/alpha-password"
 done
 
+generation_count_before="$(docker exec "$name" find /mosquitto/config/identity/generations -mindepth 1 -maxdepth 1 -type d | wc -l)"
+printf '%s' 'alpha-three' > "$secrets/alpha-password"
+docker exec -e PIPHI_TEST_HARD_CRASH_AFTER_IDENTITY_SWAP=true "$name" /app/docker/credentials-admin.sh >/dev/null 2>&1 || true
+docker exec "$name" test -f /mosquitto/config/identity/transaction.json
+printf '%s' 'alpha-two' > "$secrets/alpha-password"
+docker restart "$name" >/dev/null
+attempt=0
+until [ "$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{end}}' "$name")" = "healthy" ]; do
+  attempt=$((attempt + 1)); [ "$attempt" -lt 40 ] || { docker logs "$name"; exit 1; }; sleep 1
+done
+docker exec "$name" test ! -f /mosquitto/config/identity/transaction.json
+test "$(docker exec "$name" find /mosquitto/config/identity/generations -mindepth 1 -maxdepth 1 -type d | wc -l)" -gt "$generation_count_before"
+docker exec "$name" mosquitto_pub -V mqttv5 -h 127.0.0.1 -u alpha -P alpha-two -t piphi/alpha/recovered-restart -m recovered -q 1
+
 mkdir -p "$secrets/entry-config"
-docker cp "$name:/mosquitto/config/passwordfile" "$secrets/entry-config/passwordfile"
-docker cp "$name:/mosquitto/config/aclfile" "$secrets/entry-config/aclfile"
-password_before="$(sha256sum "$secrets/entry-config/passwordfile" | cut -d' ' -f1)"
-acl_before="$(sha256sum "$secrets/entry-config/aclfile" | cut -d' ' -f1)"
+docker cp "$name:/mosquitto/config/identity" "$secrets/entry-config/identity"
+password_before="$(sha256sum "$secrets/entry-config/identity/current/passwordfile" | cut -d' ' -f1)"
+acl_before="$(sha256sum "$secrets/entry-config/identity/current/aclfile" | cut -d' ' -f1)"
 docker run -d --name "$failure_name" \
   -e MQTT_ALLOW_PLAINTEXT=true \
   -e MQTT_AUTH_POLICY_FILE=/run/secrets/policy.json \
-  -e PIPHI_TEST_FAIL_IDENTITY_STEP=after-password-install \
+  -e PIPHI_TEST_FAIL_IDENTITY_STEP=after-pointer-swap \
   -v "$secrets:/run/secrets:ro" \
   -v "$secrets/entry-config:/mosquitto/config" \
   "$image" >/dev/null
 failure_status="$(docker wait "$failure_name")"
 test "$failure_status" -ne 0
-test "$(sha256sum "$secrets/entry-config/passwordfile" | cut -d' ' -f1)" = "$password_before"
-test "$(sha256sum "$secrets/entry-config/aclfile" | cut -d' ' -f1)" = "$acl_before"
+test "$(sha256sum "$secrets/entry-config/identity/current/passwordfile" | cut -d' ' -f1)" = "$password_before"
+test "$(sha256sum "$secrets/entry-config/identity/current/aclfile" | cut -d' ' -f1)" = "$acl_before"
 docker rm "$failure_name" >/dev/null
 
 docker stop "$name" >/dev/null
@@ -238,6 +256,14 @@ until [ "$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{end}
     exit 1
   fi
   sleep 1
+done
+
+ln -s /etc/hostname "$secrets/escaped-tls"
+for confined_field in MQTT_TLS_CA_FILE MQTT_TLS_CERT_FILE MQTT_TLS_KEY_FILE MQTT_HEALTH_TLS_CERT_FILE MQTT_HEALTH_TLS_KEY_FILE; do
+  if docker exec -e "$confined_field=/run/secrets/escaped-tls" "$name" node /app/dist/src/cli.js --validate-paths >/dev/null 2>&1; then
+    echo "Resolved TLS path escaped its secret directory" >&2
+    exit 1
+  fi
 done
 
 openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "$secrets/other.key" >/dev/null 2>&1

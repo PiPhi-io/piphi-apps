@@ -36,8 +36,7 @@ ENV MQTT_HOST=0.0.0.0 \
     MQTT_LOG_DEST=stdout \
     MQTT_TOPIC_PREFIX=piphi \
     MQTT_CONFIG_OUTPUT=/mosquitto/config/mosquitto.conf \
-    MQTT_PASSWORD_FILE=/mosquitto/config/passwordfile \
-    MQTT_ACL_FILE=/mosquitto/config/aclfile
+    MQTT_IDENTITY_ROOT=/mosquitto/config/identity
 
 EXPOSE 1883
 

@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
-import { chmod, readFile, realpath, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, open, readFile, readlink, realpath, rename, rm, symlink, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import { isAbsolute, relative, resolve } from "node:path";
 
 import type { BrokerConfig } from "./config.js";
@@ -153,13 +154,81 @@ async function readPrincipalPassword(principal: BrokerPrincipal, config: BrokerC
 }
 
 export async function writeIdentityCandidates(config: BrokerConfig, policy: IdentityPolicy): Promise<void> {
-  const passwordCandidate = `${config.passwordFile}.candidate`;
+  await rm(config.identityCandidateDir, { recursive: true, force: true });
+  await mkdir(config.identityCandidateDir, { recursive: true, mode: 0o750 });
+  const passwordCandidate = `${config.identityCandidateDir}/passwordfile`;
   const credentialLines: string[] = [];
   for (const principal of policy.principals) credentialLines.push(`${principal.username}:${await readPrincipalPassword(principal, config)}`);
   await writeFile(passwordCandidate, `${credentialLines.join("\n")}\n`, { encoding: "utf8", mode: 0o600 });
   await chmod(passwordCandidate, 0o600);
   credentialLines.fill("");
-  const aclCandidate = `${config.aclFile}.candidate`;
+  const aclCandidate = `${config.identityCandidateDir}/aclfile`;
   await writeFile(aclCandidate, renderIdentityAcl(policy), { encoding: "utf8", mode: 0o640 });
   await chmod(aclCandidate, 0o640);
+}
+
+interface IdentityTransaction {
+  previous: string | null;
+  next: string;
+}
+
+function markerPath(config: BrokerConfig): string {
+  return `${config.identityRoot}/transaction.json`;
+}
+
+async function syncPath(path: string): Promise<void> {
+  const handle = await open(path, "r");
+  try { await handle.sync(); } finally { await handle.close(); }
+}
+
+async function currentTarget(config: BrokerConfig): Promise<string | null> {
+  try { return await readlink(`${config.identityRoot}/current`); } catch { return null; }
+}
+
+async function swapCurrent(config: BrokerConfig, target: string): Promise<void> {
+  const temporary = `${config.identityRoot}/.current-${randomUUID()}`;
+  await symlink(target, temporary);
+  await rename(temporary, `${config.identityRoot}/current`);
+  await syncPath(config.identityRoot);
+}
+
+export async function activateIdentityCandidate(config: BrokerConfig): Promise<void> {
+  await mkdir(`${config.identityRoot}/generations`, { recursive: true, mode: 0o750 });
+  await syncPath(`${config.identityCandidateDir}/passwordfile`);
+  await syncPath(`${config.identityCandidateDir}/aclfile`);
+  const generationName = `generation-${Date.now()}-${randomUUID()}`;
+  const generationPath = `${config.identityRoot}/generations/${generationName}`;
+  await rename(config.identityCandidateDir, generationPath);
+  await syncPath(`${config.identityRoot}/generations`);
+  const transaction: IdentityTransaction = { previous: await currentTarget(config), next: `generations/${generationName}` };
+  await writeFile(markerPath(config), `${JSON.stringify(transaction)}\n`, { mode: 0o600, flag: "wx" });
+  await syncPath(markerPath(config));
+  await swapCurrent(config, transaction.next);
+  if (process.env.PIPHI_TEST_CRASH_AFTER_IDENTITY_SWAP === "true") process.exit(86);
+}
+
+async function readTransaction(config: BrokerConfig): Promise<IdentityTransaction | null> {
+  try { return JSON.parse(await readFile(markerPath(config), "utf8")) as IdentityTransaction; } catch { return null; }
+}
+
+export async function rollbackIdentityTransaction(config: BrokerConfig): Promise<void> {
+  const transaction = await readTransaction(config);
+  if (!transaction) return;
+  if (transaction.previous) await swapCurrent(config, transaction.previous);
+  else await rm(`${config.identityRoot}/current`, { force: true });
+  await rm(markerPath(config), { force: true });
+  await syncPath(config.identityRoot);
+}
+
+export async function commitIdentityTransaction(config: BrokerConfig): Promise<void> {
+  await rm(markerPath(config), { force: true });
+  await syncPath(config.identityRoot);
+}
+
+export async function recoverIdentityTransaction(config: BrokerConfig): Promise<void> {
+  await mkdir(config.identityRoot, { recursive: true, mode: 0o750 });
+  await rollbackIdentityTransaction(config);
+  const entries = await lstat(`${config.identityRoot}/current`).catch(() => null);
+  if (entries && !entries.isSymbolicLink()) throw new Error("Identity current pointer must be a symbolic link");
+  await rm(config.identityCandidateDir, { recursive: true, force: true });
 }

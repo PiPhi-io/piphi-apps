@@ -1,9 +1,15 @@
-import { loadBrokerConfig } from "./config.js";
-import { loadIdentityPolicy, writeIdentityCandidates } from "./identity.js";
+import { confineBrokerInputPaths, loadBrokerConfig } from "./config.js";
+import { activateIdentityCandidate, commitIdentityTransaction, loadIdentityPolicy, recoverIdentityTransaction, rollbackIdentityTransaction, writeIdentityCandidates } from "./identity.js";
 import { renderMosquittoConfig, writeMosquittoConfig } from "./mosquitto.js";
 
 async function main(): Promise<void> {
   const config = loadBrokerConfig();
+  if (process.argv.includes("--recover-identity")) { await recoverIdentityTransaction(config); return; }
+  if (process.argv.includes("--rollback-identity")) { await rollbackIdentityTransaction(config); return; }
+  if (process.argv.includes("--commit-identity")) { await commitIdentityTransaction(config); return; }
+  if (process.argv.includes("--activate-identity")) { await activateIdentityCandidate(config); return; }
+  await confineBrokerInputPaths(config);
+  if (process.argv.includes("--validate-paths")) return;
   const shouldPrint = process.argv.includes("--print");
 
   if (shouldPrint) {
