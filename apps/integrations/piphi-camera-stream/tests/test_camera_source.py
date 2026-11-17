@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+from unittest.mock import AsyncMock
+
 import httpx
 import pytest
 
 from piphi_camera_stream.main import app
 from piphi_camera_stream.schemas import DeviceConfig
+from piphi_camera_stream.source_probe import SourceProbeResult
 from piphi_camera_stream.state import apply_config, registry
 
 
@@ -14,13 +17,29 @@ async def test_camera_integration_owns_secret_and_exposes_only_private_source_en
 ) -> None:
     monkeypatch.setenv("PIPHI_INTEGRATION_INTERNAL_TOKEN", "runtime-token")
     monkeypatch.setenv("PIPHI_CONTAINER_ID", "camera-container")
+    monkeypatch.setattr(
+        "piphi_camera_stream.state.probe_camera_source",
+        AsyncMock(return_value=SourceProbeResult(True, "available")),
+    )
     registry.entries.clear()
     registry.state_snapshots.clear()
-    await apply_config(DeviceConfig(id="front-door", config_id="front-door", source_url="rtsps://user:top-secret@camera.local/live", alias="Front door", preferred_transport="tcp"))
+    await apply_config(
+        DeviceConfig(
+            id="front-door",
+            config_id="front-door",
+            source_url="rtsps://user:top-secret@camera.local/live",
+            alias="Front door",
+            preferred_transport="tcp",
+        )
+    )
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
-        entities = await client.get("/entities")
-        state = await client.get("/state")
+        headers = {
+            "X-PiPhi-Integration-Token": "runtime-token",
+            "X-Container-Id": "camera-container",
+        }
+        entities = await client.get("/entities", headers=headers)
+        state = await client.get("/state", headers=headers)
         unauthorized = await client.get("/v1/cameras/front-door/source")
         source = await client.get(
             "/v1/cameras/front-door/source",
@@ -30,7 +49,10 @@ async def test_camera_integration_owns_secret_and_exposes_only_private_source_en
             },
         )
     assert "camera_stream" in entities.json()["entities"][0]["capabilities"]
-    assert entities.json()["capabilities"]["camera_stream"]["camera"]["contract_version"] == "camera.media.v1"
+    assert (
+        entities.json()["capabilities"]["camera_stream"]["camera"]["contract_version"]
+        == "camera.media.v1"
+    )
     assert "top-secret" not in state.text and "camera.local" not in state.text
     assert unauthorized.status_code == 401
     assert source.json()["source_url"] == "rtsps://user:top-secret@camera.local/live"
@@ -42,10 +64,56 @@ async def test_camera_source_fails_closed_without_runtime_secret(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv("PIPHI_INTEGRATION_INTERNAL_TOKEN", raising=False)
+    monkeypatch.setenv("PIPHI_ENV", "production")
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.get("/v1/cameras/front-door/source")
     assert response.status_code == 503
+
+
+@pytest.mark.anyio
+async def test_camera_snapshot_is_authenticated_and_returns_only_jpeg(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PIPHI_INTEGRATION_INTERNAL_TOKEN", "runtime-token")
+    monkeypatch.setenv("PIPHI_CONTAINER_ID", "camera-container")
+    monkeypatch.setattr(
+        "piphi_camera_stream.state.probe_camera_source",
+        AsyncMock(return_value=SourceProbeResult(True, "available")),
+    )
+    snapshot = AsyncMock(return_value=b"\xff\xd8image-bytes\xff\xd9")
+    monkeypatch.setattr(
+        "piphi_camera_stream.routes.camera.capture_camera_snapshot", snapshot
+    )
+    registry.entries.clear()
+    registry.state_snapshots.clear()
+    await apply_config(
+        DeviceConfig(
+            id="front-door",
+            source_url="rtsp://user:top-secret@camera.local/live",
+        )
+    )
+    transport = httpx.ASGITransport(app=app)
+
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        unauthorized = await client.get("/v1/cameras/front-door/snapshot")
+        response = await client.get(
+            "/v1/cameras/front-door/snapshot",
+            headers={
+                "X-PiPhi-Integration-Token": "runtime-token",
+                "X-Container-Id": "camera-container",
+            },
+        )
+
+    assert unauthorized.status_code == 401
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "image/jpeg"
+    assert response.headers["cache-control"] == "no-store"
+    assert response.content == b"\xff\xd8image-bytes\xff\xd9"
+    snapshot.assert_awaited_once_with(
+        "rtsp://user:top-secret@camera.local/live",
+        preferred_transport="tcp",
+    )
 
 
 def test_camera_config_rejects_browser_urls_and_control_characters() -> None:
@@ -78,6 +146,10 @@ async def test_camera_source_combines_separate_credentials_and_percent_encodes_t
 ) -> None:
     monkeypatch.setenv("PIPHI_INTEGRATION_INTERNAL_TOKEN", "runtime-token")
     monkeypatch.setenv("PIPHI_CONTAINER_ID", "camera-container")
+    monkeypatch.setattr(
+        "piphi_camera_stream.state.probe_camera_source",
+        AsyncMock(return_value=SourceProbeResult(True, "available")),
+    )
     registry.entries.clear()
     registry.state_snapshots.clear()
     await apply_config(

@@ -32,7 +32,6 @@ def test_managed_service_uses_core_allocated_primary_port() -> None:
     assert container["ports"][0] == {"container": 8090}
     assert container["ports"][1] == {
         "container": 8554,
-        "host": 18554,
         "protocol": "tcp",
     }
 
@@ -46,3 +45,15 @@ def test_capability_catalog_does_not_advertise_deferred_features() -> None:
 
     assert implemented == set(manifest["provides"]["services"][0]["capabilities"])
     assert manifest["capabilities"] == {}
+
+
+def test_exact_container_pins_the_audited_wyze_dependency() -> None:
+    manifest = json.loads((ROOT / "manifest.json").read_text())
+    dockerfile = (ROOT / "Dockerfile").read_text()
+    notices = (ROOT / "THIRD_PARTY_NOTICES.md").read_text()
+    digest = "sha256:af2d638a6d6d52e15ddcfb711e5b905e484b1f519986ad33b9be562b6277b987"
+
+    assert manifest["metadata"]["upstream"]["version"] == "2.10.3"
+    assert f"mrlt8/wyze-bridge:2.10.3@{digest}" in dockerfile
+    assert digest in notices
+    assert manifest["marketplace"]["compatibility"] == []

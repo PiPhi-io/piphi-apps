@@ -1,12 +1,10 @@
 from __future__ import annotations
 
 import json
+import tomllib
 from pathlib import Path
 
-import tomllib
-
 from piphi_camera_stream.settings import INTEGRATION_VERSION
-
 
 ROOT = Path(__file__).parents[1]
 
@@ -17,7 +15,7 @@ def test_release_metadata_uses_one_version() -> None:
     with (ROOT / "pyproject.toml").open("rb") as pyproject_file:
         project_version = tomllib.load(pyproject_file)["project"]["version"]
 
-    assert manifest["version"] == "0.1.4"
+    assert manifest["version"] == "0.1.6"
     assert manifest["version"] == package_contract["version"]
     assert manifest["version"] == project_version
     assert manifest["version"] == INTEGRATION_VERSION

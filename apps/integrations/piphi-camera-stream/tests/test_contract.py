@@ -6,7 +6,6 @@ from pathlib import Path
 from piphi_camera_stream.contract import COMMANDS, CONFIG_SCHEMA, REQUIRED_ENDPOINTS
 from piphi_camera_stream.main import app
 
-
 ROOT = Path(__file__).parents[1]
 
 
@@ -34,7 +33,13 @@ def test_runtime_implements_contract_routes() -> None:
 
     assert "/discover" not in routes
 
-    assert REQUIRED_ENDPOINTS == ["health", "entities", "command", "config", "ui_config"]
+    assert REQUIRED_ENDPOINTS == [
+        "health",
+        "entities",
+        "command",
+        "config",
+        "ui_config",
+    ]
     assert "refresh" in COMMANDS
 
 
@@ -61,8 +66,8 @@ def test_camera_stream_depends_on_shared_camera_media_service() -> None:
         {
             "id": "piphi.service.webrtc-sidecar",
             "kind": "platform_service",
-            "version_range": ">=0.3.0,<0.4.0",
-            "recommended_version": "0.3.0",
+            "version_range": ">=0.3.6,<0.4.0",
+            "recommended_version": "0.3.6",
             "required": True,
             "shared": True,
             "auto_install": True,

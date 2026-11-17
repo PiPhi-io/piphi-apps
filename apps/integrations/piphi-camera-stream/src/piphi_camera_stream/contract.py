@@ -3,11 +3,18 @@ from __future__ import annotations
 from typing import Any
 
 ENDPOINTS = {
-    "health": "/health", "diagnostics": "/diagnostics",
-    "entities": "/entities", "state": "/state", "config": "/config",
-    "config_sync": "/config/sync", "deconfigure": "/deconfigure",
-    "ui_config": "/ui-config", "events": "/events", "command": "/command",
+    "health": "/health",
+    "diagnostics": "/diagnostics",
+    "entities": "/entities",
+    "state": "/state",
+    "config": "/config",
+    "config_sync": "/config/sync",
+    "deconfigure": "/deconfigure",
+    "ui_config": "/ui-config",
+    "events": "/events",
+    "command": "/command",
     "camera_source": "/v1/cameras/{config_id}/source",
+    "camera_snapshot": "/v1/cameras/{config_id}/snapshot",
 }
 REQUIRED_ENDPOINTS = ["health", "entities", "command", "config", "ui_config"]
 CAPABILITIES: dict[str, dict[str, Any]] = {
@@ -17,6 +24,8 @@ CAPABILITIES: dict[str, dict[str, Any]] = {
         "camera": {
             "contract_version": "camera.media.v1",
             "gateway_source_endpoint": "/v1/cameras/{config_id}/source",
+            "snapshot_endpoint": "/v1/cameras/{config_id}/snapshot",
+            "snapshot_content_type": "image/jpeg",
             "refresh_seconds": 15,
         },
     },
@@ -27,7 +36,9 @@ COMMANDS: dict[str, dict[str, Any]] = {
 }
 CONFIG_SCHEMA: dict[str, Any] = {
     "schema": {
-        "title": "RTSP camera setup", "type": "object", "required": ["source_url"],
+        "title": "RTSP camera setup",
+        "type": "object",
+        "required": ["source_url"],
         "properties": {
             "source_url": {
                 "type": "string",
@@ -53,7 +64,12 @@ CONFIG_SCHEMA: dict[str, Any] = {
                 "maxLength": 1024,
             },
             "alias": {"type": "string", "title": "Camera name", "maxLength": 120},
-            "preferred_transport": {"type": "string", "title": "RTSP transport", "enum": ["tcp", "udp", "auto"], "default": "tcp"},
+            "preferred_transport": {
+                "type": "string",
+                "title": "RTSP transport",
+                "enum": ["tcp", "udp", "auto"],
+                "default": "tcp",
+            },
         },
     },
     "uiSchema": {
@@ -65,9 +81,15 @@ CONFIG_SCHEMA: dict[str, Any] = {
         "alias": {"placeholder": "Front door"},
     },
 }
-FALLBACK_ENTITY: dict[str, Any] = {
-    "id": "camera", "name": "Camera", "device_id": "camera", "entity_type": "camera",
+CAMERA_ENTITY_TEMPLATE: dict[str, Any] = {
+    "id": "camera",
+    "name": "Camera",
+    "device_id": "camera",
+    "entity_type": "camera",
     "capabilities": ["camera_stream", "refresh"],
     "available_commands": [{"id": "refresh", "label": "Refresh", "kind": "action"}],
-    "dashboard": {"allowed_widgets": ["camera", "camera-card", "io.piphi.webrtc.camera"], "default_widget": "camera"},
+    "dashboard": {
+        "allowed_widgets": ["camera", "camera-card", "io.piphi.webrtc.camera"],
+        "default_widget": "camera",
+    },
 }

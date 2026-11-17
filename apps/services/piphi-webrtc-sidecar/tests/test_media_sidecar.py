@@ -20,11 +20,15 @@ class FakeGo2Rtc:
     async def upsert_stream(self, name: str, source_url: str) -> None:
         self.sources[name] = source_url
 
-    async def upsert_ffmpeg_stream(self, name: str, source_url: str) -> None:
-        self.sources[name] = f"ffmpeg:{source_url}"
+    async def upsert_ffmpeg_stream(
+        self, name: str, source_url: str, *, include_audio: bool = False
+    ) -> None:
+        self.sources[name] = f"ffmpeg:{source_url}:audio={include_audio}"
 
-    async def upsert_browser_compatible_ffmpeg_stream(self, name: str, source_url: str) -> None:
-        self.sources[name] = f"ffmpeg-h264:{source_url}"
+    async def upsert_browser_compatible_ffmpeg_stream(
+        self, name: str, source_url: str, *, include_audio: bool = False
+    ) -> None:
+        self.sources[name] = f"ffmpeg-h264:{source_url}:audio={include_audio}"
 
     async def exchange_offer(self, name: str, sdp: str) -> str:
         assert name in self.sources
@@ -36,7 +40,11 @@ class FakeGo2Rtc:
         self.removed.append(name)
 
 
-async def unknown_probe(*_args, **_kwargs) -> None:
+async def unknown_probe(*_args, **_kwargs) -> CameraVideoProbe:
+    return CameraVideoProbe("mjpeg", "", None, "yuvj420p", 640, 360, 15)
+
+
+async def unavailable_probe(*_args, **_kwargs) -> None:
     return None
 
 
@@ -62,13 +70,19 @@ class NativeEofGo2Rtc(FakeGo2Rtc):
         self.upsert_modes.append("native")
         await super().upsert_stream(name, source_url)
 
-    async def upsert_ffmpeg_stream(self, name: str, source_url: str) -> None:
+    async def upsert_ffmpeg_stream(
+        self, name: str, source_url: str, *, include_audio: bool = False
+    ) -> None:
         self.upsert_modes.append("ffmpeg")
-        await super().upsert_ffmpeg_stream(name, source_url)
+        await super().upsert_ffmpeg_stream(name, source_url, include_audio=include_audio)
 
-    async def upsert_browser_compatible_ffmpeg_stream(self, name: str, source_url: str) -> None:
+    async def upsert_browser_compatible_ffmpeg_stream(
+        self, name: str, source_url: str, *, include_audio: bool = False
+    ) -> None:
         self.upsert_modes.append("ffmpeg-h264")
-        await super().upsert_browser_compatible_ffmpeg_stream(name, source_url)
+        await super().upsert_browser_compatible_ffmpeg_stream(
+            name, source_url, include_audio=include_audio
+        )
 
     async def exchange_offer(self, name: str, sdp: str) -> str:
         self.exchange_attempts += 1
@@ -138,6 +152,12 @@ async def test_sidecar_sessions_are_ephemeral_and_never_return_the_source(monkey
         assert "source" not in payload
         assert "camera.local" not in opened.text
 
+        kept_alive = await client.put(
+            f"/v1/camera-media/sessions/{payload['session_id']}/keepalive"
+        )
+        assert kept_alive.status_code == 200
+        assert kept_alive.json()["message_type"] == "camera.session.refreshed"
+
         at_capacity = await client.post("/v1/camera-media/sessions", json=request)
         assert at_capacity.status_code == 429
         assert at_capacity.json()["detail"]["code"] == "CAMERA_CAPACITY_REACHED"
@@ -161,7 +181,7 @@ async def test_sidecar_rejects_browser_audience_and_extra_source_fields() -> Non
                 "audience": "browser-core",
                 "source": {
                     "camera_id": "front-door",
-                    "source_url": "rtsp://camera.local/live",
+                    "source_url": "rtsp://user:top-secret@camera.local/live",
                     "source_protocol": "rtsp",
                     "password": "must-not-be-accepted",
                 },
@@ -169,6 +189,8 @@ async def test_sidecar_rejects_browser_audience_and_extra_source_fields() -> Non
             },
         )
     assert response.status_code == 422
+    assert "top-secret" not in response.text
+    assert "camera.local" not in response.text
 
 
 @pytest.mark.anyio
@@ -201,11 +223,51 @@ async def test_sidecar_fails_closed_without_a_production_token(monkeypatch) -> N
     assert response.status_code == 503
 
 
+@pytest.mark.anyio
+@pytest.mark.parametrize("path", ["/diagnostics", "/contract", "/v1/camera-media/status"])
+async def test_all_operational_routes_require_service_identity(
+    monkeypatch: pytest.MonkeyPatch, path: str
+) -> None:
+    monkeypatch.setenv("PIPHI_ENV", "production")
+    monkeypatch.setenv("PIPHI_SIDECAR_TOKEN", "correct-token")
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        missing = await client.get(path)
+        wrong = await client.get(path, headers={"Authorization": "Bearer wrong-token"})
+    assert missing.status_code == 401
+    assert wrong.status_code == 401
+
+
 def test_sidecar_accepts_runtime_identity_token_in_production(monkeypatch) -> None:
     monkeypatch.delenv("PIPHI_SIDECAR_TOKEN", raising=False)
     monkeypatch.setenv("PIPHI_INTEGRATION_INTERNAL_TOKEN", "r" * 48)
     monkeypatch.setenv("PIPHI_ENV", "production")
-    require_camera_media_authorization(f"Bearer {'r' * 48}")
+    from starlette.requests import Request
+
+    request = Request(
+        {
+            "type": "http",
+            "headers": [(b"authorization", f"Bearer {'r' * 48}".encode())],
+        }
+    )
+    require_camera_media_authorization(request)
+
+
+@pytest.mark.anyio
+async def test_broker_fails_before_signaling_when_source_probe_fails() -> None:
+    from piphi_webrtc_sidecar.media_sessions import CameraSourceUnavailableError
+
+    fake = FakeGo2Rtc()
+    broker = CameraMediaSessionBroker(fake, probe=unavailable_probe)  # type: ignore[arg-type]
+
+    with pytest.raises(CameraSourceUnavailableError):
+        await broker.open(
+            source_url="rtsp://camera.local/live",
+            offer_sdp="v=0",
+            idle_timeout_seconds=60,
+        )
+
+    assert fake.sources == {}
 
 
 @pytest.mark.anyio
@@ -326,13 +388,13 @@ async def test_ffmpeg_copy_relay_keeps_credentials_inside_go2rtc_request() -> No
     client = Go2RtcClient(transport=httpx.MockTransport(handler))
     source = "rtsp://user:top-secret@camera.local/stream0"
 
-    await client.upsert_ffmpeg_stream("camera", source)
+    await client.upsert_ffmpeg_stream("camera", source, include_audio=False)
 
-    assert captured_source == f"ffmpeg:{source}#video=copy#audio=copy"
+    assert captured_source == f"ffmpeg:{source}#video=copy#audio=0"
 
 
 @pytest.mark.anyio
-async def test_ffmpeg_browser_relay_transcodes_video_and_keeps_audio() -> None:
+async def test_ffmpeg_browser_relay_transcodes_video_and_normalizes_requested_audio() -> None:
     captured_source = ""
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -343,6 +405,24 @@ async def test_ffmpeg_browser_relay_transcodes_video_and_keeps_audio() -> None:
     client = Go2RtcClient(transport=httpx.MockTransport(handler))
     source = "rtsp://user:top-secret@camera.local/stream0"
 
-    await client.upsert_browser_compatible_ffmpeg_stream("camera", source)
+    await client.upsert_browser_compatible_ffmpeg_stream("camera", source, include_audio=True)
 
-    assert captured_source == f"ffmpeg:{source}#video=h264#audio=copy"
+    assert captured_source == f"ffmpeg:{source}#video=h264#audio=opus"
+
+
+@pytest.mark.anyio
+async def test_keepalive_renews_activity_based_expiry() -> None:
+    fake = FakeGo2Rtc()
+    broker = CameraMediaSessionBroker(fake, capacity=1, probe=unknown_probe)  # type: ignore[arg-type]
+    active, _ = await broker.open(
+        source_url="rtsp://camera.local/live",
+        offer_sdp="v=0",
+        idle_timeout_seconds=60,
+    )
+
+    refreshed = await broker.touch(active.session_id)
+
+    assert refreshed is not None
+    assert refreshed.expires_at >= active.expires_at
+    assert broker.active_count == 1
+    await broker.close(active.session_id)

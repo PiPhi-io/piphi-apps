@@ -4,7 +4,9 @@ import asyncio
 import os
 import re
 from collections.abc import Mapping
+from contextlib import suppress
 from pathlib import Path
+from time import monotonic
 from urllib.parse import urlsplit, urlunsplit
 
 import httpx
@@ -95,7 +97,13 @@ class Go2RtcClient:
         source = validate_source_url(source_url)
         await self._upsert_stream(name, source)
 
-    async def upsert_ffmpeg_stream(self, name: str, source_url: str) -> None:
+    async def upsert_ffmpeg_stream(
+        self,
+        name: str,
+        source_url: str,
+        *,
+        include_audio: bool = False,
+    ) -> None:
         """Relay through FFmpeg without changing camera codecs."""
         source = validate_source_url(source_url)
         parsed = urlsplit(source)
@@ -104,10 +112,16 @@ class Go2RtcClient:
         )
         await self._upsert_stream(
             name,
-            f"ffmpeg:{source_without_fragment}#video=copy#audio=copy",
+            f"ffmpeg:{source_without_fragment}#video=copy#audio={'opus' if include_audio else '0'}",
         )
 
-    async def upsert_browser_compatible_ffmpeg_stream(self, name: str, source_url: str) -> None:
+    async def upsert_browser_compatible_ffmpeg_stream(
+        self,
+        name: str,
+        source_url: str,
+        *,
+        include_audio: bool = False,
+    ) -> None:
         """Transcode video only after copied H.264 cannot match the WebRTC offer."""
         source = validate_source_url(source_url)
         parsed = urlsplit(source)
@@ -116,7 +130,7 @@ class Go2RtcClient:
         )
         await self._upsert_stream(
             name,
-            f"ffmpeg:{source_without_fragment}#video=h264#audio=copy",
+            f"ffmpeg:{source_without_fragment}#video=h264#audio={'opus' if include_audio else '0'}",
         )
 
     async def _upsert_stream(self, name: str, source: str) -> None:
@@ -174,46 +188,121 @@ class Go2RtcClient:
 class Go2RtcProcess:
     def __init__(self) -> None:
         self.process: asyncio.subprocess.Process | None = None
+        self.state = "stopped"
+        self.last_error: str | None = None
+        self.restart_count = 0
+        self._monitor_task: asyncio.Task[None] | None = None
+        self._stopping = False
+        self._binary: Path | None = None
+        self._config: str | None = None
 
     async def start(self) -> None:
         if os.getenv("GO2RTC_MANAGED", "true").lower() not in {"1", "true", "yes"}:
+            self.state = "external"
             return
         binary = Path(os.getenv("GO2RTC_BINARY", "/usr/local/bin/go2rtc"))
         if not await asyncio.to_thread(binary.is_file):
             if os.getenv("PIPHI_ENV", "development").lower() == "production":
                 raise RuntimeError(f"go2rtc binary not found: {binary}")
+            self.state = "stopped"
             return
-        config = os.getenv("GO2RTC_CONFIG", "/etc/piphi/go2rtc.yaml")
+        self._binary = binary
+        self._config = os.getenv("GO2RTC_CONFIG", "/etc/piphi/go2rtc.yaml")
+        self._stopping = False
+        await self._spawn_and_wait_ready()
+        self._monitor_task = asyncio.create_task(self._monitor(), name="go2rtc-supervisor")
+
+    async def _spawn_and_wait_ready(self) -> None:
+        if self._binary is None or self._config is None:
+            raise RuntimeError("go2rtc process configuration is unavailable")
+        self.state = "starting"
         self.process = await asyncio.create_subprocess_exec(
-            str(binary),
+            str(self._binary),
             "-config",
-            config,
+            self._config,
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.STDOUT,
         )
         client = Go2RtcClient()
-        for _ in range(50):
+        deadline = monotonic() + _startup_timeout_seconds()
+        while monotonic() < deadline:
             if self.process.returncode is not None:
+                self.state = "degraded"
+                self.last_error = "go2rtc exited before readiness"
                 raise RuntimeError(
                     f"go2rtc exited during startup with code {self.process.returncode}"
                 )
             try:
                 await client.health()
+                self.state = "running"
+                self.last_error = None
                 return
             except (Go2RtcError, httpx.HTTPError):
                 await asyncio.sleep(0.1)
-        await self.stop()
-        raise RuntimeError("go2rtc did not become ready within 5 seconds")
+        await self._terminate_process(self.process)
+        self.state = "degraded"
+        self.last_error = "go2rtc readiness deadline exceeded"
+        raise RuntimeError("go2rtc did not become ready before the startup deadline")
+
+    async def _monitor(self) -> None:
+        while not self._stopping and self.process is not None:
+            process = self.process
+            returncode = await process.wait()
+            if self._stopping or process is not self.process:
+                return
+            self.state = "degraded"
+            self.last_error = f"go2rtc exited unexpectedly ({returncode})"
+            while not self._stopping:
+                self.restart_count += 1
+                if self.restart_count > _max_restart_attempts():
+                    self.state = "stopped"
+                    self.last_error = "go2rtc exceeded its restart limit"
+                    return
+                await asyncio.sleep(min(2 ** (self.restart_count - 1), 30))
+                try:
+                    await self._spawn_and_wait_ready()
+                except (OSError, RuntimeError):
+                    continue
+                self.restart_count = 0
+                break
 
     async def stop(self) -> None:
-        if self.process is None or self.process.returncode is not None:
+        self._stopping = True
+        process = self.process
+        if process is not None:
+            await self._terminate_process(process)
+        monitor_task = self._monitor_task
+        self._monitor_task = None
+        if monitor_task is not None and monitor_task is not asyncio.current_task():
+            with suppress(asyncio.CancelledError):
+                await monitor_task
+        self.process = None
+        self.state = "stopped"
+
+    @staticmethod
+    async def _terminate_process(process: asyncio.subprocess.Process) -> None:
+        if process.returncode is not None:
             return
-        self.process.terminate()
+        process.terminate()
         try:
-            await asyncio.wait_for(self.process.wait(), timeout=5.0)
+            await asyncio.wait_for(process.wait(), timeout=5.0)
         except TimeoutError:
-            self.process.kill()
-            await self.process.wait()
+            process.kill()
+            await process.wait()
+
+
+def _startup_timeout_seconds() -> float:
+    try:
+        return max(5.0, min(float(os.getenv("GO2RTC_STARTUP_TIMEOUT_SECONDS", "15")), 30.0))
+    except ValueError:
+        return 15.0
+
+
+def _max_restart_attempts() -> int:
+    try:
+        return max(0, min(int(os.getenv("GO2RTC_MAX_RESTART_ATTEMPTS", "5")), 20))
+    except ValueError:
+        return 5
 
 
 go2rtc = Go2RtcClient()

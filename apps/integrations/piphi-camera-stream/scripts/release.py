@@ -49,7 +49,13 @@ class SemVer:
             raise ValueError(f"Invalid semantic version: {value}")
         prerelease = tuple(match.group(4).split(".")) if match.group(4) else ()
         build = tuple(match.group(5).split(".")) if match.group(5) else ()
-        return cls(int(match.group(1)), int(match.group(2)), int(match.group(3)), prerelease, build)
+        return cls(
+            int(match.group(1)),
+            int(match.group(2)),
+            int(match.group(3)),
+            prerelease,
+            build,
+        )
 
     def __str__(self) -> str:
         value = f"{self.major}.{self.minor}.{self.patch}"
@@ -83,7 +89,9 @@ class SemVer:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Bump PiPhi runtime release metadata.")
     mode = parser.add_mutually_exclusive_group(required=True)
-    mode.add_argument("--bump", choices=BUMP_CHOICES, help="Increment the current version.")
+    mode.add_argument(
+        "--bump", choices=BUMP_CHOICES, help="Increment the current version."
+    )
     mode.add_argument("--set-version", help="Set an explicit semantic version.")
     parser.add_argument("--preid", choices=PREID_CHOICES, default=DEFAULT_PREID)
     parser.add_argument("--repo-root", default=None)
@@ -98,7 +106,11 @@ def parse_args() -> argparse.Namespace:
 
 
 def resolve_repo_root(value: str | None) -> Path:
-    return Path(value).expanduser().resolve() if value else Path(__file__).resolve().parents[1]
+    return (
+        Path(value).expanduser().resolve()
+        if value
+        else Path(__file__).resolve().parents[1]
+    )
 
 
 def resolve_path(repo_root: Path, value: str) -> Path:
@@ -123,7 +135,9 @@ def read_version_file(path: Path) -> tuple[str, SemVer] | None:
 
 def render_version_file(path: Path, text: str, version: str) -> str:
     if path.name == "pyproject.toml":
-        updated, count = PYPROJECT_VERSION_RE.subn(rf'\g<1>{version}\g<3>', text, count=1)
+        updated, count = PYPROJECT_VERSION_RE.subn(
+            rf"\g<1>{version}\g<3>", text, count=1
+        )
         if count != 1:
             raise ValueError("Unable to update project version in pyproject.toml")
         return updated
@@ -135,9 +149,7 @@ def render_version_file(path: Path, text: str, version: str) -> str:
 
 
 def render_runtime_version(text: str, version: str) -> str:
-    updated, count = RUNTIME_VERSION_RE.subn(
-        rf"\g<1>{version}\g<3>", text, count=1
-    )
+    updated, count = RUNTIME_VERSION_RE.subn(rf"\g<1>{version}\g<3>", text, count=1)
     if count != 1:
         raise ValueError("Unable to update INTEGRATION_VERSION in runtime settings")
     return updated
@@ -152,11 +164,15 @@ def atomic_write_text(path: Path, text: str) -> None:
         temporary.unlink(missing_ok=True)
 
 
-def resolve_target_version(current: SemVer, *, bump: str | None, set_version: str | None, preid: str) -> SemVer:
+def resolve_target_version(
+    current: SemVer, *, bump: str | None, set_version: str | None, preid: str
+) -> SemVer:
     if set_version is not None:
         target = SemVer.parse(set_version.strip())
         if target.compare(current) <= 0:
-            raise ValueError(f"Explicit version must be newer than the current version ({current})")
+            raise ValueError(
+                f"Explicit version must be newer than the current version ({current})"
+            )
         return target
     if bump is None:
         raise ValueError("Either --bump or --set-version is required")
@@ -176,19 +192,25 @@ def bump_version(current: SemVer, *, bump: str, preid: str) -> SemVer:
     if bump == "preminor":
         return SemVer(stable.major, stable.minor + 1, 0).with_prerelease(preid, "1")
     if bump == "prepatch":
-        return SemVer(stable.major, stable.minor, stable.patch + 1).with_prerelease(preid, "1")
+        return SemVer(stable.major, stable.minor, stable.patch + 1).with_prerelease(
+            preid, "1"
+        )
     if bump == "prerelease":
         return bump_prerelease(current, preid=preid)
     if bump == "release":
         if not current.prerelease:
-            raise ValueError("Cannot promote a stable version. Use patch/minor/major or --set-version instead.")
+            raise ValueError(
+                "Cannot promote a stable version. Use patch/minor/major or --set-version instead."
+            )
         return current.without_prerelease()
     raise ValueError(f"Unsupported bump type: {bump}")
 
 
 def bump_prerelease(current: SemVer, *, preid: str) -> SemVer:
     if not current.prerelease:
-        return SemVer(current.major, current.minor, current.patch + 1).with_prerelease(preid, "1")
+        return SemVer(current.major, current.minor, current.patch + 1).with_prerelease(
+            preid, "1"
+        )
     stable = current.without_prerelease()
     if current.prerelease[0] != preid:
         return stable.with_prerelease(preid, "1")
@@ -248,13 +270,20 @@ def infer_primary_container_repo(manifest: dict) -> str | None:
     if not repos:
         return None
     if len(repos) > 1:
-        raise ValueError("Multiple runtime container image repositories found; pass --docker-image explicitly.")
+        raise ValueError(
+            "Multiple runtime container image repositories found; pass --docker-image explicitly."
+        )
     return next(iter(repos))
 
 
-def update_primary_container_images(manifest: dict, *, docker_image: str, version: str) -> None:
+def update_primary_container_images(
+    manifest: dict, *, docker_image: str, version: str
+) -> None:
     tagged_image = f"{docker_image}:{version}"
-    if isinstance(manifest.get("image"), str) and image_repository(manifest["image"]) == docker_image:
+    if (
+        isinstance(manifest.get("image"), str)
+        and image_repository(manifest["image"]) == docker_image
+    ):
         manifest["image"] = tagged_image
     runtime = manifest.get("runtime")
     if not isinstance(runtime, dict):
@@ -266,7 +295,11 @@ def update_primary_container_images(manifest: dict, *, docker_image: str, versio
         if not isinstance(container, dict):
             continue
         image = container.get("image")
-        if isinstance(image, str) and image.strip() and image_repository(image) == docker_image:
+        if (
+            isinstance(image, str)
+            and image.strip()
+            and image_repository(image) == docker_image
+        ):
             container["image"] = tagged_image
 
 
@@ -299,9 +332,13 @@ def main() -> int:
     ]
     for path, (_text, version) in version_files:
         if version.compare(manifest_version) != 0:
-            raise ValueError(f"Version mismatch: {path.name}={version} manifest.json={manifest_version}")
+            raise ValueError(
+                f"Version mismatch: {path.name}={version} manifest.json={manifest_version}"
+            )
 
-    target = resolve_target_version(manifest_version, bump=args.bump, set_version=args.set_version, preid=args.preid)
+    target = resolve_target_version(
+        manifest_version, bump=args.bump, set_version=args.set_version, preid=args.preid
+    )
     target_version = str(target)
 
     if args.dry_run:
@@ -314,11 +351,15 @@ def main() -> int:
     if not args.no_pin_container_image:
         docker_image = args.docker_image or infer_primary_container_repo(manifest)
         if docker_image:
-            update_primary_container_images(manifest, docker_image=docker_image, version=target_version)
+            update_primary_container_images(
+                manifest, docker_image=docker_image, version=target_version
+            )
 
     pending_writes = {manifest_path: json.dumps(manifest, indent=2) + "\n"}
     if package_contract is not None:
-        pending_writes[package_contract_path] = json.dumps(package_contract, indent=2) + "\n"
+        pending_writes[package_contract_path] = (
+            json.dumps(package_contract, indent=2) + "\n"
+        )
     for path, (text, _version) in version_files:
         pending_writes[path] = render_version_file(path, text, target_version)
     if runtime_settings_path.exists():
@@ -334,6 +375,6 @@ def main() -> int:
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - CLI boundary renders unexpected failures safely.
         print(f"release.py failed: {exc}", file=sys.stderr)
         raise SystemExit(1)

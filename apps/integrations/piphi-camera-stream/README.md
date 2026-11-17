@@ -22,6 +22,11 @@ fields. Core encrypts the password at rest, while the runtime only combines the
 credentials with the RTSP URL inside its private camera-source response. Legacy
 URLs containing embedded credentials remain supported.
 
+Camera setup performs a real video-stream probe before accepting new configuration. The runtime
+then refreshes availability every 15 seconds by default and exposes authenticated source and JPEG
+snapshot endpoints to Core. Source URLs and credentials are never included in entity state or
+snapshot responses.
+
 The runtime exposes the common PiPhi runtime route contract:
 
 - `GET /health`
@@ -58,6 +63,6 @@ receipts in integration code; the Runtime Kit owns that protocol.
 ## Docker
 
 ```bash
-docker build -t ghcr.io/piphi-io/piphi-camera-stream:0.1.4 .
-docker run --rm -p 8090:8090 ghcr.io/piphi-io/piphi-camera-stream:0.1.4
+docker build -t ghcr.io/piphi-io/piphi-camera-stream:0.1.6 .
+docker run --rm -p 8090:8090 ghcr.io/piphi-io/piphi-camera-stream:0.1.6
 ```
