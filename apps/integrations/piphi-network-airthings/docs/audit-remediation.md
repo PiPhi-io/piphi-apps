@@ -5,7 +5,7 @@ from BACnet. The release bar is automated provider-contract testing plus
 qualification of the exact container image. Physical-device testing is optional
 follow-up evidence.
 
-| Audit requirement | v0.1.8 contract |
+| Audit requirement | v0.1.8 and later contract |
 | --- | --- |
 | Explicit account/device selection | `account_id` is required. Discovery returns a stable opaque `device_ref`; the runtime never selects the first account or device. Duplicate account/device configurations are rejected. |
 | Secret and household-data containment | Credentials use `SecretStr`. Account IDs, serial numbers, device names, homes, segments, raw payloads, and upstream bodies are excluded from state, telemetry, events, diagnostics, discovery, and errors. |

@@ -80,6 +80,20 @@ def test_manifest_and_behaviors_align() -> None:
         }
     ]
     assert behavior_capabilities == manifest_capabilities
+    assert manifest["runtime_requirements"] == [
+        "cloud_account",
+        "internet_access",
+        "secrets_or_api_tokens",
+    ]
+    assert manifest["marketplace"]["metadata_version"] == 2
+    assert manifest["marketplace"]["quality_tier"] == "unrated"
+    assert manifest["marketplace"]["governance"] == {
+        "schema_version": 1,
+        "publication_status": "draft",
+        "rollout_percent": 0,
+        "lifecycle_status": "active",
+        "qualification": {"status": "unverified"},
+    }
 
     device = behaviors["devices"][0]
     conditions = {condition["id"]: condition for condition in device["conditions"]}
