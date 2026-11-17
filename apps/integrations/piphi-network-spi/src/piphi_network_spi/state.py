@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import errno
 import json
 import threading
+import time
 from pathlib import Path
 from typing import Any, Literal
 
 from fastapi import HTTPException
-from pydantic import Field, model_validator
 from piphi_runtime_kit_python import (
     RuntimeConfig,
     RuntimeConfigSnapshot,
@@ -17,10 +18,12 @@ from piphi_runtime_kit_python import (
     schedule_telemetry_delivery,
     validate_typed_configs,
 )
+from pydantic import Field, model_validator
 
 from .sensors import (
     OPERATION_TIMEOUT_SECONDS,
     SensorConfig,
+    adapter_fingerprint,
     hardware_diagnostics,
     normalize_config,
     read_state,
@@ -30,13 +33,15 @@ from .sensors import (
 
 INTEGRATION_ID = "piphi-network-spi"
 INTEGRATION_NAME = "PiPhi Network SPI Sensors"
-INTEGRATION_VERSION = "0.1.1"
+INTEGRATION_VERSION = "0.1.4"
 
-MANIFEST_PATH = Path(__file__).resolve().parents[1] / "manifest.json"
+PACKAGE_MANIFEST_PATH = Path(__file__).resolve().parent / "manifest.json"
+MANIFEST_PATH = PACKAGE_MANIFEST_PATH if PACKAGE_MANIFEST_PATH.exists() else Path(__file__).resolve().parents[1] / "manifest.json"
 MANIFEST = json.loads(MANIFEST_PATH.read_text())
 UI_CONFIG_SCHEMA = {
     "fields": [
-        {"name": "adapter", "label": "Adapter", "type": "select", "required": True, "options": ["linux_spi", "ft232h", "mock"], "default": "linux_spi"},
+        {"name": "adapter", "label": "Adapter", "type": "select", "required": True, "options": ["mock"], "default": "mock"},
+        {"name": "adapter_id", "label": "Opaque adapter ID", "type": "text", "required": False},
         {"name": "bus", "label": "SPI Bus", "type": "number", "required": True, "default": 0},
         {"name": "chip_select", "label": "Chip Select", "type": "number", "required": True, "default": 0},
         {"name": "sensor_model", "label": "Sensor Model", "type": "select", "required": True, "options": ["auto", "bme680", "bme280", "bmp280"], "default": "auto"},
@@ -48,7 +53,8 @@ UI_CONFIG_SCHEMA = {
 
 
 class SPISensorRuntimeConfig(RuntimeConfig):
-    adapter: Literal["linux_spi", "ft232h", "mock"] = "linux_spi"
+    adapter: Literal["mock"] = "mock"
+    adapter_id: str | None = Field(default=None, min_length=8, max_length=64, pattern=r"^[a-z0-9_-]+$")
     bus: int = Field(default=0, ge=0, le=0, strict=True)
     chip_select: int = Field(default=0, ge=0, le=1, strict=True)
     sensor_model: Literal["auto", "bme680", "bme280", "bmp280"] = "auto"
@@ -57,7 +63,7 @@ class SPISensorRuntimeConfig(RuntimeConfig):
     alias: str | None = Field(default=None, max_length=128)
 
     @model_validator(mode="after")
-    def validate_hardware_target(self) -> "SPISensorRuntimeConfig":
+    def validate_hardware_target(self) -> SPISensorRuntimeConfig:
         normalize_config(self.model_dump())
         return self
 
@@ -98,7 +104,7 @@ def typed_snapshot_configs(snapshot: RuntimeConfigSnapshot) -> list[SPISensorRun
 def primary_config() -> SPISensorRuntimeConfig:
     entry = registry.primary_entry()
     if entry is None:
-        return SPISensorRuntimeConfig(id="spi-dev", adapter="linux_spi", sensor_model="bme280")
+        return SPISensorRuntimeConfig(id="spi-dev", adapter="mock", sensor_model="bme280")
     return SPISensorRuntimeConfig.model_validate(entry["config"])
 
 
@@ -111,11 +117,13 @@ def get_entry_or_404(config_id: str) -> dict[str, Any]:
 
 def entry_for_config(config: SPISensorRuntimeConfig) -> dict[str, Any]:
     sensor_config = config_to_sensor_config(config)
+    adapter_uid = adapter_fingerprint(sensor_config)
     model = "bme280" if sensor_config.adapter == "mock" and sensor_config.sensor_model == "auto" else sensor_config.sensor_model
     device = {
-        "id": config.device_id or f"spi-{sensor_config.adapter}-{sensor_config.bus}-{sensor_config.chip_select}",
+        "id": config.device_id or f"spi-{adapter_uid}-{sensor_config.chip_select}",
         "name": config.alias or "SPI Sensor",
-        "device_id": config.device_id or f"spi-{sensor_config.adapter}-{sensor_config.bus}-{sensor_config.chip_select}",
+        "device_id": config.device_id or f"spi-{adapter_uid}-{sensor_config.chip_select}",
+        "adapter_uid": adapter_uid,
         "adapter": sensor_config.adapter,
         "bus": sensor_config.bus,
         "chip_select": sensor_config.chip_select,
@@ -195,6 +203,48 @@ def schedule_state_telemetry(entry: dict[str, Any], state: dict[str, Any]) -> No
 
 _claims_guard = threading.Lock()
 _operation_slots = threading.BoundedSemaphore(8)
+_operation_stats: dict[str, dict[str, Any]] = {}
+
+
+def classify_hardware_error(exc: BaseException) -> str:
+    if isinstance(exc, (TimeoutError, asyncio.TimeoutError)):
+        return "timeout"
+    if isinstance(exc, PermissionError) or getattr(exc, "errno", None) in {errno.EACCES, errno.EPERM}:
+        return "permission_denied"
+    if isinstance(exc, BlockingIOError) or getattr(exc, "errno", None) == errno.EBUSY:
+        return "busy_or_driver_owned"
+    if isinstance(exc, (FileNotFoundError, ModuleNotFoundError, ImportError)) or getattr(exc, "errno", None) in {
+        errno.ENOENT,
+        errno.ENODEV,
+        errno.ENXIO,
+    }:
+        return "unavailable"
+    if isinstance(exc, ValueError):
+        return "invalid_or_unsupported"
+    return "io_error"
+
+
+def unavailable_state(exc: BaseException, *, previous: dict[str, Any] | None = None) -> dict[str, Any]:
+    return {
+        "connected": False,
+        "availability": "stale" if previous and previous.get("connected") else "unavailable",
+        "stale": bool(previous and previous.get("connected")),
+        "error_class": classify_hardware_error(exc),
+    }
+
+
+def _record_operation(config: SensorConfig, *, started: float, error: BaseException | None = None) -> None:
+    key = adapter_fingerprint(config)
+    stats = _operation_stats.setdefault(key, {"attempts": 0, "failures": 0})
+    stats["attempts"] += 1
+    stats["last_latency_ms"] = round((time.monotonic() - started) * 1000, 2)
+    if error is None:
+        stats["last_status"] = "available"
+        stats["last_error_class"] = None
+    else:
+        stats["failures"] += 1
+        stats["last_status"] = "unavailable"
+        stats["last_error_class"] = classify_hardware_error(error)
 
 
 def _register_claim_and_state(
@@ -221,6 +271,8 @@ async def run_hardware_operation(config: SensorConfig, operation: Any) -> Any:
     if not _operation_slots.acquire(blocking=False):
         raise RuntimeError("SPI operation queue is full")
 
+    started = time.monotonic()
+
     def execute() -> Any:
         try:
             return run_serialized(config, operation)
@@ -228,12 +280,19 @@ async def run_hardware_operation(config: SensorConfig, operation: Any) -> Any:
             _operation_slots.release()
 
     try:
-        return await asyncio.wait_for(
+        result = await asyncio.wait_for(
             asyncio.to_thread(execute),
             timeout=OPERATION_TIMEOUT_SECONDS,
         )
+        _record_operation(config, started=started)
+        return result
     except TimeoutError as exc:
-        raise RuntimeError("SPI operation exceeded its service deadline") from exc
+        error = TimeoutError("SPI operation exceeded its service deadline")
+        _record_operation(config, started=started, error=error)
+        raise error from exc
+    except Exception as exc:
+        _record_operation(config, started=started, error=exc)
+        raise
 
 
 async def apply_config(config: SPISensorRuntimeConfig) -> None:
@@ -241,6 +300,7 @@ async def apply_config(config: SPISensorRuntimeConfig) -> None:
     try:
         sensor_config = config_to_sensor_config(config)
         state = await run_hardware_operation(sensor_config, read_state)
+        state = {**state, "availability": "available", "stale": False, "error_class": None}
     except Exception as exc:
         raise HTTPException(
             status_code=503,
@@ -270,6 +330,7 @@ async def refresh_all_state() -> None:
         entry = get_entry_or_404(config_id)
         config = SPISensorRuntimeConfig.model_validate(entry["config"])
         state_payload = await run_hardware_operation(config_to_sensor_config(config), read_state)
+        state_payload = {**state_payload, "availability": "available", "stale": False, "error_class": None}
         registry.update_state(config_id, state_payload)
 
 
@@ -278,8 +339,11 @@ starter.state.provide(refresh_all_state, source=INTEGRATION_ID)
 
 def diagnostics_payload() -> dict[str, Any]:
     return {
-        "active_config_ids": registry.ids(),
+        "active_config_count": len(registry.ids()),
         "recent_event_count": len(registry.recent_events),
+        "runtime_version": INTEGRATION_VERSION,
+        "physical_qualification": "experimental_unverified",
+        "adapter_operations": _operation_stats,
         "supported_models": ["bme680", "bme280", "bmp280"],
         "hardware": hardware_diagnostics(),
     }

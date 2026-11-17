@@ -46,6 +46,10 @@ def test_normalize_config_rejects_ignored_or_unsafe_settings() -> None:
         sensors.normalize_config({"baudrate": 1, "sensor_model": "bme280"})
     with pytest.raises(ValueError, match="explicit sensor_model"):
         sensors.normalize_config({"adapter": "linux_spi", "sensor_model": "auto"})
+    with pytest.raises(ValueError, match="exact spidev/USB-node selection"):
+        sensors.normalize_config({"adapter": "linux_spi", "sensor_model": "bme280"})
+    with pytest.raises(ValueError, match="exact spidev/USB-node selection"):
+        sensors.normalize_config({"adapter": "ft232h", "sensor_model": "bme280"})
 
 
 def test_spi_read_passes_baudrate_and_deinitializes_handles(

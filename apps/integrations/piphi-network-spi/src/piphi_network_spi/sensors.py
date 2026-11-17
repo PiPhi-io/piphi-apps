@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import os
 import random
 import threading
@@ -8,7 +9,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-SUPPORTED_ADAPTERS = {"linux_spi", "ft232h", "mock"}
+KNOWN_ADAPTERS = {"linux_spi", "ft232h", "mock"}
+SUPPORTED_ADAPTERS = {"mock"}
 SUPPORTED_MODELS = {"auto", "bme680", "bme280", "bmp280"}
 MIN_BAUDRATE = 10_000
 MAX_BAUDRATE = 1_000_000
@@ -27,6 +29,7 @@ class SensorConfig:
     sensor_model: str = "auto"
     baudrate: int = 100000
     poll_interval_seconds: int = 30
+    adapter_id: str | None = None
 
 
 def normalize_config(payload: dict[str, Any] | None) -> SensorConfig:
@@ -38,13 +41,14 @@ def normalize_config(payload: dict[str, Any] | None) -> SensorConfig:
         sensor_model=str(data.get("sensor_model") or "auto").strip().lower(),
         baudrate=int(data.get("baudrate") or 100000),
         poll_interval_seconds=int(data.get("poll_interval_seconds") or 30),
+        adapter_id=(str(data["adapter_id"]).strip().lower() if data.get("adapter_id") else None),
     )
     validate_config(config)
     return config
 
 
 def validate_config(config: SensorConfig) -> None:
-    if config.adapter not in SUPPORTED_ADAPTERS:
+    if config.adapter not in KNOWN_ADAPTERS:
         raise ValueError(f"Unsupported SPI adapter: {config.adapter}")
     if config.sensor_model not in SUPPORTED_MODELS:
         raise ValueError(f"Unsupported SPI sensor_model: {config.sensor_model}")
@@ -63,13 +67,28 @@ def validate_config(config: SensorConfig) -> None:
         )
     if config.adapter != "mock" and config.sensor_model == "auto":
         raise ValueError("Physical SPI targets require an explicit sensor_model for safe probing")
+    if config.adapter not in SUPPORTED_ADAPTERS:
+        raise ValueError(
+            f"Unsupported SPI backend: {config.adapter}; exact spidev/USB-node selection is not implemented"
+        )
+    if config.adapter_id is not None and not _valid_adapter_id(config.adapter_id):
+        raise ValueError("adapter_id must be 8-64 lowercase opaque characters")
 
 
-def adapter_key(config: SensorConfig) -> tuple[str, int]:
-    return (config.adapter, config.bus)
+def _valid_adapter_id(value: str) -> bool:
+    return 8 <= len(value) <= 64 and all(char.islower() or char.isdigit() or char in "-_" for char in value)
 
 
-def target_key(config: SensorConfig) -> tuple[str, int, int]:
+def adapter_fingerprint(config: SensorConfig) -> str:
+    identity = config.adapter_id or f"{config.adapter}:development"
+    return hashlib.sha256(identity.encode("utf-8")).hexdigest()[:16]
+
+
+def adapter_key(config: SensorConfig) -> tuple[str, str]:
+    return (config.adapter, adapter_fingerprint(config))
+
+
+def target_key(config: SensorConfig) -> tuple[str, str, int]:
     return (*adapter_key(config), config.chip_select)
 
 
@@ -170,13 +189,14 @@ def require_mock_enabled() -> None:
 
 
 def hardware_diagnostics() -> dict[str, Any]:
-    spi_nodes = sorted(str(path) for path in Path("/dev").glob("spidev*"))
+    spi_node_count = sum(1 for _ in Path("/dev").glob("spidev*"))
     return {
         "default_adapter": "linux_spi",
         "mock_enabled": mock_hardware_allowed(),
         "linux_spi": {
-            "device_nodes": spi_nodes,
-            "available": bool(spi_nodes),
+            "device_node_count": spi_node_count,
+            "available": False,
+            "status": "experimental_unverified_backend_disabled",
             "board": _module_available("board"),
             "busio": _module_available("busio"),
             "digitalio": _module_available("digitalio"),

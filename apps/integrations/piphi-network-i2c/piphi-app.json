@@ -12,18 +12,21 @@
     "python": "3.12"
   },
   "ci": {
-    "enforcement": "legacy-static",
+    "enforcement": "full",
     "commands": [
-      "pdm install --check",
-      "pdm run pytest"
+      "pdm install --check -G:all",
+      "pdm export --prod -G hardware --output /tmp/piphi-network-i2c-requirements.txt && pdm run pip-audit --disable-pip --require-hashes -r /tmp/piphi-network-i2c-requirements.txt",
+      "pdm run ruff check src tests scripts",
+      "pdm run pytest",
+      "pdm run python scripts/validate.py"
     ],
-    "build_container": false
+    "build_container": true
   },
   "packages": [
     {
       "id": "piphi-network-i2c",
       "type": "integration",
-      "version": "0.1.3",
+      "version": "0.1.4",
       "manifest": "src/manifest.json",
       "release": {
         "tag": "apps/{package_id}/v{version}",

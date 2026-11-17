@@ -2,14 +2,14 @@
   "manifest_version": "1.0",
   "id": "piphi-network-i2c",
   "name": "PiPhi Network I2C Sensors",
-  "version": "0.1.3",
-  "description": "Local I2C sensor integration for BME680, BME280, BMP280, AHT20, PMSA003I particulate sensors, and generic I2C devices.",
+  "version": "0.1.4",
+  "description": "Experimental, physically unverified local I2C sensor integration with an exact Linux device boundary.",
   "maintainer": {
     "name": "PiPhi Integrations Team",
     "website": "https://github.com/PiPhi-io"
   },
   "license": "Apache-2.0",
-  "image": "piphinetwork/i2c-integration:0.1.3",
+  "image": "ghcr.io/piphi-io/i2c-integration:0.1.4",
   "platforms": [
     "linux"
   ],
@@ -17,7 +17,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "piphinetwork/i2c-integration:0.1.3",
+        "image": "ghcr.io/piphi-io/i2c-integration:0.1.4",
         "ports": [
           {
             "container": 3674,
@@ -30,6 +30,16 @@
           "PIPHI_ALLOW_MOCK_HARDWARE": "false"
         },
         "privileged": false,
+        "read_only": true,
+        "devices": [
+          {
+            "host": "/dev/i2c-1",
+            "container": "/dev/i2c-1",
+            "permissions": "rw"
+          }
+        ],
+        "cap_drop": ["ALL"],
+        "security_opt": ["no-new-privileges:true"],
         "restart_policy": {
           "name": "unless-stopped",
           "maximum_retry_count": 0
@@ -45,11 +55,16 @@
             "required": true,
             "options": [
               "linux_i2c",
-              "mcp2221a",
-              "ft232h",
               "mock"
             ],
-            "description": "Use linux_i2c for direct GPIO headers, mcp2221a for Adafruit product 4471, ft232h for FT232H bridges, or mock only when PIPHI_ALLOW_MOCK_HARDWARE=true."
+            "description": "linux_i2c is restricted to the exactly mapped /dev/i2c-1 node. USB bridge backends are rejected until exact-node selection exists. Physical operation remains unverified."
+          },
+          {
+            "name": "adapter_id",
+            "label": "Opaque Adapter ID",
+            "type": "text",
+            "required": false,
+            "description": "Provisioned non-secret opaque identity (required for linux_i2c); raw serials and paths are not accepted."
           },
           {
             "name": "bus",
@@ -95,6 +110,7 @@
     "base_url": "http://127.0.0.1:3674",
     "required": [
       "health",
+      "diagnostics",
       "entities",
       "state",
       "command",
@@ -103,6 +119,7 @@
     ],
     "endpoints": {
       "health": "/health",
+      "diagnostics": "/diagnostics",
       "discover": "/discover",
       "entities": "/entities",
       "state": "/state",
@@ -120,6 +137,7 @@
     "required": true,
     "editable_fields": [
       "adapter",
+      "adapter_id",
       "bus",
       "address",
       "sensor_model",
@@ -127,14 +145,14 @@
     ],
     "identity_fields": [
       "adapter",
-      "bus",
+      "adapter_id",
       "address"
     ]
   },
   "identity": {
     "fields": [
       "adapter",
-      "bus",
+      "adapter_id",
       "address"
     ]
   },

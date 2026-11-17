@@ -175,8 +175,47 @@ def test_i2c_discovery_ids_include_adapter_bus_and_address(
 def test_normalize_config_rejects_ranges_and_ignored_bus_combinations() -> None:
     with pytest.raises(ValueError, match="0x03..0x77"):
         sensors.normalize_config({"address": "0x78", "sensor_model": "generic"})
-    with pytest.raises(ValueError, match="bus must be 1"):
+    with pytest.raises(ValueError, match="Unsupported I2C adapter"):
         sensors.normalize_config({"adapter": "ft232h", "bus": 2, "sensor_model": "generic"})
+
+
+def test_linux_config_requires_exact_bus_and_opaque_adapter_id() -> None:
+    with pytest.raises(ValueError, match="bus must be 1"):
+        sensors.normalize_config(
+            {"adapter": "linux_i2c", "bus": 2, "address": "0x76", "sensor_model": "bme280", "adapter_id": "adapter01"}
+        )
+    with pytest.raises(ValueError, match="opaque adapter_id"):
+        sensors.normalize_config(
+            {"adapter": "linux_i2c", "bus": 1, "address": "0x76", "sensor_model": "bme280"}
+        )
+
+
+def test_preflight_rejects_permission_and_kernel_driver_without_mutation(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    dev = tmp_path / "dev"
+    sys_root = tmp_path / "sys"
+    dev.mkdir()
+    node = dev / "i2c-1"
+    node.touch()
+    config = sensors.SensorConfig(
+        adapter="linux_i2c", bus=1, address=0x76, sensor_model="bme280", adapter_id="adapter01"
+    )
+    monkeypatch.setattr(sensors.os, "access", lambda *_args: False)
+    with pytest.raises(PermissionError, match="not readable/writable"):
+        sensors.preflight_target(config, dev_root=dev, sys_root=sys_root)
+    monkeypatch.setattr(sensors.os, "access", lambda *_args: True)
+    driver = sys_root / "bus" / "i2c" / "devices" / "1-0076" / "driver"
+    driver.mkdir(parents=True)
+    with pytest.raises(BlockingIOError, match="automatic unbind is forbidden"):
+        sensors.preflight_target(config, dev_root=dev, sys_root=sys_root)
+
+
+def test_adapter_identity_is_stable_opaque_and_excludes_raw_id() -> None:
+    config = sensors.SensorConfig(adapter="linux_i2c", adapter_id="private-adapter-01", address=0x76)
+    fingerprint = sensors.adapter_fingerprint(config)
+    assert fingerprint == sensors.adapter_fingerprint(config)
+    assert "private" not in fingerprint
 
 
 def test_auto_detected_model_is_reported_effectively(monkeypatch: pytest.MonkeyPatch) -> None:
