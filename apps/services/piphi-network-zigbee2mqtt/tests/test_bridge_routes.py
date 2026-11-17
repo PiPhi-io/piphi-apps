@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
 import httpx
 import pytest
 
-from piphi_network_zigbee2mqtt.coordinator_claims import CoordinatorClaimStore
+from piphi_network_zigbee2mqtt.coordinator_claims import (
+    CoordinatorClaimStore,
+    stable_coordinator_identity,
+)
 from piphi_network_zigbee2mqtt.main import app
 from piphi_network_zigbee2mqtt.routes import bridge
 
@@ -41,14 +45,70 @@ async def test_v1_routes_fail_closed_without_production_token(
 
 
 @pytest.mark.anyio
+async def test_stale_claim_repair_is_authenticated_confirmed_and_fenced(
+    tmp_path, monkeypatch
+) -> None:
+    monkeypatch.setenv("PIPHI_ZIGBEE2MQTT_SIDECAR_TOKEN", "repair-token")
+    store = CoordinatorClaimStore(tmp_path / "claims")
+    monkeypatch.setattr(bridge, "claim_store", store)
+    monkeypatch.setattr(bridge, "claim_owner_id", lambda: "stable-core-b")
+    monkeypatch.setattr(
+        bridge,
+        "probe_coordinator",
+        lambda _port: SimpleNamespace(available=True, exclusive_verified=True, message=None),
+    )
+    bridge.sidecar_store.coordinator_identity = None
+    bridge.sidecar_store.coordinator_owner_id = None
+    bridge.sidecar_store.coordinator_claim_generation = None
+    identity = stable_coordinator_identity("usb:stale:1")
+    original = store.claim(
+        identity,
+        "stable-core-a",
+        now=datetime.now(UTC) - timedelta(seconds=10),
+        lease_seconds=1,
+    )
+    payload = {
+        "coordinator_identity": "usb:stale:1",
+        "coordinator_port": "/dev/serial/by-id/stale-1",
+        "expected_generation": original.generation,
+    }
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://testserver"
+    ) as client:
+        denied = await client.post("/v1/coordinator-claim/repair", json=payload)
+        unconfirmed = await client.post(
+            "/v1/coordinator-claim/repair",
+            json=payload,
+            headers={"Authorization": "Bearer repair-token"},
+        )
+        repaired = await client.post(
+            "/v1/coordinator-claim/repair",
+            json=payload | {"confirm_stale_repair": True},
+            headers={"Authorization": "Bearer repair-token"},
+        )
+
+    assert denied.status_code == 401
+    assert unconfirmed.status_code == 400
+    assert repaired.status_code == 200, repaired.text
+    assert repaired.json()["generation"] == original.generation + 1
+
+
+@pytest.mark.anyio
 async def test_bridge_routes_render_and_snapshot(tmp_path, monkeypatch) -> None:
+    bridge.sidecar_store.current_config = None
+    bridge.sidecar_store.current_render = None
+    bridge.sidecar_store.coordinator_identity = None
+    bridge.sidecar_store.coordinator_owner_id = None
+    bridge.sidecar_store.coordinator_claim_generation = None
     monkeypatch.setenv("PIPHI_ZIGBEE2MQTT_ALLOWED_DATA_ROOTS", str(tmp_path))
     monkeypatch.setattr(bridge, "claim_store", CoordinatorClaimStore(tmp_path / "claims.json"))
     monkeypatch.setattr(
         bridge,
         "probe_coordinator",
-        lambda _port: SimpleNamespace(available=True, message=None),
+        lambda _port: SimpleNamespace(available=True, exclusive_verified=True, message=None),
     )
+    (tmp_path / "database.db").write_text("device")
+    (tmp_path / "coordinator_backup.json").write_text("{}")
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
         render_response = await client.post(
@@ -146,14 +206,20 @@ async def test_bridge_routes_render_and_snapshot(tmp_path, monkeypatch) -> None:
                 "serial": {"port": "/dev/ttyUSB0", "adapter": "ember"},
                 "runtime": "docker",
                 "data_path": str(tmp_path),
-                "advanced": {"network_key": list(range(16))},
+                    "advanced": {"network_key": list(range(16)), "channel": 15},
             },
             "mqtt_check": None,
         }
         rejected_change_response = await client.post("/v1/apply", json=network_change)
         backup_response = await client.post(
             "/v1/network-backup",
-            json={"data_path": str(tmp_path), "adapter_family": "ember"},
+            json={
+                "data_path": str(tmp_path),
+                "adapter_family": "ember",
+                "zigbee2mqtt_version": "2.14.3",
+                "coordinator_identity": "usb:sonoff-zbdongle-e:1234",
+                "coordinator_port": "/dev/ttyUSB0",
+            },
         )
         backup = backup_response.json()
         accepted_change_response = await client.post(
@@ -162,6 +228,8 @@ async def test_bridge_routes_render_and_snapshot(tmp_path, monkeypatch) -> None:
             | {
                 "backup_path": backup["backup_path"],
                 "backup_sha256": backup["backup_sha256"],
+                "acknowledge_network_change_warning": True,
+                "confirm_network_change": True,
             },
         )
         monkeypatch.setattr(bridge, "claim_owner_id", lambda: "another-runtime")
@@ -171,6 +239,8 @@ async def test_bridge_routes_render_and_snapshot(tmp_path, monkeypatch) -> None:
             | {
                 "backup_path": backup["backup_path"],
                 "backup_sha256": backup["backup_sha256"],
+                "acknowledge_network_change_warning": True,
+                "confirm_network_change": True,
             },
         )
         stop_response = await client.post(

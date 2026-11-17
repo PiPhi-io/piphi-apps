@@ -6,6 +6,8 @@ from ..adapter_detector import discover_adapters
 from ..bridge_models import (
     ApplyBridgeRequest,
     ApplyBridgeResponse,
+    CoordinatorClaimRepairRequest,
+    CoordinatorClaimResponse,
     CoordinatorMigrationApplyRequest,
     CoordinatorMigrationApplyResponse,
     CoordinatorMigrationPlanRequest,
@@ -67,7 +69,7 @@ async def snapshot():
 @router.post("/mqtt/messages")
 async def mqtt_messages(payload: MqttMessagesRequest):
     try:
-        messages = mqtt_gateway.messages(
+        replay = mqtt_gateway.replay(
             payload.topics,
             after_sequence=payload.after_sequence,
         )
@@ -80,11 +82,11 @@ async def mqtt_messages(payload: MqttMessagesRequest):
                 "topic": message.topic,
                 "payload": message.payload,
             }
-            for message in messages
+            for message in replay.messages
         ],
-        "sequence": max(
-            [payload.after_sequence, *(message.sequence for message in messages)]
-        ),
+        "sequence": replay.cursor,
+        "gap": replay.gap,
+        "oldest_sequence": replay.oldest_sequence,
     }
 
 
@@ -118,7 +120,20 @@ async def coordinator_probe(payload: CoordinatorProbeRequest):
 @router.post("/network-backup")
 async def network_backup(payload: NetworkBackupRequest):
     try:
-        return create_network_backup(payload.data_path, adapter_family=payload.adapter_family)
+        probe = _probe_or_verify_managed_stop(
+            payload,
+            port=payload.coordinator_port,
+            operation="network_backup",
+        )
+        if not probe.available or not probe.exclusive_verified:
+            raise ValueError(probe.message or "Coordinator workload must be stopped and fenced.")
+        return create_network_backup(
+            payload.data_path,
+            adapter_family=payload.adapter_family,
+            adapter_backup_supported=payload.adapter_backup_supported,
+            workload_fenced=True,
+            zigbee2mqtt_version=payload.zigbee2mqtt_version,
+        )
     except (OSError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -188,17 +203,28 @@ async def coordinator_migration_apply(payload: CoordinatorMigrationApplyRequest)
     owner_id = claim_owner_id()
     previous_identity = sidecar_store.coordinator_identity
     previous_owner = sidecar_store.coordinator_owner_id
+    previous_generation = sidecar_store.coordinator_claim_generation
     claimed_target = previous_identity != identity or previous_owner != owner_id
     restore_result = None
     try:
-        claim_store.claim(identity, owner_id)
+        target_claim = claim_store.claim(
+            identity,
+            owner_id,
+            expected_generation=(
+                previous_generation
+                if previous_identity == identity and previous_owner == owner_id
+                else None
+            ),
+        )
+        claim_store.assert_fence(identity, owner_id, target_claim.generation)
         restore_result = restore_network_backup(
             data_path=payload.data_path,
             backup_path=payload.backup_path,
             expected_sha256=payload.backup_sha256,
             adapter_family=payload.target_adapter_family,
-            compatibility_evidence=payload.compatibility_evidence,
             rollback_adapter_family=payload.source_adapter_family,
+            workload_fenced=True,
+            post_restore_verify=_verify_restored_essentials,
         )
         if sidecar_store.current_config is None:
             raise ValueError("A current Zigbee2MQTT configuration is required for guided migration.")
@@ -223,6 +249,7 @@ async def coordinator_migration_apply(payload: CoordinatorMigrationApplyRequest)
         sidecar_store.config_hash = write_result.config_hash
         sidecar_store.coordinator_identity = identity
         sidecar_store.coordinator_owner_id = owner_id
+        sidecar_store.coordinator_claim_generation = target_claim.generation
         sidecar_store.last_error = None
     except CoordinatorClaimConflict as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
@@ -234,6 +261,8 @@ async def coordinator_migration_apply(payload: CoordinatorMigrationApplyRequest)
                     backup_path=restore_result.rollback_backup.backup_path,
                     expected_sha256=restore_result.rollback_backup.backup_sha256,
                     adapter_family=payload.source_adapter_family,
+                    workload_fenced=True,
+                    post_restore_verify=_verify_restored_essentials,
                 )
             except (OSError, ValueError) as rollback_exc:
                 sidecar_store.last_error = "Coordinator migration and automatic rollback both failed."
@@ -242,10 +271,14 @@ async def coordinator_migration_apply(payload: CoordinatorMigrationApplyRequest)
         raise HTTPException(status_code=409, detail=sidecar_store.last_error) from exc
     finally:
         if claimed_target and sidecar_store.coordinator_identity != identity:
-            claim_store.release(identity, owner_id)
+            claim_store.release(
+                identity,
+                owner_id,
+                target_claim.generation if 'target_claim' in locals() else None,
+            )
 
     if previous_identity and previous_owner and previous_identity != identity:
-        claim_store.release(previous_identity, previous_owner)
+        claim_store.release(previous_identity, previous_owner, previous_generation)
     assert restore_result is not None
     return CoordinatorMigrationApplyResponse(
         migrated=True,
@@ -282,12 +315,21 @@ async def network_restore(payload: NetworkRestoreRequest):
         and sidecar_store.coordinator_owner_id == owner_id
     )
     try:
-        claim_store.claim(identity, owner_id)
+        temporary_claim = claim_store.claim(
+            identity,
+            owner_id,
+            expected_generation=(
+                sidecar_store.coordinator_claim_generation if already_owned else None
+            ),
+        )
+        claim_store.assert_fence(identity, owner_id, temporary_claim.generation)
         result = restore_network_backup(
             data_path=payload.data_path,
             backup_path=payload.backup_path,
             expected_sha256=payload.backup_sha256,
             adapter_family=payload.adapter_family,
+            workload_fenced=True,
+            post_restore_verify=_verify_restored_essentials,
         )
         sidecar_store.current_config = None
         sidecar_store.current_render = None
@@ -301,7 +343,44 @@ async def network_restore(payload: NetworkRestoreRequest):
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     finally:
         if not already_owned:
-            claim_store.release(identity, owner_id)
+            claim_store.release(identity, owner_id, temporary_claim.generation if 'temporary_claim' in locals() else None)
+
+
+@router.post("/coordinator-claim/repair", response_model=CoordinatorClaimResponse)
+async def coordinator_claim_repair(payload: CoordinatorClaimRepairRequest):
+    if not payload.confirm_stale_repair:
+        raise HTTPException(status_code=400, detail="Stale coordinator claim repair requires confirmation.")
+    identity = stable_coordinator_identity(payload.coordinator_identity)
+    requester = claim_owner_id()
+    try:
+        probe = _probe_or_verify_managed_stop(
+            payload,
+            port=payload.coordinator_port,
+            operation="coordinator_claim_repair",
+        )
+        if not probe.available or not probe.exclusive_verified:
+            raise ValueError(probe.message or "Coordinator workload is not fenced for stale repair.")
+        replacement = claim_store.repair_stale(
+            identity,
+            requester_owner_id=requester,
+            expected_generation=payload.expected_generation,
+            owner_is_live=lambda owner: (
+                sidecar_store.coordinator_identity == identity
+                and sidecar_store.coordinator_owner_id == owner
+                and sidecar_store.coordinator_claim_generation == payload.expected_generation
+            ),
+        )
+    except (CoordinatorClaimConflict, ValueError) as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    sidecar_store.coordinator_identity = identity
+    sidecar_store.coordinator_owner_id = requester
+    sidecar_store.coordinator_claim_generation = replacement.generation
+    return CoordinatorClaimResponse(
+        coordinator_identity=identity,
+        owner_id=requester,
+        generation=replacement.generation,
+        lease_expires_at=replacement.expires_at,
+    )
 
 
 def _probe_or_verify_managed_stop(payload, *, port: str, operation: str):
@@ -423,13 +502,13 @@ async def render_config(payload: WriteConfigRequest):
 @router.post("/config/write")
 async def write_config(payload: WriteBridgeRequest):
     _require_safe_network_change(payload)
-    coordinator_identity, owner_id = _claim_coordinator(payload)
+    coordinator_identity, owner_id, claim_generation = _claim_coordinator(payload)
     rendered = render_zigbee2mqtt_config(payload.config)
     target_path = payload.config_path or f"{payload.config.data_path.rstrip('/')}/configuration.yaml"
     try:
         write_result = write_config_atomic(rendered.yaml, target_path)
     except (OSError, ValueError) as exc:
-        claim_store.release(coordinator_identity, owner_id)
+        claim_store.release(coordinator_identity, owner_id, claim_generation)
         raise HTTPException(status_code=400 if isinstance(exc, ValueError) else 500, detail=str(exc)) from exc
     rendered.config_path = write_result.config_path
     sidecar_store.current_config = payload.config
@@ -445,13 +524,13 @@ async def write_config(payload: WriteBridgeRequest):
 @router.post("/apply")
 async def apply_bridge(payload: ApplyBridgeRequest) -> ApplyBridgeResponse:
     _require_safe_network_change(payload)
-    coordinator_identity, owner_id = _claim_coordinator(payload)
+    coordinator_identity, owner_id, claim_generation = _claim_coordinator(payload)
     rendered = render_zigbee2mqtt_config(payload.config)
     target_path = payload.config_path or f"{payload.config.data_path.rstrip('/')}/configuration.yaml"
     try:
         write_result = write_config_atomic(rendered.yaml, target_path)
     except (OSError, ValueError) as exc:
-        claim_store.release(coordinator_identity, owner_id)
+        claim_store.release(coordinator_identity, owner_id, claim_generation)
         raise HTTPException(status_code=400 if isinstance(exc, ValueError) else 500, detail=str(exc)) from exc
     rendered.config_path = write_result.config_path
     restart_required = _restart_required(payload.restart_policy, write_result.changed)
@@ -461,11 +540,11 @@ async def apply_bridge(payload: ApplyBridgeRequest) -> ApplyBridgeResponse:
         try:
             supervisor_result = await supervise("restart", payload.supervisor)
         except Exception:
-            claim_store.release(coordinator_identity, owner_id)
+            claim_store.release(coordinator_identity, owner_id, claim_generation)
             raise
         sidecar_store.last_supervisor = supervisor_result
         if not supervisor_result.ok:
-            claim_store.release(coordinator_identity, owner_id)
+            claim_store.release(coordinator_identity, owner_id, claim_generation)
 
     mqtt_result = None
     if payload.mqtt_check is not None:
@@ -519,9 +598,11 @@ async def supervisor_stop(payload: SupervisorRequest):
         claim_store.release(
             sidecar_store.coordinator_identity,
             sidecar_store.coordinator_owner_id,
+            sidecar_store.coordinator_claim_generation,
         )
         sidecar_store.coordinator_identity = None
         sidecar_store.coordinator_owner_id = None
+        sidecar_store.coordinator_claim_generation = None
     return result
 
 
@@ -578,19 +659,35 @@ def _require_safe_network_change(payload: WriteConfigRequest) -> None:
         previous.pan_id,
         previous.ext_pan_id,
         previous.network_key,
+        previous.channel,
     ) != (
         requested.pan_id,
         requested.ext_pan_id,
         requested.network_key,
+        requested.channel,
     )
     if identity_changed:
+        if not payload.acknowledge_network_change_warning:
+            raise HTTPException(
+                status_code=409,
+                detail="Changing Zigbee channel or network identity can strand devices; acknowledge the warning.",
+            )
+        if not payload.confirm_network_change:
+            raise HTTPException(status_code=409, detail="Zigbee network change requires confirmation.")
         try:
             verify_network_backup(payload.backup_path, payload.backup_sha256)
+            probe = _probe_or_verify_managed_stop(
+                payload,
+                port=payload.config.serial.port,
+                operation="network_change",
+            )
+            if not probe.available or not probe.exclusive_verified:
+                raise ValueError(probe.message or "Coordinator workload must be stopped and fenced.")
         except ValueError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
-def _claim_coordinator(payload: WriteBridgeRequest) -> tuple[str, str]:
+def _claim_coordinator(payload: WriteBridgeRequest) -> tuple[str, str, int]:
     coordinator_identity = stable_coordinator_identity(payload.coordinator_identity)
     owner_id = claim_owner_id()
     if sidecar_store.coordinator_identity != coordinator_identity:
@@ -601,10 +698,25 @@ def _claim_coordinator(payload: WriteBridgeRequest) -> tuple[str, str]:
                 detail=probe.message or "Coordinator is unavailable or already in use.",
             )
     try:
-        claim_store.claim(coordinator_identity, owner_id)
+        claim = claim_store.claim(
+            coordinator_identity,
+            owner_id,
+            expected_generation=(
+                sidecar_store.coordinator_claim_generation
+                if sidecar_store.coordinator_identity == coordinator_identity
+                and sidecar_store.coordinator_owner_id == owner_id
+                else None
+            ),
+        )
+        claim_store.assert_fence(coordinator_identity, owner_id, claim.generation)
     except CoordinatorClaimConflict as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    return coordinator_identity, owner_id
+    sidecar_store.coordinator_claim_generation = claim.generation
+    return coordinator_identity, owner_id, claim.generation
+
+
+def _verify_restored_essentials(root, _metadata) -> bool:
+    return (root / "configuration.yaml").is_file() and (root / "database.db").is_file()
 
 
 def _apply_message(policy: str, changed: bool, restart_required: bool) -> str:

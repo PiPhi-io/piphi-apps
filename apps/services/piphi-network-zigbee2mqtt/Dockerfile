@@ -6,14 +6,16 @@ COPY pyproject.toml pdm.lock ./
 RUN pdm export --prod --without-hashes --output requirements.txt
 
 FROM python:3.12-slim@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b
-ARG APP_VERSION=0.1.25
+ARG APP_VERSION=0.1.26
 LABEL org.opencontainers.image.title="PiPhi Zigbee2MQTT Sidecar" \
       org.opencontainers.image.description="Managed Zigbee2MQTT bridge helper for PiPhi" \
       org.opencontainers.image.source="https://github.com/PiPhi-io/piphi-apps" \
       org.opencontainers.image.version="${APP_VERSION}"
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    PIPHI_AUTOMATION_LEDGER_PATH=/app/data/automation-actions.sqlite3 \
+    PIPHI_COORDINATOR_EVIDENCE_LEDGER_PATH=/app/data/coordinator-stop-evidence.sqlite3
 WORKDIR /app
 COPY pyproject.toml ./
 COPY src ./src

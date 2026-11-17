@@ -29,6 +29,12 @@ if pyproject.get("project", {}).get("version") != release_version:
     errors.append("pyproject version must match piphi-app.json")
 if INTEGRATION_VERSION != release_version:
     errors.append("runtime version must match piphi-app.json")
+if dockerfile and f"ARG APP_VERSION={release_version}" not in dockerfile:
+    errors.append("Dockerfile APP_VERSION must match piphi-app.json")
+if dockerfile and "PIPHI_AUTOMATION_LEDGER_PATH=/app/data/" not in dockerfile:
+    errors.append("Dockerfile must place the automation ledger in the writable data volume")
+if dockerfile and "PIPHI_COORDINATOR_EVIDENCE_LEDGER_PATH=/app/data/" not in dockerfile:
+    errors.append("Dockerfile must place coordinator evidence in the writable data volume")
 if manifest.get("image") != release_image:
     errors.append("manifest image must match the GHCR release target")
 if (

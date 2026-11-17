@@ -98,6 +98,11 @@ async def test_apply_config_writes_zigbee2mqtt_configuration(tmp_path, monkeypat
     assert 'port: "/dev/ttyZigbee"' in yaml
     assert sidecar_store.config_path == str(config_path)
     assert sidecar_store.config_hash
+    assert sidecar_store.coordinator_claim_generation == 1
+
+    await apply_config(config)
+
+    assert sidecar_store.coordinator_claim_generation == 1
 
 
 @pytest.mark.anyio

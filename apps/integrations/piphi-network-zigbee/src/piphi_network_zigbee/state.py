@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import threading
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -267,8 +268,11 @@ async def apply_config(config: DeviceConfig) -> None:
     registry.update_state(
         entry_id,
         {
-            "connected": True,
-            "availability": True,
+            "connected": False,
+            "availability": None,
+            "availability_status": "unknown",
+            "availability_updated_at": datetime.now(UTC).isoformat(),
+            "bridge_available": None,
             "friendly_name": config.friendly_name,
             "ieee_address": config.ieee_address,
             "alias": config.alias,
@@ -319,8 +323,11 @@ def reconcile_mqtt_subscriptions() -> None:
         subscriber = SidecarMessageSubscriber(
             base_url=sidecar_url,
             topics=topics,
-            on_message=lambda topic, payload, mapping=topic_map: _handle_sidecar_message(
-                mapping, topic, payload
+            on_message=lambda topic, payload, mapping=topic_map, url=sidecar_url: _handle_sidecar_message(
+                mapping, topic, payload, sidecar_url=url
+            ),
+            on_gap=lambda gap, url=sidecar_url: _handle_bridge_availability(
+                url, "unknown", reason=f"journal_gap:{gap['from_sequence']}-{gap['to_sequence']}"
             ),
         )
         subscriber.start()
@@ -353,7 +360,22 @@ def _subscriptions_by_sidecar() -> dict[str, list[ZigbeeMqttSubscription]]:
         sidecar_url = str(entry.get("sidecar_base_url") or DEFAULT_SIDECAR_BASE_URL)
         subscriptions = subscriptions_for_entry(entry)
         if subscriptions:
-            grouped.setdefault(sidecar_url, []).extend(subscriptions)
+            target = grouped.setdefault(sidecar_url, [])
+            target.extend(subscriptions)
+            base_topic = str(entry.get("mqtt_base_topic") or DEFAULT_MQTT_BASE_TOPIC).strip("/")
+            existing_topics = {subscription.topic for subscription in target}
+            for suffix in ("state", "info", "health"):
+                topic = f"{base_topic}/bridge/{suffix}"
+                if topic not in existing_topics:
+                    target.append(
+                        ZigbeeMqttSubscription(
+                            topic=topic,
+                            config_id="__bridge__",
+                            device_id="__bridge__",
+                            kind="bridge",
+                        )
+                    )
+                    existing_topics.add(topic)
     return grouped
 
 
@@ -361,9 +383,16 @@ def _handle_sidecar_message(
     topic_map: dict[str, ZigbeeMqttSubscription],
     topic: str,
     payload: Any,
+    *,
+    sidecar_url: str | None = None,
 ) -> None:
     subscription = topic_map.get(topic)
     if subscription is None:
+        return
+    if subscription.kind == "bridge":
+        status, reason = _bridge_status(payload)
+        if status:
+            _handle_bridge_availability(sidecar_url or DEFAULT_SIDECAR_BASE_URL, status, reason=reason)
         return
     if subscription.kind == "availability":
         if isinstance(payload, dict):
@@ -376,6 +405,70 @@ def _handle_sidecar_message(
     else:
         return
     _handle_mqtt_payload(subscription, normalized)
+
+
+def _bridge_status(payload: Any) -> tuple[str | None, str | None]:
+    if isinstance(payload, dict):
+        value = payload.get("state", payload.get("status", payload.get("healthy")))
+        reason = str(payload.get("reason") or "").strip() or None
+    else:
+        value = payload
+        reason = None
+    if isinstance(value, bool):
+        return ("online" if value else "offline"), reason
+    token = str(value or "").strip().lower()
+    if token in {"online", "ok", "healthy", "true", "1"}:
+        return "online", reason
+    if token in {"offline", "error", "unhealthy", "false", "0"}:
+        return "offline", reason
+    return None, reason
+
+
+def _handle_bridge_availability(
+    sidecar_url: str,
+    status: str,
+    *,
+    reason: str | None = None,
+) -> None:
+    observed_at = datetime.now(UTC).isoformat()
+    bridge_available = True if status == "online" else False if status == "offline" else None
+    for config_id, entry in list(registry.entries.items()):
+        entry_url = str(entry.get("sidecar_base_url") or DEFAULT_SIDECAR_BASE_URL).rstrip("/")
+        if entry_url != sidecar_url.rstrip("/"):
+            continue
+        snapshot = registry.state_snapshots.get(config_id)
+        current_state = snapshot.get("state") if isinstance(snapshot, dict) else {}
+        if not isinstance(current_state, dict):
+            current_state = {}
+        if status == "online" and current_state.get("availability_status") == "online":
+            update = {
+                **current_state,
+                "bridge_available": True,
+                "bridge_availability_updated_at": observed_at,
+                "availability_reason": None,
+            }
+        else:
+            update = {
+                **current_state,
+                "connected": False,
+                "availability": False if status == "offline" else None,
+                "availability_status": "offline" if status == "offline" else "unknown",
+                "availability_updated_at": observed_at,
+                "bridge_available": bridge_available,
+                "bridge_availability_updated_at": observed_at,
+                "availability_reason": reason,
+            }
+        registry.update_state(config_id, update, device_id=str(entry.get("device_id") or config_id))
+        deliver_state_telemetry(
+            entry,
+            str(entry.get("device_id") or config_id),
+            {
+                "connected": update["connected"],
+                "availability": update["availability"],
+                "availability_status": update["availability_status"],
+                "bridge_available": update["bridge_available"],
+            },
+        )
 
 
 def _handle_mqtt_payload(subscription: ZigbeeMqttSubscription, payload: dict[str, Any]) -> None:
