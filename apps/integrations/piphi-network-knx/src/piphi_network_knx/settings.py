@@ -4,7 +4,7 @@ import os
 
 INTEGRATION_ID = "piphi-network-knx"
 INTEGRATION_NAME = "KNX"
-INTEGRATION_VERSION = "0.2.2"
+INTEGRATION_VERSION = "0.2.3"
 PROJECT_KIND = "integration"
 PROJECT_PRESET = "protocol-bridge"
 PROJECT_DOMAIN = "bridge"
