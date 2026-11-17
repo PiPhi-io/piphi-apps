@@ -228,6 +228,7 @@ def schedule_state_telemetry(entry: dict[str, Any], state: dict[str, Any]) -> No
 
 
 _claims_guard = threading.Lock()
+_claim_reservations: dict[tuple[str, str, int, int], str] = {}
 _operation_slots = threading.BoundedSemaphore(8)
 _operation_stats: dict[str, dict[str, Any]] = {}
 
@@ -273,11 +274,7 @@ def _record_operation(config: SensorConfig, *, started: float, error: BaseExcept
         stats["last_error_class"] = classify_hardware_error(error)
 
 
-def _register_claim_and_state(
-    config: I2CSensorRuntimeConfig,
-    entry: dict[str, Any],
-    state: dict[str, Any],
-) -> None:
+def _reserve_target(config: I2CSensorRuntimeConfig) -> tuple[str, str, int, int]:
     requested = target_key(config_to_sensor_config(config))
     with _claims_guard:
         for existing_id, existing in registry.entries.items():
@@ -289,8 +286,36 @@ def _register_claim_and_state(
                     status_code=409,
                     detail=f"I2C target is already claimed by config_id={existing_id}",
                 )
-        registry.set(config.id, entry)
-        registry.update_state(config.id, state, device_id=entry["device_id"])
+        reservation_owner = _claim_reservations.get(requested)
+        if reservation_owner is not None:
+            raise HTTPException(
+                status_code=409,
+                detail=f"I2C target claim is already in progress for config_id={reservation_owner}",
+            )
+        _claim_reservations[requested] = config.id
+    return requested
+
+
+def _release_target_reservation(requested: tuple[str, str, int, int], config_id: str) -> None:
+    with _claims_guard:
+        if _claim_reservations.get(requested) == config_id:
+            _claim_reservations.pop(requested, None)
+
+
+def _commit_claim_and_state(
+    config: I2CSensorRuntimeConfig,
+    requested: tuple[str, str, int, int],
+    entry: dict[str, Any],
+    state: dict[str, Any],
+) -> None:
+    with _claims_guard:
+        if _claim_reservations.get(requested) != config.id:
+            raise RuntimeError("I2C target reservation was lost before commit")
+        try:
+            registry.set(config.id, entry)
+            registry.update_state(config.id, state, device_id=entry["device_id"])
+        finally:
+            _claim_reservations.pop(requested, None)
 
 
 async def run_hardware_operation(config: SensorConfig, operation: Any) -> Any:
@@ -323,17 +348,19 @@ async def run_hardware_operation(config: SensorConfig, operation: Any) -> Any:
 
 async def apply_config(config: I2CSensorRuntimeConfig) -> None:
     entry = entry_for_config(config)
+    sensor_config = config_to_sensor_config(config)
+    requested = _reserve_target(config)
     try:
-        sensor_config = config_to_sensor_config(config)
         preflight_target(sensor_config)
         state = await run_hardware_operation(sensor_config, read_state)
         state = {**state, "availability": "available", "stale": False, "error_class": None}
     except Exception as exc:
+        _release_target_reservation(requested, config.id)
         raise HTTPException(
             status_code=503,
             detail=f"I2C setup validation failed: {exc}",
         ) from exc
-    _register_claim_and_state(config, entry, state)
+    _commit_claim_and_state(config, requested, entry, state)
     schedule_state_telemetry(entry, state)
     append_runtime_event("i2c.config.applied", entry, {"sensor_model": config.sensor_model})
 

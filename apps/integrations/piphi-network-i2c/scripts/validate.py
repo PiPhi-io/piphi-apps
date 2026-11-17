@@ -23,6 +23,15 @@ def main() -> None:
     assert container["devices"] == [
         {"host": "/dev/i2c-1", "container": "/dev/i2c-1", "permissions": "rw"}
     ]
+    assert container["group_add"] == [
+        {"source": "device_gid", "path": "/dev/i2c-1", "required": True}
+    ]
+    assert container["ports"] == [{"container": 3674, "protocol": "tcp"}]
+    assert manifest["runtime_contract"] == {
+        "version": 1,
+        "port_binding": "core_allocated",
+        "port_env": "PIPHI_I2C_PORT",
+    }
     assert container["cap_drop"] == ["ALL"]
     assert "no-new-privileges:true" in container["security_opt"]
     source = "\n".join(path.read_text() for path in (ROOT / "src").rglob("*.py"))
@@ -32,6 +41,7 @@ def main() -> None:
     assert "@sha256:" in dockerfile and "USER piphi" in dockerfile
     readme = (ROOT / "README.md").read_text()
     assert '--group-add "$I2C_DEVICE_GID"' in readme
+    assert "-p 127.0.0.1:3674:3674" in readme
     assert "standalone ingress-auth boundary" in readme
     options = manifest["runtime"]["linux"]["discovery"]["inputs"][4]["options"]
     assert options == ["auto", "bme680", "bme280", "bmp280", "generic"]

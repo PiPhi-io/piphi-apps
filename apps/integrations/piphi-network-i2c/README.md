@@ -39,7 +39,7 @@ The runtime **must** add the numeric host GID that owns `/dev/i2c-1` as a supple
 I2C_DEVICE_GID="$(stat -c '%g' /dev/i2c-1)"
 docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges \
   --device /dev/i2c-1:/dev/i2c-1:rw --group-add "$I2C_DEVICE_GID" \
-  -p 3674:3674 \
+  -p 127.0.0.1:3674:3674 \
   -v piphi-i2c-state:/.piphinetwork \
   ghcr.io/piphi-io/i2c-integration:0.1.4
 ```
@@ -60,6 +60,6 @@ The `/ui-config` endpoint exposes these fields:
 
 All sensor, board, kernel, architecture, and electrical compatibility claims are unverified. Mock/sysfs/device-node tests prove software behavior only; they do not qualify hardware. See `docs/software-qualification.md`.
 
-The package passes the runtime auth context to outbound Core telemetry. It does not provide a standalone ingress-auth boundary, so the API must remain on Core's private container network and must not be published directly. Hardware reads are not automatically retried: each refresh cycle makes one bounded attempt, records classified stale/unavailable state on failure, and records recovery after a later successful cycle.
+The manifest omits a fixed host port and requires Core-allocated private ingress. The loopback publishing above is for local development only. The package passes the runtime auth context to outbound Core telemetry. It does not provide a standalone ingress-auth boundary, so the API must remain on Core's private container network and must not be published directly. Hardware reads are not automatically retried: each refresh cycle makes one bounded attempt, records classified stale/unavailable state on failure, and records recovery after a later successful cycle.
 
 Mock readings are disabled by default. For local UI or SDK-contract development without hardware, set `PIPHI_ALLOW_MOCK_HARDWARE=true` and use `adapter=mock`.

@@ -24,8 +24,8 @@ MAX_POLL_INTERVAL_SECONDS = 3600
 MAX_BUS_NUMBER = 255
 OPERATION_TIMEOUT_SECONDS = 10.0
 CHIP_IDS = {0x60: "bme280", 0x58: "bmp280", 0x61: "bme680"}
-_target_locks: dict[tuple[str, str, int, int], threading.Lock] = {}
-_target_locks_guard = threading.Lock()
+_operation_locks: dict[tuple[str, str, int], threading.Lock] = {}
+_operation_locks_guard = threading.Lock()
 
 
 @dataclass(frozen=True)
@@ -123,6 +123,11 @@ def target_key(config: SensorConfig) -> tuple[str, str, int, int]:
     return (config.adapter, exact_device_node(config), config.bus, canonical_address(config))
 
 
+def operation_key(config: SensorConfig) -> tuple[str, str, int]:
+    """Serialize every operation sharing one exact adapter/bus node."""
+    return (config.adapter, exact_device_node(config), config.bus)
+
+
 def preflight_target(config: SensorConfig, *, dev_root: Path = Path("/dev"), sys_root: Path = Path("/sys")) -> None:
     """Fail closed before a driver opens the selected node; never mutates sysfs."""
     if config.adapter == "mock":
@@ -140,9 +145,9 @@ def preflight_target(config: SensorConfig, *, dev_root: Path = Path("/dev"), sys
 
 
 def run_serialized(config: SensorConfig, operation: Any) -> Any:
-    key = target_key(config)
-    with _target_locks_guard:
-        lock = _target_locks.setdefault(key, threading.Lock())
+    key = operation_key(config)
+    with _operation_locks_guard:
+        lock = _operation_locks.setdefault(key, threading.Lock())
     with lock:
         return operation(config)
 

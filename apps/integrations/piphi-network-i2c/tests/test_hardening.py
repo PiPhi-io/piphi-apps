@@ -10,10 +10,11 @@ from fastapi import HTTPException
 from piphi_network_i2c import sensors, state
 
 
-def test_per_adapter_operations_are_serialized() -> None:
+def test_bus_operations_at_different_addresses_and_scan_are_serialized() -> None:
     configs = [
         sensors.SensorConfig(adapter="mock", adapter_id="display-one", address=0x76),
-        sensors.SensorConfig(adapter="mock", adapter_id="display-two", address=0x76),
+        sensors.SensorConfig(adapter="mock", adapter_id="display-two", address=0x77),
+        sensors.SensorConfig(adapter="mock", adapter_id="display-scan", address=None, allow_scan=True),
     ]
     active = 0
     maximum = 0
@@ -29,8 +30,8 @@ def test_per_adapter_operations_are_serialized() -> None:
             active -= 1
 
     threads = [
-        threading.Thread(target=sensors.run_serialized, args=(configs[index % 2], operation))
-        for index in range(4)
+        threading.Thread(target=sensors.run_serialized, args=(config, operation))
+        for config in configs
     ]
     for thread in threads:
         thread.start()
@@ -68,6 +69,15 @@ def test_concurrent_duplicate_claims_with_different_display_ids_allow_one(
         ),
     ]
 
+    reads = 0
+
+    def read_once(config):
+        nonlocal reads
+        reads += 1
+        return sensors.mock_state(config)
+
+    monkeypatch.setattr(state, "read_state", read_once)
+
     async def apply_both():
         return await asyncio.gather(*(state.apply_config(config) for config in configs), return_exceptions=True)
 
@@ -75,6 +85,7 @@ def test_concurrent_duplicate_claims_with_different_display_ids_allow_one(
 
     conflicts = [result for result in results if isinstance(result, HTTPException) and result.status_code == 409]
     assert len(conflicts) == 1
+    assert reads == 1
     assert len(state.registry.entries) == 1
     state.registry.entries.clear()
     state.registry.state_snapshots.clear()
@@ -111,3 +122,17 @@ def test_diagnostics_redact_paths_ids_and_raw_adapter_identity() -> None:
     assert "active_config_ids" not in encoded
     assert "device_nodes" not in encoded
     assert "/dev/" not in encoded
+
+
+def test_manifest_requires_private_core_port_and_dynamic_device_gid() -> None:
+    container = state.MANIFEST["runtime"]["linux"]["container"]
+
+    assert container["ports"] == [{"container": 3674, "protocol": "tcp"}]
+    assert container["group_add"] == [
+        {"source": "device_gid", "path": "/dev/i2c-1", "required": True}
+    ]
+    assert state.MANIFEST["runtime_contract"] == {
+        "version": 1,
+        "port_binding": "core_allocated",
+        "port_env": "PIPHI_I2C_PORT",
+    }

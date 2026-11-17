@@ -20,8 +20,7 @@
         "image": "ghcr.io/piphi-io/spi-integration:0.1.4",
         "ports": [
           {
-            "container": 3675,
-            "host": 3675
+            "container": 3675
           }
         ],
         "environment": {
@@ -273,6 +272,11 @@
         "auto_install": true
       }
     ]
+  },
+  "runtime_contract": {
+    "version": 1,
+    "port_binding": "core_allocated",
+    "port_env": "PIPHI_SPI_PORT"
   },
   "onboarding": {
     "mode": "discovery"

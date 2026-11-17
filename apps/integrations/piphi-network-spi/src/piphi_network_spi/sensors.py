@@ -16,8 +16,8 @@ MAX_BAUDRATE = 1_000_000
 MIN_POLL_INTERVAL_SECONDS = 5
 MAX_POLL_INTERVAL_SECONDS = 3600
 OPERATION_TIMEOUT_SECONDS = 10.0
-_target_locks: dict[tuple[str, str, int, int], threading.Lock] = {}
-_target_locks_guard = threading.Lock()
+_operation_locks: dict[tuple[str, str, int], threading.Lock] = {}
+_operation_locks_guard = threading.Lock()
 
 
 @dataclass(frozen=True)
@@ -97,10 +97,21 @@ def target_key(config: SensorConfig) -> tuple[str, str, int, int]:
     return (config.adapter, exact_device_node(config), config.bus, config.chip_select)
 
 
+def operation_key(config: SensorConfig) -> tuple[str, str, int]:
+    """Serialize the whole physical adapter/bus, independent of chip select."""
+    if config.adapter == "linux_spi":
+        adapter_node = f"/dev/spidev{config.bus}"
+    elif config.adapter == "ft232h":
+        adapter_node = "usb://ft232h"
+    else:
+        adapter_node = f"mock://spi{config.bus}"
+    return (config.adapter, adapter_node, config.bus)
+
+
 def run_serialized(config: SensorConfig, operation: Any) -> Any:
-    key = target_key(config)
-    with _target_locks_guard:
-        lock = _target_locks.setdefault(key, threading.Lock())
+    key = operation_key(config)
+    with _operation_locks_guard:
+        lock = _operation_locks.setdefault(key, threading.Lock())
     with lock:
         return operation(config)
 

@@ -21,6 +21,12 @@ def main() -> None:
     assert container["privileged"] is False
     assert container["read_only"] is True
     assert not container.get("devices")
+    assert container["ports"] == [{"container": 3675}]
+    assert manifest["runtime_contract"] == {
+        "version": 1,
+        "port_binding": "core_allocated",
+        "port_env": "PIPHI_SPI_PORT",
+    }
     assert container["cap_drop"] == ["ALL"]
     assert "no-new-privileges:true" in container["security_opt"]
     assert manifest["runtime"]["linux"]["discovery"]["inputs"][0]["options"] == ["mock"]
@@ -30,6 +36,7 @@ def main() -> None:
     dockerfile = (ROOT / "Dockerfile").read_text()
     assert "@sha256:" in dockerfile and "USER piphi" in dockerfile
     assert "standalone ingress-auth boundary" in (ROOT / "README.md").read_text()
+    assert "-p 127.0.0.1:3675:3675" in (ROOT / "README.md").read_text()
     assert (ROOT / "CHANGELOG.md").exists()
 
 

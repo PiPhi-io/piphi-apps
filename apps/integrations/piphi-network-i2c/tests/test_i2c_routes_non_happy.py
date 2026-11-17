@@ -232,6 +232,19 @@ def test_config_rejects_duplicate_target_claim(client: TestClient, monkeypatch: 
             "sensor_model": "bme280",
         },
     )
+    io_attempts = 0
+
+    def forbidden_io(_config):
+        nonlocal io_attempts
+        io_attempts += 1
+        raise AssertionError("duplicate claim must not reach hardware I/O")
+
+    monkeypatch.setattr(state_module, "read_state", forbidden_io)
+    monkeypatch.setattr(
+        state_module,
+        "preflight_target",
+        lambda _config: (_ for _ in ()).throw(AssertionError("duplicate claim must not reach preflight")),
+    )
     duplicate = client.post(
         "/config",
         json={
@@ -246,6 +259,30 @@ def test_config_rejects_duplicate_target_claim(client: TestClient, monkeypatch: 
     assert first.status_code == 200
     assert duplicate.status_code == 409
     assert "already claimed" in duplicate.text
+    assert io_attempts == 0
+
+
+def test_failed_config_releases_target_reservation(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PIPHI_ALLOW_MOCK_HARDWARE", "true")
+    monkeypatch.setattr(
+        state_module,
+        "read_state",
+        lambda _config: (_ for _ in ()).throw(RuntimeError("probe failed")),
+    )
+
+    failed = client.post(
+        "/config",
+        json={"id": "failed", "adapter": "mock", "address": "0x76", "sensor_model": "bme280"},
+    )
+    monkeypatch.setattr(state_module, "read_state", sensors.mock_state)
+    replacement = client.post(
+        "/config",
+        json={"id": "replacement", "adapter": "mock", "address": "0x76", "sensor_model": "bme280"},
+    )
+
+    assert failed.status_code == 503
+    assert replacement.status_code == 200
+    assert set(state_module.registry.entries) == {"replacement"}
 
 
 def test_background_refresh_records_offline_state_once_and_recovery(

@@ -21,7 +21,6 @@
         "ports": [
           {
             "container": 3674,
-            "host": 3674,
             "protocol": "tcp"
           }
         ],
@@ -36,6 +35,13 @@
             "host": "/dev/i2c-1",
             "container": "/dev/i2c-1",
             "permissions": "rw"
+          }
+        ],
+        "group_add": [
+          {
+            "source": "device_gid",
+            "path": "/dev/i2c-1",
+            "required": true
           }
         ],
         "cap_drop": ["ALL"],
@@ -283,6 +289,11 @@
         "auto_install": true
       }
     ]
+  },
+  "runtime_contract": {
+    "version": 1,
+    "port_binding": "core_allocated",
+    "port_env": "PIPHI_I2C_PORT"
   },
   "onboarding": {
     "mode": "discovery"

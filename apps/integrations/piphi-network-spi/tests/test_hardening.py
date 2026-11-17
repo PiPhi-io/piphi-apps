@@ -13,7 +13,7 @@ from piphi_network_spi import sensors, state
 def test_same_target_with_different_display_ids_is_serialized() -> None:
     configs = [
         sensors.SensorConfig(adapter="mock", adapter_id="display-one", chip_select=0),
-        sensors.SensorConfig(adapter="mock", adapter_id="display-two", chip_select=0),
+        sensors.SensorConfig(adapter="mock", adapter_id="display-two", chip_select=1),
     ]
     active = 0
     maximum = 0
@@ -35,7 +35,8 @@ def test_same_target_with_different_display_ids_is_serialized() -> None:
         thread.join()
 
     assert maximum == 1
-    assert sensors.target_key(configs[0]) == sensors.target_key(configs[1])
+    assert sensors.operation_key(configs[0]) == sensors.operation_key(configs[1])
+    assert sensors.target_key(configs[0]) != sensors.target_key(configs[1])
 
 
 def test_concurrent_duplicate_claims_with_different_display_ids_allow_one(
@@ -53,6 +54,15 @@ def test_concurrent_duplicate_claims_with_different_display_ids_allow_one(
         ),
     ]
 
+    reads = 0
+
+    def read_once(config):
+        nonlocal reads
+        reads += 1
+        return sensors.mock_state(config)
+
+    monkeypatch.setattr(state, "read_state", read_once)
+
     async def apply_both():
         return await asyncio.gather(*(state.apply_config(config) for config in configs), return_exceptions=True)
 
@@ -60,6 +70,7 @@ def test_concurrent_duplicate_claims_with_different_display_ids_allow_one(
 
     conflicts = [result for result in results if isinstance(result, HTTPException) and result.status_code == 409]
     assert len(conflicts) == 1
+    assert reads == 1
     assert len(state.registry.entries) == 1
     state.registry.entries.clear()
     state.registry.state_snapshots.clear()
@@ -92,3 +103,14 @@ def test_classified_stale_state_and_private_diagnostics() -> None:
     assert "active_config_ids" not in encoded
     assert "device_nodes" not in encoded
     assert "/dev/" not in encoded
+
+
+def test_manifest_requires_private_core_allocated_port() -> None:
+    container = state.MANIFEST["runtime"]["linux"]["container"]
+
+    assert container["ports"] == [{"container": 3675}]
+    assert state.MANIFEST["runtime_contract"] == {
+        "version": 1,
+        "port_binding": "core_allocated",
+        "port_env": "PIPHI_SPI_PORT",
+    }

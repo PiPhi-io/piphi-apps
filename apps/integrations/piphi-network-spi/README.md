@@ -29,13 +29,13 @@ The exact local image can be exercised without hardware:
 
 ```bash
 docker run --rm --cap-drop ALL --security-opt no-new-privileges \
-  -e PIPHI_ALLOW_MOCK_HARDWARE=true -p 3675:3675 \
+  -e PIPHI_ALLOW_MOCK_HARDWARE=true -p 127.0.0.1:3675:3675 \
   ghcr.io/piphi-io/spi-integration:0.1.4
 ```
 
 The image runs non-root with no host device mapping or capabilities. Mock hardware remains disabled by default.
 
-The package passes the runtime auth context to outbound Core telemetry. It does not provide a standalone ingress-auth boundary, so the API must remain on Core's private container network and must not be published directly. Hardware refreshes are not blindly retried: each cycle makes one bounded attempt, records classified stale/unavailable state on failure, and records recovery after a later successful cycle.
+The manifest omits a fixed host port and requires Core-allocated private ingress. The loopback publishing above is for local development only. The package passes the runtime auth context to outbound Core telemetry. It does not provide a standalone ingress-auth boundary, so the API must remain on Core's private container network and must not be published directly. Hardware refreshes are not blindly retried: each cycle makes one bounded attempt, records classified stale/unavailable state on failure, and records recovery after a later successful cycle.
 
 ## Configuration
 
