@@ -1,6 +1,6 @@
 {
   "name": "piphi-network-matter-integration",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "PiPhi Core-facing Matter integration backed by the managed Matter sidecar",
   "type": "module",
   "engines": {
