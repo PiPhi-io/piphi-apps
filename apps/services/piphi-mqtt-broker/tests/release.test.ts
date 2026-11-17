@@ -6,6 +6,7 @@ const app = JSON.parse(readFileSync(new URL("../piphi-app.json", import.meta.url
 const manifest = JSON.parse(readFileSync(new URL("../src/manifest.json", import.meta.url), "utf8"));
 const packageJson = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
 const packageLock = JSON.parse(readFileSync(new URL("../package-lock.json", import.meta.url), "utf8"));
+const catalog = JSON.parse(readFileSync(new URL("../capability-catalog.json", import.meta.url), "utf8"));
 
 test("release metadata and GHCR image stay aligned", () => {
   const releasePackage = app.packages[0];
@@ -18,6 +19,7 @@ test("release metadata and GHCR image stay aligned", () => {
   assert.equal(packageLock.version, version);
   assert.equal(packageLock.packages[""].version, version);
   assert.equal(manifest.version, version);
+  assert.equal(catalog.release, version);
   assert.equal(manifest.runtime.linux.container.image, image);
   assert.equal(manifest.runtime.linux.health.type, "container");
   assert.deepEqual(releasePackage.publishing.primary, {

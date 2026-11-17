@@ -4,7 +4,7 @@
   "id": "piphi.service.mqtt-broker",
   "name": "MQTT Broker",
   "description": "Shared MQTT broker for PiPhi integrations and helpers.",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "platforms": [
     "linux"
   ],
@@ -15,7 +15,7 @@
         "type": "container"
       },
       "container": {
-        "image": "ghcr.io/piphi-io/mqtt-broker:0.3.0",
+        "image": "ghcr.io/piphi-io/mqtt-broker:0.3.1",
         "environment": {
           "MQTT_ALLOW_PLAINTEXT": "true"
         },
@@ -111,6 +111,22 @@
           "type": "string",
           "title": "TLS Private Key File",
           "x-env": "MQTT_TLS_KEY_FILE"
+        },
+        "tls_require_client_certificate": {
+          "type": "boolean",
+          "title": "Require Client Certificates",
+          "x-env": "MQTT_TLS_REQUIRE_CLIENT_CERTIFICATE",
+          "default": false
+        },
+        "health_tls_cert_file": {
+          "type": "string",
+          "title": "Health Probe Client Certificate File",
+          "x-env": "MQTT_HEALTH_TLS_CERT_FILE"
+        },
+        "health_tls_key_file": {
+          "type": "string",
+          "title": "Health Probe Client Key File",
+          "x-env": "MQTT_HEALTH_TLS_KEY_FILE"
         }
       }
     }

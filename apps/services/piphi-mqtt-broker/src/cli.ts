@@ -1,5 +1,5 @@
 import { loadBrokerConfig } from "./config.js";
-import { loadIdentityPolicy, writeIdentityFiles } from "./identity.js";
+import { loadIdentityPolicy, writeIdentityCandidates } from "./identity.js";
 import { renderMosquittoConfig, writeMosquittoConfig } from "./mosquitto.js";
 
 async function main(): Promise<void> {
@@ -12,7 +12,7 @@ async function main(): Promise<void> {
   }
 
   const policy = await loadIdentityPolicy(config);
-  await writeIdentityFiles(config, policy);
+  await writeIdentityCandidates(config, policy);
   if (!process.argv.includes("--credentials-only")) await writeMosquittoConfig(config);
   process.stdout.write(
     JSON.stringify(
@@ -22,9 +22,7 @@ async function main(): Promise<void> {
         port: config.port,
         allowAnonymous: config.allowAnonymous,
         persistence: config.persistence,
-        topicPrefix: config.topicPrefix,
         principalCount: policy.principals.length,
-        policyDigest: policy.sourceDigest,
       },
       null,
       2,

@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { access, readFile, rm, writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { connectAsync } from "mqtt";
 
@@ -26,11 +26,12 @@ async function main(): Promise<void> {
     rejectUnauthorized: true,
     servername: process.env.MQTT_TLS_SERVER_NAME?.trim() || undefined,
     ca: config.tlsCaFile ? await readFile(config.tlsCaFile) : undefined,
-    cert: config.tlsRequireClientCertificate && config.tlsCertFile ? await readFile(config.tlsCertFile) : undefined,
-    key: config.tlsRequireClientCertificate && config.tlsKeyFile ? await readFile(config.tlsKeyFile) : undefined,
+    cert: config.tlsRequireClientCertificate && config.healthTlsCertFile ? await readFile(config.healthTlsCertFile) : undefined,
+    key: config.tlsRequireClientCertificate && config.healthTlsKeyFile ? await readFile(config.healthTlsKeyFile) : undefined,
   });
 
   try {
+    if (process.argv.includes("--liveness")) return;
     await client.subscribeAsync(topic, { qos: 1 });
     const received = new Promise<void>((resolve, reject) => {
       const timeout = setTimeout(() => reject(new Error("MQTT readiness round trip timed out")), 3_000);
@@ -42,6 +43,15 @@ async function main(): Promise<void> {
     });
     await client.publishAsync(topic, id, { qos: 1, retain: false });
     await received;
+    if (config.persistence) {
+      const probe = `${config.persistenceLocation}.piphi-health-${randomUUID()}`;
+      try {
+        await writeFile(probe, "", { mode: 0o600, flag: "wx" });
+        await access(probe);
+      } finally {
+        await rm(probe, { force: true }).catch(() => undefined);
+      }
+    }
   } finally {
     await client.endAsync();
   }

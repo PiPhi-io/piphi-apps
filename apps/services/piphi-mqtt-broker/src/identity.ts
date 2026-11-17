@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { chmod, readFile, rename, writeFile } from "node:fs/promises";
+import { chmod, readFile, writeFile } from "node:fs/promises";
 
 import type { BrokerConfig } from "./config.js";
 
@@ -9,6 +9,7 @@ export interface BrokerPrincipal {
   read: string[];
   write: string[];
   health: boolean;
+  namespace: string;
 }
 
 export interface IdentityPolicy {
@@ -29,11 +30,23 @@ function assertUsername(value: unknown): string {
   return value;
 }
 
-function assertFilters(value: unknown, field: string, prefix: string): string[] {
+function assertNamespace(value: unknown, field: string): string {
+  if (typeof value !== "string" || !/^[A-Za-z0-9_-]{1,128}$/.test(value)) throw new Error(`${field} must be a single safe topic segment`);
+  return value;
+}
+
+function inferNamespace(value: unknown, field: string, prefix: string): string {
+  if (!Array.isArray(value) || value.length === 0) throw new Error(`${field} must contain at least one topic filter`);
+  const namespaces = new Set(value.map((filter) => typeof filter === "string" ? filter.slice(`${prefix}/`.length).split("/", 1)[0] : ""));
+  if (namespaces.size !== 1) throw new Error(`${field} must stay within one workload namespace`);
+  return assertNamespace([...namespaces][0], `${field} namespace`);
+}
+
+function assertFilters(value: unknown, field: string, prefix: string, namespace: string): string[] {
   if (!Array.isArray(value) || value.length === 0) throw new Error(`${field} must contain at least one topic filter`);
   return value.map((filter) => {
-    if (typeof filter !== "string" || /[\r\n\0]/.test(filter) || !filter.startsWith(`${prefix}/`) || filter.includes("$SYS") || filter.includes("$CONTROL")) {
-      throw new Error(`${field} must stay beneath ${prefix}/ and cannot access reserved topics`);
+    if (typeof filter !== "string" || /[\r\n\0]/.test(filter) || !filter.startsWith(`${prefix}/${namespace}/`) || filter.includes("$SYS") || filter.includes("$CONTROL")) {
+      throw new Error(`${field} must stay beneath ${prefix}/${namespace}/ and cannot access reserved topics`);
     }
     const segments = filter.split("/");
     if (segments.some((segment, index) => segment.includes("#") && (segment !== "#" || index !== segments.length - 1)) || segments.some((segment) => segment.includes("+") && segment !== "+")) {
@@ -55,6 +68,7 @@ export async function loadIdentityPolicy(config: BrokerConfig): Promise<Identity
         read: [`${config.topicPrefix}/#`],
         write: [`${config.topicPrefix}/#`],
         health: true,
+        namespace: "legacy",
       }],
     };
   }
@@ -72,18 +86,27 @@ export function parseIdentityPolicy(raw: string, config: BrokerConfig): Identity
   }
   if (document.schema_version !== 1 || !Array.isArray(document.principals) || document.principals.length === 0) throw new Error("MQTT auth policy requires schema_version 1 and at least one principal");
   const usernames = new Set<string>();
+  const namespaces = new Set<string>();
   const principals = document.principals.map((value, index) => {
     if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(`Invalid principal at index ${index}`);
     const item = value as Record<string, unknown>;
     const username = assertUsername(item.username);
     if (usernames.has(username)) throw new Error(`Duplicate principal username: ${username}`);
     usernames.add(username);
+    const namespace = item.namespace === undefined
+      ? inferNamespace([...(Array.isArray(item.read) ? item.read : []), ...(Array.isArray(item.write) ? item.write : [])], `principals[${index}]`, config.topicPrefix)
+      : assertNamespace(item.namespace, `principals[${index}].namespace`);
+    if (namespaces.has(namespace)) throw new Error(`Duplicate principal namespace: ${namespace}`);
+    namespaces.add(namespace);
+    const health = item.health === true;
+    if ((health && namespace !== "_health") || (!health && namespace === "_health")) throw new Error("Only the health principal may use the _health namespace");
     return {
       username,
       passwordSecretFile: assertSecretPath(item.password_secret_file, `principals[${index}].password_secret_file`),
-      read: assertFilters(item.read, `principals[${index}].read`, config.topicPrefix),
-      write: assertFilters(item.write, `principals[${index}].write`, config.topicPrefix),
-      health: item.health === true,
+      read: assertFilters(item.read, `principals[${index}].read`, config.topicPrefix, namespace),
+      write: assertFilters(item.write, `principals[${index}].write`, config.topicPrefix, namespace),
+      health,
+      namespace,
     };
   });
   if (principals.filter((principal) => principal.health).length !== 1) throw new Error("MQTT auth policy requires exactly one health principal");
@@ -94,6 +117,7 @@ export function renderIdentityAcl(policy: IdentityPolicy): string {
   const lines: string[] = [];
   for (const principal of policy.principals) {
     lines.push(`user ${principal.username}`);
+    lines.push("topic deny readwrite $SYS/#", "topic deny readwrite $CONTROL/#");
     for (const filter of principal.read) lines.push(`topic read ${filter}`);
     for (const filter of principal.write) lines.push(`topic write ${filter}`);
     lines.push("");
@@ -110,7 +134,7 @@ async function readPrincipalPassword(principal: BrokerPrincipal, config: BrokerC
   return password;
 }
 
-export async function writeIdentityFiles(config: BrokerConfig, policy: IdentityPolicy): Promise<void> {
+export async function writeIdentityCandidates(config: BrokerConfig, policy: IdentityPolicy): Promise<void> {
   const passwordCandidate = `${config.passwordFile}.candidate`;
   const credentialLines: string[] = [];
   for (const principal of policy.principals) credentialLines.push(`${principal.username}:${await readPrincipalPassword(principal, config)}`);
@@ -120,5 +144,4 @@ export async function writeIdentityFiles(config: BrokerConfig, policy: IdentityP
   const aclCandidate = `${config.aclFile}.candidate`;
   await writeFile(aclCandidate, renderIdentityAcl(policy), { encoding: "utf8", mode: 0o640 });
   await chmod(aclCandidate, 0o640);
-  await rename(aclCandidate, config.aclFile);
 }

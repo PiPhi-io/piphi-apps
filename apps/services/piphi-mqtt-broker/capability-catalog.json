@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "release": "0.3.1",
+  "service_id": "piphi.service.mqtt-broker",
+  "capabilities": [
+    {"id":"mqtt_3_1_1_and_5_tcp","status":"implemented","scope":"Mosquitto TCP listener; automated qualification uses MQTT 5"},
+    {"id":"workload_identity","status":"implemented","scope":"one mounted password secret per policy principal"},
+    {"id":"namespace_isolation","status":"implemented","scope":"one explicit or compatibly inferred namespace per managed principal; default deny outside it"},
+    {"id":"reserved_topic_protection","status":"implemented","scope":"explicit deny for $SYS/# and $CONTROL/#; broker $SYS publication disabled"},
+    {"id":"tls_and_mtls","status":"implemented","scope":"TLS 1.2 or newer with separately mounted server and health-client identities"},
+    {"id":"credential_and_certificate_rotation","status":"implemented","scope":"candidate validation, payload-free audit record, and forced reauthentication by restart"},
+    {"id":"bounded_broker_resources","status":"implemented","scope":"connections, packets, payloads, inflight, queue count/bytes, memory, keepalive, and durable-session age"},
+    {"id":"authenticated_lifecycle_probes","status":"implemented","scope":"authenticated MQTT 5 liveness and readiness/startup round-trip; readiness/startup also verify persistence writability"},
+    {"id":"retained_and_session_persistence","status":"implemented","scope":"single-node Mosquitto persistence with clean-stop restore qualification"},
+    {"id":"websockets","status":"excluded","reason":"No browser-facing broker listener is part of this platform-service contract."},
+    {"id":"anonymous_access","status":"excluded","reason":"Anonymous clients cannot be assigned a workload namespace and are rejected."},
+    {"id":"active_active_or_automatic_failover","status":"planned","reason":"Requires an orchestrator and broker topology contract outside this single-container package."},
+    {"id":"encrypted_backup_orchestration","status":"planned","reason":"The package documents coupled-state backup and tests restore; encryption and retention belong to platform storage orchestration."},
+    {"id":"disk_full_and_corrupt_database_recovery","status":"planned","reason":"Destructive storage fault qualification is not yet automated."},
+    {"id":"physical_device_qualification","status":"excluded","reason":"A broker is protocol infrastructure; physical-device and field qualification are explicitly outside this release."}
+  ]
+}
