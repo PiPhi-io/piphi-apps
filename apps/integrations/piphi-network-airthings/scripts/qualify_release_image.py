@@ -200,6 +200,8 @@ def validate_image_metadata(
     manifest_sha256: str,
     behaviors_sha256: str,
 ) -> None:
+    if "@sha256:" in image:
+        run_command("docker", "pull", image)
     inspected = json.loads(run_command("docker", "image", "inspect", image).stdout)[0]
     config = inspected.get("Config") or {}
     labels = config.get("Labels") or {}
