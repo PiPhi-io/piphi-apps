@@ -10,7 +10,7 @@ from fastapi import HTTPException
 from piphi_network_spi import sensors, state
 
 
-def test_same_target_with_different_display_ids_is_serialized() -> None:
+def test_mock_operations_and_identity_have_no_chip_select_semantics() -> None:
     configs = [
         sensors.SensorConfig(adapter="mock", adapter_id="display-one", chip_select=0),
         sensors.SensorConfig(adapter="mock", adapter_id="display-two", chip_select=1),
@@ -36,7 +36,7 @@ def test_same_target_with_different_display_ids_is_serialized() -> None:
 
     assert maximum == 1
     assert sensors.operation_key(configs[0]) == sensors.operation_key(configs[1])
-    assert sensors.target_key(configs[0]) != sensors.target_key(configs[1])
+    assert sensors.target_key(configs[0]) == sensors.target_key(configs[1]) == ("mock", "mock://spi")
 
 
 def test_concurrent_duplicate_claims_with_different_display_ids_allow_one(
@@ -47,10 +47,10 @@ def test_concurrent_duplicate_claims_with_different_display_ids_allow_one(
     state.registry.state_snapshots.clear()
     configs = [
         state.SPISensorRuntimeConfig(
-            id="claim-one", adapter="mock", adapter_id="display-one", chip_select=0, sensor_model="bme280"
+            id="claim-one", adapter="mock", adapter_id="display-one", sensor_model="bme280"
         ),
         state.SPISensorRuntimeConfig(
-            id="claim-two", adapter="mock", adapter_id="display-two", chip_select=0, sensor_model="bme680"
+            id="claim-two", adapter="mock", adapter_id="display-two", sensor_model="bme680"
         ),
     ]
 
@@ -107,8 +107,20 @@ def test_classified_stale_state_and_private_diagnostics() -> None:
 
 def test_manifest_requires_private_core_allocated_port() -> None:
     container = state.MANIFEST["runtime"]["linux"]["container"]
+    forbidden = {"bus", "chip_select", "baudrate"}
+    discovery_names = {
+        item["name"] for item in state.MANIFEST["runtime"]["linux"]["discovery"]["inputs"]
+    }
+    ui_names = {item["name"] for item in state.UI_CONFIG_SCHEMA["fields"]}
+    runtime_names = set(state.SPISensorRuntimeConfig.model_json_schema()["properties"])
 
     assert container["ports"] == [{"container": 3675}]
+    assert state.MANIFEST["runtime"]["linux"]["discovery"]["inputs"][0]["options"] == ["mock"]
+    assert forbidden.isdisjoint(discovery_names)
+    assert forbidden.isdisjoint(ui_names)
+    assert forbidden.isdisjoint(runtime_names)
+    assert forbidden.isdisjoint(state.MANIFEST["config"]["editable_fields"])
+    assert forbidden.isdisjoint(state.MANIFEST["identity"]["fields"])
     assert state.MANIFEST["runtime_contract"] == {
         "version": 1,
         "port_binding": "core_allocated",

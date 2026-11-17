@@ -8,7 +8,7 @@ Protocol fixtures cover these model contracts:
 - BME280
 - BMP280
 
-Physical SPI backends are intentionally disabled. The former Linux and FT232H paths selected Blinka defaults rather than the configured exact bus/CS node, so accepting those settings would be misleading.
+Physical SPI backends are intentionally disabled. The former Linux and FT232H paths selected Blinka defaults rather than exact physical targets, so transport settings are not accepted in the mock-only public contract.
 
 The HTTP contract uses `piphi-runtime-kit-python` for runtime auth context, typed config apply/sync, discovery responses, entities, health, diagnostics, and local events.
 
@@ -40,10 +40,9 @@ The manifest omits a fixed host port and requires Core-allocated private ingress
 ## Configuration
 
 - `adapter`: `mock` only
-- `bus`: Linux SPI bus number, usually `0`
-- `chip_select`: SPI chip select number, usually `0`
 - `sensor_model`: `auto`, `bme680`, `bme280`, or `bmp280`
-- `baudrate`: SPI clock speed
 - `poll_interval_seconds`: Suggested poll cadence
+
+`bus`, `chip_select`, and `baudrate` are rejected caller fields in 0.1.4. Mock identity does not represent a physical bus or chip-select target. Experimental physical helper code remains unreachable until an exact backend is implemented and qualified.
 
 No sensor, board, USB bridge, kernel, architecture, or electrical path is physically qualified. Software fixtures do not establish hardware compatibility.

@@ -18,7 +18,7 @@ from piphi_runtime_kit_python import (
     schedule_telemetry_delivery,
     validate_typed_configs,
 )
-from pydantic import Field, model_validator
+from pydantic import ConfigDict, Field, model_validator
 
 from .sensors import (
     OPERATION_TIMEOUT_SECONDS,
@@ -42,23 +42,19 @@ UI_CONFIG_SCHEMA = {
     "fields": [
         {"name": "adapter", "label": "Adapter", "type": "select", "required": True, "options": ["mock"], "default": "mock"},
         {"name": "adapter_id", "label": "Opaque adapter ID", "type": "text", "required": False},
-        {"name": "bus", "label": "SPI Bus", "type": "number", "required": True, "default": 0},
-        {"name": "chip_select", "label": "Chip Select", "type": "number", "required": True, "default": 0},
         {"name": "sensor_model", "label": "Sensor Model", "type": "select", "required": True, "options": ["auto", "bme680", "bme280", "bmp280"], "default": "auto"},
         {"name": "alias", "label": "Alias", "type": "text", "required": False},
-        {"name": "baudrate", "label": "Baudrate", "type": "number", "required": True, "default": 100000},
         {"name": "poll_interval_seconds", "label": "Poll Interval", "type": "number", "required": True, "default": 30},
     ]
 }
 
 
 class SPISensorRuntimeConfig(RuntimeConfig):
+    model_config = ConfigDict(extra="forbid")
+
     adapter: Literal["mock"] = "mock"
     adapter_id: str | None = Field(default=None, min_length=8, max_length=64, pattern=r"^[a-z0-9_-]+$")
-    bus: int = Field(default=0, ge=0, le=0, strict=True)
-    chip_select: int = Field(default=0, ge=0, le=1, strict=True)
     sensor_model: Literal["auto", "bme680", "bme280", "bmp280"] = "auto"
-    baudrate: int = Field(default=100000, ge=10_000, le=1_000_000, strict=True)
     poll_interval_seconds: int = Field(default=30, ge=5, le=3600, strict=True)
     alias: str | None = Field(default=None, max_length=128)
 
@@ -120,15 +116,12 @@ def entry_for_config(config: SPISensorRuntimeConfig) -> dict[str, Any]:
     adapter_uid = adapter_fingerprint(sensor_config)
     model = "bme280" if sensor_config.adapter == "mock" and sensor_config.sensor_model == "auto" else sensor_config.sensor_model
     device = {
-        "id": config.device_id or f"spi-{adapter_uid}-{sensor_config.chip_select}",
+        "id": config.device_id or f"spi-{adapter_uid}",
         "name": config.alias or "SPI Sensor",
-        "device_id": config.device_id or f"spi-{adapter_uid}-{sensor_config.chip_select}",
+        "device_id": config.device_id or f"spi-{adapter_uid}",
         "adapter_uid": adapter_uid,
         "adapter": sensor_config.adapter,
-        "bus": sensor_config.bus,
-        "chip_select": sensor_config.chip_select,
         "model": model,
-        "baudrate": sensor_config.baudrate,
     }
     identity = build_runtime_identity(config, integration_id=INTEGRATION_ID)
     return {
@@ -202,7 +195,7 @@ def schedule_state_telemetry(entry: dict[str, Any], state: dict[str, Any]) -> No
 
 
 _claims_guard = threading.Lock()
-_claim_reservations: dict[tuple[str, str, int, int], str] = {}
+_claim_reservations: dict[tuple[str, ...], str] = {}
 _operation_slots = threading.BoundedSemaphore(8)
 _operation_stats: dict[str, dict[str, Any]] = {}
 
@@ -248,7 +241,7 @@ def _record_operation(config: SensorConfig, *, started: float, error: BaseExcept
         stats["last_error_class"] = classify_hardware_error(error)
 
 
-def _reserve_target(config: SPISensorRuntimeConfig) -> tuple[str, str, int, int]:
+def _reserve_target(config: SPISensorRuntimeConfig) -> tuple[str, ...]:
     requested = target_key(config_to_sensor_config(config))
     with _claims_guard:
         for existing_id, existing in registry.entries.items():
@@ -270,7 +263,7 @@ def _reserve_target(config: SPISensorRuntimeConfig) -> tuple[str, str, int, int]
     return requested
 
 
-def _release_target_reservation(requested: tuple[str, str, int, int], config_id: str) -> None:
+def _release_target_reservation(requested: tuple[str, ...], config_id: str) -> None:
     with _claims_guard:
         if _claim_reservations.get(requested) == config_id:
             _claim_reservations.pop(requested, None)
@@ -278,7 +271,7 @@ def _release_target_reservation(requested: tuple[str, str, int, int], config_id:
 
 def _commit_claim_and_state(
     config: SPISensorRuntimeConfig,
-    requested: tuple[str, str, int, int],
+    requested: tuple[str, ...],
     entry: dict[str, Any],
     state: dict[str, Any],
 ) -> None:

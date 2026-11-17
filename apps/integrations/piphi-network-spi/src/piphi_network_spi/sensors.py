@@ -11,6 +11,7 @@ from typing import Any
 KNOWN_ADAPTERS = {"linux_spi", "ft232h", "mock"}
 SUPPORTED_ADAPTERS = {"mock"}
 SUPPORTED_MODELS = {"auto", "bme680", "bme280", "bmp280"}
+PHYSICAL_CONFIG_FIELDS = {"bus", "chip_select", "baudrate"}
 MIN_BAUDRATE = 10_000
 MAX_BAUDRATE = 1_000_000
 MIN_POLL_INTERVAL_SECONDS = 5
@@ -22,7 +23,10 @@ _operation_locks_guard = threading.Lock()
 
 @dataclass(frozen=True)
 class SensorConfig:
-    adapter: str = "linux_spi"
+    # Physical settings are internal experimental constants in 0.1.4. Public
+    # normalization rejects caller values for them while physical helpers remain
+    # unreachable for future backend work.
+    adapter: str = "mock"
     bus: int = 0
     chip_select: int = 0
     sensor_model: str = "auto"
@@ -33,12 +37,17 @@ class SensorConfig:
 
 def normalize_config(payload: dict[str, Any] | None) -> SensorConfig:
     data = payload or {}
+    forbidden = sorted(PHYSICAL_CONFIG_FIELDS.intersection(data))
+    if forbidden:
+        raise ValueError(
+            f"Physical SPI settings are unavailable for mock-only 0.1.4: {', '.join(forbidden)}"
+        )
     config = SensorConfig(
-        adapter=str(data.get("adapter") or "linux_spi").strip().lower(),
-        bus=int(data.get("bus", 0)),
-        chip_select=int(data.get("chip_select", 0)),
+        adapter=str(data.get("adapter") or "mock").strip().lower(),
+        bus=0,
+        chip_select=0,
         sensor_model=str(data.get("sensor_model") or "auto").strip().lower(),
-        baudrate=int(data.get("baudrate") or 100000),
+        baudrate=100_000,
         poll_interval_seconds=int(data.get("poll_interval_seconds") or 30),
         adapter_id=(str(data["adapter_id"]).strip().lower() if data.get("adapter_id") else None),
     )
@@ -89,22 +98,24 @@ def exact_device_node(config: SensorConfig) -> str:
         return f"/dev/spidev{config.bus}.{config.chip_select}"
     if config.adapter == "ft232h":
         return f"usb://ft232h/{config.bus}.{config.chip_select}"
-    return f"mock://spi{config.bus}.{config.chip_select}"
+    return "mock://spi"
 
 
-def target_key(config: SensorConfig) -> tuple[str, str, int, int]:
+def target_key(config: SensorConfig) -> tuple[str, ...]:
     """Canonical ownership key; adapter_id is intentionally display-only."""
+    if config.adapter == "mock":
+        return ("mock", "mock://spi")
     return (config.adapter, exact_device_node(config), config.bus, config.chip_select)
 
 
-def operation_key(config: SensorConfig) -> tuple[str, str, int]:
+def operation_key(config: SensorConfig) -> tuple[str, ...]:
     """Serialize the whole physical adapter/bus, independent of chip select."""
     if config.adapter == "linux_spi":
         adapter_node = f"/dev/spidev{config.bus}"
     elif config.adapter == "ft232h":
         adapter_node = "usb://ft232h"
     else:
-        adapter_node = f"mock://spi{config.bus}"
+        return ("mock", "mock://spi")
     return (config.adapter, adapter_node, config.bus)
 
 
@@ -120,20 +131,24 @@ def discover_devices(config: SensorConfig) -> list[dict[str, Any]]:
     if config.adapter == "mock":
         require_mock_enabled()
         model = "bme280" if config.sensor_model == "auto" else config.sensor_model
-    else:
-        model = probe_sensor(config)
-    return [
-        {
-            "id": f"spi-{model}-{config.bus}-{config.chip_select}",
-            "name": f"SPI {model.upper()} bus {config.bus} CS{config.chip_select}",
-            "device_id": f"spi-{config.bus}-{config.chip_select}",
+        return [{
+            "id": f"spi-mock-{model}",
+            "name": f"SPI {model.upper()} mock sensor",
+            "device_id": f"spi-mock-{model}",
             "adapter": config.adapter,
-            "bus": config.bus,
-            "chip_select": config.chip_select,
             "model": model,
-            "baudrate": config.baudrate,
-        }
-    ]
+        }]
+    model = probe_sensor(config)
+    return [{
+        "id": f"spi-{model}-{config.bus}-{config.chip_select}",
+        "name": f"SPI {model.upper()} bus {config.bus} CS{config.chip_select}",
+        "device_id": f"spi-{config.bus}-{config.chip_select}",
+        "adapter": config.adapter,
+        "bus": config.bus,
+        "chip_select": config.chip_select,
+        "model": model,
+        "baudrate": config.baudrate,
+    }]
 
 
 def read_state(config: SensorConfig) -> dict[str, Any]:
@@ -176,10 +191,7 @@ def mock_state(config: SensorConfig) -> dict[str, Any]:
     return {
         "connected": True,
         "adapter": config.adapter,
-        "bus": config.bus,
-        "chip_select": config.chip_select,
         "sensor_model": config.sensor_model,
-        "baudrate": config.baudrate,
         "temperature_c": round(21 + rng.random() * 4, 2),
         "humidity_percent": round(40 + rng.random() * 15, 2),
         "pressure_hpa": round(1006 + rng.random() * 14, 2),

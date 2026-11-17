@@ -18,7 +18,7 @@ router = APIRouter(tags=["discovery"])
 async def discover(payload: IntegrationDiscoveryRequest | None = None) -> IntegrationDiscoveryResponse:
     inputs = normalize_discovery_inputs(payload.inputs if payload else None)
     try:
-        config = normalize_config({**inputs, "adapter": inputs.get("adapter") or "linux_spi"})
+        config = normalize_config({**inputs, "adapter": inputs.get("adapter") or "mock"})
         devices = await run_hardware_operation(config, discover_devices)
     except (RuntimeError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

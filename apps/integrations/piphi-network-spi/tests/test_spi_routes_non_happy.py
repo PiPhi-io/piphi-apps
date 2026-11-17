@@ -31,6 +31,34 @@ def test_discover_mock_requires_opt_in(client: TestClient) -> None:
     assert "Mock hardware is disabled" in response.text
 
 
+def test_discovery_defaults_to_mock_without_physical_defaults(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PIPHI_ALLOW_MOCK_HARDWARE", "true")
+
+    response = client.post("/discover", json={"inputs": {"sensor_model": "bme680"}})
+
+    assert response.status_code == 200
+    device = response.json()["devices"][0]
+    assert device["adapter"] == "mock"
+    assert {"bus", "chip_select", "baudrate"}.isdisjoint(device)
+
+
+@pytest.mark.parametrize("field", ["bus", "chip_select", "baudrate"])
+def test_discovery_rejects_physical_transport_fields(
+    client: TestClient,
+    field: str,
+) -> None:
+    response = client.post(
+        "/discover",
+        json={"inputs": {"adapter": "mock", "sensor_model": "bme280", field: 0}},
+    )
+
+    assert response.status_code == 400
+    assert field in response.text
+
+
 def test_initial_config_failure_leaves_no_registry_entry(client: TestClient) -> None:
     response = client.post("/config", json={"id": "spi-dev", "adapter": "mock", "sensor_model": "bme680"})
 
@@ -118,6 +146,29 @@ def test_config_sync_invalid_typed_config_returns_422(client: TestClient) -> Non
     assert response.json()["detail"][0]["loc"][-1] == "chip_select"
 
 
+@pytest.mark.parametrize("field", ["bus", "chip_select", "baudrate"])
+def test_config_rejects_physical_transport_fields_before_io(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    field: str,
+) -> None:
+    io_attempted = False
+
+    def forbidden_io(_config):
+        nonlocal io_attempted
+        io_attempted = True
+
+    monkeypatch.setattr(state_module, "read_state", forbidden_io)
+    response = client.post(
+        "/config",
+        json={"id": "bad", "adapter": "mock", "sensor_model": "bme280", field: 0},
+    )
+
+    assert response.status_code == 422
+    assert io_attempted is False
+    assert state_module.registry.entries == {}
+
+
 def test_state_without_configs_does_not_touch_hardware(client: TestClient) -> None:
     response = client.get("/state")
 
@@ -179,12 +230,12 @@ def test_failed_config_releases_target_reservation(client: TestClient, monkeypat
 
     failed = client.post(
         "/config",
-        json={"id": "failed", "adapter": "mock", "chip_select": 0, "sensor_model": "bme280"},
+        json={"id": "failed", "adapter": "mock", "sensor_model": "bme280"},
     )
     monkeypatch.setattr(state_module, "read_state", sensors.mock_state)
     replacement = client.post(
         "/config",
-        json={"id": "replacement", "adapter": "mock", "chip_select": 0, "sensor_model": "bme280"},
+        json={"id": "replacement", "adapter": "mock", "sensor_model": "bme280"},
     )
 
     assert failed.status_code == 503

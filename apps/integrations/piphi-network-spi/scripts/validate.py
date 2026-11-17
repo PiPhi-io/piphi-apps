@@ -30,13 +30,22 @@ def main() -> None:
     assert container["cap_drop"] == ["ALL"]
     assert "no-new-privileges:true" in container["security_opt"]
     assert manifest["runtime"]["linux"]["discovery"]["inputs"][0]["options"] == ["mock"]
+    forbidden = {"bus", "chip_select", "baudrate"}
+    discovery_names = {
+        item["name"] for item in manifest["runtime"]["linux"]["discovery"]["inputs"]
+    }
+    assert forbidden.isdisjoint(discovery_names)
+    assert forbidden.isdisjoint(manifest["config"]["editable_fields"])
+    assert forbidden.isdisjoint(manifest["identity"]["fields"])
     source = "\n".join(path.read_text() for path in (ROOT / "src").rglob("*.py"))
     assert "SPI_IOC" not in source
     assert "/unbind" not in source and "/bind" not in source
     dockerfile = (ROOT / "Dockerfile").read_text()
     assert "@sha256:" in dockerfile and "USER piphi" in dockerfile
-    assert "standalone ingress-auth boundary" in (ROOT / "README.md").read_text()
-    assert "-p 127.0.0.1:3675:3675" in (ROOT / "README.md").read_text()
+    readme = (ROOT / "README.md").read_text()
+    assert "standalone ingress-auth boundary" in readme
+    assert "-p 127.0.0.1:3675:3675" in readme
+    assert "`bus`, `chip_select`, and `baudrate` are rejected caller fields" in readme
     assert (ROOT / "CHANGELOG.md").exists()
 
 
