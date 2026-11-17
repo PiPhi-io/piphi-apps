@@ -5,7 +5,7 @@
   "deployment_mode": "sidecar",
   "id": "piphi.service.wyze-camera-bridge",
   "name": "PiPhi Wyze Camera Bridge",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Shared managed bridge that makes authorized Wyze cameras available to PiPhi camera integrations as local RTSP sources.",
   "metadata": {
     "generator": "piphi-network-create",
@@ -25,7 +25,7 @@
     "support_email": "support@piphi.io"
   },
   "license": "AGPL-3.0",
-  "image": "ghcr.io/piphi-io/piphi-wyze-camera-service:0.1.4",
+  "image": "ghcr.io/piphi-io/piphi-wyze-camera-service:0.1.5",
   "platforms": [
     "linux"
   ],
@@ -41,7 +41,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "ghcr.io/piphi-io/piphi-wyze-camera-service:0.1.4",
+        "image": "ghcr.io/piphi-io/piphi-wyze-camera-service:0.1.5",
         "ports": [
           {
             "container": 8090

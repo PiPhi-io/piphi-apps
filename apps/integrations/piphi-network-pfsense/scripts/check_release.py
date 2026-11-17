@@ -31,7 +31,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Validate a pfSense release tag")
     parser.add_argument(
         "tag",
-        help="Namespaced release tag, for example apps/piphi-network-pfsense/v0.1.9",
+        help="Namespaced release tag, for example apps/piphi-network-pfsense/v0.1.10",
     )
     args = parser.parse_args()
 

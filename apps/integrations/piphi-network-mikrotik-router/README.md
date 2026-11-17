@@ -92,6 +92,14 @@ makes no broad RouterOS hardware compatibility claim.
 ## Docker
 
 ```bash
-docker build -t ghcr.io/piphi-io/piphi-network-mikrotik-router:0.1.1 .
-docker run --rm -p 4218:4218 ghcr.io/piphi-io/piphi-network-mikrotik-router:0.1.1
+docker build -t ghcr.io/piphi-io/piphi-network-mikrotik-router:0.1.2 .
+docker volume create piphi-mikrotik-data
+docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges \
+  --tmpfs /tmp:rw,noexec,nosuid,size=64m \
+  -v piphi-mikrotik-data:/data/piphi \
+  -p 4218:4218 ghcr.io/piphi-io/piphi-network-mikrotik-router:0.1.2
 ```
+
+The runtime and its persistent ledger execute as UID/GID `10001`. Deployments
+using a bind mount instead of a named volume must provision the host directory
+for that ownership before startup.

@@ -17,7 +17,7 @@ DEFAULT_ADDRESSES: dict[str, tuple[int, ...]] = {
 BLINKA_I2C_ADAPTERS = {"ft232h"}
 BOARD_I2C_ADAPTERS = {"mcp2221a", "ft232h"}
 DEFAULT_MCP2221_I2C_CLOCK = 100_000
-# Version 0.1.4 exposes only the mock backend. Physical driver helpers below are
+# Version 0.1.5 exposes only the mock backend. Physical driver helpers below are
 # retained as experimental implementation code, but public config validation
 # keeps them unreachable until Core can govern dynamic supplementary device GIDs.
 SUPPORTED_ADAPTERS = {"mock"}

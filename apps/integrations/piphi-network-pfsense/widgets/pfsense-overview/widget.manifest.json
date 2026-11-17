@@ -1,7 +1,7 @@
 {
   "id": "io.piphi.pfsense.overview",
   "name": "pfSense Internet & Router",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "entry": "./dist/widget.js",
   "binding_modes": ["read"],
   "value_kinds": ["numeric", "boolean", "text"],

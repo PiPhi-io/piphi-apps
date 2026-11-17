@@ -3,11 +3,14 @@ from __future__ import annotations
 import asyncio
 import threading
 import time
+from pathlib import Path
 
 import pytest
 from fastapi import HTTPException
 
 from piphi_network_i2c import sensors, state
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_bus_operations_at_different_addresses_and_scan_are_serialized() -> None:
@@ -140,3 +143,12 @@ def test_manifest_is_mock_only_without_host_hardware_requests() -> None:
         "port_binding": "core_allocated",
         "port_env": "PIPHI_I2C_PORT",
     }
+
+
+def test_image_declares_release_provenance_and_non_root_user() -> None:
+    dockerfile = (ROOT / "Dockerfile").read_text()
+
+    assert 'org.opencontainers.image.source="${SOURCE_REPOSITORY}"' in dockerfile
+    assert 'org.opencontainers.image.revision="${SOURCE_REVISION}"' in dockerfile
+    assert 'org.opencontainers.image.version="${RELEASE_VERSION}"' in dockerfile
+    assert "USER piphi" in dockerfile

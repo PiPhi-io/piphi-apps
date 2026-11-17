@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.5 — 2026-11-17
+
+- Add immutable OCI source/revision/version labels for exact-image provenance checks.
+
 ## 0.1.4 — 2026-11-17
 
 - Narrow version 0.1.4 to opt-in mock operation; reject every physical I2C backend before preflight or I/O.

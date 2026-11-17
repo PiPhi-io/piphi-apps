@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.5 — 2026-11-17
+
+- Add immutable OCI source/revision/version labels for exact-image provenance checks.
+
 ## 0.1.4 — 2026-11-17
 
 - Disable physical SPI backends until exact node/bus/chip-select selection is implemented and physically qualified; advertise only opt-in mock operation.

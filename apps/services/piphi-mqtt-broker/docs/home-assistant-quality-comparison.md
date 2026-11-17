@@ -6,12 +6,13 @@
 **Scope:** shared platform infrastructure. This is **not** an assessment of a Home Assistant entity integration and does not award a Home Assistant Integration Quality Scale (IQS) tier.
 
 > **Remediation note:** This document is the immutable 0.1.7 baseline. Releases
-> 0.2.0, 0.3.0, and 0.3.1 address its ACL, TLS/mTLS, quota, authenticated
+> 0.2.0, 0.3.0, 0.3.1, and 0.3.2 address its ACL, TLS/mTLS, quota, authenticated
 > lifecycle health, workload namespace isolation, credential/certificate
 > rotation, and controlled restore findings. See
 > [0.2.0 remediation](0.2.0-remediation.md) and
 > [0.3.0 remediation](0.3.0-remediation.md), plus the
-> [0.3.1 release evidence](0.3.1-release-evidence.md). Residual limitations in
+> [0.3.1 release evidence](0.3.1-release-evidence.md) and
+> [0.3.2 exact-image evidence](0.3.2-release-evidence.md). Residual limitations in
 > the latest evidence still apply.
 
 ## Executive conclusion

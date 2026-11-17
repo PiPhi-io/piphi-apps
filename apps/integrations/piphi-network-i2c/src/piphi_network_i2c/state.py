@@ -34,7 +34,7 @@ from .sensors import (
 
 INTEGRATION_ID = "piphi-network-i2c"
 INTEGRATION_NAME = "PiPhi Network I2C Sensors"
-INTEGRATION_VERSION = "0.1.4"
+INTEGRATION_VERSION = "0.1.5"
 
 PACKAGE_MANIFEST_PATH = Path(__file__).resolve().parent / "manifest.json"
 MANIFEST_PATH = PACKAGE_MANIFEST_PATH if PACKAGE_MANIFEST_PATH.exists() else Path(__file__).resolve().parents[1] / "manifest.json"

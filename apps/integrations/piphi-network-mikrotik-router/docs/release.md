@@ -11,11 +11,11 @@ Before cutting a release:
 
 Dispatch with package ID `piphi-network-mikrotik-router`, the already committed
 version, and `publish=false` for qualification. Publishing uses tag
-`apps/piphi-network-mikrotik-router/v0.1.1`; do not create a standalone `v*`
+`apps/piphi-network-mikrotik-router/v0.1.2`; do not create a standalone `v*`
 tag or a Docker Hub image.
 
 Current image target:
 
 ```text
-ghcr.io/piphi-io/piphi-network-mikrotik-router:0.1.1
+ghcr.io/piphi-io/piphi-network-mikrotik-router:0.1.2
 ```

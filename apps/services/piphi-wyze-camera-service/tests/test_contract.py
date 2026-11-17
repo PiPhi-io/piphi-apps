@@ -62,7 +62,19 @@ def test_exact_container_pins_the_audited_wyze_dependency() -> None:
 def test_container_uses_the_private_rtsp_service_port() -> None:
     dockerfile = (ROOT / "Dockerfile").read_text()
 
-    assert "ARG APP_VERSION=0.1.4\n" in dockerfile
+    assert "ARG RELEASE_VERSION=0.1.5\n" in dockerfile
+    assert "org.opencontainers.image.revision=\"${SOURCE_REVISION}\"" in dockerfile
+    assert "USER piphi" in dockerfile
     assert "PIPHI_WYZE_RTSP_PORT=8554" in dockerfile
     assert "PIPHI_WYZE_RTSP_HOST_PORT" not in dockerfile
     assert "18554" not in dockerfile
+
+
+def test_container_runs_service_and_supervised_bridge_as_non_root() -> None:
+    dockerfile = (ROOT / "Dockerfile").read_text()
+    bridge = (ROOT / "src/piphi_wyze_camera_service/bridge.py").read_text()
+
+    assert "useradd --system --uid 10001" in dockerfile
+    assert "USER piphi" in dockerfile
+    assert "create_subprocess_exec(" in bridge
+    assert "preexec_fn" not in bridge

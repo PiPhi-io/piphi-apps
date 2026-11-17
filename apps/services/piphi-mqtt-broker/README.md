@@ -1,7 +1,7 @@
 # PiPhi MQTT Broker
 
 `piphi-mqtt-broker` packages Mosquitto as a bounded PiPhi `platform_service`.
-Version 0.3.1 binds managed principals to isolated workload namespaces, separates
+Version 0.3.2 binds managed principals to isolated workload namespaces, separates
 the mTLS health-client identity from the server identity, adds independently
 addressable lifecycle probes, and makes credential/TLS rotation fail closed.
 
@@ -62,7 +62,7 @@ docker run --rm \
   -e MQTT_AUTH_POLICY_FILE=/run/secrets/mqtt-policy.json \
   -e MQTT_ALLOW_PLAINTEXT=true \
   -v ./secrets:/run/secrets:ro \
-  ghcr.io/piphi-io/mqtt-broker:0.3.1
+  ghcr.io/piphi-io/mqtt-broker:0.3.2
 ```
 
 The entrypoint hashes the password through a mode-0600 temporary file, installs
@@ -103,7 +103,7 @@ docker run --rm -p 8883:1883 \
   -e MQTT_TLS_CERT_FILE=/run/secrets/server.crt \
   -e MQTT_TLS_KEY_FILE=/run/secrets/server.key \
   -v ./secrets:/run/secrets:ro \
-  ghcr.io/piphi-io/mqtt-broker:0.3.1
+  ghcr.io/piphi-io/mqtt-broker:0.3.2
 ```
 
 Set `MQTT_TLS_REQUIRE_CLIENT_CERTIFICATE=true` for mTLS. Certificates and keys
@@ -127,7 +127,7 @@ must pass before the container becomes healthy.
 
 ### 0.3.0 policy migration
 
-0.3.1 accepts an omitted `namespace` only when every read/write filter clearly
+0.3.2 accepts an omitted `namespace` only when every read/write filter clearly
 resolves to the same first segment below `MQTT_TOPIC_PREFIX`; this preserves
 existing managed clients. Add the explicit field shown above before the next
 policy edit. Cross-namespace filters, duplicate namespaces, and non-health use

@@ -78,3 +78,12 @@ def test_package_ci_requires_the_real_pinned_container_smoke() -> None:
     assert (
         "pdm run python scripts/smoke_container.py --build --image piphi-webrtc-sidecar:ci-smoke"
     ) in app_metadata["ci"]["commands"]
+
+
+def test_image_declares_release_provenance_and_non_root_user() -> None:
+    dockerfile = (ROOT / "Dockerfile").read_text()
+
+    assert 'org.opencontainers.image.source="${SOURCE_REPOSITORY}"' in dockerfile
+    assert 'org.opencontainers.image.revision="${SOURCE_REVISION}"' in dockerfile
+    assert 'org.opencontainers.image.version="${RELEASE_VERSION}"' in dockerfile
+    assert "USER piphi" in dockerfile

@@ -9,11 +9,11 @@ Mock-mode sensor shapes:
 - BMP280
 - Generic I2C address discovery
 
-Version 0.1.4 accepts only the explicitly enabled `mock` backend. It requests no host devices. `linux_i2c`, MCP2221A, FT232H, and every other physical backend are rejected before preflight or I/O.
+Version 0.1.5 accepts only the explicitly enabled `mock` backend. It requests no host devices. `linux_i2c`, MCP2221A, FT232H, and every other physical backend are rejected before preflight or I/O.
 
 The HTTP contract uses `piphi-runtime-kit-python` for runtime auth context, typed config apply/sync, discovery responses, entities, health, diagnostics, and local events.
 
-Experimental physical driver code may remain in the source for future work, but it is unreachable through the 0.1.4 configuration, discovery, and command contracts. No raw-register endpoint, forced I2C takeover, kernel-driver unbind, or generic write API is exposed.
+Experimental physical driver code may remain in the source for future work, but it is unreachable through the 0.1.5 configuration, discovery, and command contracts. No raw-register endpoint, forced I2C takeover, kernel-driver unbind, or generic write API is exposed.
 
 ## Run
 
@@ -26,14 +26,14 @@ The API listens on port `3674` by default.
 
 ## Container
 
-The release target is `ghcr.io/piphi-io/i2c-integration:0.1.4`. It runs as a non-root user, drops all capabilities, enables no-new-privileges, and requests no host device mapping or supplementary groups.
+The release target is `ghcr.io/piphi-io/i2c-integration:0.1.5`. It runs as a non-root user, drops all capabilities, enables no-new-privileges, and requests no host device mapping or supplementary groups.
 
 ```bash
 docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges \
   -e PIPHI_ALLOW_MOCK_HARDWARE=true \
   -p 127.0.0.1:3674:3674 \
   -v piphi-i2c-state:/.piphinetwork \
-  ghcr.io/piphi-io/i2c-integration:0.1.4
+  ghcr.io/piphi-io/i2c-integration:0.1.5
 ```
 
 Mock mode remains disabled by default and must be explicitly enabled as shown for local contract testing.
