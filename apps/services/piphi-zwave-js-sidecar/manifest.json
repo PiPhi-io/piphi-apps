@@ -3,7 +3,7 @@
   "manifest_version": "1.0",
   "id": "piphi-zwave-js-sidecar",
   "name": "Z-Wave JS sidecar",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Own the Z-Wave controller and deliver schema-versioned node events to PiPhi.",
   "metadata": {
     "generator": "piphi-network-create",
@@ -17,7 +17,12 @@
     "website": "https://piphi.io"
   },
   "license": "Apache-2.0",
-  "image": "ghcr.io/piphi-io/piphi-zwave-js-sidecar:0.3.0",
+  "image": "ghcr.io/piphi-io/piphi-zwave-js-sidecar:0.3.1",
+  "runtime_requirements": [
+    "sidecar_runtime",
+    "usb_or_device_access",
+    "direct_hardware_access"
+  ],
   "platforms": [
     "linux"
   ],
@@ -25,7 +30,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "ghcr.io/piphi-io/piphi-zwave-js-sidecar:0.3.0",
+        "image": "ghcr.io/piphi-io/piphi-zwave-js-sidecar:0.3.1",
         "ports": [
           {
             "container": 4211

@@ -15,7 +15,8 @@ capability normalization.
 - Reads network keys only from `PIPHI_ZWAVE_*_KEY` environment variables.
 - Recursively redacts keys, DSKs, credentials, raw frames, binary data, and NVM.
 - Does not expose arbitrary Z-Wave JS calls, factory reset, raw serial, or NVM.
-- Requires bearer authentication for Z-Wave replay, snapshots, and commands in production.
+- Leaves only `GET /health` public; every operational read and mutation requires
+  bearer authentication in production.
 - Keeps inclusion, RF, and secure-device support unverified without hardware.
 
 ## Development
@@ -45,10 +46,11 @@ The API listens on `PORT` (default `4211`). Important routes:
 - `GET /v1/zwave/snapshot`
 - `POST /command`
 
-See [`docs/contract.md`](docs/contract.md) for the command and event boundary.
+See [`docs/contract.md`](docs/contract.md) for the command and event boundary and
+[`docs/privacy.md`](docs/privacy.md) for data handling and disclosure limits.
 
 ## Container
 
-The image target is `ghcr.io/piphi-io/piphi-zwave-js-sidecar:0.3.0`. Mount
+The image target is `ghcr.io/piphi-io/piphi-zwave-js-sidecar:0.3.1`. Mount
 `/var/lib/piphi/zwave-js` read-write and provide the configured serial controller
 under `/dev/serial`. The image runs as the unprivileged `node` user.

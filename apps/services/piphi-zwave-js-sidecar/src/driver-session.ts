@@ -1,4 +1,4 @@
-import { Driver, libVersion, NodeStatus } from "zwave-js";
+import { Driver, libVersion, NodeStatus, SetValueStatus } from "zwave-js";
 
 import { normalizeNodeEvent, sanitizeZWaveValue } from "./transport.js";
 import type {
@@ -58,7 +58,6 @@ type NodeLike = {
   setValue(valueId: Record<string, unknown>, value: unknown): Promise<unknown>;
   refreshInfo(): Promise<void>;
   refreshValues(): Promise<void>;
-  interview(): Promise<void>;
   ping(tryReallyHard?: boolean): Promise<boolean>;
 };
 
@@ -160,7 +159,7 @@ export class ZWaveJsDriverSession implements DriverSession {
       return { node_id: command.nodeId, reachable: await node.ping(true) };
     }
     if (command.name === "request_node_interview") {
-      await node.interview();
+      await node.refreshInfo();
       return { node_id: command.nodeId, interview_requested: true };
     }
     if (command.name === "refresh_node_values") {
@@ -170,6 +169,7 @@ export class ZWaveJsDriverSession implements DriverSession {
     if (command.name === "set_value") {
       const resolved = resolveWritableValue(node, command.valueId, command.value);
       const result = await node.setValue(resolved.valueId, resolved.value);
+      assertSetValueSucceeded(result);
       return {
         node_id: command.nodeId,
         value_id: command.valueId,
@@ -284,6 +284,21 @@ export class ZWaveJsDriverSession implements DriverSession {
     await this.start();
     this.emit("driver.recovered", { reconnect_count: this.reconnectCount });
   }
+}
+
+export function assertSetValueSucceeded(result: unknown): void {
+  if (!result || typeof result !== "object" || !("status" in result)) {
+    throw new Error("set_value_result_invalid");
+  }
+  const status = Number((result as { status?: unknown }).status);
+  if (status === SetValueStatus.Success) return;
+  const name = SetValueStatus[status];
+  const reason = typeof name === "string"
+    ? name.replace(/([a-z])([A-Z])/g, "$1_$2").toLowerCase()
+    : "unknown";
+  if (status === SetValueStatus.Working) throw new Error("set_value_result_pending");
+  if (status === SetValueStatus.SuccessUnsupervised) throw new Error("set_value_result_unconfirmed");
+  throw new Error(`set_value_rejected_${reason}`);
 }
 
 export function createZWaveJsDriverSession(options: {

@@ -2,7 +2,7 @@
   "catalog_version": "1.0",
   "integration_id": "piphi-zwave-js-sidecar",
   "coverage_mode": "direct_zwave_js_driver_bounded_raw_event_transport",
-  "reviewed_at": "2026-11-13",
+  "reviewed_at": "2026-11-17",
   "sources": {
     "zwave_js": "https://github.com/zwave-js/zwave-js",
     "zwave_js_docs": "https://zwave-js.github.io/zwave-js/",

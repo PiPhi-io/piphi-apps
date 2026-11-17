@@ -3,7 +3,7 @@
   "manifest_version": "1.0",
   "id": "piphi-network-zwave",
   "name": "Z-Wave",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Expose command-class-negotiated Z-Wave devices through the managed Z-Wave JS sidecar.",
   "metadata": {
     "generator": "piphi-network-create",
@@ -17,7 +17,10 @@
     "website": "https://piphi.io"
   },
   "license": "Apache-2.0",
-  "image": "ghcr.io/piphi-io/piphi-network-zwave:0.3.0",
+  "image": "ghcr.io/piphi-io/piphi-network-zwave:0.3.1",
+  "runtime_requirements": [
+    "sidecar_runtime"
+  ],
   "platforms": [
     "linux"
   ],
@@ -25,7 +28,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "ghcr.io/piphi-io/piphi-network-zwave:0.3.0",
+        "image": "ghcr.io/piphi-io/piphi-network-zwave:0.3.1",
         "ports": [
           {
             "container": 4221
@@ -382,9 +385,9 @@
         "model": "Devices whose command classes are supported by the managed sidecar"
       }
     ],
-    "documentation_url": "https://github.com/PiPhi-io/piphi-apps/tree/apps/piphi-network-zwave/v0.3.0/apps/integrations/piphi-network-zwave",
+    "documentation_url": "https://github.com/PiPhi-io/piphi-apps/tree/apps/piphi-network-zwave/v0.3.1/apps/integrations/piphi-network-zwave",
     "support_url": "https://github.com/PiPhi-io/piphi-apps/issues",
-    "changelog_url": "https://github.com/PiPhi-io/piphi-apps/releases/tag/apps/piphi-network-zwave/v0.3.0",
+    "changelog_url": "https://github.com/PiPhi-io/piphi-apps/releases/tag/apps/piphi-network-zwave/v0.3.1",
     "quality_tier": "unrated",
     "governance": {
       "schema_version": 1,
