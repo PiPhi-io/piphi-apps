@@ -59,7 +59,7 @@ rich==15.0.0
 rich-toolkit==0.20.6
 rignore==0.8.1
 sentry-sdk==2.71.0
-setuptools==84.0.0
+setuptools==84.1.0
 shellingham==1.5.4
 starlette==1.7.0
 supervisor-win==4.7.0; sys_platform == "win32"
