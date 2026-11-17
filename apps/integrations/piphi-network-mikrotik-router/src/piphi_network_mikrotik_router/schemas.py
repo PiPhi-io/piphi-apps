@@ -18,13 +18,15 @@ class DeviceConfig(RuntimeConfig):
     ca_bundle_path: str | None = None
 
     @model_validator(mode="after")
-    def migrate_legacy_password(self) -> "DeviceConfig":
+    def migrate_legacy_password(self) -> DeviceConfig:
         if self.password is None and self.api_key is not None:
             self.password = self.api_key
         if not self.username or self.password is None or not self.secret_password():
             raise ValueError("RouterOS username and password are required")
         if self.ca_bundle_path and not _approved_ca_path(self.ca_bundle_path):
-            raise ValueError("ca_bundle_path must use an approved read-only certificate mount")
+            raise ValueError(
+                "ca_bundle_path must use an approved read-only certificate mount"
+            )
         return self
 
     def secret_password(self) -> str:

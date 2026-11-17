@@ -12,7 +12,8 @@ Wake-on-LAN are explicit, allow-listed actions and are disabled by default.
 ## Requirements
 
 - Python 3.11 or newer
-- A supported pfSense CE or pfSense Plus release
+- A pfSense CE or pfSense Plus installation whose exact release and pfREST v2
+  combination has been qualified by the operator
 - The community `pfSense-pkg-RESTAPI` v2 package
 - HTTPS connectivity from the PiPhi runtime to the pfSense management address
 - A dedicated API key with only the endpoint privileges enabled below
@@ -25,6 +26,11 @@ Required pfSense API access:
 - `GET /api/v2/status/interfaces`
 - `GET /api/v2/status/gateways`
 - `GET /api/v2/status/services`
+
+The corresponding generated pfREST privileges are
+`api-v2-status-system-get`, `api-v2-system-version-get`,
+`api-v2-system-restapi-version-get`, `api-v2-status-interfaces-get`,
+`api-v2-status-gateways-get`, and `api-v2-status-services-get`.
 
 Optional access is needed for DHCP leases and VPN status only when those
 collection settings are enabled.
@@ -48,6 +54,17 @@ firewall is marked unavailable, if any is denied or malformed. Optional endpoint
 failures remain scoped to their selected feature. Use a separate pfREST API key
 containing only these exact endpoint privileges and the explicitly selected
 optional privileges; no administrator role is required or recommended.
+
+Selecting an optional profile makes every endpoint in that profile essential
+during setup. During later polls, a partial selected profile is explicitly
+unavailable (`connected=false`), `degraded`, and `stale`; its profile metrics
+are suppressed, and any retained last-known-good profile values are marked
+stale. Permanent permission/version failures stop polling for user action,
+while transient failures retry. `permission-contract.json` is the machine-readable privilege and
+denial matrix. CI verifies deterministic fake pfREST responses and sanitized
+recorded schemas only. No physical appliance or firmware combination is
+qualified by this package, and no compatibility beyond the exact locally tested
+image/version pair should be inferred.
 
 ## Local development
 
@@ -86,9 +103,9 @@ Configure the runtime through `POST /config`:
   "collect_ha_status": false,
   "enable_diagnostic_ping": true,
   "allowed_ping_hosts": ["1.1.1.1", "gateway.example.lan"],
-  "enable_service_restart": true,
-  "enable_service_start": true,
-  "allowed_services": ["unbound"],
+  "enable_service_restart": false,
+  "enable_service_start": false,
+  "allowed_services": [],
   "enable_wake_on_lan": true,
   "wake_on_lan_targets": [
     {
@@ -132,6 +149,13 @@ accepts only a configured target ID, keeping its interface and MAC immutable to
 the caller. Service operations require confirmation and prevent multi-firewall
 fanout. Every operational action must be enabled independently.
 
+Service control is fail-closed even when a name appears in `allowed_services`.
+Only the explicitly classified observability agents `collectd`,
+`node_exporter`, and `telegraf` are accepted. DNS, DHCP, routing, VPN, HA,
+web/API, authentication, firewall, unknown, and all other services are rejected
+during configuration and rechecked at command dispatch. Do not use service
+control for network-plane recovery.
+
 Gateway, interface, and service up/down transitions are delivered as Runtime
 SDK integration events and exposed as behavior triggers. The widget source is
 under `widgets/pfsense-overview`. A second client/security widget displays
@@ -155,10 +179,16 @@ reported under `endpoint_errors` in state and diagnostics so a least-privilege
 API key can be expanded deliberately rather than requiring administrator
 access.
 
+Requests for one firewall are serialized. Responses are limited to 1 MiB,
+ordinary collections to 1,000 rows, and each log stream to 200 reduced records.
+Retries use bounded exponential backoff with deterministic jitter; five
+consecutive failures open the circuit for five minutes. Diagnostics expose only
+safe reason/remediation classes and aggregate status.
+
 ## Container
 
 ```bash
-docker build -t piphinetwork/piphi-network-pfsense:0.1.8 .
+docker build -t ghcr.io/piphi-io/piphi-network-pfsense:0.1.9 .
 ```
 
 The container does not require host networking, privileged mode, or access to
@@ -166,23 +196,12 @@ the pfSense filesystem.
 
 ## Releases
 
-Create and push a semantic version tag such as `v0.1.0`, then dispatch the
-Release workflow from `main` with that tag as `release_ref`. Running the
-workflow from `main` keeps the publishing definition on the reviewed default
-branch, while every build and verification step checks out the immutable tag. The tag must match
-`manifest.json`, `pyproject.toml`, the runtime version constant, the Docker Hub
-image reference, and both widget package/manifest versions. A passing release
-publishes multi-platform `linux/amd64` and `linux/arm64` images to
-`piphinetwork/piphi-network-pfsense`, generates provenance and an SBOM, and
-creates a GitHub Release containing Python distributions, the packaged
-integration, and SHA-256 checksums.
-
-Docker Hub authentication uses the `piphinetwork` organization access token
-stored in the GitHub Actions secret `DOCKERHUB_TOKEN`. Grant that secret to
-this repository and scope the token to image pull and push for
-`piphinetwork/piphi-network-pfsense` only. Do not grant image deletion or
-organization administration, and rotate the token on its configured expiry
-schedule.
+Use the monorepo **Release one app package** workflow with package ID
+`piphi-network-pfsense`, the committed version, and `publish=false` for
+qualification. Publishing creates the immutable tag
+`apps/piphi-network-pfsense/v0.1.9` and the managed GHCR image
+`ghcr.io/piphi-io/piphi-network-pfsense:0.1.9`; do not create standalone `v*`
+tags or Docker Hub releases.
 
 ## Upstream status
 

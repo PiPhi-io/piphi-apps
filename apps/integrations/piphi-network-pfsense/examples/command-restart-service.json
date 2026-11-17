@@ -6,7 +6,7 @@
     "device_id": "home-firewall"
   },
   "params": {
-    "service": "unbound"
+    "service": "telegraf"
   },
   "capability": "action.restart_service",
   "capability_requirements": ["action.restart_service"]

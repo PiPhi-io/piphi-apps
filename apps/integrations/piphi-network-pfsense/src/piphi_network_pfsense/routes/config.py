@@ -13,6 +13,7 @@ from piphi_runtime_kit_python import (
 )
 from piphi_runtime_kit_python.fastapi import sync_runtime_auth_from_fastapi_payload
 
+from ..pfsense_client import PfSenseError
 from ..schemas import DeviceConfig
 from ..state import (
     apply_config,
@@ -39,6 +40,18 @@ async def configure(payload: DeviceConfig, request: Request) -> Any:
     sync_runtime_auth_from_fastapi_payload(runtime, request, payload)
     try:
         await apply_config(payload)
+    except PfSenseError as exc:
+        status = (
+            401
+            if exc.remediation == "reauthenticate"
+            else 503
+            if exc.retryable
+            else 422
+        )
+        raise HTTPException(
+            status_code=status,
+            detail={"reason": exc.reason, "remediation": exc.remediation},
+        ) from exc
     except ValueError as exc:
         if "different pfSense appliance" in str(exc) or "already configured" in str(
             exc

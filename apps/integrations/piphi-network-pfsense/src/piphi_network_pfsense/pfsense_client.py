@@ -1,8 +1,13 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
+import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from email.utils import parsedate_to_datetime
 from functools import partial
 from time import monotonic
 from typing import Any, Protocol
@@ -11,9 +16,31 @@ import httpx
 
 from .schemas import DeviceConfig
 
+MAX_RESPONSE_BYTES = 1_048_576
+MAX_ROWS = 1_000
+MAX_LOG_ROWS = 200
+MAX_ENDPOINT_CONCURRENCY = 4
+MAX_GLOBAL_ENDPOINT_CONCURRENCY = 8
+MAX_RETRY_AFTER_SECONDS = 900.0
+_GLOBAL_ENDPOINT_SLOTS = asyncio.Semaphore(MAX_GLOBAL_ENDPOINT_CONCURRENCY)
+
 
 class PfSenseError(RuntimeError):
-    """Safe, credential-free error returned by the pfSense transport."""
+    """Safe, credential-free and actionable pfREST failure."""
+
+    def __init__(
+        self,
+        reason: str,
+        *,
+        retryable: bool = False,
+        remediation: str = "reconfigure",
+        retry_after_seconds: float | None = None,
+    ) -> None:
+        super().__init__(reason)
+        self.reason = reason
+        self.retryable = retryable
+        self.remediation = remediation
+        self.retry_after_seconds = retry_after_seconds
 
 
 @dataclass(slots=True)
@@ -36,6 +63,7 @@ class PfSenseSnapshot:
     ipsec_sas: list[dict[str, Any]] = field(default_factory=list)
     wireguard_tunnels: list[dict[str, Any]] = field(default_factory=list)
     endpoint_errors: dict[str, str] = field(default_factory=dict)
+    endpoint_retry_after_seconds: dict[str, float] = field(default_factory=dict)
     api_latency_ms: float = 0.0
 
 
@@ -69,6 +97,7 @@ class PfRestV2Client:
         self._collect_security_logs = config.collect_security_logs
         self._collect_certificates = config.collect_certificates
         self._collect_ha_status = config.collect_ha_status
+        self._endpoint_slots = asyncio.Semaphore(MAX_ENDPOINT_CONCURRENCY)
         self._client = httpx.AsyncClient(
             base_url=config.base_url,
             headers={
@@ -120,7 +149,7 @@ class PfRestV2Client:
         if self._collect_security_logs:
             for log_name in ("firewall", "auth", "dhcp", "system"):
                 requests[f"log_{log_name}"] = partial(
-                    self._get_list, f"/api/v2/status/logs/{log_name}"
+                    self._get_log_rows, f"/api/v2/status/logs/{log_name}"
                 )
         if self._collect_vpn_status:
             requests.update(
@@ -144,18 +173,51 @@ class PfRestV2Client:
         )
         values: dict[str, Any] = {}
         endpoint_errors: dict[str, str] = {}
+        failures: dict[str, BaseException] = {}
+        endpoint_retry_after_seconds: dict[str, float] = {}
         for name, result in zip(names, results, strict=True):
             if isinstance(result, BaseException):
-                endpoint_errors[name] = str(result)
+                failures[name] = result
+                endpoint_errors[name] = (
+                    result.reason
+                    if isinstance(result, PfSenseError)
+                    else "invalid_response"
+                )
+                if (
+                    isinstance(result, PfSenseError)
+                    and result.retry_after_seconds is not None
+                ):
+                    endpoint_retry_after_seconds[name] = result.retry_after_seconds
             else:
                 values[name] = result
 
         essential = {"version", "api_version", "interfaces", "gateways", "services"}
         denied_or_invalid = sorted(essential & endpoint_errors.keys())
         if denied_or_invalid:
+            errors = [failures[name] for name in denied_or_invalid]
+            permanent = next(
+                (
+                    error
+                    for error in errors
+                    if not isinstance(error, PfSenseError) or not error.retryable
+                ),
+                None,
+            )
+            selected = permanent or errors[0]
             raise PfSenseError(
                 "pfSense baseline profile is unavailable: "
-                + ", ".join(denied_or_invalid)
+                + ", ".join(denied_or_invalid),
+                retryable=isinstance(selected, PfSenseError) and selected.retryable,
+                remediation=(
+                    selected.remediation
+                    if isinstance(selected, PfSenseError)
+                    else "reconfigure"
+                ),
+                retry_after_seconds=(
+                    selected.retry_after_seconds
+                    if isinstance(selected, PfSenseError)
+                    else None
+                ),
             )
 
         certificates = [
@@ -190,7 +252,7 @@ class PfRestV2Client:
                 for key in ("pfsyncenabled", "pfsyncpeerip", "pfsyncinterface")
             },
             logs={
-                name: values.get(f"log_{name}", [])[:200]
+                name: values.get(f"log_{name}", [])
                 for name in ("firewall", "auth", "dhcp", "system")
                 if f"log_{name}" in values
             },
@@ -199,6 +261,7 @@ class PfRestV2Client:
             ipsec_sas=values.get("ipsec_sas", []),
             wireguard_tunnels=values.get("wireguard_tunnels", []),
             endpoint_errors=endpoint_errors,
+            endpoint_retry_after_seconds=endpoint_retry_after_seconds,
             api_latency_ms=round((monotonic() - started) * 1000, 2),
         )
 
@@ -253,7 +316,13 @@ class PfRestV2Client:
             isinstance(item, dict) for item in data
         ):
             raise PfSenseError(f"pfSense returned an invalid list for {path}")
+        if len(data) > MAX_ROWS:
+            raise PfSenseError("response_row_limit_exceeded")
         return data
+
+    async def _get_log_rows(self, path: str) -> list[dict[str, Any]]:
+        data = await self._get_list(path)
+        return [_structured_log_record(item) for item in data[:MAX_LOG_ROWS]]
 
     async def _post_object(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
         data = await self._request("POST", path, payload=payload)
@@ -267,25 +336,137 @@ class PfRestV2Client:
     async def _request(
         self, method: str, path: str, *, payload: dict[str, Any] | None = None
     ) -> Any:
+        response: httpx.Response | None = None
         try:
-            response = await self._client.request(method, path, json=payload)
-            response.raise_for_status()
+            async with self._endpoint_slots, _GLOBAL_ENDPOINT_SLOTS:
+                request = self._client.build_request(method, path, json=payload)
+                response = await self._client.send(request, stream=True)
+                response.raise_for_status()
+                declared = response.headers.get("content-length")
+                if declared is not None:
+                    try:
+                        if int(declared) > MAX_RESPONSE_BYTES:
+                            raise PfSenseError("response_size_limit_exceeded")
+                    except ValueError as exc:
+                        raise PfSenseError("invalid_content_length") from exc
+                body = bytearray()
+                async for chunk in response.aiter_bytes():
+                    body.extend(chunk)
+                    if len(body) > MAX_RESPONSE_BYTES:
+                        raise PfSenseError("response_size_limit_exceeded")
         except httpx.HTTPStatusError as exc:
             status = exc.response.status_code
             if status in {401, 403}:
                 raise PfSenseError(
-                    f"pfSense denied {path} with HTTP {status}; check API-key privileges"
+                    "authentication_failed" if status == 401 else "permission_denied",
+                    remediation="reauthenticate"
+                    if status == 401
+                    else "reconfigure_permissions",
                 ) from exc
-            raise PfSenseError(f"pfSense returned HTTP {status} for {path}") from exc
-        except httpx.RequestError as exc:
+            reason = (
+                "rate_limited"
+                if status == 429
+                else "endpoint_or_version_unsupported"
+                if status == 404
+                else "request_timeout"
+                if status == 408
+                else "server_error"
+                if status >= 500
+                else "request_rejected"
+            )
             raise PfSenseError(
-                f"Unable to reach pfSense at {self._client.base_url}: {exc.__class__.__name__}"
+                reason,
+                retryable=status in {408, 429} or status >= 500,
+                remediation="retry"
+                if status in {408, 429} or status >= 500
+                else "reconfigure_api_version"
+                if status == 404
+                else "reconfigure",
+                retry_after_seconds=(
+                    _retry_after_seconds(exc.response.headers.get("retry-after"))
+                    if status == 429
+                    else None
+                ),
             ) from exc
+        except httpx.RequestError as exc:
+            reason = (
+                "tls_validation_failed"
+                if isinstance(exc, httpx.ConnectError)
+                and "certificate" in str(exc).casefold()
+                else "connection_failed"
+            )
+            raise PfSenseError(
+                reason,
+                retryable=reason == "connection_failed",
+                remediation="reconfigure_tls"
+                if reason == "tls_validation_failed"
+                else "retry",
+            ) from exc
+        finally:
+            if response is not None:
+                await response.aclose()
 
         try:
-            payload = response.json()
-        except ValueError as exc:
-            raise PfSenseError(f"pfSense returned non-JSON data for {path}") from exc
-        if not isinstance(payload, dict) or "data" not in payload:
-            raise PfSenseError(f"pfSense returned an invalid API envelope for {path}")
-        return payload["data"]
+            decoded = json.loads(body)
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise PfSenseError("invalid_json_response") from exc
+        if not isinstance(decoded, dict) or "data" not in decoded:
+            raise PfSenseError("invalid_api_envelope")
+        return decoded["data"]
+
+
+def _retry_after_seconds(value: str | None, *, now: datetime | None = None) -> float | None:
+    if not value:
+        return None
+    try:
+        seconds = float(value.strip())
+    except ValueError:
+        try:
+            retry_at = parsedate_to_datetime(value)
+        except (TypeError, ValueError, OverflowError):
+            return None
+        if retry_at.tzinfo is None:
+            retry_at = retry_at.replace(tzinfo=UTC)
+        seconds = (retry_at - (now or datetime.now(UTC))).total_seconds()
+    return min(MAX_RETRY_AFTER_SECONDS, max(0.0, seconds))
+
+
+_SECRET = re.compile(
+    r"(?i)(authorization|password|passwd|token|api[-_ ]?key|secret)\s*[:=]\s*\S+"
+)
+_IPV4 = re.compile(r"(?<![\w:])(?:\d{1,3}\.){3}\d{1,3}(?![\w:])")
+_IPV6 = re.compile(r"(?i)(?<![\w:])(?:[0-9a-f]{0,4}:){2,7}[0-9a-f]{0,4}(?![\w:])")
+_HOST = re.compile(
+    r"(?i)\b(?=[a-z0-9.-]*[a-z])[a-z0-9-]+(?:\.[a-z0-9-]+)+\b"
+)
+_USERNAME = re.compile(
+    r"(?i)\b(?:user(?:name)?|login|account)\s*(?:=|:|for\s+)\s*[^\s,;]+"
+)
+_QUERY = re.compile(r"(?i)(https?://[^\s?#]+)(?:\?[^\s#]*)?(?:#[^\s]*)?")
+
+
+def redact_log_text(value: str) -> str:
+    bounded = value.strip()[:4096]
+    bounded = _SECRET.sub(r"\1=[redacted]", bounded)
+    bounded = _USERNAME.sub("user=[redacted]", bounded)
+    bounded = _QUERY.sub(r"\1?[query-redacted]", bounded)
+    bounded = _IPV4.sub("[ip]", bounded)
+    bounded = _IPV6.sub("[ip]", bounded)
+    return _HOST.sub("[host]", bounded)[:512]
+
+
+def _structured_log_record(record: dict[str, Any]) -> dict[str, Any]:
+    """Reduce an untrusted appliance log row to bounded, non-identifying fields."""
+    message = redact_log_text(str(record.get("text") or record.get("message") or ""))
+    event_id = hashlib.sha256(message.encode()).hexdigest()[:24]
+    action = str(record.get("action") or "unknown").casefold()
+    severity = str(record.get("severity") or record.get("level") or "unknown").casefold()
+    return {
+        "event_id": event_id,
+        "timestamp": str(record.get("timestamp") or record.get("time") or "")[:64],
+        "action": action if action in {"allow", "block", "reject"} else "unknown",
+        "severity": severity
+        if severity in {"debug", "info", "notice", "warning", "error", "critical"}
+        else "unknown",
+        "interface_present": bool(record.get("interface") or record.get("if")),
+    }

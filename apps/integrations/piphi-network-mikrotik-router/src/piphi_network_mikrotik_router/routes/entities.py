@@ -26,4 +26,8 @@ async def entities() -> dict[str, Any]:
         }
         for entry in entries
     ]
-    return {"entities": runtime_entities, "capabilities": capabilities, "commands": commands}
+    return {
+        "entities": runtime_entities,
+        "capabilities": capabilities,
+        "commands": commands,
+    }

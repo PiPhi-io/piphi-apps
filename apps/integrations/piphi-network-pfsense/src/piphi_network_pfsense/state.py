@@ -78,6 +78,8 @@ for _event_type, _label in {
     "network.security.auth_log": "Authentication log received",
     "network.client.dhcp_event": "DHCP log event received",
     "network.system.log_event": "System log event received",
+    "network.appliance.offline": "Firewall became unavailable",
+    "network.appliance.recovered": "Firewall recovered",
 }.items():
     automations.event(
         _event_type,

@@ -5,6 +5,7 @@ from pathlib import Path
 
 import httpx
 import pytest
+
 from piphi_network_mikrotik_router import state
 from piphi_network_mikrotik_router.routeros import (
     RouterOSError,
@@ -59,7 +60,14 @@ async def test_fetch_uses_authenticated_https_read_only_endpoint() -> None:
             return httpx.Response(200, json={"software-id": "ABCD-1234"})
         return httpx.Response(
             200,
-            json=[{"cpu-load": "17", "free-memory": "200", "total-memory": "1000", "version": "7.20"}],
+            json=[
+                {
+                    "cpu-load": "17",
+                    "free-memory": "200",
+                    "total-memory": "1000",
+                    "version": "7.20",
+                }
+            ],
         )
 
     result = await fetch_resources(
@@ -75,7 +83,9 @@ async def test_fetch_uses_authenticated_https_read_only_endpoint() -> None:
     }
     assert all(request.method == "GET" for request in requests)
     assert all(request.url.scheme == "https" for request in requests)
-    assert all(request.headers["authorization"].startswith("Basic ") for request in requests)
+    assert all(
+        request.headers["authorization"].startswith("Basic ") for request in requests
+    )
 
 
 @pytest.mark.anyio
@@ -147,17 +157,27 @@ async def test_runtime_fails_closed_without_credentials_or_on_fetch_error(
 
     monkeypatch.setattr(state, "fetch_resources", unavailable)
     config = DeviceConfig(
-        id="router-error-test", host="router.example", username="monitor", password="private-password"
+        id="router-error-test",
+        host="router.example",
+        username="monitor",
+        password="private-password",
     )
     entry = state.make_entry(config)
     state.registry.set(config.id, entry)
     try:
-        assert (await state.refresh_entry(entry))[
-            "reason"
-        ] == "missing_router_credentials"
+        missing_credentials = await state.refresh_entry(entry)
+        assert missing_credentials["reason"] == "missing_router_credentials"
+        assert missing_credentials["last_attempt_at"]
         state.router_passwords[config.id] = "private-password"
         result = await state.refresh_entry(entry)
         assert result["connected"] is False
+        assert result["reason"] == "missing_router_credentials"
+        assert result["last_attempt_at"] == missing_credentials["last_attempt_at"]
+        assert result["requires_user_action"] is True
+        assert entry["next_poll_at"] == float("inf")
+        entry["requires_user_action"] = False
+        entry.pop("permanent_failure", None)
+        result = await state.refresh_entry(entry)
         assert result["reason"] == "router_resource_fetch_failed"
         assert result["last_attempt_at"]
         assert result["stale"] is False

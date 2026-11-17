@@ -4,7 +4,7 @@ import asyncio
 import re
 from collections.abc import Callable
 from contextlib import suppress
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from hashlib import sha256
 from time import monotonic
@@ -16,8 +16,14 @@ from piphi_runtime_kit_python import (
     schedule_telemetry_delivery,
 )
 
-from .pfsense_client import PfRestV2Client, PfSenseClient, PfSenseSnapshot
-from .schemas import DeviceConfig
+from .pfsense_client import (
+    PfRestV2Client,
+    PfSenseClient,
+    PfSenseError,
+    PfSenseSnapshot,
+    redact_log_text,
+)
+from .schemas import DeviceConfig, classify_service_control
 from .simulator import SimulatedPfSenseClient
 
 
@@ -30,9 +36,15 @@ class ActiveFirewall:
     previous_interface_counters: dict[str, tuple[int, int]] | None = None
     previous_observed_at: float | None = None
     last_state: dict[str, Any] | None = None
+    last_complete_state: dict[str, Any] | None = None
     seen_log_ids: set[str] | None = None
     certificate_alert_levels: dict[str, int] | None = None
     failure_count: int = 0
+    operation_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    circuit_open_until: float = 0.0
+    outage_reported: bool = False
+    requires_user_action: bool = False
+    retry_after_seconds: float | None = None
 
 
 ClientFactory = Callable[[DeviceConfig], PfSenseClient]
@@ -82,6 +94,7 @@ class PfSenseRuntimeService:
             await client.close()
             raise
 
+        _validate_selected_profile(config, snapshot)
         appliance_id = _appliance_device_id(snapshot)
         entry["device_id"] = appliance_id
         existing_entry = self.registry.get(config_id)
@@ -90,7 +103,9 @@ class PfSenseRuntimeService:
             and existing_entry.get("device_id") != appliance_id
         ):
             await client.close()
-            raise ValueError("Reconfiguration resolved to a different pfSense appliance")
+            raise ValueError(
+                "Reconfiguration resolved to a different pfSense appliance"
+            )
         duplicate = next(
             (
                 item
@@ -105,6 +120,18 @@ class PfSenseRuntimeService:
             raise ValueError("This pfSense appliance is already configured")
 
         async with self._lock:
+            duplicate = next(
+                (
+                    item
+                    for item in self.registry.entries.values()
+                    if item.get("device_id") == appliance_id
+                    and item.get("config_id") != config_id
+                ),
+                None,
+            )
+            if duplicate is not None:
+                await client.close()
+                raise ValueError("This pfSense appliance is already configured")
             previous = self._active.get(config_id)
             active = ActiveFirewall(config=config, entry=entry, client=client)
             self.registry.set(config_id, entry)
@@ -131,8 +158,22 @@ class PfSenseRuntimeService:
             raise HTTPException(
                 status_code=404, detail=f"unknown config_id={config_id}"
             )
-        snapshot = await active.client.read_snapshot()
-        return self._apply_snapshot(active, snapshot)
+        async with active.operation_lock:
+            if active.requires_user_action:
+                raise HTTPException(
+                    status_code=409,
+                    detail="pfSense requires reauthentication or reconfiguration",
+                )
+            if active.circuit_open_until > monotonic():
+                raise HTTPException(
+                    status_code=503, detail="pfSense circuit is temporarily open"
+                )
+            try:
+                snapshot = await active.client.read_snapshot()
+                return self._apply_snapshot(active, snapshot)
+            except Exception as exc:
+                self._mark_failure(active, exc)
+                raise
 
     async def diagnostic_ping(
         self, config_id: str, *, host: str, count: int
@@ -150,7 +191,8 @@ class PfSenseRuntimeService:
             raise HTTPException(
                 status_code=422, detail="ping count must be between 1 and 10"
             )
-        return await active.client.diagnostic_ping(allowed_host, count=count)
+        async with active.operation_lock:
+            return await active.client.diagnostic_ping(allowed_host, count=count)
 
     async def restart_service(
         self, config_id: str, *, service_name: str
@@ -161,12 +203,15 @@ class PfSenseRuntimeService:
         allowed_service = _allowlisted_value(
             service_name, active.config.allowed_services
         )
-        if allowed_service is None:
+        if allowed_service is None or classify_service_control(allowed_service) != (
+            "low-risk-observability"
+        ):
             raise HTTPException(
                 status_code=403,
-                detail="service is not in allowed_services",
+                detail="service control is not explicitly classified as low risk",
             )
-        return await active.client.restart_service(allowed_service)
+        async with active.operation_lock:
+            return await active.client.restart_service(allowed_service)
 
     async def start_service(
         self, config_id: str, *, service_name: str
@@ -177,11 +222,15 @@ class PfSenseRuntimeService:
         allowed_service = _allowlisted_value(
             service_name, active.config.allowed_services
         )
-        if allowed_service is None:
+        if allowed_service is None or classify_service_control(allowed_service) != (
+            "low-risk-observability"
+        ):
             raise HTTPException(
-                status_code=403, detail="service is not in allowed_services"
+                status_code=403,
+                detail="service control is not explicitly classified as low risk",
             )
-        return await active.client.start_service(allowed_service)
+        async with active.operation_lock:
+            return await active.client.start_service(allowed_service)
 
     async def wake_on_lan(self, config_id: str, *, target_id: str) -> dict[str, Any]:
         active = self._get_active(config_id)
@@ -200,9 +249,10 @@ class PfSenseRuntimeService:
             raise HTTPException(
                 status_code=403, detail="target is not in wake_on_lan_targets"
             )
-        result = await active.client.wake_on_lan(
-            interface=target.interface, mac_addr=target.mac_addr
-        )
+        async with active.operation_lock:
+            result = await active.client.wake_on_lan(
+                interface=target.interface, mac_addr=target.mac_addr
+            )
         return {**result, "target_id": target.id, "target_label": target.label}
 
     def _get_active(self, config_id: str) -> ActiveFirewall:
@@ -242,46 +292,146 @@ class PfSenseRuntimeService:
         while self._active.get(str(active.entry["config_id"])) is active:
             await asyncio.sleep(delay)
             try:
-                snapshot = await active.client.read_snapshot()
-                self._apply_snapshot(active, snapshot)
+                if active.requires_user_action:
+                    return
+                if active.circuit_open_until > monotonic():
+                    delay = max(1.0, active.circuit_open_until - monotonic())
+                    continue
+                async with active.operation_lock:
+                    snapshot = await active.client.read_snapshot()
+                    self._apply_snapshot(active, snapshot)
+                if active.requires_user_action:
+                    return
                 active.failure_count = 0
-                delay = float(active.config.poll_interval_seconds)
+                active.circuit_open_until = 0.0
+                delay = min(
+                    900.0,
+                    max(
+                        float(active.config.poll_interval_seconds),
+                        active.retry_after_seconds or 0.0,
+                    ),
+                )
             except asyncio.CancelledError:
                 raise
             except Exception as exc:  # noqa: BLE001 -- keep polling after transient API failures
-                self.registry.update_state(
-                    str(active.entry["config_id"]),
-                    {
-                        "connected": False,
-                        "error": f"poll_failed:{type(exc).__name__}",
-                        "last_attempt_at": _now(),
-                        "last_success_at": (active.last_state or {}).get(
-                            "last_success_at"
-                        ),
-                        "stale": active.last_state is not None,
-                    },
-                    device_id=str(active.entry["device_id"]),
-                )
-                active.failure_count += 1
-                base = min(
-                    900.0,
-                    active.config.poll_interval_seconds
-                    * (2 ** min(active.failure_count, 4)),
-                )
-                digest = int(
-                    sha256(str(active.entry["config_id"]).encode()).hexdigest()[:4],
-                    16,
-                )
-                delay = base * (1 + ((digest % 21 - 10) / 100))
+                retryable = self._mark_failure(active, exc)
+                if not retryable:
+                    return
+                delay = _retry_delay(active)
+
+    def _mark_failure(self, active: ActiveFirewall, exc: Exception) -> bool:
+        retryable = isinstance(exc, PfSenseError) and exc.retryable
+        active.retry_after_seconds = (
+            min(900.0, max(0.0, exc.retry_after_seconds))
+            if isinstance(exc, PfSenseError) and exc.retry_after_seconds is not None
+            else None
+        )
+        active.requires_user_action = not retryable
+        active.failure_count = active.failure_count + 1 if retryable else 0
+        if retryable and active.failure_count >= 5:
+            active.circuit_open_until = monotonic() + 300.0
+        reason = exc.reason if isinstance(exc, PfSenseError) else "invalid_response"
+        remediation = (
+            exc.remediation if isinstance(exc, PfSenseError) else "reconfigure"
+        )
+        state = {
+            "connected": False,
+            "error": reason,
+            "remediation": remediation,
+            "last_attempt_at": _now(),
+            "last_success_at": (active.last_state or {}).get("last_success_at"),
+            "stale": active.last_state is not None,
+            "stale_age_seconds": _stale_age_seconds(active.last_state),
+            "circuit_open": retryable and active.failure_count >= 5,
+            "requires_user_action": not retryable,
+        }
+        self.registry.update_state(
+            str(active.entry["config_id"]),
+            state,
+            device_id=str(active.entry["device_id"]),
+        )
+        if not active.outage_reported and active.last_state is not None:
+            self._schedule_event(
+                active,
+                event_type="network.appliance.offline",
+                child_kind="appliance",
+                name="status",
+                payload={"reason": reason, "remediation": remediation},
+                severity="warning",
+            )
+            active.outage_reported = True
+        return retryable
 
     def _apply_snapshot(
         self, active: ActiveFirewall, snapshot: PfSenseSnapshot
     ) -> dict[str, Any]:
+        _validate_pfrest_version(snapshot)
         if str(active.entry.get("device_id", "")).startswith("pfsense-"):
             observed_device_id = _appliance_device_id(snapshot)
             if observed_device_id != active.entry["device_id"]:
                 raise ValueError("pfSense appliance identity changed")
         state = snapshot_to_state(snapshot)
+        selected_errors = _selected_endpoint_errors(active.config, snapshot)
+        degraded = bool(selected_errors)
+        permanent_degradation = any(
+            reason not in RETRYABLE_ENDPOINT_REASONS
+            for reason in selected_errors.values()
+        )
+        if degraded:
+            previous_success = active.last_complete_state or active.last_state
+            profile_fields = _selected_profile_state_fields(active.config)
+            stale_values = {
+                field: previous_success[field]
+                for field in profile_fields
+                if previous_success is not None and field in previous_success
+            }
+            for field in profile_fields:
+                state.pop(field, None)
+            state.update(
+                {
+                    "connected": False,
+                    "degraded": True,
+                    "stale": True,
+                    "last_success_at": (previous_success or {}).get(
+                        "last_success_at"
+                    ),
+                    "stale_age_seconds": _stale_age_seconds(previous_success),
+                    "error": "selected_profile_unavailable",
+                    "remediation": (
+                        "reconfigure_permissions_or_version"
+                        if permanent_degradation
+                        else "retry"
+                    ),
+                    "requires_user_action": permanent_degradation,
+                }
+            )
+            if stale_values:
+                state["last_known_good"] = {
+                    "stale": True,
+                    "observed_at": (previous_success or {}).get("last_success_at"),
+                    "values": stale_values,
+                }
+        else:
+            state["degraded"] = False
+        if active.outage_reported:
+            self._schedule_event(
+                active,
+                event_type="network.appliance.recovered",
+                child_kind="appliance",
+                name="status",
+                payload={"connected": True},
+                severity="info",
+            )
+            active.outage_reported = False
+        active.failure_count = 0
+        active.circuit_open_until = 0.0
+        active.requires_user_action = permanent_degradation
+        retry_after_values = snapshot.endpoint_retry_after_seconds.values()
+        active.retry_after_seconds = (
+            max(retry_after_values)
+            if snapshot.endpoint_retry_after_seconds
+            else None
+        )
         observed_at = monotonic()
         counters = apply_interface_rates(
             state["interfaces"],
@@ -296,12 +446,17 @@ class PfSenseRuntimeService:
         active.previous_observed_at = observed_at
         config_id = str(active.entry["config_id"])
         device_id = str(active.entry["device_id"])
-        if active.last_state is not None:
-            self._emit_transitions(active, active.last_state, state)
-        self._emit_certificate_alerts(active, state)
-        self._emit_log_events(active, snapshot)
+        if not degraded and active.last_complete_state is not None:
+            self._emit_transitions(active, active.last_complete_state, state)
+        if not degraded:
+            self._emit_certificate_alerts(active, state)
+            self._emit_log_events(active, snapshot)
         active.last_state = state
+        if not degraded:
+            active.last_complete_state = state
         self.registry.update_state(config_id, state, device_id=device_id)
+        if degraded:
+            return state
         _schedule_metrics(
             runtime=self.runtime,
             telemetry=self.telemetry,
@@ -400,14 +555,14 @@ class PfSenseRuntimeService:
             ),
             ("clients", "online", "network.client.online", "network.client.offline"),
         )
-        for collection, field, positive_event, negative_event in transition_sets:
+        for collection, state_field, positive_event, negative_event in transition_sets:
             old = {
-                str(item["name"]): bool(item[field])
+                str(item["name"]): bool(item[state_field])
                 for item in previous.get(collection, [])
             }
             for item in current.get(collection, []):
                 name = str(item["name"])
-                value = bool(item[field])
+                value = bool(item[state_field])
                 if name not in old or old[name] == value:
                     continue
                 self._schedule_event(
@@ -415,7 +570,11 @@ class PfSenseRuntimeService:
                     event_type=positive_event if value else negative_event,
                     child_kind=collection[:-1],
                     name=name,
-                    payload={"name": name, field: value, "status": item.get("status")},
+                    payload={
+                        "name": name,
+                        state_field: value,
+                        "status": item.get("status"),
+                    },
                     severity="info" if value else "warning",
                 )
         previous_clients = {str(item["id"]) for item in previous.get("clients", [])}
@@ -438,12 +597,7 @@ class PfSenseRuntimeService:
                     event_type="network.client.discovered",
                     child_kind="client",
                     name=str(client["id"]),
-                    payload={
-                        "id": client["id"],
-                        "hostname": client.get("hostname"),
-                        "ip_address": client.get("ip_address"),
-                        "interface": client.get("interface"),
-                    },
+                    payload={"id": client["id"]},
                     severity="info",
                 )
         old_carp = {
@@ -504,11 +658,16 @@ class PfSenseRuntimeService:
         current: dict[str, tuple[str, str]] = {}
         for stream, records in snapshot.logs.items():
             for record in records:
-                message = _sanitize_log_message(str(record.get("text") or ""))
-                if not message:
-                    continue
-                digest = sha256(f"{stream}\0{message}".encode()).hexdigest()
-                current[digest] = (stream, message)
+                event_id = str(record.get("event_id") or "")
+                if not event_id:
+                    message = redact_log_text(
+                        str(record.get("text") or record.get("message") or "")
+                    )
+                    if not message:
+                        continue
+                    event_id = sha256(message.encode()).hexdigest()[:24]
+                digest = sha256(f"{stream}\0{event_id}".encode()).hexdigest()
+                current[digest] = (stream, event_id)
         if active.seen_log_ids is None:
             active.seen_log_ids = set(current)
             return
@@ -518,7 +677,7 @@ class PfSenseRuntimeService:
             "dhcp": "network.client.dhcp_event",
             "system": "network.system.log_event",
         }
-        for digest, (stream, message) in current.items():
+        for digest, (stream, _source_event_id) in current.items():
             if digest in active.seen_log_ids:
                 continue
             self._schedule_event(
@@ -569,12 +728,8 @@ def snapshot_to_state(snapshot: PfSenseSnapshot) -> dict[str, Any]:
             "name": str(
                 item.get("name") or item.get("descr") or item.get("id") or "unknown"
             ),
-            "description": item.get("descr"),
             "status": item.get("status"),
             "up": _status_is_up(item.get("status")) and bool(item.get("enable", True)),
-            "ipv4_address": item.get("ipaddr"),
-            "ipv6_address": item.get("ipaddrv6"),
-            "media": item.get("media"),
             "bytes_received": _integer(item.get("inbytes")),
             "bytes_sent": _integer(item.get("outbytes")),
             "errors_in": _integer(item.get("inerrs")),
@@ -589,7 +744,6 @@ def snapshot_to_state(snapshot: PfSenseSnapshot) -> dict[str, Any]:
             "online": _status_is_up(item.get("status")),
             "latency_ms": _number(item.get("delay")),
             "loss_percent": _number(item.get("loss")),
-            "monitor_ip": item.get("monitorip"),
         }
         for item in snapshot.gateways
     ]
@@ -614,11 +768,15 @@ def snapshot_to_state(snapshot: PfSenseSnapshot) -> dict[str, Any]:
     )
     return {
         "connected": True,
+        "last_attempt_at": _now(),
         "last_success_at": _now(),
+        "stale": False,
+        "degraded": False,
+        "stale_age_seconds": 0,
+        "requires_user_action": False,
         "error": None,
         "api_latency_ms": snapshot.api_latency_ms,
         "platform": snapshot.system.get("platform"),
-        "serial": snapshot.system.get("serial"),
         "uptime": snapshot.system.get("uptime"),
         "pfsense_version": snapshot.version.get("version"),
         "rest_api_version": snapshot.api_version.get("current_version"),
@@ -671,21 +829,142 @@ def snapshot_to_state(snapshot: PfSenseSnapshot) -> dict[str, Any]:
         "certificates": certificates,
         "carp_vips": carp_vips,
         "endpoint_errors": snapshot.endpoint_errors,
+        "endpoint_retry_after_seconds": snapshot.endpoint_retry_after_seconds,
     }
 
 
-_LOG_SECRET = re.compile(
-    r"(?i)(authorization|password|passwd|token|api[-_ ]?key|secret)\s*[:=]\s*\S+"
-)
-_LOG_IPV4 = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
-_LOG_HOST = re.compile(r"\b(?=[a-zA-Z0-9.-]*[a-zA-Z])[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)+\b")
+def _validate_selected_profile(config: DeviceConfig, snapshot: PfSenseSnapshot) -> None:
+    _validate_pfrest_version(snapshot)
+    denied = sorted(_selected_endpoint_errors(config, snapshot))
+    if denied:
+        raise PfSenseError(
+            "selected_profile_unavailable:" + ",".join(denied),
+            remediation="reconfigure_permissions",
+        )
 
 
-def _sanitize_log_message(value: str) -> str:
-    bounded = value.strip()[:4096]
-    bounded = _LOG_SECRET.sub(r"\1=[redacted]", bounded)
-    bounded = _LOG_IPV4.sub("[ip]", bounded)
-    return _LOG_HOST.sub("[host]", bounded)[:512]
+SELECTED_PROFILE_ENDPOINTS: dict[str, tuple[str, ...]] = {
+    "collect_dhcp_leases": ("dhcp_leases",),
+    "collect_client_inventory": ("dhcp_leases", "arp_entries"),
+    "collect_security_logs": (
+        "log_firewall",
+        "log_auth",
+        "log_dhcp",
+        "log_system",
+    ),
+    "collect_certificates": ("certificates",),
+    "collect_ha_status": ("carp", "virtual_ips", "ha_sync"),
+    "collect_vpn_status": (
+        "openvpn_clients",
+        "openvpn_servers",
+        "ipsec_sas",
+        "wireguard_tunnels",
+    ),
+}
+SELECTED_PROFILE_STATE_FIELDS: dict[str, tuple[str, ...]] = {
+    "collect_dhcp_leases": (
+        "dhcp_lease_count",
+        "dhcp_online_lease_count",
+        "client_count",
+        "clients_online",
+        "clients",
+    ),
+    "collect_client_inventory": (
+        "dhcp_lease_count",
+        "dhcp_online_lease_count",
+        "client_count",
+        "clients_online",
+        "clients",
+    ),
+    "collect_security_logs": ("security_log_count",),
+    "collect_certificates": (
+        "certificate_count",
+        "certificates_expiring",
+        "certificates_expired",
+        "certificates",
+    ),
+    "collect_ha_status": (
+        "ha_enabled",
+        "ha_maintenance_mode",
+        "ha_sync_enabled",
+        "carp_vip_count",
+        "carp_primary_count",
+        "carp_vips",
+    ),
+    "collect_vpn_status": (
+        "vpn_tunnel_count",
+        "vpn_tunnels_up",
+        "openvpn_server_connections",
+        "vpn_tunnels",
+    ),
+}
+RETRYABLE_ENDPOINT_REASONS = {
+    "connection_failed",
+    "request_timeout",
+    "rate_limited",
+    "server_error",
+}
+
+
+def _selected_profile_state_fields(config: DeviceConfig) -> set[str]:
+    return {
+        state_field
+        for config_field, state_fields in SELECTED_PROFILE_STATE_FIELDS.items()
+        if getattr(config, config_field)
+        for state_field in state_fields
+    }
+
+
+def _selected_endpoint_errors(
+    config: DeviceConfig, snapshot: PfSenseSnapshot
+) -> dict[str, str]:
+    selected = {
+        endpoint
+        for field, endpoints in SELECTED_PROFILE_ENDPOINTS.items()
+        if getattr(config, field)
+        for endpoint in endpoints
+    }
+    return {
+        endpoint: reason
+        for endpoint, reason in snapshot.endpoint_errors.items()
+        if endpoint in selected
+    }
+
+
+def _validate_pfrest_version(snapshot: PfSenseSnapshot) -> None:
+    version = str(snapshot.api_version.get("current_version") or "")
+    match = re.match(r"^(\d+)\.", version)
+    if match is None or int(match.group(1)) != 2:
+        raise PfSenseError(
+            "unsupported_pfrest_version", remediation="reconfigure_api_version"
+        )
+
+
+def _stale_age_seconds(last_state: dict[str, Any] | None) -> int | None:
+    value = (last_state or {}).get("last_success_at")
+    if not value:
+        return None
+    try:
+        observed = datetime.fromisoformat(str(value))
+    except ValueError:
+        return None
+    return max(0, int((datetime.now(UTC) - observed).total_seconds()))
+
+
+def _retry_delay(active: ActiveFirewall) -> float:
+    if active.failure_count >= 5:
+        base = max(0.0, active.circuit_open_until - monotonic())
+    else:
+        base = min(
+            900.0,
+            active.config.poll_interval_seconds
+            * (2 ** min(active.failure_count, 4)),
+        )
+        digest = int(
+            sha256(str(active.entry["config_id"]).encode()).hexdigest()[:4], 16
+        )
+        base *= 1 + ((digest % 21 - 10) / 100)
+    return min(900.0, max(base, active.retry_after_seconds or 0.0, 1.0))
 
 
 def _appliance_device_id(snapshot: PfSenseSnapshot) -> str:
@@ -701,43 +980,37 @@ def _network_clients(snapshot: PfSenseSnapshot) -> list[dict[str, Any]]:
     for lease in snapshot.dhcp_leases:
         mac = str(lease.get("mac") or "").strip().lower()
         ip = str(lease.get("ip") or "").strip()
-        client_id = mac or ip
-        if not client_id:
+        raw_identity = mac or ip
+        if not raw_identity:
             continue
+        client_id = _opaque_child_id("client", raw_identity)
         online_status = str(lease.get("online_status") or "").lower()
         clients[client_id] = {
             "id": client_id,
-            "name": str(lease.get("hostname") or lease.get("descr") or ip or client_id),
-            "hostname": lease.get("hostname"),
-            "ip_address": ip or None,
-            "mac_address": mac or None,
-            "interface": lease.get("if"),
+            "name": f"Network client {client_id[-6:]}",
             "online": online_status in {"online", "active"},
-            "lease_ends": lease.get("ends"),
             "source": "dhcp",
         }
     for arp in snapshot.arp_entries:
         mac = str(arp.get("mac_address") or "").strip().lower()
         ip = str(arp.get("ip_address") or "").strip()
-        client_id = mac or ip
-        if not client_id:
+        raw_identity = mac or ip
+        if not raw_identity:
             continue
+        client_id = _opaque_child_id("client", raw_identity)
         existing = clients.get(client_id, {})
-        hostname = (
-            existing.get("hostname") or arp.get("hostname") or arp.get("dnsresolve")
-        )
         clients[client_id] = {
             **existing,
             "id": client_id,
-            "name": str(hostname or ip or client_id),
-            "hostname": hostname,
-            "ip_address": ip or existing.get("ip_address"),
-            "mac_address": mac or existing.get("mac_address"),
-            "interface": arp.get("interface") or existing.get("interface"),
+            "name": f"Network client {client_id[-6:]}",
             "online": True,
             "source": "dhcp+arp" if existing else "arp",
         }
     return sorted(clients.values(), key=lambda item: str(item["id"]))
+
+
+def _opaque_child_id(kind: str, value: str) -> str:
+    return sha256(f"piphi-network-pfsense\0{kind}\0{value}".encode()).hexdigest()[:24]
 
 
 def _certificates(snapshot: PfSenseSnapshot) -> list[dict[str, Any]]:
@@ -774,9 +1047,8 @@ def _carp_vips(snapshot: PfSenseSnapshot) -> list[dict[str, Any]]:
         result.append(
             {
                 "id": str(vip_id),
-                "name": str(item.get("descr") or item.get("subnet") or vip_id),
+                "name": str(item.get("descr") or vip_id),
                 "interface": item.get("interface"),
-                "address": item.get("subnet"),
                 "status": status,
                 "primary": status.strip().lower() in {"master", "primary"},
             }
@@ -866,7 +1138,6 @@ def _vpn_tunnels(snapshot: PfSenseSnapshot) -> list[dict[str, Any]]:
                 protocol="openvpn",
                 name=item.get("name") or item.get("vpnid") or f"client-{index}",
                 status=item.get("state") or item.get("status"),
-                remote_endpoint=item.get("remote_host"),
             )
         )
     for index, item in enumerate(snapshot.ipsec_sas):
@@ -877,7 +1148,6 @@ def _vpn_tunnels(snapshot: PfSenseSnapshot) -> list[dict[str, Any]]:
                 protocol="ipsec",
                 name=item.get("con_id") or item.get("uniqueid") or f"sa-{index}",
                 status=item.get("state"),
-                remote_endpoint=item.get("remote_host"),
                 bytes_received=sum(_integer(sa.get("bytes_in")) for sa in child_sas),
                 bytes_sent=sum(_integer(sa.get("bytes_out")) for sa in child_sas),
                 peer_count=len(child_sas),
@@ -904,7 +1174,6 @@ def _vpn_tunnel(
     protocol: str,
     name: Any,
     status: Any,
-    remote_endpoint: Any = None,
     bytes_received: int = 0,
     bytes_sent: int = 0,
     peer_count: int = 0,
@@ -915,7 +1184,6 @@ def _vpn_tunnel(
         "protocol": protocol,
         "status": status,
         "connected": _status_is_up(status),
-        "remote_endpoint": remote_endpoint,
         "bytes_received": bytes_received,
         "bytes_sent": bytes_sent,
         "peer_count": peer_count,
@@ -956,6 +1224,9 @@ def _now() -> str:
 
 
 MAIN_UNITS = {
+    "degraded": "bool",
+    "stale": "bool",
+    "requires_user_action": "bool",
     "api_latency_ms": "ms",
     "cpu_usage_percent": "%",
     "memory_usage_percent": "%",

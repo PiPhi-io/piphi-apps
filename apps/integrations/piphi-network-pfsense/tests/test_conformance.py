@@ -19,6 +19,7 @@ FIXTURES = json.loads(
 @pytest.mark.anyio
 async def test_runtime_conforms_to_shared_contract_fixtures(monkeypatch) -> None:
     monkeypatch.setenv("PIPHI_PFSENSE_LAB_ALLOW_INSECURE", "true")
+
     class FakeClient:
         async def read_snapshot(self):
             return PfSenseSnapshot(

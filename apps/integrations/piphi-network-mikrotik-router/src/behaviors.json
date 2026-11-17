@@ -186,6 +186,20 @@
           "ui": {
             "group": "when"
           }
+        },
+        {
+          "id": "appliance_offline",
+          "label": "Router becomes unavailable",
+          "capability": "connected",
+          "runtime": {"event": "network.appliance.offline", "source": "integration"},
+          "ui": {"group": "when"}
+        },
+        {
+          "id": "appliance_recovered",
+          "label": "Router recovers",
+          "capability": "connected",
+          "runtime": {"event": "network.appliance.recovered", "source": "integration"},
+          "ui": {"group": "when"}
         }
       ],
       "intents": [

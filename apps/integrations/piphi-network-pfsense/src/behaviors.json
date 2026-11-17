@@ -293,6 +293,14 @@
         {
           "id": "system_log", "label": "System log event", "capability": "security_log_count",
           "runtime": {"event": "network.system.log_event", "source": "integration"}, "ui": {"group": "when"}
+        },
+        {
+          "id": "appliance_offline", "label": "Firewall becomes unavailable", "capability": "connected",
+          "runtime": {"event": "network.appliance.offline", "source": "integration"}, "ui": {"group": "when"}
+        },
+        {
+          "id": "appliance_recovered", "label": "Firewall recovers", "capability": "connected",
+          "runtime": {"event": "network.appliance.recovered", "source": "integration"}, "ui": {"group": "when"}
         }
       ],
       "intents": [

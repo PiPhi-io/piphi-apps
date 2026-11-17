@@ -19,7 +19,6 @@ async def diagnostics():
     devices = [
         {
             "connected": bool((entry.get("latest_metrics") or {}).get("connected")),
-            "routeros_version": (entry.get("latest_metrics") or {}).get("routeros_version"),
             "stale": (entry.get("latest_metrics") or {}).get("stale"),
             "failure_count": int(entry.get("failure_count", 0)),
         }

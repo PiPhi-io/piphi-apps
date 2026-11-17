@@ -44,7 +44,8 @@ and [resource fields](https://help.mikrotik.com/docs/spaces/ROS/pages/40992875/R
 Other RouterOS features, such as per-interface traffic and client inventory,
 remain planned and are not implied by the health widget.
 
-Create a dedicated RouterOS group with only `read,rest-api`; do not use the
+Create a dedicated RouterOS group with exactly `read,api,rest-api`; RouterOS
+requires `api` alongside `rest-api` for REST login. Do not use the
 built-in `read` group, which grants unrelated sensitive privileges. Restrict
 the monitoring user's `address` to the PiPhi runtime host or management subnet,
 enable `www-ssl`, and disable plain `www`. Setup performs authenticated reads of
@@ -53,6 +54,15 @@ The license software ID is hashed into the PiPhi device ID, is never exported,
 and prevents the same appliance being configured twice under different hosts.
 Legacy configuration payloads named `api_key` are accepted as passwords during
 migration but are never returned.
+
+`permission-contract.json` defines the exact two-read least-privilege contract
+and its automated denial matrix. Setup validates authentication, certificate
+trust, both permissions, appliance identity, and a RouterOS 7 version before
+saving. Requests are serialized per appliance, responses are capped at 256 KiB,
+and polling uses bounded backoff, deterministic jitter, and a five-failure
+circuit breaker. Authentication failures request reauthentication; permission,
+TLS, version, and schema failures request reconfiguration without exposing
+credentials or private host identifiers.
 
 `capability-catalog.json` inventories the reviewed RouterOS system health,
 interfaces, traffic, clients, DHCP, wireless, LTE, routing, firewall, VPN,
@@ -64,9 +74,14 @@ Broader router monitoring needs version fixtures, counter normalization,
 redaction, and transition tests. Arbitrary console, REST, and configuration
 mutation remain explicitly excluded.
 
+Qualification is software-only: deterministic fake RouterOS HTTPS servers,
+sanitized response schemas, and exact local container images. No physical
+router, board, package set, or firmware release is qualified, and the manifest
+makes no broad RouterOS hardware compatibility claim.
+
 ## Manifest
 
-`manifest.json` is a starter manifest. Before publishing, update:
+`manifest.json` remains draft/unverified. Before any future publishing, verify:
 
 - `image`
 - `version`
@@ -77,6 +92,6 @@ mutation remain explicitly excluded.
 ## Docker
 
 ```bash
-docker build -t docker.io/piphinetwork/piphi-network-mikrotik-router:0.1.0 .
-docker run --rm -p 4218:4218 docker.io/piphinetwork/piphi-network-mikrotik-router:0.1.0
+docker build -t ghcr.io/piphi-io/piphi-network-mikrotik-router:0.1.1 .
+docker run --rm -p 4218:4218 ghcr.io/piphi-io/piphi-network-mikrotik-router:0.1.1
 ```

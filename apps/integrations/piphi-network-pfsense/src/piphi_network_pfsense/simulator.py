@@ -58,6 +58,7 @@ class SimulatedPfSenseClient:
             ],
             services=[
                 {"id": 1, "name": "unbound", "enabled": True, "status": True},
+                {"id": 4, "name": "telegraf", "enabled": True, "status": True},
                 {"id": 2, "name": "openvpn", "enabled": True, "status": True},
                 {"id": 3, "name": "ntpd", "enabled": True, "status": True},
             ],

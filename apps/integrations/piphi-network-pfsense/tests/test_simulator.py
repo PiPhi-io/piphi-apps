@@ -44,7 +44,7 @@ async def test_simulator_exercises_live_projection_and_actions() -> None:
         allowed_ping_hosts=["1.1.1.1"],
         enable_service_restart=True,
         enable_service_start=True,
-        allowed_services=["unbound"],
+        allowed_services=["telegraf"],
         enable_wake_on_lan=True,
         wake_on_lan_targets=[
             {
@@ -79,10 +79,10 @@ async def test_simulator_exercises_live_projection_and_actions() -> None:
     assert (
         await service.diagnostic_ping("pfsense-simulator", host="1.1.1.1", count=2)
     )["result_code"] == 0
-    assert (await service.restart_service("pfsense-simulator", service_name="unbound"))[
+    assert (await service.restart_service("pfsense-simulator", service_name="telegraf"))[
         "simulated"
     ] is True
-    assert (await service.start_service("pfsense-simulator", service_name="unbound"))[
+    assert (await service.start_service("pfsense-simulator", service_name="telegraf"))[
         "simulated"
     ] is True
     assert (await service.wake_on_lan("pfsense-simulator", target_id="office-pc"))[

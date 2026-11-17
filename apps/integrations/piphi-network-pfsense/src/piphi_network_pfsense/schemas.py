@@ -7,6 +7,40 @@ from typing import Literal
 from piphi_runtime_kit_python import RuntimeConfig
 from pydantic import BaseModel, Field, SecretStr, field_validator, model_validator
 
+SAFE_SERVICE_CONTROLS = frozenset({"collectd", "node_exporter", "telegraf"})
+CRITICAL_SERVICE_MARKERS = (
+    "api",
+    "auth",
+    "carp",
+    "dhcp",
+    "dns",
+    "filter",
+    "firewall",
+    "gateway",
+    "haproxy",
+    "ipsec",
+    "kea",
+    "openvpn",
+    "php-fpm",
+    "radius",
+    "route",
+    "routing",
+    "sshd",
+    "unbound",
+    "vpn",
+    "web",
+    "wireguard",
+)
+
+
+def classify_service_control(service_name: str) -> str:
+    normalized = service_name.strip().casefold()
+    if any(marker in normalized for marker in CRITICAL_SERVICE_MARKERS):
+        return "critical-denied"
+    if normalized in SAFE_SERVICE_CONTROLS:
+        return "low-risk-observability"
+    return "unclassified-denied"
+
 
 class WakeOnLanTarget(BaseModel):
     """A named, immutable Wake-on-LAN destination exposed to automations."""
@@ -101,18 +135,22 @@ class DeviceConfig(RuntimeConfig):
             raise ValueError("verify_tls must be false when scheme is http")
         if self.ca_bundle_path and not self.verify_tls:
             raise ValueError("ca_bundle_path requires verify_tls=true")
-        if (self.scheme == "http" or not self.verify_tls) and not self.allow_insecure_transport:
+        if (
+            self.scheme == "http" or not self.verify_tls
+        ) and not self.allow_insecure_transport:
             raise ValueError(
                 "allow_insecure_transport must be explicitly enabled for lab-only insecure transport"
             )
-        if (
-            self.scheme == "http" or not self.verify_tls
-        ) and os.getenv("PIPHI_PFSENSE_LAB_ALLOW_INSECURE") != "true":
+        if (self.scheme == "http" or not self.verify_tls) and os.getenv(
+            "PIPHI_PFSENSE_LAB_ALLOW_INSECURE"
+        ) != "true":
             raise ValueError(
                 "insecure transport is disabled by the deployment; set the lab-only environment gate"
             )
         if self.ca_bundle_path and not _approved_ca_path(self.ca_bundle_path):
-            raise ValueError("ca_bundle_path must use an approved read-only certificate mount")
+            raise ValueError(
+                "ca_bundle_path must use an approved read-only certificate mount"
+            )
         if self.enable_diagnostic_ping and not self.allowed_ping_hosts:
             raise ValueError(
                 "allowed_ping_hosts must not be empty when diagnostic ping is enabled"
@@ -122,6 +160,16 @@ class DeviceConfig(RuntimeConfig):
         ) and not self.allowed_services:
             raise ValueError(
                 "allowed_services must not be empty when service control is enabled"
+            )
+        denied_services = [
+            service
+            for service in self.allowed_services
+            if classify_service_control(service) != "low-risk-observability"
+        ]
+        if denied_services:
+            raise ValueError(
+                "allowed_services contains critical or unclassified services; "
+                "only explicitly classified observability agents are permitted"
             )
         if self.enable_wake_on_lan and not self.wake_on_lan_targets:
             raise ValueError(

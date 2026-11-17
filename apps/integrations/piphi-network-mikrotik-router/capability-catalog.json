@@ -13,8 +13,8 @@
     {
       "id": "runtime-foundation", "status": "implemented", "scope": ["all-configurations"],
       "source_refs": ["core_vocabulary"],
-      "reason": "The runtime reports connectivity from an authenticated RouterOS response, supports refresh, and emits a configuration event.",
-      "state": ["connected"], "events": ["runtime.config.applied"], "conditions": ["state_matches"], "actions": ["refresh"]
+      "reason": "The runtime reports connectivity from an authenticated RouterOS response, supports refresh, and emits configuration and deduplicated availability transitions.",
+      "state": ["connected"], "events": ["runtime.config.applied", "network.appliance.offline", "network.appliance.recovered"], "conditions": ["state_matches"], "actions": ["refresh"]
     },
     {
       "id": "routeros-resource-overview", "status": "implemented", "scope": ["routers-with-https-rest-and-read-only-credentials"],
@@ -25,9 +25,9 @@
     {
       "id": "transport-identity-and-resource-health", "status": "planned", "scope": ["routeros-api-or-rest-enabled-routers"],
       "source_refs": ["routeros_rest", "routeros_api"],
-      "reason": "TLS, least-privilege login, version parsing, package discovery, timeouts, and reconnect behavior need implementation and fixtures.",
+      "reason": "Broader hardware/resource reporting and package discovery need exact-version fixtures and appliance qualification; transport, identity, version gating, and reconnect safety are already runtime foundations.",
       "state": ["board_name", "platform", "architecture", "routeros_version", "firmware_version", "serial_suffix", "uptime_seconds", "cpu_count", "memory_used_bytes", "memory_free_bytes", "storage_used_bytes", "storage_free_bytes", "temperature_c", "voltage_v", "api_latency_ms", "last_seen_at"],
-      "events": ["router.online", "router.offline", "resource.threshold_crossed", "resource.recovered", "router.rebooted"],
+      "events": ["resource.threshold_crossed", "resource.recovered", "router.rebooted"],
       "conditions": ["router_is_online", "router_is_stale", "cpu_above", "memory_below", "storage_below", "temperature_above"],
       "actions": ["reconnect_api"]
     },

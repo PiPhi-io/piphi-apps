@@ -12,6 +12,7 @@ SEMVER = re.compile(
     r"(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?"
     r"(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$"
 )
+TAG_PREFIX = "apps/piphi-network-pfsense/"
 
 
 def _json(path: str) -> dict:
@@ -28,13 +29,19 @@ def _runtime_version() -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Validate a pfSense release tag")
-    parser.add_argument("tag", help="Release tag, for example v0.1.0")
+    parser.add_argument(
+        "tag",
+        help="Namespaced release tag, for example apps/piphi-network-pfsense/v0.1.9",
+    )
     args = parser.parse_args()
 
-    match = SEMVER.fullmatch(args.tag)
+    if not args.tag.startswith(TAG_PREFIX):
+        raise SystemExit(f"Release tag must start with {TAG_PREFIX}")
+    version_tag = args.tag.removeprefix(TAG_PREFIX)
+    match = SEMVER.fullmatch(version_tag)
     if match is None:
         raise SystemExit(f"Release tag is not semantic versioning: {args.tag}")
-    version = args.tag.removeprefix("v").split("+", 1)[0]
+    version = version_tag.removeprefix("v").split("+", 1)[0]
     manifest = _json("manifest.json")
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text())
     sources = {
@@ -57,7 +64,7 @@ def main() -> None:
     mismatches = [
         f"{source}={value!r}" for source, value in sources.items() if value != version
     ]
-    expected_image = f"piphinetwork/piphi-network-pfsense:{version}"
+    expected_image = f"ghcr.io/piphi-io/piphi-network-pfsense:{version}"
     if manifest.get("image") != expected_image:
         mismatches.append(f"manifest image={manifest.get('image')!r}")
     runtime_image = (
