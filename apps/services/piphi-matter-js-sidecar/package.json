@@ -1,6 +1,6 @@
 {
   "name": "piphi-matter-js-sidecar",
-  "version": "0.2.0-alpha.6",
+  "version": "0.2.0-alpha.7",
   "description": "Matter.js controller sidecar for PiPhi Network.",
   "type": "module",
   "scripts": {

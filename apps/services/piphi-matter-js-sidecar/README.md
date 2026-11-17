@@ -121,9 +121,11 @@ The setup payload, SSID, and password are never returned. Startup deletes any or
 Controller storage remains owner-only because a crash can leave a credential on disk until that
 cleanup completes; storage encryption is still recommended before promoting BLE beyond experimental status.
 
-`POST /v1/commission/thread` similarly installs the operational dataset only for one serialized
-commissioning attempt and removes it in `finally` after success or failure. Startup also removes an
-orphaned Thread dataset before readiness. Persistent Thread dataset writes return `410`.
+`POST /v1/commission/thread` similarly writes a non-secret pending marker before installing the
+operational dataset for one serialized commissioning attempt, then removes both in `finally` after
+success or failure. Startup removes an orphaned Thread dataset only when that marker proves an
+operation was interrupted; unrelated startup does not mutate the credential store. Persistent
+Thread dataset writes return `410`.
 
 Qualify the exact release image on a Linux Docker host before promotion:
 

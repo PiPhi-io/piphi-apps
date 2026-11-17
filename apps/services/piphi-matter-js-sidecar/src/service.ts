@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { isSupportedCommand, normalizeNode } from "./capabilities.js";
@@ -12,6 +12,8 @@ import type {
   MatterEndpoint,
   MatterEvent,
 } from "./types.js";
+
+const THREAD_DATASET_PENDING_MARKER = ".piphi-thread-dataset-pending";
 
 export class MatterSidecarService {
   readonly #configs = new Map<string, ConfiguredEndpoint>();
@@ -34,7 +36,10 @@ export class MatterSidecarService {
     try {
       await this.backend.start();
       await this.backend.clearTemporaryWifiCredentials("piphi-provision-");
-      await this.backend.clearThreadDataset();
+      if (await this.#threadDatasetCleanupPending()) {
+        await this.backend.clearThreadDataset();
+        await this.#clearThreadDatasetPending();
+      }
       this.#startedAt = new Date().toISOString();
       this.#lastError = undefined;
     } catch (error) {
@@ -159,11 +164,12 @@ export class MatterSidecarService {
     if (this.#networkProvisioning) throw statusError(409, "network_provisioning_in_progress");
 
     this.#networkProvisioning = true;
-    let stored = false;
+    let cleanupPending = false;
     let operationFailed = false;
     try {
+      await this.#markThreadDatasetPending();
+      cleanupPending = true;
       await this.backend.setThreadDataset(dataset);
-      stored = true;
       const node = await this.backend.commissionWithCode(setupCode.trim(), false, {
         discoveryTimeoutSeconds: 180,
         timeoutMs: 300_000,
@@ -176,7 +182,10 @@ export class MatterSidecarService {
       throw error;
     } finally {
       try {
-        if (stored) await this.backend.clearThreadDataset();
+        if (cleanupPending) {
+          await this.backend.clearThreadDataset();
+          await this.#clearThreadDatasetPending();
+        }
       } catch {
         this.#lastError = "Temporary Thread dataset cleanup failed";
         if (!operationFailed) throw statusError(500, "thread_dataset_cleanup_failed");
@@ -331,6 +340,29 @@ export class MatterSidecarService {
     const temporary = `${this.#configPath}.tmp`;
     await writeFile(temporary, `${JSON.stringify(this.listConfigs(), null, 2)}\n`, { mode: 0o600 });
     await rename(temporary, this.#configPath);
+  }
+
+  async #threadDatasetCleanupPending(): Promise<boolean> {
+    try {
+      await access(join(this.settings.storageDir, THREAD_DATASET_PENDING_MARKER));
+      return true;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+      throw error;
+    }
+  }
+
+  async #markThreadDatasetPending(): Promise<void> {
+    await mkdir(this.settings.storageDir, { recursive: true, mode: 0o700 });
+    await writeFile(join(this.settings.storageDir, THREAD_DATASET_PENDING_MARKER), "pending\n", { mode: 0o600 });
+  }
+
+  async #clearThreadDatasetPending(): Promise<void> {
+    try {
+      await unlink(join(this.settings.storageDir, THREAD_DATASET_PENDING_MARKER));
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
   }
 }
 
