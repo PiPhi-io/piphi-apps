@@ -9,7 +9,7 @@ RUN npm ci && npm run build && npm prune --omit=dev
 
 FROM node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
 
-ARG APP_VERSION=0.3.0
+ARG APP_VERSION=0.3.1
 LABEL org.opencontainers.image.title="PiPhi MQTT Broker" \
       org.opencontainers.image.description="Managed MQTT broker platform service for PiPhi" \
       org.opencontainers.image.source="https://github.com/PiPhi-io/piphi-apps" \
@@ -22,8 +22,8 @@ COPY package.json ./
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/node_modules ./node_modules
 
-RUN apk add --no-cache mosquitto mosquitto-clients \
-    && chmod +x /app/docker/entrypoint.sh /app/docker/credentials-admin.sh \
+RUN apk add --no-cache mosquitto mosquitto-clients openssl su-exec \
+    && chmod +x /app/docker/entrypoint.sh /app/docker/credentials-admin.sh /app/docker/tls-admin.sh \
     && mkdir -p /mosquitto/config /mosquitto/data /mosquitto/log \
     && chown -R mosquitto:mosquitto /mosquitto/config /mosquitto/data /mosquitto/log
 
@@ -36,13 +36,12 @@ ENV MQTT_HOST=0.0.0.0 \
     MQTT_LOG_DEST=stdout \
     MQTT_TOPIC_PREFIX=piphi \
     MQTT_CONFIG_OUTPUT=/mosquitto/config/mosquitto.conf \
-    MQTT_PASSWORD_FILE=/mosquitto/config/passwordfile \
-    MQTT_ACL_FILE=/mosquitto/config/aclfile
+    MQTT_IDENTITY_ROOT=/mosquitto/config/identity
 
 EXPOSE 1883
 
 VOLUME ["/mosquitto/config", "/mosquitto/data", "/mosquitto/log"]
 
-HEALTHCHECK --interval=30s --timeout=8s --start-period=10s --retries=3 CMD ["node", "/app/dist/src/healthcheck.js"]
+HEALTHCHECK --interval=30s --timeout=8s --start-period=10s --retries=3 CMD ["node", "/app/dist/src/healthcheck.js", "--readiness"]
 
 ENTRYPOINT ["/app/docker/entrypoint.sh"]

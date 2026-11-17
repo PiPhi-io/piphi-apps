@@ -1,9 +1,9 @@
 # PiPhi MQTT Broker
 
 `piphi-mqtt-broker` packages Mosquitto as a bounded PiPhi `platform_service`.
-Version 0.3.0 adds managed workload identities, explicit per-principal ACLs,
-audited credential reload/revocation, and automated restore qualification to the
-TLS, quota, health, and config hardening introduced in 0.2.0.
+Version 0.3.1 binds managed principals to isolated workload namespaces, separates
+the mTLS health-client identity from the server identity, adds independently
+addressable lifecycle probes, and makes credential/TLS rotation fail closed.
 
 ## Security boundary
 
@@ -17,6 +17,18 @@ in the image and must be explicitly enabled with `MQTT_ALLOW_PLAINTEXT=true` on
 an enforced private container network. Use TLS for every path crossing a host or
 trust boundary.
 
+The production manifest now fails closed: it sets plaintext off and TLS plus
+client-certificate authentication on. Operators must mount the server, CA, and
+dedicated health-client material before production startup. The plaintext
+examples in this document are an explicit development or legacy migration
+profile only; they are not production defaults.
+
+The manifest declares `/var/lib/piphi/mqtt/secrets` as a read-only
+`/run/secrets` mount and requires the policy, CA, server certificate/key, and
+health-client certificate/key path fields. It supplies conventional path
+defaults but no certificate, key, password, or policy content; provisioning those
+files remains an onboarding prerequisite.
+
 ## Credential handling
 
 Mount a policy and one read-only password secret per principal:
@@ -27,6 +39,7 @@ Mount a policy and one read-only password secret per principal:
   "principals": [
     {
       "username": "zigbee2mqtt",
+      "namespace": "zigbee2mqtt",
       "password_secret_file": "/run/secrets/zigbee2mqtt-password",
       "read": ["piphi/zigbee2mqtt/#"],
       "write": ["piphi/zigbee2mqtt/#"],
@@ -34,6 +47,7 @@ Mount a policy and one read-only password secret per principal:
     },
     {
       "username": "health",
+      "namespace": "_health",
       "password_secret_file": "/run/secrets/health-password",
       "read": ["piphi/_health/#"],
       "write": ["piphi/_health/#"],
@@ -48,14 +62,24 @@ docker run --rm \
   -e MQTT_AUTH_POLICY_FILE=/run/secrets/mqtt-policy.json \
   -e MQTT_ALLOW_PLAINTEXT=true \
   -v ./secrets:/run/secrets:ro \
-  ghcr.io/piphi-io/mqtt-broker:0.3.0
+  ghcr.io/piphi-io/mqtt-broker:0.3.1
 ```
 
 The entrypoint hashes the password through a mode-0600 temporary file, installs
-the password database atomically, and never places the password in a process
+the password and ACL databases transactionally, and never places passwords in a process
 argument or generated broker config. `MQTT_PASSWORD` remains a compatibility
 fallback for single-principal upgrades and should not be used for shared
 production infrastructure.
+
+Each activation creates an immutable directory below
+`/mosquitto/config/identity/generations` and atomically swaps the `current`
+symlink consumed by Mosquitto. A durable transaction marker permits startup to
+restore the prior pointer after interruption. Generations are not automatically
+deleted, so recovery cannot remove the only prior valid identity; operators may
+archive old generations only after confirming they are not the current target.
+The marker itself is written and synced under a temporary name, atomically
+renamed, then followed by a directory sync. A malformed marker blocks recovery
+without changing `current`; it is never interpreted as “no transaction.”
 
 After atomically replacing policy/secret mounts, reload credentials and ACLs:
 
@@ -79,13 +103,36 @@ docker run --rm -p 8883:1883 \
   -e MQTT_TLS_CERT_FILE=/run/secrets/server.crt \
   -e MQTT_TLS_KEY_FILE=/run/secrets/server.key \
   -v ./secrets:/run/secrets:ro \
-  ghcr.io/piphi-io/mqtt-broker:0.3.0
+  ghcr.io/piphi-io/mqtt-broker:0.3.1
 ```
 
 Set `MQTT_TLS_REQUIRE_CLIENT_CERTIFICATE=true` for mTLS. Certificates and keys
 must be mounted under `/run/secrets/` or `/mosquitto/config/`. Restart the
 container after rotating certificates so existing sessions are terminated and
 readiness is requalified.
+
+At startup the entrypoint copies the mounted server certificate, key, and CA
+into a Mosquitto-owned mode-0640 internal directory. Mounted source keys may
+remain root-owned mode 0600; they are never emitted to logs or process arguments.
+Connection logging is disabled because upstream connection records include
+client identifiers and usernames; operational audit records contain only an
+action, result, and timestamp.
+
+For mTLS, mount a dedicated health client identity and set
+`MQTT_HEALTH_TLS_CERT_FILE` and `MQTT_HEALTH_TLS_KEY_FILE`; never reuse the
+server private key as a client identity. Replace mounted TLS files atomically,
+then run `/app/docker/tls-admin.sh`. It verifies certificate/key consistency and
+the health-client chain before a restart. The replacement image startup probe
+must pass before the container becomes healthy.
+
+### 0.3.0 policy migration
+
+0.3.1 accepts an omitted `namespace` only when every read/write filter clearly
+resolves to the same first segment below `MQTT_TOPIC_PREFIX`; this preserves
+existing managed clients. Add the explicit field shown above before the next
+policy edit. Cross-namespace filters, duplicate namespaces, and non-health use
+of `_health` now fail closed. Legacy `MQTT_USERNAME`/password mode remains a
+single-trust-domain compatibility path and is not a multi-workload boundary.
 
 ## Enforced defaults
 
@@ -97,17 +144,29 @@ readiness is requalified.
 | Queued messages | 1,024 |
 | Queued bytes | 16 MiB |
 | Broker memory | 256 MiB |
+| Keepalive | 300 seconds maximum |
 | Durable-session expiry | 7 days |
 
 Override these with the corresponding `MQTT_MAX_*`, `MQTT_MEMORY_LIMIT`, and
 `MQTT_PERSISTENT_CLIENT_EXPIRATION` variables. Container CPU, memory, and volume
 quotas remain the orchestrator's responsibility.
 
+These are broker-wide safeguards, not a complete abuse envelope. This package
+does not enforce per-principal publish rate or bandwidth, simultaneous sessions,
+subscription count, file descriptors, container RSS/CPU, persistence-volume
+capacity, or log retention. Production orchestration must enforce container and
+disk limits; untrusted workload admission still requires external rate policy.
+
 ## Health and recovery
 
-The image health check performs an authenticated MQTT 5 subscribe/publish
-round trip beneath `<prefix>/_health/`. Startup first validates a candidate
-configuration by launching Mosquitto, then atomically promotes it.
+The image readiness check performs an authenticated MQTT 5 subscribe/publish
+round trip beneath the health namespace and verifies persistence storage is
+writable. Startup performs the same qualification against the candidate broker
+before atomically promoting its config. Liveness performs the same authenticated
+MQTT 5 subscribe/publish round trip without the storage write; it is available
+as `node /app/dist/src/healthcheck.js --liveness`. Readiness
+uses `--readiness`, and startup uses `--startup`. Probe failures never print
+credentials, client identifiers, topics, or payloads.
 
 Back up `/mosquitto/config` and `/mosquitto/data` together after a clean stop.
 Keep mounted TLS/password secret sources in the same encrypted backup set. To

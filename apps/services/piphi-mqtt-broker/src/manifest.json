@@ -4,7 +4,7 @@
   "id": "piphi.service.mqtt-broker",
   "name": "MQTT Broker",
   "description": "Shared MQTT broker for PiPhi integrations and helpers.",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "platforms": [
     "linux"
   ],
@@ -15,9 +15,11 @@
         "type": "container"
       },
       "container": {
-        "image": "ghcr.io/piphi-io/mqtt-broker:0.3.0",
+        "image": "ghcr.io/piphi-io/mqtt-broker:0.3.1",
         "environment": {
-          "MQTT_ALLOW_PLAINTEXT": "true"
+          "MQTT_ALLOW_PLAINTEXT": "false",
+          "MQTT_TLS_ENABLED": "true",
+          "MQTT_TLS_REQUIRE_CLIENT_CERTIFICATE": "true"
         },
         "ports": [
           {
@@ -36,6 +38,11 @@
           {
             "host": "/var/lib/piphi/mqtt/log",
             "container": "/mosquitto/log"
+          },
+          {
+            "host": "/var/lib/piphi/mqtt/secrets",
+            "container": "/run/secrets",
+            "read_only": true
           }
         ],
         "restart_policy": {
@@ -48,7 +55,13 @@
     "schema": {
       "type": "object",
       "required": [
-        "listener_port"
+        "listener_port",
+        "auth_policy_file",
+        "tls_ca_file",
+        "tls_cert_file",
+        "tls_key_file",
+        "health_tls_cert_file",
+        "health_tls_key_file"
       ],
       "properties": {
         "listener_port": {
@@ -64,7 +77,7 @@
           "title": "Allow Plaintext on the Private Service Network",
           "description": "Enable only when network isolation is enforced by PiPhi Core.",
           "x-env": "MQTT_ALLOW_PLAINTEXT",
-          "default": true
+          "default": false
         },
         "username": {
           "type": "string",
@@ -82,7 +95,8 @@
           "type": "string",
           "title": "Workload Identity Policy File",
           "description": "Mounted JSON policy defining distinct principals, secret files, and least-privilege topic filters.",
-          "x-env": "MQTT_AUTH_POLICY_FILE"
+          "x-env": "MQTT_AUTH_POLICY_FILE",
+          "default": "/run/secrets/mqtt-policy.json"
         },
         "topic_prefix": {
           "type": "string",
@@ -95,22 +109,43 @@
           "type": "boolean",
           "title": "Enable TLS",
           "x-env": "MQTT_TLS_ENABLED",
-          "default": false
+          "default": true
         },
         "tls_ca_file": {
           "type": "string",
           "title": "TLS CA File",
-          "x-env": "MQTT_TLS_CA_FILE"
+          "x-env": "MQTT_TLS_CA_FILE",
+          "default": "/run/secrets/ca.crt"
         },
         "tls_cert_file": {
           "type": "string",
           "title": "TLS Certificate File",
-          "x-env": "MQTT_TLS_CERT_FILE"
+          "x-env": "MQTT_TLS_CERT_FILE",
+          "default": "/run/secrets/server.crt"
         },
         "tls_key_file": {
           "type": "string",
           "title": "TLS Private Key File",
-          "x-env": "MQTT_TLS_KEY_FILE"
+          "x-env": "MQTT_TLS_KEY_FILE",
+          "default": "/run/secrets/server.key"
+        },
+        "tls_require_client_certificate": {
+          "type": "boolean",
+          "title": "Require Client Certificates",
+          "x-env": "MQTT_TLS_REQUIRE_CLIENT_CERTIFICATE",
+          "default": true
+        },
+        "health_tls_cert_file": {
+          "type": "string",
+          "title": "Health Probe Client Certificate File",
+          "x-env": "MQTT_HEALTH_TLS_CERT_FILE",
+          "default": "/run/secrets/health-client.crt"
+        },
+        "health_tls_key_file": {
+          "type": "string",
+          "title": "Health Probe Client Key File",
+          "x-env": "MQTT_HEALTH_TLS_KEY_FILE",
+          "default": "/run/secrets/health-client.key"
         }
       }
     }
@@ -120,7 +155,8 @@
       "MQTT_ENABLED": "true",
       "MQTT_HOST": "mqtt-broker",
       "MQTT_PORT": "1883",
-      "MQTT_TOPIC_PREFIX": "piphi"
+      "MQTT_TOPIC_PREFIX": "piphi",
+      "MQTT_TLS_ENABLED": "true"
     }
   },
   "onboarding": {

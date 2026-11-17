@@ -14,7 +14,7 @@ export function renderMosquittoConfig(config: BrokerConfig): string {
     "log_type error",
     "log_type warning",
     "log_type notice",
-    "connection_messages true",
+    "connection_messages false",
     `max_connections ${config.maxConnections}`,
     `max_packet_size ${config.maxPacketSize}`,
     `message_size_limit ${config.messageSizeLimit}`,
@@ -22,12 +22,14 @@ export function renderMosquittoConfig(config: BrokerConfig): string {
     `max_queued_messages ${config.maxQueuedMessages}`,
     `max_queued_bytes ${config.maxQueuedBytes}`,
     `memory_limit ${config.memoryLimit}`,
+    `max_keepalive ${config.maxKeepalive}`,
+    "sys_interval 0",
   ];
   if (config.username || config.authPolicyFile) lines.push(`password_file ${config.passwordFile}`, `acl_file ${config.aclFile}`);
   if (config.tlsEnabled) {
     lines.push(`certfile ${config.tlsCertFile}`, `keyfile ${config.tlsKeyFile}`, "tls_version tlsv1.2");
     if (config.tlsCaFile) lines.push(`cafile ${config.tlsCaFile}`);
-    if (config.tlsRequireClientCertificate) lines.push("require_certificate true", "use_identity_as_username true");
+    if (config.tlsRequireClientCertificate) lines.push("require_certificate true", "use_identity_as_username false");
   }
   lines.push("");
   return lines.join("\n");
