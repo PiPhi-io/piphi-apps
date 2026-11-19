@@ -220,6 +220,9 @@ urllib.request.urlopen(request, timeout=5).read()
                 raise
         else:
             raise RuntimeError("analysis-media reference was replayable")
+        logs = docker("logs", container)
+        if media_ref in logs:
+            raise RuntimeError("analysis-media reference appeared in container logs")
         streams = json.loads(
             docker(
                 "exec",
@@ -231,7 +234,12 @@ urllib.request.urlopen(request, timeout=5).read()
         )
         if any(str(name).startswith("piphi_analysis_") for name in streams):
             raise RuntimeError("analysis-media capture left a temporary stream behind")
-        return {"content_type": content_type, "jpeg_bytes": len(image), "replay_rejected": True}
+        return {
+            "content_type": content_type,
+            "jpeg_bytes": len(image),
+            "reference_redacted": True,
+            "replay_rejected": True,
+        }
     finally:
         docker("exec", container, "python", "-c", cleanup_script)
 
