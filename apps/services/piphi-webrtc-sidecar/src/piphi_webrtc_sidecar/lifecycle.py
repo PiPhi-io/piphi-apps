@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from .analysis_media import analysis_media_broker
 from .go2rtc import go2rtc_process
 from .media_sessions import media_session_broker
 
@@ -16,6 +17,9 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         yield
     finally:
         try:
-            await media_session_broker.close_all()
+            await analysis_media_broker.close_all()
         finally:
-            await go2rtc_process.stop()
+            try:
+                await media_session_broker.close_all()
+            finally:
+                await go2rtc_process.stop()

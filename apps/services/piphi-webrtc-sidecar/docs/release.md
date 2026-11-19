@@ -9,7 +9,7 @@ pdm run ruff check src tests scripts
 pdm run ruff format --check src tests scripts
 pdm run pytest
 pdm run python scripts/validate.py
-pdm run python scripts/check_release.py v0.3.7
+pdm run python scripts/check_release.py v0.3.8
 piphi-network-create publish-check -C .
 # After building the candidate image:
 pdm run python scripts/smoke_container.py --build --image piphi-webrtc-sidecar:ci-smoke

@@ -2,7 +2,7 @@
 
 One shared, locally managed camera media service for PiPhi. It embeds
 [go2rtc](https://github.com/AlexxIT/go2rtc), keeps the upstream administration API on loopback,
-and exposes only the authenticated `camera.media.v1` contract to Core.
+and exposes only authenticated camera media contracts to Core.
 
 The stable package ID remains `piphi.service.webrtc-sidecar` so existing installations upgrade in
 place. `sidecar` now describes the container deployment mode only; the product and onboarding
@@ -12,11 +12,15 @@ model are a zero-setup home service.
 
 - Camera integrations own discovery, camera credentials, source URLs, and saved camera devices.
 - This service owns short-lived media sessions and transport adaptation.
+- For vision analysis, it also owns bounded in-memory snapshots represented by opaque, one-time,
+  short-lived references. Image bytes are never persisted.
 - Core installs one shared service per home and binds compatible camera integrations to it.
 - The service does not discover devices, create entities, accept device configuration, or appear
   as a camera itself.
 - Camera source URLs are accepted only in authenticated, Core-to-service session requests and are
   never returned by health, diagnostics, contract, or session responses.
+- Analysis-media issuance accepts only the typed `CameraSource` contract. Retrieval accepts only a
+  broker-issued reference; caller-provided URLs and filesystem paths are never accepted.
 - The go2rtc control API listens only on `127.0.0.1:1984` inside the container.
 - The service probes the first camera video stream and caches only a one-way source fingerprint
   plus non-secret codec metadata for five minutes.
@@ -54,12 +58,12 @@ pdm run python scripts/validate.py
 ## Container
 
 ```bash
-docker build -t ghcr.io/piphi-io/piphi-webrtc-sidecar:0.3.7 .
+docker build -t ghcr.io/piphi-io/piphi-webrtc-sidecar:0.3.8 .
 docker run --rm \
   -p 8090:8090 \
   -p 8555:8555/tcp \
   -p 8555:8555/udp \
-  ghcr.io/piphi-io/piphi-webrtc-sidecar:0.3.7
+  ghcr.io/piphi-io/piphi-webrtc-sidecar:0.3.8
 ```
 
 The pinned upstream is go2rtc `1.9.15`. No host networking or privileged container mode is
