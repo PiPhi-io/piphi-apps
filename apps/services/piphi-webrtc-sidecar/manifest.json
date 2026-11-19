@@ -5,7 +5,7 @@
   "deployment_mode": "sidecar",
   "id": "piphi.service.webrtc-sidecar",
   "name": "PiPhi Camera Media Service",
-  "version": "0.3.8",
+  "version": "0.3.9",
   "description": "Shared go2rtc-backed camera media service for PiPhi camera integrations and dashboard cards.",
   "metadata": {
     "generator": "piphi-network-create",
@@ -24,7 +24,7 @@
     "support_email": "support@piphi.io"
   },
   "license": "MIT",
-  "image": "ghcr.io/piphi-io/piphi-webrtc-sidecar:0.3.8",
+  "image": "ghcr.io/piphi-io/piphi-webrtc-sidecar:0.3.9",
   "platforms": [
     "linux"
   ],
@@ -38,7 +38,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "ghcr.io/piphi-io/piphi-webrtc-sidecar:0.3.8",
+        "image": "ghcr.io/piphi-io/piphi-webrtc-sidecar:0.3.9",
         "ports": [
           {
             "container": 8090

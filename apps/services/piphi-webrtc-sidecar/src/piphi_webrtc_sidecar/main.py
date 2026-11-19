@@ -9,7 +9,9 @@ app = create_app()
 def main() -> None:
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=runtime_port())
+    # Analysis-media references are bearer capabilities carried in request paths.
+    # Uvicorn's default access log records the full path, so it must stay disabled.
+    uvicorn.run(app, host="0.0.0.0", port=runtime_port(), access_log=False)
 
 
 if __name__ == "__main__":
