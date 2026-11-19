@@ -32,11 +32,11 @@ if provided != [
     {
         "id": "piphi.service.webrtc-sidecar",
         "kind": "platform_service",
-        "capabilities": ["camera.media.v1"],
+        "capabilities": ["camera.media.v1", "camera.analysis-media.v1"],
         "shared": True,
     }
 ]:
-    errors.append("manifest must provide the shared camera.media.v1 service")
+    errors.append("manifest must provide the shared camera media service capabilities")
 
 required = manifest.get("api", {}).get("required", [])
 endpoints = manifest.get("api", {}).get("endpoints", {})

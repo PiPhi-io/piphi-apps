@@ -6,8 +6,10 @@ import httpx
 import pytest
 
 from piphi_webrtc_sidecar.go2rtc import (
+    MAX_SNAPSHOT_BYTES,
     Go2RtcClient,
     Go2RtcError,
+    Go2RtcSnapshotTooLargeError,
     stream_name_for,
     validate_source_url,
 )
@@ -59,6 +61,22 @@ async def test_go2rtc_client_uses_private_api_contract() -> None:
     assert requests[0].url.params["name"] == "piphi_camera_1"
     assert requests[0].url.params["src"] == "rtsp://user:secret@camera.local/live"
     assert requests[1].url.params["src"] == "piphi_camera_1"
+
+
+@pytest.mark.anyio
+async def test_go2rtc_client_bounds_snapshot_while_streaming() -> None:
+    client = Go2RtcClient(
+        transport=httpx.MockTransport(
+            lambda _request: httpx.Response(
+                200,
+                content=b"x" * (MAX_SNAPSHOT_BYTES + 1),
+                headers={"content-type": "image/jpeg"},
+            )
+        )
+    )
+
+    with pytest.raises(Go2RtcSnapshotTooLargeError, match="10 MiB"):
+        await client.snapshot("piphi_camera_1")
 
 
 @pytest.mark.anyio

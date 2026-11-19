@@ -14,13 +14,15 @@ def create_app() -> FastAPI:
 
     @app.middleware("http")
     async def protect_operational_routes(request: Request, call_next):
+        response = None
         if request.url.path != "/health":
             try:
                 authorize_sidecar_request(request)
             except HTTPException as exc:
-                return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
-        response = await call_next(request)
-        if request.url.path.startswith("/v1/camera-media/sessions"):
+                response = JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+        if response is None:
+            response = await call_next(request)
+        if request.url.path.startswith(("/v1/camera-media/sessions", "/v1/analysis-media")):
             response.headers["Cache-Control"] = "no-store"
             response.headers["Pragma"] = "no-cache"
         return response

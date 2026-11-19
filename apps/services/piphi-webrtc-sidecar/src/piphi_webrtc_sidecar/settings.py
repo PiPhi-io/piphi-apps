@@ -4,7 +4,7 @@ import os
 
 INTEGRATION_ID = "piphi.service.webrtc-sidecar"
 INTEGRATION_NAME = "PiPhi Camera Media Service"
-INTEGRATION_VERSION = "0.3.7"
+INTEGRATION_VERSION = "0.3.8"
 PROJECT_KIND = "platform_service"
 PROJECT_PRESET = "platform-service"
 PROJECT_DOMAIN = "camera-media"

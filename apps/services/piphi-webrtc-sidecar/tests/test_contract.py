@@ -19,6 +19,8 @@ def test_runtime_implements_contract_routes() -> None:
         "/v1/camera-media/sessions/{session_id}",
         "/v1/camera-media/sessions/{session_id}/keepalive",
         "/v1/camera-media/status",
+        "/v1/analysis-media",
+        "/v1/analysis-media/{media_ref}",
     ]:
         assert path in routes
 
@@ -42,6 +44,8 @@ def test_runtime_implements_contract_routes() -> None:
         "camera_media_status",
         "camera_media_sessions",
         "camera_media_session_keepalive",
+        "analysis_media_issue",
+        "analysis_media",
     ]
 
 
@@ -63,7 +67,7 @@ def test_manifest_declares_a_shared_zero_setup_camera_media_service() -> None:
         {
             "id": "piphi.service.webrtc-sidecar",
             "kind": "platform_service",
-            "capabilities": ["camera.media.v1"],
+            "capabilities": ["camera.media.v1", "camera.analysis-media.v1"],
             "shared": True,
         }
     ]

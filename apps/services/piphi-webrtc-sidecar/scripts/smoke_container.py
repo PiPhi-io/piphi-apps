@@ -17,10 +17,13 @@ ROOT = Path(__file__).resolve().parents[1]
 def docker(*args: str) -> str:
     result = subprocess.run(
         ["docker", *args],
-        check=True,
+        check=False,
         capture_output=True,
         text=True,
     )
+    if result.returncode != 0:
+        detail = result.stderr.strip() or result.stdout.strip() or "unknown Docker error"
+        raise RuntimeError(f"docker {args[0]} failed: {detail}")
     return result.stdout.strip()
 
 
@@ -43,6 +46,15 @@ def request_json(
     if not isinstance(payload, dict):
         raise RuntimeError(f"expected an object response from {url}")
     return payload
+
+
+def request_bytes(url: str, *, token: str, timeout: float = 10) -> tuple[str, bytes]:
+    request = urllib.request.Request(
+        url,
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        return response.headers.get_content_type(), response.read()
 
 
 def wait_for_health(base_url: str) -> dict[str, object]:
@@ -160,6 +172,70 @@ def verify_secret_failure_redaction(base_url: str, container: str) -> dict[str, 
     return {"status": 502, "secret_redacted": True}
 
 
+def verify_analysis_media(base_url: str, container: str) -> dict[str, object]:
+    stream_name = "analysis_fixture"
+    setup_script = f'''\
+import urllib.parse, urllib.request
+query = urllib.parse.urlencode({{
+    "name": "{stream_name}",
+    "src": "ffmpeg:virtual?video=testsrc2&size=320x180#video=h264",
+}})
+request = urllib.request.Request("http://127.0.0.1:1984/api/streams?" + query, method="PUT")
+urllib.request.urlopen(request, timeout=5).read()
+'''
+    cleanup_script = f'''\
+import urllib.parse, urllib.request
+query = urllib.parse.urlencode({{"src": "{stream_name}"}})
+request = urllib.request.Request("http://127.0.0.1:1984/api/streams?" + query, method="DELETE")
+urllib.request.urlopen(request, timeout=5).read()
+'''
+    docker("exec", container, "python", "-c", setup_script)
+    try:
+        issued = request_json(
+            f"{base_url}/v1/analysis-media",
+            token=TOKEN,
+            method="POST",
+            payload={
+                "source": {
+                    "camera_id": "synthetic-container-fixture",
+                    "source_url": f"rtsp://127.0.0.1:8554/{stream_name}",
+                    "source_protocol": "rtsp",
+                },
+                "ttl_seconds": 30,
+            },
+            timeout=20,
+        )
+        media_ref = issued.get("media_ref")
+        if not isinstance(media_ref, str) or not media_ref:
+            raise RuntimeError("analysis-media issuance did not return an opaque reference")
+        content_type, image = request_bytes(
+            f"{base_url}/v1/analysis-media/{media_ref}", token=TOKEN
+        )
+        if content_type != "image/jpeg" or not image.startswith(b"\xff\xd8"):
+            raise RuntimeError("analysis-media retrieval did not return a JPEG fixture")
+        try:
+            request_bytes(f"{base_url}/v1/analysis-media/{media_ref}", token=TOKEN)
+        except urllib.error.HTTPError as exc:
+            if exc.code != 404:
+                raise
+        else:
+            raise RuntimeError("analysis-media reference was replayable")
+        streams = json.loads(
+            docker(
+                "exec",
+                container,
+                "python",
+                "-c",
+                "import json,urllib.request; print(json.dumps(json.load(urllib.request.urlopen('http://127.0.0.1:1984/api/streams'))))",
+            )
+        )
+        if any(str(name).startswith("piphi_analysis_") for name in streams):
+            raise RuntimeError("analysis-media capture left a temporary stream behind")
+        return {"content_type": content_type, "jpeg_bytes": len(image), "replay_rejected": True}
+    finally:
+        docker("exec", container, "python", "-c", cleanup_script)
+
+
 def smoke(image: str) -> dict[str, object]:
     container = f"piphi-webrtc-smoke-{uuid4().hex[:12]}"
     try:
@@ -168,6 +244,15 @@ def smoke(image: str) -> dict[str, object]:
             "--detach",
             "--name",
             container,
+            "--read-only",
+            "--tmpfs",
+            "/tmp:rw,nosuid,size=64m",
+            "--cap-drop",
+            "ALL",
+            "--security-opt",
+            "no-new-privileges",
+            "--user",
+            "10001:10001",
             "--env",
             f"PIPHI_SIDECAR_TOKEN={TOKEN}",
             "--publish",
@@ -190,12 +275,14 @@ def smoke(image: str) -> dict[str, object]:
         if status.get("ready") is not True:
             raise RuntimeError("authenticated media status is not ready")
         media = verify_media_fixture(container)
+        analysis_media = verify_analysis_media(base_url, container)
         failure = verify_secret_failure_redaction(base_url, container)
         return {
             "image": image,
             "health": health,
             "status": status,
             "media": media,
+            "analysis_media": analysis_media,
             "failure": failure,
         }
     finally:

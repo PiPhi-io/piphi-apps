@@ -10,6 +10,8 @@ from urllib.parse import urlsplit, urlunsplit
 
 import httpx
 
+MAX_SNAPSHOT_BYTES = 10 * 1024 * 1024
+
 
 class Go2RtcError(RuntimeError):
     """Raised when the private go2rtc control plane rejects a request."""
@@ -34,6 +36,10 @@ class Go2RtcError(RuntimeError):
             and self.status_code == 500
             and (self.response_detail or "").strip().upper() == "EOF"
         )
+
+
+class Go2RtcSnapshotTooLargeError(Go2RtcError):
+    """Raised before a snapshot response can exceed the in-memory media bound."""
 
 
 def _safe_native_eof_detail(response: httpx.Response) -> str | None:
@@ -188,18 +194,30 @@ class Go2RtcClient:
         return answer
 
     async def snapshot(self, name: str) -> tuple[str, bytes]:
-        response = await self._request(
-            "GET",
-            "/api/frame.jpeg",
-            request_timeout=10.0,
-            operation="snapshot",
-            params={"src": name},
-        )
-        if response.status_code != 200:
-            raise Go2RtcError(f"go2rtc snapshot failed with status {response.status_code}")
-        if len(response.content) > 8 * 1024 * 1024:
-            raise Go2RtcError("go2rtc snapshot exceeded 8 MiB")
-        return response.headers.get("content-type", "image/jpeg"), response.content
+        try:
+            async with self._client(10.0) as client:
+                async with client.stream(
+                    "GET",
+                    f"{self.base_url}/api/frame.jpeg",
+                    params={"src": name},
+                ) as response:
+                    if response.status_code != 200:
+                        raise Go2RtcError(
+                            f"go2rtc snapshot failed with status {response.status_code}"
+                        )
+                    declared_size = response.headers.get("content-length")
+                    if declared_size is not None and int(declared_size) > MAX_SNAPSHOT_BYTES:
+                        raise Go2RtcSnapshotTooLargeError("go2rtc snapshot exceeded 10 MiB")
+                    content = bytearray()
+                    async for chunk in response.aiter_bytes(chunk_size=64 * 1024):
+                        if len(content) + len(chunk) > MAX_SNAPSHOT_BYTES:
+                            raise Go2RtcSnapshotTooLargeError("go2rtc snapshot exceeded 10 MiB")
+                        content.extend(chunk)
+                    return response.headers.get("content-type", "image/jpeg"), bytes(content)
+        except Go2RtcError:
+            raise
+        except (httpx.HTTPError, ValueError):
+            raise Go2RtcError("go2rtc snapshot request failed") from None
 
 
 class Go2RtcProcess:

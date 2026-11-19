@@ -28,7 +28,7 @@ checks = {
     "manifest image": manifest.get("image") == expected_image,
     "runtime image": manifest.get("runtime", {}).get("linux", {}).get("container", {}).get("image")
     == expected_image,
-    "container label version": f"ARG APP_VERSION={version}" in dockerfile,
+    "container label version": f"ARG RELEASE_VERSION={version}" in dockerfile,
     "runtime package version": f'INTEGRATION_VERSION = "{version}"' in settings,
     "required pinned go2rtc container smoke": required_smoke
     in app_metadata.get("ci", {}).get("commands", []),

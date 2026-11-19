@@ -5,7 +5,7 @@
   "deployment_mode": "sidecar",
   "id": "piphi.service.webrtc-sidecar",
   "name": "PiPhi Camera Media Service",
-  "version": "0.3.7",
+  "version": "0.3.8",
   "description": "Shared go2rtc-backed camera media service for PiPhi camera integrations and dashboard cards.",
   "metadata": {
     "generator": "piphi-network-create",
@@ -24,7 +24,7 @@
     "support_email": "support@piphi.io"
   },
   "license": "MIT",
-  "image": "ghcr.io/piphi-io/piphi-webrtc-sidecar:0.3.7",
+  "image": "ghcr.io/piphi-io/piphi-webrtc-sidecar:0.3.8",
   "platforms": [
     "linux"
   ],
@@ -38,7 +38,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "ghcr.io/piphi-io/piphi-webrtc-sidecar:0.3.7",
+        "image": "ghcr.io/piphi-io/piphi-webrtc-sidecar:0.3.8",
         "ports": [
           {
             "container": 8090
@@ -72,7 +72,8 @@
         "id": "piphi.service.webrtc-sidecar",
         "kind": "platform_service",
         "capabilities": [
-          "camera.media.v1"
+          "camera.media.v1",
+          "camera.analysis-media.v1"
         ],
         "shared": true
       }
@@ -83,7 +84,9 @@
       "health",
       "camera_media_status",
       "camera_media_sessions",
-      "camera_media_session_keepalive"
+      "camera_media_session_keepalive",
+      "analysis_media_issue",
+      "analysis_media"
     ],
     "endpoints": {
       "health": "/health",
@@ -91,7 +94,9 @@
       "contract": "/contract",
       "camera_media_status": "/v1/camera-media/status",
       "camera_media_sessions": "/v1/camera-media/sessions",
-      "camera_media_session_keepalive": "/v1/camera-media/sessions/{session_id}/keepalive"
+      "camera_media_session_keepalive": "/v1/camera-media/sessions/{session_id}/keepalive",
+      "analysis_media_issue": "/v1/analysis-media",
+      "analysis_media": "/v1/analysis-media/{media_ref}"
     }
   },
   "capabilities": {},
@@ -152,8 +157,8 @@
     "quality_tier": "unrated",
     "governance": {
       "schema_version": 1,
-      "publication_status": "beta",
-      "rollout_percent": 1,
+      "publication_status": "draft",
+      "rollout_percent": 0,
       "lifecycle_status": "active",
       "qualification": {
         "status": "unverified"
