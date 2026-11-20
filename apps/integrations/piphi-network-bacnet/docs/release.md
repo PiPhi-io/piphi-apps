@@ -17,7 +17,7 @@ Before cutting a release:
   `manifest.json`, `pyproject.toml`, the runtime constant, and image references.
 
 After the source PR is merged and required checks pass, dispatch the central
-release for package `piphi-network-bacnet` and version `0.1.1`. It must build
+release for package `piphi-network-bacnet` and version `0.1.2`. It must build
 the immutable namespaced tag from reviewed `main`, publish both `linux/amd64`
 and `linux/arm64`, and produce release evidence, SBOM, provenance, and
 attestations. Independently inspect the exact digest, OCI labels, platforms,
@@ -27,5 +27,5 @@ The registry proposal must preserve draft/unverified/0% governance.
 Current image target (not yet published):
 
 ```text
-ghcr.io/piphi-io/piphi-network-bacnet:0.1.1
+ghcr.io/piphi-io/piphi-network-bacnet:0.1.2
 ```

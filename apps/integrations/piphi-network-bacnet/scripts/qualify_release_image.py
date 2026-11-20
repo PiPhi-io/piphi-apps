@@ -68,22 +68,54 @@ def find_snapshot(payload: dict[str, Any]) -> dict[str, Any] | None:
     return None
 
 
-def pull_and_inspect_image_user(image: str) -> str:
+def pull_and_inspect_image(image: str) -> dict[str, Any]:
     if "@sha256:" in image:
         subprocess.run(["docker", "pull", image], check=True)
-    return subprocess.run(
-        ["docker", "image", "inspect", image, "--format", "{{.Config.User}}"],
+    payload = subprocess.run(
+        ["docker", "image", "inspect", image],
         check=True,
         capture_output=True,
         text=True,
-    ).stdout.strip()
+    ).stdout
+    inspected = json.loads(payload)
+    if not isinstance(inspected, list) or len(inspected) != 1:
+        raise AssertionError("docker image inspect must return exactly one image")
+    return inspected[0]
 
 
-def qualify(image: str, timeout: float) -> None:
-    container = f"piphi-bacnet-qualification-{uuid.uuid4().hex[:12]}"
-    image_user = pull_and_inspect_image_user(image)
+def validate_image_metadata(
+    inspected: dict[str, Any], *, version: str, revision: str, source: str
+) -> None:
+    config = inspected.get("Config") or {}
+    image_user = str(config.get("User") or "").strip()
     if image_user in {"", "0", "root", "0:0"}:
         raise AssertionError(f"release image must run as non-root, got {image_user!r}")
+    labels = config.get("Labels") or {}
+    expected_labels = {
+        "org.opencontainers.image.source": source,
+        "org.opencontainers.image.revision": revision,
+        "org.opencontainers.image.version": version,
+    }
+    for name, expected in expected_labels.items():
+        if labels.get(name) != expected:
+            raise AssertionError(
+                f"release image label {name} must be {expected!r}, got {labels.get(name)!r}"
+            )
+
+
+def qualify(
+    image: str,
+    timeout: float,
+    *,
+    version: str,
+    revision: str,
+    source: str,
+) -> None:
+    container = f"piphi-bacnet-qualification-{uuid.uuid4().hex[:12]}"
+    inspected = pull_and_inspect_image(image)
+    validate_image_metadata(
+        inspected, version=version, revision=revision, source=source
+    )
     simulator = subprocess.Popen(
         [sys.executable, str(SIMULATOR)],
         cwd=ROOT,
@@ -191,8 +223,19 @@ def main() -> None:
     )
     parser.add_argument("--image", required=True, help="Exact local tag or immutable image digest")
     parser.add_argument("--timeout", type=float, default=30.0)
+    parser.add_argument("--version", required=True)
+    parser.add_argument("--revision", required=True)
+    parser.add_argument(
+        "--source", default="https://github.com/PiPhi-io/piphi-apps"
+    )
     args = parser.parse_args()
-    qualify(args.image, args.timeout)
+    qualify(
+        args.image,
+        args.timeout,
+        version=args.version,
+        revision=args.revision,
+        source=args.source,
+    )
 
 
 if __name__ == "__main__":

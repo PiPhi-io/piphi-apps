@@ -137,8 +137,14 @@ jobs:
         if: needs.plan.outputs.package_id == 'piphi-network-bacnet'
         working-directory: ${{ needs.plan.outputs.app_path }}
         run: |
-          docker build --tag piphi-network-bacnet:release-candidate .
-          pdm run python scripts/qualify_release_image.py --image piphi-network-bacnet:release-candidate
+          docker build --tag piphi-network-bacnet:release-candidate \
+            --build-arg RELEASE_VERSION='${{ needs.plan.outputs.version }}' \
+            --build-arg SOURCE_REVISION='${{ github.sha }}' \
+            --build-arg SOURCE_REPOSITORY='https://github.com/PiPhi-io/piphi-apps' .
+          pdm run python scripts/qualify_release_image.py \
+            --image piphi-network-bacnet:release-candidate \
+            --version '${{ needs.plan.outputs.version }}' \
+            --revision '${{ github.sha }}'
       - name: Compute source contract digests
         id: contracts
         working-directory: ${{ needs.plan.outputs.app_path }}
@@ -204,6 +210,8 @@ jobs:
         run: >-
           pdm run python scripts/qualify_release_image.py
           --image '${{ needs.plan.outputs.image }}@${{ steps.build.outputs.digest }}'
+          --version '${{ needs.plan.outputs.version }}'
+          --revision '${{ github.sha }}'
       - name: Qualify immutable published Airthings image
         if: needs.plan.outputs.package_id == 'airthings-consumer-cloud-api' && inputs.publish
         working-directory: ${{ needs.plan.outputs.app_path }}

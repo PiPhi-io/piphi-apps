@@ -3,7 +3,7 @@
   "identity": {
     "publisher_id": "io.piphi",
     "package_id": "bacnet-status",
-    "version": "0.1.1"
+    "version": "0.1.2"
   },
   "name": "BACnet Connection",
   "description": "A compact live connection view for the configured BACnet runtime.",

@@ -49,8 +49,13 @@ The local client instance must differ from the SenseEdge device instance. All ac
 pdm install --check
 pdm run pytest
 pdm run python scripts/validate.py
-docker build -t piphi-network-bacnet:local .
-pdm run python scripts/qualify_release_image.py --image piphi-network-bacnet:local
+docker build -t piphi-network-bacnet:local \
+  --build-arg RELEASE_VERSION=0.1.2 \
+  --build-arg SOURCE_REVISION=local .
+pdm run python scripts/qualify_release_image.py \
+  --image piphi-network-bacnet:local \
+  --version 0.1.2 \
+  --revision local
 ```
 
 Run the container with host networking, a writable data volume, and a runtime
