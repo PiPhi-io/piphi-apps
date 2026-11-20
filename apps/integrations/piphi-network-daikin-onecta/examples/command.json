@@ -2,13 +2,11 @@
   "contract_version": "automation.runtime.command.v1",
   "command": "refresh",
   "target": {
-    "config_id": "demo-device",
-    "device_id": "demo-device",
+    "config_id": "onecta-account",
+    "device_id": "piphi-network-daikin-onecta:opaque-climate-id",
     "entity_id": null
   },
   "params": {},
-  "capability": "device.refresh",
-  "capability_requirements": [
-    "device.refresh"
-  ]
+  "capability": "refresh",
+  "capability_requirements": ["refresh"]
 }

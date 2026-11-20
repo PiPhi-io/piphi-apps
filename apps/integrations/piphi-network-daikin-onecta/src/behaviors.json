@@ -1,1 +1,25 @@
-{"behaviorSchemaVersion":"integration.behaviors.v2","templates":[],"devices":[{"id":"piphi_network_daikin_onecta_quarantine","name":"Daikin Onecta unavailable","description":"No automation surface is available while this preview is quarantined.","deviceClass":"service","entityType":"service","capabilities":[],"actions":[],"triggers":[],"conditions":[]}]}
+{
+  "behaviorSchemaVersion": "integration.behaviors.v2",
+  "templates": [],
+  "devices": [
+    {
+      "id": "daikin_onecta_climate",
+      "name": "Daikin Onecta climate",
+      "description": "Quota-aware climate observation with opt-in bounded target-temperature control.",
+      "deviceClass": "climate",
+      "entityType": "climate",
+      "capabilities": ["connected", "available", "stale", "power", "hvac_mode", "indoor_temperature_c", "target_temperature_c", "refresh", "set_target_temperature"],
+      "triggers": [
+        {"id": "configured", "runtime": {"event": "runtime.config.applied"}},
+        {"id": "unavailable", "runtime": {"event": "onecta.account.unavailable"}},
+        {"id": "recovered", "runtime": {"event": "onecta.account.recovered"}},
+        {"id": "target_temperature_changed", "runtime": {"event": "onecta.target_temperature.changed"}}
+      ],
+      "conditions": [{"id": "state_matches"}],
+      "actions": [
+        {"id": "refresh", "label": "Refresh", "runtime": {"command": "refresh"}, "safety": {"riskLevel": "low"}},
+        {"id": "set_target_temperature", "label": "Set target temperature", "runtime": {"command": "set_target_temperature"}, "safety": {"riskLevel": "medium"}}
+      ]
+    }
+  ]
+}

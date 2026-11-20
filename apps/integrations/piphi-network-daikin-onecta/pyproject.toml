@@ -1,18 +1,21 @@
 [project]
 name = "piphi-network-daikin-onecta"
-version = "0.1.1"
-description = "Piphi Network Daikin Onecta PiPhi integration runtime."
+version = "0.2.0"
+description = "Quota-aware Daikin Onecta climate observation and bounded target control for PiPhi Network."
 requires-python = ">=3.11"
 dependencies = [
   "fastapi>=0.115.0",
   "uvicorn[standard]>=0.30.0",
   "piphi-runtime-kit-python>=0.8.1,<1.0.0",
+  "httpx>=0.28.0,<0.29.0",
 ]
 
 [project.optional-dependencies]
 dev = [
   "pytest>=8.0.0",
   "httpx>=0.27.0",
+  "jsonschema>=4.23.0,<5.0.0",
+  "ruff>=0.8.0,<1.0.0",
 ]
 
 

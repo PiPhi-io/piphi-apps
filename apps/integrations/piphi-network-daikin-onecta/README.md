@@ -1,62 +1,46 @@
-# Piphi Network Daikin Onecta
+# PiPhi Network Daikin Onecta
 
-> **Unavailable preview:** no Daikin OAuth or Onecta API adapter is implemented.
-> The runtime refuses configuration and commands and advertises no devices or
-> capabilities. Do not provide account credentials.
+Daikin Onecta climate integration for PiPhi Network. Version `0.2.0` provides
+a bounded Python 3.12 functional slice:
 
-Generated PiPhi integration runtime.
+- Core-managed OAuth access-token delivery; tokens are never returned in state,
+  events, telemetry, diagnostics, or logs;
+- one quota-aware account-wide poll for gateway devices;
+- dynamic climate entities for management points that expose room or target
+  temperature;
+- power, HVAC mode, indoor temperature, target temperature, availability, and
+  stale-last-good observation;
+- read-only `refresh`; and
+- opt-in `set_target_temperature`, constrained by provider mode, writable flag,
+  range, and step, with one PATCH and no automatic retry.
 
-## Run locally
+This release remains `draft`, rollout `0`, quality `unrated`, and qualification
+`unverified`. A Daikin developer application, Core OAuth callback/token
+persistence, terms/privacy review, and representative live devices are separate
+production-certification gates.
+
+## Development
 
 ```bash
-pdm install -G dev
-pdm run uvicorn piphi_network_daikin_onecta.main:app --reload --port 4215
+pdm install --check
 pdm run pytest
+pdm run ruff check src tests
 pdm run python scripts/validate.py
 ```
 
-The runtime listens on port `4215` by default and exposes the common PiPhi runtime route contract:
+The runtime listens on port `4215`. See `docs/contract.md` for routes and
+`capability-catalog.json` for implemented, planned, and excluded surfaces.
 
-- `GET /health`
-- `GET /diagnostics`
-- `POST /discover`
-- `POST /config`
-- `POST /config/sync`
-- `POST /deconfigure`
-- `POST /deconfigure/{config_id}`
-- `GET /state`
-- `GET /contract`
-- `GET /entities`
-- `GET /events`
-- `POST /events/device/{config_id}/example`
-- `POST /telemetry/example`
-- `POST /telemetry/device/{config_id}/example`
-- `POST /command`
+## Configuration ownership
 
-## Capability coverage
+`oauth_subject` and `access_token` are authored by PiPhi Core after OAuth. They
+are not intended as user-pasted production fields. Users may edit the account
+alias, polling interval (300–3600 seconds), and the explicit climate-control
+opt-in. Disabling control leaves observation and refresh available.
 
-`capability-catalog.json` inventories climate zones, Altherma heating and hot
-water, air purification, energy, diagnostics, OAuth lifecycle, cloud health,
-events, conditions, and safe controls. Tests enforce that only implemented
-capabilities are advertised.
-
-Device capabilities will be negotiated from management points, writable
-ranges, model classes, and account permissions. OAuth secrets, arbitrary API
-writes, device enrollment, and firmware administration are excluded.
-
-## Manifest
-
-`manifest.json` is a starter manifest. Before publishing, update:
-
-- `image`
-- `version`
-- capabilities and commands
-- config fields and identity fields
-- entity metadata
-
-## Docker
+## Container
 
 ```bash
-docker build -t docker.io/piphinetwork/piphi-network-daikin-onecta:0.1.0 .
-docker run --rm -p 4215:4215 docker.io/piphinetwork/piphi-network-daikin-onecta:0.1.0
+docker build -t ghcr.io/piphi-io/piphi-network-daikin-onecta:0.2.0 .
+docker run --rm -p 4215:4215 ghcr.io/piphi-io/piphi-network-daikin-onecta:0.2.0
 ```

@@ -1,8 +1,8 @@
 {
-  "id": "demo-device",
-  "host": "127.0.0.1",
-  "alias": "Demo Device",
-  "base_url": "https://api.vendor.example",
-  "api_key": "change-me",
-  "poll_interval_seconds": 15
+  "id": "onecta-account",
+  "oauth_subject": "core-oauth-subject-example",
+  "access_token": "core-injected-example-token",
+  "alias": "Home climate",
+  "poll_interval_seconds": 900,
+  "enable_climate_control": false
 }

@@ -3,8 +3,8 @@
   "manifest_version": "1.0",
   "id": "piphi-network-daikin-onecta",
   "name": "Daikin Onecta",
-  "version": "0.1.1",
-  "description": "Quarantined preview. No Daikin OAuth or Onecta API adapter is implemented.",
+  "version": "0.2.0",
+  "description": "Quota-aware Daikin Onecta climate observation with opt-in bounded target-temperature control.",
   "metadata": {
     "generator": "piphi-network-create",
     "scaffold_version": "0.3.0",
@@ -17,7 +17,7 @@
     "website": "https://piphi.io"
   },
   "license": "Apache-2.0",
-  "image": "ghcr.io/piphi-io/piphi-network-daikin-onecta:0.1.1",
+  "image": "ghcr.io/piphi-io/piphi-network-daikin-onecta:0.2.0",
   "platforms": [
     "linux"
   ],
@@ -25,7 +25,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "ghcr.io/piphi-io/piphi-network-daikin-onecta:0.1.1",
+        "image": "ghcr.io/piphi-io/piphi-network-daikin-onecta:0.2.0",
         "ports": [
           {
             "container": 4215,
@@ -48,6 +48,8 @@
   "api": {
     "required": [
       "health",
+      "entities",
+      "command",
       "config",
       "ui_config"
     ],
@@ -69,21 +71,49 @@
     "source": "endpoint",
     "endpoint": "/ui-config",
     "required": true,
-    "editable_fields": [],
+    "editable_fields": [
+      "alias",
+      "poll_interval_seconds",
+      "enable_climate_control"
+    ],
     "runtime_fields": [
       "id",
       "config_id",
       "container_id",
       "device_id"
     ],
-    "identity_fields": []
+    "identity_fields": ["config_id"]
   },
   "identity": {
-    "fields": []
+    "fields": ["config_id"]
   },
-  "capabilities": {},
-  "commands": {},
-  "entities": [],
+  "capabilities": {
+    "connected": {"kind": "sensor", "unit": "bool"},
+    "available": {"kind": "sensor", "unit": "bool"},
+    "stale": {"kind": "sensor", "unit": "bool"},
+    "power": {"kind": "sensor", "unit": "bool", "optional": true},
+    "hvac_mode": {"kind": "sensor", "optional": true},
+    "indoor_temperature_c": {"kind": "sensor", "unit": "C", "optional": true},
+    "target_temperature_c": {"kind": "sensor", "unit": "C", "optional": true},
+    "refresh": {"kind": "action", "read_only": true},
+    "set_target_temperature": {"kind": "action", "opt_in": true}
+  },
+  "commands": {
+    "refresh": {"description": "Refresh all climate state for this account.", "timeout_ms": 20000},
+    "set_target_temperature": {"description": "Set one validated climate target temperature when explicitly enabled.", "timeout_ms": 20000}
+  },
+  "entities": [
+    {
+      "id": "dynamic-climate-management-point",
+      "name": "Daikin climate",
+      "entity_type": "climate",
+      "capabilities": ["connected", "available", "stale", "power", "hvac_mode", "indoor_temperature_c", "target_temperature_c", "refresh", "set_target_temperature"],
+      "available_commands": [
+        {"id": "refresh", "label": "Refresh", "kind": "action"},
+        {"id": "set_target_temperature", "label": "Set target temperature", "kind": "action"}
+      ]
+    }
+  ],
   "ui": {
     "experience_packages": [
       {
@@ -96,7 +126,7 @@
   "marketplace": {
     "metadata_version": 2,
     "display_name": "Daikin Onecta",
-    "summary": "Unavailable preview with no implemented Daikin OAuth or Onecta API adapter.",
+    "summary": "Observe Onecta climate state account-wide and optionally set validated target temperatures.",
     "category": "climate",
     "regions": [
       "EU"
@@ -107,14 +137,14 @@
     "publisher": {
       "name": "PiPhi Network",
       "website_url": "https://piphi.io",
-      "support_url": "https://github.com/PiPhi-io/piphi-network-daikin-onecta/issues",
+      "support_url": "https://github.com/PiPhi-io/piphi-apps/issues",
       "security_contact": "support@piphi.io"
     },
     "access": [
       {
         "id": "credentials",
-        "label": "Account or device credentials",
-        "reason": "Authenticates only to the configured vendor account, service, or local device and keeps credentials out of state and diagnostics.",
+        "label": "Core-managed Daikin OAuth access",
+        "reason": "PiPhi Core delivers the OAuth account subject and access token to the runtime; secrets are excluded from state, telemetry, events, diagnostics, and logs.",
         "required": true
       }
     ],
@@ -124,9 +154,9 @@
         "model": "Onecta-compatible residential HVAC equipment"
       }
     ],
-    "documentation_url": "https://github.com/PiPhi-io/piphi-network-daikin-onecta",
-    "support_url": "https://github.com/PiPhi-io/piphi-network-daikin-onecta/issues",
-    "changelog_url": "https://github.com/PiPhi-io/piphi-network-daikin-onecta/releases",
+    "documentation_url": "https://github.com/PiPhi-io/piphi-apps/tree/main/apps/integrations/piphi-network-daikin-onecta",
+    "support_url": "https://github.com/PiPhi-io/piphi-apps/issues",
+    "changelog_url": "https://github.com/PiPhi-io/piphi-apps/releases?q=piphi-network-daikin-onecta",
     "quality_tier": "unrated",
     "governance": {
       "schema_version": 1,
@@ -150,8 +180,8 @@
       "account discovery"
     ],
     "connectivity": "cloud",
-    "offline_support": "none",
-    "privacy_url": "https://github.com/PiPhi-io/piphi-network-daikin-onecta/blob/main/docs/privacy.md"
+    "offline_support": "last-known state marked stale",
+    "privacy_url": "https://github.com/PiPhi-io/piphi-apps/blob/main/apps/integrations/piphi-network-daikin-onecta/docs/privacy.md"
   },
   "onboarding": {
     "mode": "account"

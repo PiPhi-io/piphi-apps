@@ -24,7 +24,7 @@
     {
       "id": "piphi-network-daikin-onecta",
       "type": "integration",
-      "version": "0.1.1",
+      "version": "0.2.0",
       "manifest": "manifest.json",
       "release": {
         "tag": "apps/{package_id}/v{version}",

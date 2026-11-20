@@ -8,7 +8,6 @@ import pytest
 
 from piphi_network_daikin_onecta.main import app
 
-
 ROOT = Path(__file__).parents[1]
 CATALOG = json.loads((ROOT / "capability-catalog.json").read_text())
 MANIFEST = json.loads((ROOT / "manifest.json").read_text())
@@ -43,16 +42,16 @@ def test_catalog_is_reviewable_and_has_no_duplicate_role_entries() -> None:
             assert len(group[role]) == len(set(group[role]))
 
     for role in ROLES:
-        all_items = [
-            item
-            for group in CATALOG["groups"]
-            for item in group[role]
-        ]
-        assert len(all_items) == len(set(all_items)), f"duplicate {role} catalog entries"
+        all_items = [item for group in CATALOG["groups"] for item in group[role]]
+        assert len(all_items) == len(set(all_items)), (
+            f"duplicate {role} catalog entries"
+        )
 
 
 def test_only_implemented_capabilities_are_advertised() -> None:
-    implemented_capabilities = _by_status("implemented", "state") | _by_status("implemented", "actions")
+    implemented_capabilities = _by_status("implemented", "state") | _by_status(
+        "implemented", "actions"
+    )
     implemented_actions = _by_status("implemented", "actions")
     planned_or_excluded = {
         item
@@ -79,9 +78,7 @@ def test_only_implemented_capabilities_are_advertised() -> None:
         for capability in device["capabilities"]
     }
     behavior_actions = {
-        action["id"]
-        for device in BEHAVIORS["devices"]
-        for action in device["actions"]
+        action["id"] for device in BEHAVIORS["devices"] for action in device["actions"]
     }
 
     assert manifest_capabilities == implemented_capabilities
@@ -93,7 +90,11 @@ def test_only_implemented_capabilities_are_advertised() -> None:
     assert set(ENTITY_EXAMPLE["capabilities"]) == implemented_capabilities
     assert set(ENTITY_EXAMPLE["commands"]) == implemented_actions
     assert not planned_or_excluded & (
-        manifest_capabilities | manifest_commands | entity_capabilities | entity_commands | behavior_actions
+        manifest_capabilities
+        | manifest_commands
+        | entity_capabilities
+        | entity_commands
+        | behavior_actions
     )
 
 
@@ -113,21 +114,12 @@ def test_implemented_behavior_events_and_conditions_are_declared() -> None:
 
 
 @pytest.mark.anyio
-async def test_quarantine_rejects_configuration_without_retaining_state() -> None:
-    transport = httpx.ASGITransport(app=app)
-    config_id = "capability-catalog-test"
-    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
-        response = await client.post("/config", json={"id": config_id, "host": "127.0.0.1", "api_key": "canary-secret"})
-        assert response.status_code == 503
-        assert response.json()["detail"]["installable"] is False
-        assert "canary-secret" not in str((await client.get("/state")).json())
-
-
-@pytest.mark.anyio
 @pytest.mark.parametrize("command", ["set_power", "identify", "send_arbitrary_command"])
 async def test_unimplemented_and_unsafe_commands_fail_closed(command: str) -> None:
     transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://testserver"
+    ) as client:
         response = await client.post(
             "/command",
             json={
@@ -137,5 +129,5 @@ async def test_unimplemented_and_unsafe_commands_fail_closed(command: str) -> No
                 "params": {},
             },
         )
-    assert response.status_code == 503
-    assert response.json()["detail"]["code"] == "not_implemented"
+    assert response.status_code == 400
+    assert response.json()["detail"]["error"] == "unsupported_command"
