@@ -31,7 +31,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Validate a pfSense release tag")
     parser.add_argument(
         "tag",
-        help="Namespaced release tag, for example apps/piphi-network-pfsense/v0.1.10",
+        help="Namespaced release tag, for example apps/piphi-network-pfsense/v0.1.11",
     )
     args = parser.parse_args()
 
@@ -43,9 +43,12 @@ def main() -> None:
         raise SystemExit(f"Release tag is not semantic versioning: {args.tag}")
     version = version_tag.removeprefix("v").split("+", 1)[0]
     manifest = _json("manifest.json")
+    app = _json("piphi-app.json")
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text())
+    dockerfile = (ROOT / "Dockerfile").read_text()
     sources = {
         "manifest.json": manifest.get("version"),
+        "piphi-app.json": app.get("packages", [{}])[0].get("version"),
         "pyproject.toml": pyproject.get("project", {}).get("version"),
         "settings.py": _runtime_version(),
         "pfsense-overview widget": _json(
@@ -72,6 +75,8 @@ def main() -> None:
     )
     if runtime_image != expected_image:
         mismatches.append(f"manifest runtime image={runtime_image!r}")
+    if f"ARG RELEASE_VERSION={version}" not in dockerfile:
+        mismatches.append("Dockerfile release version does not match")
     if mismatches:
         raise SystemExit(
             f"Release tag {args.tag} does not match release metadata:\n"

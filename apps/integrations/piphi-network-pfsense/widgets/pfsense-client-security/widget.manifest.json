@@ -1,7 +1,7 @@
 {
   "id": "io.piphi.pfsense.client-security",
   "name": "pfSense Devices & Security",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "entry": "./dist/widget.js",
   "binding_modes": ["read"],
   "value_kinds": ["numeric", "boolean", "text", "json"],
