@@ -15,6 +15,11 @@ Release qualification uses deterministic fixtures plus a real BACpypes UDP simul
 - Reads only installed, fixed-instance Analog Input objects documented by Kaiterra's September 2026 PICS.
 - Normalizes recognized engineering units and omits unknown unit/object combinations.
 - Polls on a bounded interval and supports one read-only `refresh` action.
+- Probes the exact device/profile before committing setup or reconfiguration.
+- Preserves last-good values as explicitly stale during an outage, backs off
+  repeated failures with jitter, and emits deduplicated unavailable/recovered events.
+- Leaves only `/health` public; all operational routes fail closed unless Core
+  supplies the runtime token (the unauthenticated override is for isolated tests only).
 - Uses host networking so BACnet/IP addresses are not hidden behind container NAT.
 
 ## Deliberately excluded
@@ -48,10 +53,16 @@ docker build -t piphi-network-bacnet:local .
 pdm run python scripts/qualify_release_image.py --image piphi-network-bacnet:local
 ```
 
-Run the container with host networking for real BACnet/IP access:
+Run the container with host networking, a writable data volume, and a runtime
+token for real BACnet/IP access:
 
 ```bash
-docker run --rm --network host piphi-network-bacnet:local
+docker run --rm --network host --read-only --cap-drop ALL \
+  --security-opt no-new-privileges:true \
+  --tmpfs /tmp:rw,noexec,nosuid,size=16m \
+  -v piphi-bacnet-data:/app/data \
+  -e PIPHI_INTEGRATION_INTERNAL_TOKEN=replace-with-core-issued-token \
+  piphi-network-bacnet:local
 ```
 
 Official profile sources:

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import random
 from datetime import UTC, datetime
 from typing import Any
 
@@ -43,6 +44,8 @@ bacnet_reader: BacnetReader = BacpypesReader()
 runtime_configs: dict[str, DeviceConfig] = {}
 poll_tasks: dict[str, asyncio.Task[None]] = {}
 poll_status: dict[str, dict[str, Any]] = {}
+MAX_POLL_BACKOFF_SECONDS = 900.0
+POLL_JITTER_RATIO = 0.1
 
 
 def set_bacnet_reader(reader: BacnetReader) -> None:
@@ -87,6 +90,7 @@ def get_entry_or_404(config_id: str) -> dict[str, Any]:
 def _snapshot_state(snapshot: DeviceSnapshot, *, config_id: str, device_id: str) -> dict[str, Any]:
     return {
         "connected": True,
+        "stale": False,
         "config_id": config_id,
         "device_id": device_id,
         "profile": "kaiterra_sensedge_mini",
@@ -120,12 +124,11 @@ def _snapshot_state(snapshot: DeviceSnapshot, *, config_id: str, device_id: str)
     }
 
 
-async def _read_and_store(config_id: str) -> DeviceSnapshot:
-    config = runtime_configs.get(config_id)
-    entry = registry.get(config_id)
-    if config is None or entry is None:
-        raise BacnetReadError("The BACnet configuration is no longer active.")
-    snapshot = await bacnet_reader.read_snapshot(config)
+def _store_snapshot(
+    config_id: str,
+    entry: dict[str, Any],
+    snapshot: DeviceSnapshot,
+) -> None:
     state = _snapshot_state(
         snapshot,
         config_id=str(entry["config_id"]),
@@ -136,12 +139,20 @@ async def _read_and_store(config_id: str) -> DeviceSnapshot:
         state,
         device_id=str(entry["device_id"]),
     )
+    previous_status = poll_status.get(config_id, {})
     poll_status[config_id] = {
         "connected": True,
         "last_success_at": state["sampled_at"],
         "last_error": None,
         "reading_count": len(snapshot.readings),
+        "consecutive_failures": 0,
     }
+    if previous_status.get("connected") is False and previous_status.get("last_failure_at"):
+        append_runtime_event(
+            "runtime.device.recovered",
+            entry,
+            {"recovered_at": state["sampled_at"]},
+        )
     schedule_telemetry_delivery(
         process_state=runtime.process_state,
         telemetry_client=telemetry,
@@ -152,6 +163,15 @@ async def _read_and_store(config_id: str) -> DeviceSnapshot:
         metrics=snapshot.metrics,
         units=snapshot.units,
     )
+
+
+async def _read_and_store(config_id: str) -> DeviceSnapshot:
+    config = runtime_configs.get(config_id)
+    entry = registry.get(config_id)
+    if config is None or entry is None:
+        raise BacnetReadError("The BACnet configuration is no longer active.")
+    snapshot = await bacnet_reader.read_snapshot(config)
+    _store_snapshot(config_id, entry, snapshot)
     return snapshot
 
 
@@ -162,31 +182,66 @@ async def poll_once(config_id: str) -> bool:
     except BacnetReadError:
         entry = registry.get(config_id)
         previous = poll_status.get(config_id, {})
+        failed_at = datetime.now(tz=UTC).isoformat()
+        failures = int(previous.get("consecutive_failures", 0)) + 1
         poll_status[config_id] = {
             **previous,
             "connected": False,
             "last_error": "bacnet_read_failed",
-            "last_failure_at": datetime.now(tz=UTC).isoformat(),
+            "last_failure_at": failed_at,
+            "consecutive_failures": failures,
         }
         if entry is not None:
+            previous_state = dict(
+                registry.state_snapshots.get(config_id, {}).get("state", {})
+            )
             registry.update_state(
                 config_id,
                 {
+                    **previous_state,
                     "connected": False,
+                    "stale": bool(previous_state.get("sampled_at")),
                     "config_id": str(entry["config_id"]),
                     "device_id": str(entry["device_id"]),
                     "profile": "kaiterra_sensedge_mini",
                     "error": "bacnet_read_failed",
+                    "last_failure_at": failed_at,
+                    "last_success_at": previous.get("last_success_at"),
                 },
                 device_id=str(entry["device_id"]),
             )
+            if previous.get("connected") is True:
+                append_runtime_event(
+                    "runtime.device.unavailable",
+                    entry,
+                    {"failed_at": failed_at, "reason": "bacnet_read_failed"},
+                )
         return False
 
 
+def next_poll_delay(interval_seconds: int, consecutive_failures: int) -> float:
+    """Return capped exponential failure backoff with bounded positive jitter."""
+    exponent = max(0, min(consecutive_failures, 6))
+    base = min(float(interval_seconds) * (2**exponent), MAX_POLL_BACKOFF_SECONDS)
+    return min(
+        base + random.uniform(0.0, base * POLL_JITTER_RATIO),
+        MAX_POLL_BACKOFF_SECONDS,
+    )
+
+
 async def _poll_config(config_id: str, interval_seconds: int) -> None:
+    delay = float(interval_seconds)
     while config_id in runtime_configs:
-        await poll_once(config_id)
-        await asyncio.sleep(interval_seconds)
+        await asyncio.sleep(delay)
+        if config_id not in runtime_configs:
+            break
+        succeeded = await poll_once(config_id)
+        failures = int(poll_status.get(config_id, {}).get("consecutive_failures", 0))
+        delay = (
+            float(interval_seconds)
+            if succeeded
+            else next_poll_delay(interval_seconds, failures)
+        )
 
 
 async def _stop_poll_task(config_id: str) -> None:
@@ -202,27 +257,24 @@ async def _stop_poll_task(config_id: str) -> None:
 
 async def apply_config(config: DeviceConfig) -> None:
     config_id = str(config.config_id or config.id)
-    await _stop_poll_task(config_id)
     previous = runtime_configs.get(config_id)
-    if previous is not None and len(runtime_configs) == 1 and (
+    if previous is not None and (
         previous.local_address != config.local_address
         or previous.local_device_instance != config.local_device_instance
     ):
-        await bacnet_reader.close()
+        raise BacnetReadError(
+            "Changing the active BACnet client address requires removing the old configuration first."
+        )
+
+    # Probe the exact target and profile before replacing active state. A failed
+    # setup or reconfiguration therefore leaves the previous poller and snapshot
+    # untouched.
+    snapshot = await bacnet_reader.read_snapshot(config)
+    await _stop_poll_task(config_id)
     entry = make_entry(config)
     registry.set(config_id, entry)
     runtime_configs[config_id] = config
-    registry.update_state(
-        config_id,
-        {
-            "connected": False,
-            "config_id": entry["config_id"],
-            "device_id": entry["device_id"],
-            "profile": config.profile,
-            "status": "pending_first_read",
-        },
-        device_id=str(entry["device_id"]),
-    )
+    _store_snapshot(config_id, entry, snapshot)
     append_runtime_event(
         "runtime.config.applied",
         entry,

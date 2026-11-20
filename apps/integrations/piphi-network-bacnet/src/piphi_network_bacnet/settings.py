@@ -4,7 +4,7 @@ import os
 
 INTEGRATION_ID = "piphi-network-bacnet"
 INTEGRATION_NAME = "Piphi Network Bacnet"
-INTEGRATION_VERSION = "0.1.0"
+INTEGRATION_VERSION = "0.1.1"
 PROJECT_KIND = "integration"
 PROJECT_PRESET = "protocol-bridge"
 PROJECT_DOMAIN = "bridge"

@@ -1,0 +1,4298 @@
+{
+  "schema_version": 1,
+  "source_revision": "00e45c02c018df551eda97d703af7843c607a985",
+  "registry_revision": "f25a59c42051fdc5cd984a9ddc6e2822b30e64c7",
+  "scope": {
+    "in_scope": 54,
+    "excluded": 13,
+    "audited": 54,
+    "pending": 0
+  },
+  "exclusions": [
+    {
+      "id": "io.piphi.airthings-air-quality",
+      "reason": "widget"
+    },
+    {
+      "id": "io.piphi.awair-air-quality",
+      "reason": "widget"
+    },
+    {
+      "id": "io.piphi.home-health",
+      "reason": "widget"
+    },
+    {
+      "id": "io.piphi.kasa-smart-home",
+      "reason": "widget"
+    },
+    {
+      "id": "io.piphi.solaredge-solar-energy",
+      "reason": "widget"
+    },
+    {
+      "id": "io.piphi.webrtc.camera",
+      "reason": "widget"
+    },
+    {
+      "id": "io.piphi.whole-home-energy",
+      "reason": "widget"
+    },
+    {
+      "id": "io.piphi.widget.calendar-agenda",
+      "reason": "widget"
+    },
+    {
+      "id": "io.piphi.widget.vacuum-map",
+      "reason": "widget"
+    },
+    {
+      "id": "io.piphi.zigbee2mqtt-network-map",
+      "reason": "widget"
+    },
+    {
+      "id": "piphi-camera-stream",
+      "reason": "completed camera broker batch"
+    },
+    {
+      "id": "piphi.service.webrtc-sidecar",
+      "reason": "completed camera broker batch"
+    },
+    {
+      "id": "piphi.service.wyze-camera-bridge",
+      "reason": "completed camera broker batch"
+    }
+  ],
+  "packages": [
+    {
+      "id": "airthings-consumer-cloud-api",
+      "type": "integration",
+      "source": {
+        "folder": "apps/integrations/piphi-network-airthings",
+        "source_version": "0.1.9",
+        "manifest_path": "src/manifest.json",
+        "manifest_image": "ghcr.io/piphi-io/airthings-consumer-cloud:0.1.9",
+        "imported_from": "https://github.com/PiPhi-io/piphi-network-airthings",
+        "ci_enforcement": "full",
+        "ci_build_container": true,
+        "ci_commands": [
+          "pdm install --check",
+          "pdm run pytest",
+          "pdm run python scripts/build_experience.py --check"
+        ]
+      },
+      "release": {
+        "artifact_kind": "oci",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "publishing_mode": "piphi_managed",
+        "publishing_target": {
+          "registry": "ghcr.io",
+          "repository": "piphi-io/airthings-consumer-cloud"
+        },
+        "expected_tag": "apps/airthings-consumer-cloud-api/v0.1.9",
+        "tag_present_locally": true,
+        "registry_ref": "apps/airthings-consumer-cloud-api/v0.1.9",
+        "registry_image": "ghcr.io/piphi-io/airthings-consumer-cloud:0.1.9",
+        "image_digest": "sha256:0ef8aa37b350c561759a12c5eeac42be4833c9c449f9709d5e929d43e9bd4230",
+        "immutable_image": "ghcr.io/piphi-io/airthings-consumer-cloud@sha256:0ef8aa37b350c561759a12c5eeac42be4833c9c449f9709d5e929d43e9bd4230",
+        "platforms_verified": true,
+        "oci_labels_verified": false,
+        "sbom_verified": true,
+        "provenance_verified": true,
+        "attestations_verified": true,
+        "non_root_verified": false,
+        "verified_at": "2026-11-19",
+        "verification_note": "Baseline registry digest had linux/amd64 and linux/arm64 SBOMs and cryptographically verified provenance. OCI labels and non-root execution were not independently verified by this portfolio pass."
+      },
+      "registry": {
+        "version": "0.1.9",
+        "repo_url": "https://github.com/PiPhi-io/piphi-apps",
+        "manifest_path": "apps/integrations/piphi-network-airthings/src/manifest.json",
+        "owner": "PiPhi-io",
+        "trust_level": "official",
+        "risk_level": "moderate",
+        "runtime_requirements": [
+          "cloud_account",
+          "internet_access",
+          "secrets_or_api_tokens"
+        ],
+        "quality_tier": "bronze",
+        "publication_status": "beta",
+        "rollout_percent": 1,
+        "lifecycle_status": "active",
+        "qualification_status": "unverified"
+      },
+      "consistency": {
+        "source_registry_version_match": true,
+        "source_registry_image_match": true,
+        "immutable_registry_image": true
+      },
+      "home_assistant": {
+        "kind": "direct",
+        "name": "Home Assistant Airthings",
+        "sources": [
+          "https://github.com/home-assistant/core/tree/dev/homeassistant/components/airthings"
+        ]
+      },
+      "audit": {
+        "status": "audited",
+        "evidence": [
+          "docs/cloud-monitoring-account-quality-comparison.md",
+          "docs/home-assistant-parity/ledger.md"
+        ]
+      }
+    },
+    {
+      "id": "aqara-open-api",
+      "type": "integration",
+      "source": {
+        "folder": "apps/integrations/piphi-network-aqara",
+        "source_version": "0.1.4",
+        "manifest_path": "src/manifest.json",
+        "manifest_image": "ghcr.io/piphi-io/aqara-open-api:0.1.4",
+        "imported_from": "https://github.com/PiPhi-io/piphi-network-aqara",
+        "ci_enforcement": "full",
+        "ci_build_container": true,
+        "ci_commands": [
+          "pdm install --check",
+          "pdm run pytest"
+        ]
+      },
+      "release": {
+        "artifact_kind": "oci",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "publishing_mode": "piphi_managed",
+        "publishing_target": {
+          "registry": "ghcr.io",
+          "repository": "piphi-io/aqara-open-api"
+        },
+        "expected_tag": "apps/aqara-open-api/v0.1.4",
+        "tag_present_locally": true,
+        "registry_ref": "apps/aqara-open-api/v0.1.4",
+        "registry_image": "ghcr.io/piphi-io/aqara-open-api:0.1.4",
+        "image_digest": "sha256:5722722465dc5430212ae78e34e1276c78204b0040d64d7149f9f7a16b05f58c",
+        "immutable_image": "ghcr.io/piphi-io/aqara-open-api@sha256:5722722465dc5430212ae78e34e1276c78204b0040d64d7149f9f7a16b05f58c",
+        "platforms_verified": true,
+        "oci_labels_verified": false,
+        "sbom_verified": true,
+        "provenance_verified": true,
+        "attestations_verified": true,
+        "non_root_verified": false,
+        "verified_at": "2026-11-19",
+        "verification_note": "Baseline registry digest had linux/amd64 and linux/arm64 SBOMs and cryptographically verified provenance. OCI labels and non-root execution were not independently verified by this portfolio pass."
+      },
+      "registry": {
+        "version": "0.1.4",
+        "repo_url": "https://github.com/PiPhi-io/piphi-apps",
+        "manifest_path": "apps/integrations/piphi-network-aqara/src/manifest.json",
+        "owner": "PiPhi-io",
+        "trust_level": "official",
+        "risk_level": "moderate",
+        "runtime_requirements": [
+          "secrets_or_api_tokens"
+        ],
+        "quality_tier": "bronze",
+        "publication_status": "stable",
+        "rollout_percent": 100,
+        "lifecycle_status": "active",
+        "qualification_status": "unverified"
+      },
+      "consistency": {
+        "source_registry_version_match": true,
+        "source_registry_image_match": true,
+        "immutable_registry_image": true
+      },
+      "home_assistant": {
+        "kind": "architecture",
+        "name": "Home Assistant Aqara user experience and HA IQS",
+        "sources": [
+          "https://www.home-assistant.io/integrations/aqara/",
+          "https://developers.home-assistant.io/docs/core/integration-quality-scale/rules"
+        ]
+      },
+      "audit": {
+        "status": "audited",
+        "evidence": [
+          "docs/cloud-home-account-quality-comparison.md",
+          "docs/home-assistant-parity/ledger.md"
+        ]
+      }
+    },
+    {
+      "id": "atmotube-pro-ble",
+      "type": "integration",
+      "source": {
+        "folder": "apps/integrations/piphi-network-atmotube",
+        "source_version": "0.1.1",
+        "manifest_path": "src/manifest.json",
+        "manifest_image": null,
+        "imported_from": "https://github.com/KelvinSan/piphi-network-atmotube",
+        "ci_enforcement": "legacy-static",
+        "ci_build_container": false,
+        "ci_commands": [
+          "go test ./...",
+          "go vet ./..."
+        ]
+      },
+      "release": {
+        "artifact_kind": "binary",
+        "platforms": [],
+        "publishing_mode": null,
+        "publishing_target": null,
+        "expected_tag": "apps/atmotube-pro-ble/v0.1.1",
+        "tag_present_locally": false,
+        "registry_ref": null,
+        "registry_image": null,
+        "image_digest": null,
+        "immutable_image": null,
+        "platforms_verified": false,
+        "oci_labels_verified": false,
+        "sbom_verified": false,
+        "provenance_verified": false,
+        "attestations_verified": false,
+        "non_root_verified": false
+      },
+      "registry": {
+        "version": "0.1.6-beta.1",
+        "repo_url": "https://github.com/KelvinSan/piphi-network-atmotube",
+        "manifest_path": "src/manifest.json",
+        "owner": "PiPhi-io",
+        "trust_level": "official",
+        "risk_level": "moderate",
+        "runtime_requirements": [
+          "direct_hardware_access"
+        ],
+        "quality_tier": "bronze",
+        "publication_status": "stable",
+        "rollout_percent": 100,
+        "lifecycle_status": "active",
+        "qualification_status": "unverified"
+      },
+      "consistency": {
+        "source_registry_version_match": false,
+        "source_registry_image_match": true,
+        "immutable_registry_image": false
+      },
+      "home_assistant": {
+        "kind": "direct",
+        "name": "Home Assistant Atmotube",
+        "sources": [
+          "https://github.com/home-assistant/core/tree/dev/homeassistant/components/atmotube"
+        ]
+      },
+      "audit": {
+        "status": "audited",
+        "evidence": [
+          "docs/home-assistant-parity/ledger.md"
+        ]
+      }
+    },
+    {
+      "id": "awair-element-local-api",
+      "type": "integration",
+      "source": {
+        "folder": "apps/integrations/piphi-network-awair-element",
+        "source_version": "0.1.14",
+        "manifest_path": "src/manifest.json",
+        "manifest_image": "piphinetwork/awair-element:0.1.14",
+        "imported_from": "https://github.com/KelvinSan/piphi-network-awair-element",
+        "ci_enforcement": "legacy-static",
+        "ci_build_container": false,
+        "ci_commands": [
+          "pdm install --check",
+          "pdm run pytest"
+        ]
+      },
+      "release": {
+        "artifact_kind": "oci",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "publishing_mode": "piphi_managed",
+        "publishing_target": {
+          "registry": "ghcr.io",
+          "repository": "piphi-io/awair-element"
+        },
+        "expected_tag": "apps/awair-element-local-api/v0.1.14",
+        "tag_present_locally": false,
+        "registry_ref": "v0.1.13",
+        "registry_image": "piphinetwork/awair-element:0.1.13",
+        "image_digest": null,
+        "immutable_image": null,
+        "platforms_verified": false,
+        "oci_labels_verified": false,
+        "sbom_verified": false,
+        "provenance_verified": false,
+        "attestations_verified": false,
+        "non_root_verified": false
+      },
+      "registry": {
+        "version": "0.1.13",
+        "repo_url": "https://github.com/KelvinSan/piphi-network-awair-element",
+        "manifest_path": "src/manifest.json",
+        "owner": "PiPhi-io",
+        "trust_level": "official",
+        "risk_level": "low",
+        "runtime_requirements": [],
+        "quality_tier": "bronze",
+        "publication_status": "stable",
+        "rollout_percent": 100,
+        "lifecycle_status": "active",
+        "qualification_status": "unverified"
+      },
+      "consistency": {
+        "source_registry_version_match": false,
+        "source_registry_image_match": false,
+        "immutable_registry_image": false
+      },
+      "home_assistant": {
+        "kind": "direct",
+        "name": "Home Assistant Awair",
+        "sources": [
+          "https://github.com/home-assistant/core/tree/dev/homeassistant/components/awair"
+        ]
+      },
+      "audit": {
+        "status": "audited",
+        "evidence": [
+          "docs/home-assistant-parity/ledger.md"
+        ]
+      }
+    },
+    {
+      "id": "lg-thinq-connect-api",
+      "type": "integration",
+      "source": {
+        "folder": "apps/integrations/piphi-network-thinqconnect",
+        "source_version": "0.1.15",
+        "manifest_path": "src/manifest.json",
+        "manifest_image": "piphinetwork/lg-thinq-connect:0.1.15",
+        "imported_from": "https://github.com/PiPhi-io/piphi-network-thinqconnect",
+        "ci_enforcement": "legacy-static",
+        "ci_build_container": false,
+        "ci_commands": [
+          "pdm install --check",
+          "pdm run pytest"
+        ]
+      },
+      "release": {
+        "artifact_kind": "oci",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "publishing_mode": "piphi_managed",
+        "publishing_target": {
+          "registry": "ghcr.io",
+          "repository": "piphi-io/lg-thinq-connect"
+        },
+        "expected_tag": "apps/lg-thinq-connect-api/v0.1.15",
+        "tag_present_locally": false,
+        "registry_ref": "v0.1.15",
+        "registry_image": "piphinetwork/lg-thinq-connect:0.1.15",
+        "image_digest": null,
+        "immutable_image": null,
+        "platforms_verified": false,
+        "oci_labels_verified": false,
+        "sbom_verified": false,
+        "provenance_verified": false,
+        "attestations_verified": false,
+        "non_root_verified": false
+      },
+      "registry": {
+        "version": "0.1.15",
+        "repo_url": "https://github.com/PiPhi-io/piphi-network-thinqconnect",
+        "manifest_path": "src/manifest.json",
+        "owner": "PiPhi-io",
+        "trust_level": "official",
+        "risk_level": "moderate",
+        "runtime_requirements": [
+          "secrets_or_api_tokens"
+        ],
+        "quality_tier": "bronze",
+        "publication_status": "stable",
+        "rollout_percent": 100,
+        "lifecycle_status": "active",
+        "qualification_status": "unverified"
+      },
+      "consistency": {
+        "source_registry_version_match": true,
+        "source_registry_image_match": true,
+        "immutable_registry_image": false
+      },
+      "home_assistant": {
+        "kind": "direct",
+        "name": "Home Assistant LG ThinQ",
+        "sources": [
+          "https://github.com/home-assistant/core/tree/dev/homeassistant/components/lg_thinq"
+        ]
+      },
+      "audit": {
+        "status": "audited",
+        "evidence": [
+          "docs/cloud-home-account-quality-comparison.md",
+          "docs/home-assistant-parity/ledger.md"
+        ]
+      }
+    },
+    {
+      "id": "official-usb-gps-integration",
+      "type": "integration",
+      "source": {
+        "folder": "apps/integrations/official-piphi-network-gps-integration",
+        "source_version": "1.1.2",
+        "manifest_path": "src/manifest.json",
+        "manifest_image": "piphinetwork/official-gps-integration:1.1.2",
+        "imported_from": "https://github.com/KelvinSan/Official-PiPhi-Network-GPS-Integration",
+        "ci_enforcement": "legacy-static",
+        "ci_build_container": false,
+        "ci_commands": [
+          "npm ci",
+          "npm audit --omit=dev --audit-level=high",
+          "npm run check",
+          "npm run test",
+          "npm run build"
+        ]
+      },
+      "release": {
+        "artifact_kind": "oci",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "publishing_mode": "piphi_managed",
+        "publishing_target": {
+          "registry": "ghcr.io",
+          "repository": "piphi-io/official-gps-integration"
+        },
+        "expected_tag": "apps/official-usb-gps-integration/v1.1.2",
+        "tag_present_locally": false,
+        "registry_ref": "v1.1.2",
+        "registry_image": "piphinetwork/official-gps-integration:1.1.2",
+        "image_digest": null,
+        "immutable_image": null,
+        "platforms_verified": false,
+        "oci_labels_verified": false,
+        "sbom_verified": false,
+        "provenance_verified": false,
+        "attestations_verified": false,
+        "non_root_verified": false
+      },
+      "registry": {
+        "version": "1.1.2",
+        "repo_url": "https://github.com/KelvinSan/Official-PiPhi-Network-GPS-Integration",
+        "manifest_path": "src/manifest.json",
+        "owner": "PiPhi-io",
+        "trust_level": "official",
+        "risk_level": "high",
+        "runtime_requirements": [
+          "usb_or_device_access",
+          "direct_hardware_access",
+          "privileged_container"
+        ],
+        "quality_tier": "bronze",
+        "publication_status": "stable",
+        "rollout_percent": 100,
+        "lifecycle_status": "active",
+        "qualification_status": "unverified"
+      },
+      "consistency": {
+        "source_registry_version_match": true,
+        "source_registry_image_match": true,
+        "immutable_registry_image": false
+      },
+      "home_assistant": {
+        "kind": "direct",
+        "name": "Home Assistant GPSD",
+        "sources": [
+          "https://github.com/home-assistant/core/tree/dev/homeassistant/components/gpsd"
+        ]
+      },
+      "audit": {
+        "status": "audited",
+        "evidence": [
+          "docs/home-assistant-parity/ledger.md"
+        ]
+      }
+    },
+    {
+      "id": "piphi-android-adb-sidecar",
+      "type": "platform_service",
+      "source": {
+        "folder": "apps/services/piphi-android-adb-sidecar",
+        "source_version": "0.3.0-rc.1",
+        "manifest_path": "manifest.json",
+        "manifest_image": "ghcr.io/piphi-io/piphi-android-adb-sidecar:0.3.0-rc.1",
+        "imported_from": "https://github.com/PiPhi-io/piphi-android-adb-sidecar",
+        "ci_enforcement": "full",
+        "ci_build_container": true,
+        "ci_commands": [
+          "pdm install --check",
+          "pdm run ruff check src tests",
+          "pdm run mypy src",
+          "pdm run python scripts/validate.py",
+          "pdm run pytest --cov=piphi_android_adb_sidecar --cov-fail-under=80"
+        ]
+      },
+      "release": {
+        "artifact_kind": "oci",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "publishing_mode": "piphi_managed",
+        "publishing_target": {
+          "registry": "ghcr.io",
+          "repository": "piphi-io/piphi-android-adb-sidecar"
+        },
+        "expected_tag": "apps/piphi-android-adb-sidecar/v0.3.0-rc.1",
+        "tag_present_locally": true,
+        "registry_ref": "apps/piphi-android-adb-sidecar/v0.3.0-rc.1",
+        "registry_image": "ghcr.io/piphi-io/piphi-android-adb-sidecar:0.3.0-rc.1",
+        "image_digest": "sha256:b6893bce091e73c28d71c7c6e49b85f2d311446b94e29503cba637d840ef7594",
+        "immutable_image": "ghcr.io/piphi-io/piphi-android-adb-sidecar@sha256:b6893bce091e73c28d71c7c6e49b85f2d311446b94e29503cba637d840ef7594",
+        "platforms_verified": true,
+        "oci_labels_verified": false,
+        "sbom_verified": true,
+        "provenance_verified": true,
+        "attestations_verified": true,
+        "non_root_verified": false,
+        "verified_at": "2026-11-19",
+        "verification_note": "Baseline registry digest had linux/amd64 and linux/arm64 SBOMs and cryptographically verified provenance. OCI labels and non-root execution were not independently verified by this portfolio pass."
+      },
+      "registry": {
+        "version": "0.3.0-rc.1",
+        "repo_url": "https://github.com/PiPhi-io/piphi-apps",
+        "manifest_path": "apps/services/piphi-android-adb-sidecar/manifest.json",
+        "owner": "PiPhi-io",
+        "trust_level": "official",
+        "risk_level": "moderate",
+        "runtime_requirements": [
+          "sidecar_runtime",
+          "local_network_access"
+        ],
+        "quality_tier": "unrated",
+        "publication_status": "draft",
+        "rollout_percent": 0,
+        "lifecycle_status": "active",
+        "qualification_status": "unverified"
+      },
+      "consistency": {
+        "source_registry_version_match": true,
+        "source_registry_image_match": true,
+        "immutable_registry_image": true
+      },
+      "home_assistant": {
+        "kind": "architecture",
+        "name": "Home Assistant Android TV Remote transport lifecycle",
+        "sources": [
+          "https://github.com/home-assistant/core/tree/dev/homeassistant/components/androidtv_remote"
+        ]
+      },
+      "audit": {
+        "status": "audited",
+        "evidence": [
+          "docs/home-assistant-parity/ledger.md"
+        ]
+      }
+    },
+    {
+      "id": "piphi-ble-gateway-sidecar",
+      "type": "platform_service",
+      "source": {
+        "folder": "apps/services/piphi-ble-gateway-sidecar",
+        "source_version": "0.3.1",
+        "manifest_path": "manifest.json",
+        "manifest_image": "ghcr.io/piphi-io/piphi-ble-gateway-sidecar:0.3.1",
+        "imported_from": "https://github.com/PiPhi-io/piphi-ble-gateway-sidecar",
+        "ci_enforcement": "full",
+        "ci_build_container": true,
+        "ci_commands": [
+          "pdm install --check",
+          "pdm export --prod --output /tmp/piphi-ble-gateway-sidecar-requirements.txt && pdm run pip-audit --disable-pip -r /tmp/piphi-ble-gateway-sidecar-requirements.txt",
+          "pdm run pytest",
+          "pdm run python scripts/validate.py"
+        ]
+      },
+      "release": {
+        "artifact_kind": "oci",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "publishing_mode": "piphi_managed",
+        "publishing_target": {
+          "registry": "ghcr.io",
+          "repository": "piphi-io/piphi-ble-gateway-sidecar"
+        },
+        "expected_tag": "apps/piphi-ble-gateway-sidecar/v0.3.1",
+        "tag_present_locally": true,
+        "registry_ref": "apps/piphi-ble-gateway-sidecar/v0.3.1",
+        "registry_image": "ghcr.io/piphi-io/piphi-ble-gateway-sidecar:0.3.1",
+        "image_digest": "sha256:3f19f56d5c01193517f88361448ad8ed20e003425f636344da3b65d4b959675c",
+        "immutable_image": "ghcr.io/piphi-io/piphi-ble-gateway-sidecar@sha256:3f19f56d5c01193517f88361448ad8ed20e003425f636344da3b65d4b959675c",
+        "platforms_verified": true,
+        "oci_labels_verified": false,
+        "sbom_verified": true,
+        "provenance_verified": true,
+        "attestations_verified": true,
+        "non_root_verified": false,
+        "verified_at": "2026-11-19",
+        "verification_note": "Baseline registry digest had linux/amd64 and linux/arm64 SBOMs and cryptographically verified provenance. OCI labels and non-root execution were not independently verified by this portfolio pass."
+      },
+      "registry": {
+        "version": "0.3.1",
+        "repo_url": "https://github.com/PiPhi-io/piphi-apps",
+        "manifest_path": "apps/services/piphi-ble-gateway-sidecar/manifest.json",
+        "owner": "PiPhi-io",
+        "trust_level": "official",
+        "risk_level": "moderate",
+        "runtime_requirements": [
+          "sidecar_runtime",
+          "usb_or_device_access",
+          "direct_hardware_access"
+        ],
+        "quality_tier": "bronze",
+        "publication_status": "draft",
+        "rollout_percent": 0,
+        "lifecycle_status": "active",
+        "qualification_status": "unverified"
+      },
+      "consistency": {
+        "source_registry_version_match": true,
+        "source_registry_image_match": true,
+        "immutable_registry_image": true
+      },
+      "home_assistant": {
+        "kind": "architecture",
+        "name": "Home Assistant Bluetooth stack",
+        "sources": [
+          "https://github.com/home-assistant/core/tree/dev/homeassistant/components/bluetooth"
+        ]
+      },
+      "audit": {
+        "status": "audited",
+        "evidence": [
+          "apps/services/piphi-ble-gateway-sidecar/docs/home-assistant-quality-comparison.md",
+          "docs/home-assistant-parity/ledger.md"
+        ]
+      }
+    },
+    {
+      "id": "piphi-modbus-rtu-sidecar",
+      "type": "platform_service",
+      "source": {
+        "folder": "apps/services/piphi-modbus-rtu-sidecar",
+        "source_version": "0.8.0",
+        "manifest_path": "manifest.json",
+        "manifest_image": "ghcr.io/piphi-io/piphi-modbus-rtu-sidecar:0.8.0",
+        "imported_from": "https://github.com/PiPhi-io/piphi-modbus-rtu-sidecar",
+        "ci_enforcement": "full",
+        "ci_build_container": true,
+        "ci_commands": [
+          "pdm install --check",
+          "pdm export --prod --output /tmp/piphi-modbus-rtu-sidecar-requirements.txt && pdm run pip-audit --disable-pip --require-hashes -r /tmp/piphi-modbus-rtu-sidecar-requirements.txt",
+          "pdm run pytest",
+          "pdm run python scripts/validate.py"
+        ]
+      },
+      "release": {
+        "artifact_kind": "oci",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "publishing_mode": "piphi_managed",
+        "publishing_target": {
+          "registry": "ghcr.io",
+          "repository": "piphi-io/piphi-modbus-rtu-sidecar"
+        },
+        "expected_tag": "apps/piphi-modbus-rtu-sidecar/v0.8.0",
+        "tag_present_locally": true,
+        "registry_ref": "apps/piphi-modbus-rtu-sidecar/v0.8.0",
+        "registry_image": "ghcr.io/piphi-io/piphi-modbus-rtu-sidecar:0.8.0",
+        "image_digest": "sha256:a11b80be793fe3f6b0651491fd7eb6901949a0e3f283fd657a15493650d3336c",
+        "immutable_image": "ghcr.io/piphi-io/piphi-modbus-rtu-sidecar@sha256:a11b80be793fe3f6b0651491fd7eb6901949a0e3f283fd657a15493650d3336c",
+        "platforms_verified": true,
+        "oci_labels_verified": false,
+        "sbom_verified": true,
+        "provenance_verified": true,
+        "attestations_verified": true,
+        "non_root_verified": false,
+        "verified_at": "2026-11-19",
+        "verification_note": "Baseline registry digest had linux/amd64 and linux/arm64 SBOMs and cryptographically verified provenance. OCI labels and non-root execution were not independently verified by this portfolio pass."
+      },
+      "registry": {
+        "version": "0.8.0",
+        "repo_url": "https://github.com/PiPhi-io/piphi-apps",
+        "manifest_path": "apps/services/piphi-modbus-rtu-sidecar/manifest.json",
+        "owner": "PiPhi-io",
+        "trust_level": "official",
+        "risk_level": "moderate",
+        "runtime_requirements": [
+          "sidecar_runtime",
+          "usb_or_device_access",
+          "direct_hardware_access"
+        ],
+        "quality_tier": "unrated",
+        "publication_status": "draft",
+        "rollout_percent": 0,
+        "lifecycle_status": "active",
+        "qualification_status": "unverified"
+      },
+      "consistency": {
+        "source_registry_version_match": true,
+        "source_registry_image_match": true,
+        "immutable_registry_image": true
+      },
+      "home_assistant": {
+        "kind": "architecture",
+        "name": "Home Assistant Modbus transport behavior",
+        "sources": [
+          "https://github.com/home-assistant/core/tree/dev/homeassistant/components/modbus"
+        ]
+      },
+      "audit": {
+        "status": "audited",
+        "evidence": [
+          "docs/home-assistant-parity/ledger.md"
+        ]
+      }
+    },
+    {
+      "id": "piphi-network-433mhz",
+      "type": "integration",
+      "source": {
+        "folder": "apps/integrations/piphi-network-433mhz",
+        "source_version": "0.2.0",
+        "manifest_path": "src/manifest.json",
+        "manifest_image": "ghcr.io/piphi-io/piphi-network-433mhz:0.2.0",
+        "imported_from": "https://github.com/PiPhi-io/piphi-network-433mhz",
+        "ci_enforcement": "full",
+        "ci_build_container": true,
+        "ci_commands": [
+          "pdm install --check",
+          "pdm run pytest",
+          "pdm run python scripts/validate.py"
+        ]
+      },
+      "release": {
+        "artifact_kind": "oci",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "publishing_mode": "piphi_managed",
+        "publishing_target": {
+          "registry": "ghcr.io",
+          "repository": "piphi-io/piphi-network-433mhz"
+        },
+        "expected_tag": "apps/piphi-network-433mhz/v0.2.0",
+        "tag_present_locally": true,
+        "registry_ref": "apps/piphi-network-433mhz/v0.2.0",
+        "registry_image": "ghcr.io/piphi-io/piphi-network-433mhz:0.2.0",
+        "image_digest": "sha256:8892d01530ec55bd4315cd2e9b1319c6982e5430ff13490117ce9bba1488bddd",
+        "immutable_image": "ghcr.io/piphi-io/piphi-network-433mhz@sha256:8892d01530ec55bd4315cd2e9b1319c6982e5430ff13490117ce9bba1488bddd",
+        "platforms_verified": true,
+        "oci_labels_verified": false,
+        "sbom_verified": true,
+        "provenance_verified": true,
+        "attestations_verified": true,
+        "non_root_verified": false,
+        "verified_at": "2026-11-19",
+        "verification_note": "Baseline registry digest had linux/amd64 and linux/arm64 SBOMs and cryptographically verified provenance. OCI labels and non-root execution were not independently verified by this portfolio pass."
+      },
+      "registry": {
+        "version": "0.2.0",
+        "repo_url": "https://github.com/PiPhi-io/piphi-apps",
+        "manifest_path": "apps/integrations/piphi-network-433mhz/src/manifest.json",
+        "owner": "PiPhi-io",
+        "trust_level": "official",
+        "risk_level": "high",
+        "runtime_requirements": [
+          "sidecar_runtime"
+        ],
+        "quality_tier": "unrated",
+        "publication_status": "beta",
+        "rollout_percent": 10,
+        "lifecycle_status": "active",
+        "qualification_status": "unverified"
+      },
+      "consistency": {
+        "source_registry_version_match": true,
+        "source_registry_image_match": true,
+        "immutable_registry_image": true
+      },
+      "home_assistant": {
+        "kind": "quality_standard",
+        "name": "Home Assistant IQS and receive-only device modeling",
+        "sources": [
+          "https://developers.home-assistant.io/docs/core/integration-quality-scale/rules"
+        ]
+      },
+      "audit": {
+        "status": "audited",
+        "evidence": [
+          "apps/integrations/piphi-network-433mhz/docs/home-assistant-quality-comparison.md",
+          "docs/home-assistant-parity/ledger.md"
+        ]
+      }
+    },
+    {
+      "id": "piphi-network-android-tv",
+      "type": "integration",
+      "source": {
+        "folder": "apps/integrations/piphi-network-android-tv",
+        "source_version": "0.3.0-rc.1",
+        "manifest_path": "manifest.json",
+        "manifest_image": "ghcr.io/piphi-io/piphi-network-android-tv:0.3.0-rc.1",
+        "imported_from": "https://github.com/PiPhi-io/piphi-network-android-tv",
+        "ci_enforcement": "full",
+        "ci_build_container": true,
+        "ci_commands": [
+          "pdm install --check",
+          "pdm run ruff check src tests",
+          "pdm run mypy src",
+          "pdm run python scripts/validate.py",
+          "pdm run pytest --cov=piphi_network_android_tv --cov-fail-under=85"
+        ]
+      },
+      "release": {
+        "artifact_kind": "oci",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "publishing_mode": "piphi_managed",
+        "publishing_target": {
+          "registry": "ghcr.io",
+          "repository": "piphi-io/piphi-network-android-tv"
+        },
+        "expected_tag": "apps/piphi-network-android-tv/v0.3.0-rc.1",
+        "tag_present_locally": true,
+        "registry_ref": "apps/piphi-network-android-tv/v0.3.0-rc.1",
+        "registry_image": "ghcr.io/piphi-io/piphi-network-android-tv:0.3.0-rc.1",
+        "image_digest": "sha256:9990fbed0e3d407e7e597b4aba1d0172edbb82a7abbd9d65efe437b2ec793f5b",
+        "immutable_image": "ghcr.io/piphi-io/piphi-network-android-tv@sha256:9990fbed0e3d407e7e597b4aba1d0172edbb82a7abbd9d65efe437b2ec793f5b",
+        "platforms_verified": true,
+        "oci_labels_verified": false,
+        "sbom_verified": true,
+        "provenance_verified": true,
+        "attestations_verified": true,
+        "non_root_verified": false,
+        "verified_at": "2026-11-19",
+        "verification_note": "Baseline registry digest had linux/amd64 and linux/arm64 SBOMs and cryptographically verified provenance. OCI labels and non-root execution were not independently verified by this portfolio pass."
+      },
+      "registry": {
+        "version": "0.3.0-rc.1",
+        "repo_url": "https://github.com/PiPhi-io/piphi-apps",
+        "manifest_path": "apps/integrations/piphi-network-android-tv/manifest.json",
+        "owner": "PiPhi-io",
+        "trust_level": "official",
+        "risk_level": "low",
+        "runtime_requirements": [],
+        "quality_tier": "unrated",
+        "publication_status": "draft",
+        "rollout_percent": 0,
+        "lifecycle_status": "active",
+        "qualification_status": "unverified"
+      },
+      "consistency": {
+        "source_registry_version_match": true,
+        "source_registry_image_match": true,
+        "immutable_registry_image": true
+      },
+      "home_assistant": {
+        "kind": "direct",
+        "name": "Home Assistant Android TV Remote",
+        "sources": [
+          "https://github.com/home-assistant/core/tree/dev/homeassistant/components/androidtv_remote"
+        ]
+      },
+      "audit": {
+        "status": "audited",
+        "evidence": [
+          "apps/integrations/piphi-network-android-tv/docs/home-assistant-quality-comparison.md",
+          "docs/home-assistant-parity/ledger.md"
+        ]
+      }
+    },
+    {
+      "id": "piphi-network-bacnet",
+      "type": "integration",
+      "source": {
+        "folder": "apps/integrations/piphi-network-bacnet",
+        "source_version": "0.1.1",
+        "manifest_path": "manifest.json",
+        "manifest_image": "ghcr.io/piphi-io/piphi-network-bacnet:0.1.1",
+        "imported_from": "https://github.com/PiPhi-io/piphi-network-bacnet",
+        "ci_enforcement": "full",
+        "ci_build_container": true,
+        "ci_commands": [
+          "pdm install --check",
+          "pdm run pytest",
+          "pdm run python scripts/validate.py"
+        ]
+      },
+      "release": {
+        "artifact_kind": "oci",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "publishing_mode": "piphi_managed",
+        "publishing_target": {
+          "registry": "ghcr.io",
+          "repository": "piphi-io/piphi-network-bacnet"
+        },
+        "expected_tag": "apps/piphi-network-bacnet/v0.1.1",
+        "tag_present_locally": false,
+        "registry_ref": "apps/piphi-network-bacnet/v0.1.0",
+        "registry_image": "ghcr.io/piphi-io/piphi-network-bacnet:0.1.0",
+        "image_digest": "sha256:5eb31340901bbacda2ec15f3b6d8e4b9bca9a750bccb1972af08bc498db8b33e",
+        "immutable_image": "ghcr.io/piphi-io/piphi-network-bacnet@sha256:5eb31340901bbacda2ec15f3b6d8e4b9bca9a750bccb1972af08bc498db8b33e",
+        "platforms_verified": true,
+        "oci_labels_verified": false,
+        "sbom_verified": true,
+        "provenance_verified": true,
+        "attestations_verified": true,
+        "non_root_verified": false,
+        "verified_at": "2026-11-19",
+        "verification_note": "Baseline registry digest had linux/amd64 and linux/arm64 SBOMs and cryptographically verified provenance. OCI labels and non-root execution were not independently verified by this portfolio pass."
+      },
+      "registry": {
+        "version": "0.1.0",
+        "repo_url": "https://github.com/PiPhi-io/piphi-apps",
+        "manifest_path": "apps/integrations/piphi-network-bacnet/manifest.json",
+        "owner": "PiPhi-io",
+        "trust_level": "official",
+        "risk_level": "high",
+        "runtime_requirements": [
+          "host_networking",
+          "host_filesystem_mounts"
+        ],
+        "quality_tier": "unrated",
+        "publication_status": "draft",
+        "rollout_percent": 0,
+        "lifecycle_status": "active",
+        "qualification_status": "unverified"
+      },
+      "consistency": {
+        "source_registry_version_match": false,
+        "source_registry_image_match": false,
+        "immutable_registry_image": true
+      },
+      "home_assistant": {
+        "kind": "quality_standard",
+        "name": "Home Assistant IQS; no direct Core BACnet equivalent",
+        "sources": [
+          "https://developers.home-assistant.io/docs/core/integration-quality-scale/rules"
+        ]
+      },
+      "audit": {
+        "status": "audited",
+        "evidence": [
+          "apps/integrations/piphi-network-bacnet/docs/home-assistant-quality-comparison.md",
+          "docs/home-assistant-parity/ledger.md"
+        ]
+      }
+    },
+    {
+      "id": "piphi-network-bambu-lab",
+      "type": "integration",
+      "source": {
+        "folder": "apps/integrations/piphi-network-bambu-lab",
+        "source_version": "0.1.0",
+        "manifest_path": "manifest.json",
+        "manifest_image": "docker.io/piphinetwork/piphi-network-bambu-lab:0.1.0",
+        "imported_from": "https://github.com/PiPhi-io/piphi-network-bambu-lab",
+        "ci_enforcement": "legacy-static",
+        "ci_build_container": false,
+        "ci_commands": [
+          "pdm install --check",
+          "pdm run pytest"
+        ]
+      },
+      "release": {
+        "artifact_kind": "oci",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "publishing_mode": "piphi_managed",
+        "publishing_target": {
+          "registry": "ghcr.io",
+          "repository": "piphi-io/piphi-network-bambu-lab"
+        },
+        "expected_tag": "apps/piphi-network-bambu-lab/v0.1.0",
+        "tag_present_locally": false,
+        "registry_ref": null,
+        "registry_image": "docker.io/piphinetwork/piphi-network-bambu-lab:0.1.0",
+        "image_digest": null,
+        "immutable_image": null,
+        "platforms_verified": false,
+        "oci_labels_verified": false,
+        "sbom_verified": false,
+        "provenance_verified": false,
+        "attestations_verified": false,
+        "non_root_verified": false
+      },
+      "registry": {
+        "version": "0.1.0",
+        "repo_url": "https://github.com/PiPhi-io/piphi-network-bambu-lab",
+        "manifest_path": "manifest.json",
+        "owner": "PiPhi-io",
+        "trust_level": "official",
+        "risk_level": "moderate",
+        "runtime_requirements": [
+          "secrets_or_api_tokens"
+        ],
+        "quality_tier": "unrated",
+        "publication_status": "draft",
+        "rollout_percent": 0,
+        "lifecycle_status": "active",
+        "qualification_status": "unverified"
+      },
+      "consistency": {
+        "source_registry_version_match": true,
+        "source_registry_image_match": true,
+        "immutable_registry_image": false
+      },
+      "home_assistant": {
+        "kind": "quality_standard",
+        "name": "Home Assistant IQS; no direct Core Bambu Lab equivalent",
+        "sources": [
+          "https://developers.home-assistant.io/docs/core/integration-quality-scale/rules"
+        ]
+      },
+      "audit": {
+        "status": "audited",
+        "evidence": [
+          "docs/home-assistant-parity/ledger.md"
+        ]
+      }
+    },
+    {
+      "id": "piphi-network-bermuda-presence",
+      "type": "integration",
+      "source": {
+        "folder": "apps/integrations/piphi-network-bermuda-presence",
+        "source_version": "0.2.1",
+        "manifest_path": "manifest.json",
+        "manifest_image": "ghcr.io/piphi-io/piphi-network-bermuda-presence:0.2.1",
+        "imported_from": "https://github.com/PiPhi-io/piphi-network-bermuda-presence",
+        "ci_enforcement": "full",
+        "ci_build_container": true,
+        "ci_commands": [
+          "pdm install --check",
+          "pdm run pytest",
+          "pdm run python scripts/validate.py",
+          "pdm run ruff check src tests",
+          "pdm run mypy",
+          "pdm run pip-audit"
+        ]
+      },
+      "release": {
+        "artifact_kind": "oci",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "publishing_mode": "piphi_managed",
+        "publishing_target": {
+          "registry": "ghcr.io",
+          "repository": "piphi-io/piphi-network-bermuda-presence"
+        },
+        "expected_tag": "apps/piphi-network-bermuda-presence/v0.2.1",
+        "tag_present_locally": true,
+        "registry_ref": "apps/piphi-network-bermuda-presence/v0.2.1",
+        "registry_image": "ghcr.io/piphi-io/piphi-network-bermuda-presence:0.2.1",
+        "image_digest": "sha256:844bb88f9019d4acbf71c11c85fc8c7fe644a727f1270ac19b4cf2a2bcf8d147",
+        "immutable_image": "ghcr.io/piphi-io/piphi-network-bermuda-presence@sha256:844bb88f9019d4acbf71c11c85fc8c7fe644a727f1270ac19b4cf2a2bcf8d147",
+        "platforms_verified": true,
+        "oci_labels_verified": false,
+        "sbom_verified": true,
+        "provenance_verified": true,
+        "attestations_verified": true,
+        "non_root_verified": false,
+        "verified_at": "2026-11-19",
+        "verification_note": "Baseline registry digest had linux/amd64 and linux/arm64 SBOMs and cryptographically verified provenance. OCI labels and non-root execution were not independently verified by this portfolio pass."
+      },
+      "registry": {
+        "version": "0.2.1",
+        "repo_url": "https://github.com/PiPhi-io/piphi-apps",
+        "manifest_path": "apps/integrations/piphi-network-bermuda-presence/manifest.json",
+        "owner": "PiPhi-io",
+        "trust_level": "official",
+        "risk_level": "moderate",
+        "runtime_requirements": [
+          "local_network_access",
+          "secrets_or_api_tokens"
+        ],
+        "quality_tier": "bronze",
+        "publication_status": "draft",
+        "rollout_percent": 0,
+        "lifecycle_status": "active",
+        "qualification_status": "unverified"
+      },
+      "consistency": {
+        "source_registry_version_match": true,
+        "source_registry_image_match": true,
+        "immutable_registry_image": true
+      },
+      "home_assistant": {
+        "kind": "architecture",
+        "name": "Home Assistant Bluetooth and Private BLE Device",
+        "sources": [
+          "https://github.com/home-assistant/core/tree/dev/homeassistant/components/bluetooth",
+          "https://github.com/home-assistant/core/tree/dev/homeassistant/components/private_ble_device"
+        ]
+      },
+      "audit": {
+        "status": "audited",
+        "evidence": [
+          "docs/home-assistant-parity/ledger.md"
+        ]
+      }
+    },
+    {
+      "id": "piphi-network-daikin-onecta",
+      "type": "integration",
+      "source": {
+        "folder": "apps/integrations/piphi-network-daikin-onecta",
+        "source_version": "0.1.0",
+        "manifest_path": "manifest.json",
+        "manifest_image": "docker.io/piphinetwork/piphi-network-daikin-onecta:0.1.0",
+        "imported_from": "https://github.com/PiPhi-io/piphi-network-daikin-onecta",
+        "ci_enforcement": "legacy-static",
+        "ci_build_container": false,
+        "ci_commands": [
+          "pdm install --check",
+          "pdm run pytest"
+        ]
+      },
+      "release": {
+        "artifact_kind": "oci",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "publishing_mode": "piphi_managed",
+        "publishing_target": {
+          "registry": "ghcr.io",
+          "repository": "piphi-io/piphi-network-daikin-onecta"
+        },
+        "expected_tag": "apps/piphi-network-daikin-onecta/v0.1.0",
+        "tag_present_locally": false,
+        "registry_ref": null,
+        "registry_image": "docker.io/piphinetwork/piphi-network-daikin-onecta:0.1.0",
+        "image_digest": null,
+        "immutable_image": null,
+        "platforms_verified": false,
+        "oci_labels_verified": false,
+        "sbom_verified": false,
+        "provenance_verified": false,
+        "attestations_verified": false,
+        "non_root_verified": false
+      },
+      "registry": {
+        "version": "0.1.0",
+        "repo_url": "https://github.com/PiPhi-io/piphi-network-daikin-onecta",
+        "manifest_path": "manifest.json",
+        "owner": "PiPhi-io",
+        "trust_level": "official",
+        "risk_level": "moderate",
+        "runtime_requirements": [
+          "secrets_or_api_tokens"
+        ],
+        "quality_tier": "unrated",
+        "publication_status": "draft",
+        "rollout_percent": 0,
+        "lifecycle_status": "active",
+        "qualification_status": "unverified"
+      },
+      "consistency": {
+        "source_registry_version_match": true,
+        "source_registry_image_match": true,
+        "immutable_registry_image": false
+      },
+      "home_assistant": {
+        "kind": "architecture",
+        "name": "Home Assistant Daikin lifecycle patterns; transport is not equivalent",
+        "sources": [
+          "https://github.com/home-assistant/core/tree/dev/homeassistant/components/daikin",
+          "https://developers.home-assistant.io/docs/core/integration-quality-scale/rules"
+        ]
+      },
+      "audit": {
+        "status": "audited",
+        "evidence": [
+          "docs/cloud-home-account-quality-comparison.md",
+          "docs/home-assistant-parity/ledger.md"
+        ]
+      }
+    },
+    {
+      "id": "piphi-network-dyson",
+      "type": "integration",
+      "source": {
+        "folder": "apps/integrations/piphi-network-dyson",
+        "source_version": "0.1.0",
+        "manifest_path": "manifest.json",
+        "manifest_image": "docker.io/piphinetwork/piphi-network-dyson:0.1.0",
+        "imported_from": "https://github.com/PiPhi-io/piphi-network-dyson",
+        "ci_enforcement": "legacy-static",
+        "ci_build_container": false,
+        "ci_commands": [
+          "pdm install --check",
+          "pdm run pytest"
+        ]
+      },
+      "release": {
+        "artifact_kind": "oci",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "publishing_mode": "piphi_managed",
+        "publishing_target": {
+          "registry": "ghcr.io",
+          "repository": "piphi-io/piphi-network-dyson"
+        },
+        "expected_tag": "apps/piphi-network-dyson/v0.1.0",
+        "tag_present_locally": false,
+        "registry_ref": null,
+        "registry_image": "docker.io/piphinetwork/piphi-network-dyson:0.1.0",
+        "image_digest": null,
+        "immutable_image": null,
+        "platforms_verified": false,
+        "oci_labels_verified": false,
+        "sbom_verified": false,
+        "provenance_verified": false,
+        "attestations_verified": false,
+        "non_root_verified": false
+      },
+      "registry": {
+        "version": "0.1.0",
+        "repo_url": "https://github.com/PiPhi-io/piphi-network-dyson",
+        "manifest_path": "manifest.json",
+        "owner": "PiPhi-io",
+        "trust_level": "official",
+        "risk_level": "moderate",
+        "runtime_requirements": [
+          "secrets_or_api_tokens"
+        ],
+        "quality_tier": "unrated",
+        "publication_status": "draft",
+        "rollout_percent": 0,
+        "lifecycle_status": "active",
+        "qualification_status": "unverified"
+      },
+      "consistency": {
+        "source_registry_version_match": true,
+        "source_registry_image_match": true,
+        "immutable_registry_image": false
+      },
+      "home_assistant": {
+        "kind": "quality_standard",
+        "name": "Home Assistant IQS; no current direct Core Dyson equivalent",
+        "sources": [
+          "https://developers.home-assistant.io/docs/core/integration-quality-scale/rules"
+        ]
+      },
+      "audit": {
+        "status": "audited",
+        "evidence": [
+          "docs/cloud-home-account-quality-comparison.md",
+          "docs/home-assistant-parity/ledger.md"
+        ]
+      }
+    },
+    {
+      "id": "piphi-network-eufy-security",
+      "type": "integration",
+      "source": {
+        "folder": "apps/integrations/piphi-network-eufy-security",
+        "source_version": "0.1.0",
+        "manifest_path": "manifest.json",
+        "manifest_image": "docker.io/piphinetwork/piphi-network-eufy-security:0.1.0",
+        "imported_from": "https://github.com/PiPhi-io/piphi-network-eufy-security",
+        "ci_enforcement": "legacy-static",
+        "ci_build_container": false,
+        "ci_commands": [
+          "pdm install --check",
+          "pdm run pytest"
+        ]
+      },
+      "release": {
+        "artifact_kind": "oci",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "publishing_mode": "piphi_managed",
+        "publishing_target": {
+          "registry": "ghcr.io",
+          "repository": "piphi-io/piphi-network-eufy-security"
+        },
+        "expected_tag": "apps/piphi-network-eufy-security/v0.1.0",
+        "tag_present_locally": false,
+        "registry_ref": null,
+        "registry_image": "docker.io/piphinetwork/piphi-network-eufy-security:0.1.0",
+        "image_digest": null,
+        "immutable_image": null,
+        "platforms_verified": false,
+        "oci_labels_verified": false,
+        "sbom_verified": false,
+        "provenance_verified": false,
+        "attestations_verified": false,
+        "non_root_verified": false
+      },
+      "registry": {
+        "version": "0.1.0",
+        "repo_url": "https://github.com/PiPhi-io/piphi-network-eufy-security",
+        "manifest_path": "manifest.json",
+        "owner": "PiPhi-io",
+        "trust_level": "official",
+        "risk_level": "moderate",
+        "runtime_requirements": [
+          "secrets_or_api_tokens"
+        ],
+        "quality_tier": "unrated",
+        "publication_status": "draft",
+        "rollout_percent": 0,
+        "lifecycle_status": "active",
+        "qualification_status": "unverified"
+      },
+      "consistency": {
+        "source_registry_version_match": true,
+        "source_registry_image_match": true,
+        "immutable_registry_image": false
+      },
+      "home_assistant": {
+        "kind": "architecture",
+        "name": "Home Assistant EufyHome is a different product surface; use HA IQS",
+        "sources": [
+          "https://github.com/home-assistant/core/tree/dev/homeassistant/components/eufy",
+          "https://developers.home-assistant.io/docs/core/integration-quality-scale/rules"
+        ]
+      },
+      "audit": {
+        "status": "audited",
+        "evidence": [
+          "docs/cloud-home-account-quality-comparison.md",
+          "docs/home-assistant-parity/ledger.md"
+        ]
+      }
+    },
+    {
+      "id": "piphi-network-huawei-solar",
+      "type": "integration",
+      "source": {
+        "folder": "apps/integrations/piphi-network-huawei-solar",
+        "source_version": "0.1.0",
+        "manifest_path": "manifest.json",
+        "manifest_image": "docker.io/piphinetwork/piphi-network-huawei-solar:0.1.0",
+        "imported_from": "https://github.com/PiPhi-io/piphi-network-huawei-solar",
+        "ci_enforcement": "legacy-static",
+        "ci_build_container": false,
+        "ci_commands": [
+          "pdm install --check",
+          "pdm run pytest"
+        ]
+      },
+      "release": {
+        "artifact_kind": "oci",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "publishing_mode": "piphi_managed",
+        "publishing_target": {
+          "registry": "ghcr.io",
+          "repository": "piphi-io/piphi-network-huawei-solar"
+        },
+        "expected_tag": "apps/piphi-network-huawei-solar/v0.1.0",
+        "tag_present_locally": false,
+        "registry_ref": null,
+        "registry_image": "docker.io/piphinetwork/piphi-network-huawei-solar:0.1.0",
+        "image_digest": null,
+        "immutable_image": null,
+        "platforms_verified": false,
+        "oci_labels_verified": false,
+        "sbom_verified": false,
+        "provenance_verified": false,
+        "attestations_verified": false,
+        "non_root_verified": false
+      },
+      "registry": {
+        "version": "0.1.0",
+        "repo_url": "https://github.com/PiPhi-io/piphi-network-huawei-solar",
+        "manifest_path": "manifest.json",
+        "owner": "PiPhi-io",
+        "trust_level": "official",
+        "risk_level": "moderate",
+        "runtime_requirements": [
+          "secrets_or_api_tokens"
+        ],
+        "quality_tier": "unrated",
+        "publication_status": "draft",
+        "rollout_percent": 0,
+        "lifecycle_status": "active",
+        "qualification_status": "unverified"
+      },
+      "consistency": {
+        "source_registry_version_match": true,
+        "source_registry_image_match": true,
+        "immutable_registry_image": false
+      },
+      "home_assistant": {
+        "kind": "quality_standard",
+        "name": "Home Assistant IQS; no direct Core Huawei Solar equivalent",
+        "sources": [
+          "https://developers.home-assistant.io/docs/core/integration-quality-scale/rules"
+        ]
+      },
+      "audit": {
+        "status": "audited",
+        "evidence": [
+          "docs/home-assistant-parity/ledger.md"
+        ]
+      }
+    },
+    {
+      "id": "piphi-network-i2c",
+      "type": "integration",
+      "source": {
+        "folder": "apps/integrations/piphi-network-i2c",
+        "source_version": "0.1.5",
+        "manifest_path": "src/manifest.json",
+        "manifest_image": "ghcr.io/piphi-io/i2c-integration:0.1.5",
+        "imported_from": "https://github.com/PiPhi-io/piphi_network_i2c",
+        "ci_enforcement": "full",
+        "ci_build_container": true,
+        "ci_commands": [
+          "pdm install --check -G:all",
+          "pdm export --prod -G hardware --output /tmp/piphi-network-i2c-requirements.txt && pdm run pip-audit --disable-pip --require-hashes -r /tmp/piphi-network-i2c-requirements.txt",
+          "pdm run ruff check src tests scripts",
+          "pdm run pytest",
+          "pdm run python scripts/validate.py"
+        ]
+      },
+      "release": {
+        "artifact_kind": "oci",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "publishing_mode": "piphi_managed",
+        "publishing_target": {
+          "registry": "ghcr.io",
+          "repository": "piphi-io/i2c-integration"
+        },
+        "expected_tag": "apps/piphi-network-i2c/v0.1.5",
+        "tag_present_locally": true,
+        "registry_ref": "apps/piphi-network-i2c/v0.1.5",
+        "registry_image": "ghcr.io/piphi-io/i2c-integration:0.1.5",
+        "image_digest": "sha256:32ecd84d95af0d56d4f98cd39740099741332d97aef7fbe190cdedb3079b9d68",
+        "immutable_image": "ghcr.io/piphi-io/i2c-integration@sha256:32ecd84d95af0d56d4f98cd39740099741332d97aef7fbe190cdedb3079b9d68",
+        "platforms_verified": true,
+        "oci_labels_verified": false,
+        "sbom_verified": true,
+        "provenance_verified": true,
+        "attestations_verified": true,
+        "non_root_verified": false,
+        "verified_at": "2026-11-19",
+        "verification_note": "Baseline registry digest had linux/amd64 and linux/arm64 SBOMs and cryptographically verified provenance. OCI labels and non-root execution were not independently verified by this portfolio pass."
+      },
+      "registry": {
+        "version": "0.1.5",
+        "repo_url": "https://github.com/PiPhi-io/piphi-apps",
+        "manifest_path": "apps/integrations/piphi-network-i2c/src/manifest.json",
+        "owner": "PiPhi-io",
+        "trust_level": "official",
+        "risk_level": "moderate",
+        "runtime_requirements": [
+          "direct_hardware_access",
+          "usb_or_device_access"
+        ],
+        "quality_tier": "bronze",
+        "publication_status": "draft",
+        "rollout_percent": 0,
+        "lifecycle_status": "active",
+        "qualification_status": "unverified"
+      },
+      "consistency": {
+        "source_registry_version_match": true,
+        "source_registry_image_match": true,
+        "immutable_registry_image": true
+      },
+      "home_assistant": {
+        "kind": "quality_standard",
+        "name": "Home Assistant IQS and hardware lifecycle standards",
+        "sources": [
+          "https://developers.home-assistant.io/docs/core/integration-quality-scale/rules"
+        ]
+      },
+      "audit": {
+        "status": "audited",
+        "evidence": [
+          "apps/integrations/piphi-network-i2c/docs/home-assistant-quality-comparison.md",
+          "docs/home-assistant-parity/ledger.md"
+        ]
+      }
+    },
+    {
+      "id": "piphi-network-kaiterra-api",
+      "type": "integration",
+      "source": {
+        "folder": "apps/integrations/piphi-network-kaiterra-api",
+        "source_version": "0.1.5",
+        "manifest_path": "src/manifest.json",
+        "manifest_image": "piphinetwork/kaiterra-api:0.1.5",
+        "imported_from": "https://github.com/PiPhi-io/piphi_network_kaiterra_api",
+        "ci_enforcement": "legacy-static",
+        "ci_build_container": false,
+        "ci_commands": [
+          "pdm install --check",
+          "pdm run pytest"
+        ]
+      },
+      "release": {
+        "artifact_kind": "oci",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "publishing_mode": "piphi_managed",
+        "publishing_target": {
+          "registry": "ghcr.io",
+          "repository": "piphi-io/kaiterra-api"
+        },
+        "expected_tag": "apps/piphi-network-kaiterra-api/v0.1.5",
+        "tag_present_locally": false,
+        "registry_ref": "v0.1.5",
+        "registry_image": "piphinetwork/kaiterra-api:0.1.5",
+        "image_digest": null,
+        "immutable_image": null,
+        "platforms_verified": false,
+        "oci_labels_verified": false,
+        "sbom_verified": false,
+        "provenance_verified": false,
+        "attestations_verified": false,
+        "non_root_verified": false
+      },
+      "registry": {
+        "version": "0.1.5",
+        "repo_url": "https://github.com/PiPhi-io/piphi_network_kaiterra_api",
+        "manifest_path": "src/manifest.json",
+        "owner": "PiPhi-io",
+        "trust_level": "official",
+        "risk_level": "moderate",
+        "runtime_requirements": [
+          "secrets_or_api_tokens"
+        ],
+        "quality_tier": "bronze",
+        "publication_status": "stable",
+        "rollout_percent": 100,
+        "lifecycle_status": "active",
+        "qualification_status": "unverified"
+      },
+      "consistency": {
+        "source_registry_version_match": true,
+        "source_registry_image_match": true,
+        "immutable_registry_image": false
+      },
+      "home_assistant": {
+        "kind": "direct",
+        "name": "Home Assistant Kaiterra",
+        "sources": [
+          "https://github.com/home-assistant/core/tree/dev/homeassistant/components/kaiterra"
+        ]
+      },
+      "audit": {
+        "status": "audited",
+        "evidence": [
+          "docs/cloud-monitoring-account-quality-comparison.md",
+          "docs/home-assistant-parity/ledger.md"
+        ]
+      }
+    },
+    {
+      "id": "piphi-network-kia-hyundai-connect",
+      "type": "integration",
+      "source": {
+        "folder": "apps/integrations/piphi-network-kia-hyundai-connect",
+        "source_version": "0.1.0",
+        "manifest_path": "manifest.json",
+        "manifest_image": "docker.io/piphinetwork/piphi-network-kia-hyundai-connect:0.1.0",
+        "imported_from": "https://github.com/PiPhi-io/piphi-network-kia-hyundai-connect",
+        "ci_enforcement": "legacy-static",
+        "ci_build_container": false,
+        "ci_commands": [
+          "pdm install --check",
+          "pdm run pytest"
+        ]
+      },
+      "release": {
+        "artifact_kind": "oci",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "publishing_mode": "piphi_managed",
+        "publishing_target": {
+          "registry": "ghcr.io",
+          "repository": "piphi-io/piphi-network-kia-hyundai-connect"
+        },
+        "expected_tag": "apps/piphi-network-kia-hyundai-connect/v0.1.0",
+        "tag_present_locally": false,
+        "registry_ref": null,
+        "registry_image": "docker.io/piphinetwork/piphi-network-kia-hyundai-connect:0.1.0",
+        "image_digest": null,
+        "immutable_image": null,
+        "platforms_verified": false,
+        "oci_labels_verified": false,
+        "sbom_verified": false,
+        "provenance_verified": false,
+        "attestations_verified": false,
+        "non_root_verified": false
+      },
+      "registry": {
+        "version": "0.1.0",
+        "repo_url": "https://github.com/PiPhi-io/piphi-network-kia-hyundai-connect",
+        "manifest_path": "manifest.json",
+        "owner": "PiPhi-io",
+        "trust_level": "official",
+        "risk_level": "moderate",
+        "runtime_requirements": [
+          "secrets_or_api_tokens"
+        ],
+        "quality_tier": "unrated",
+        "publication_status": "draft",
+        "rollout_percent": 0,
+        "lifecycle_status": "active",
+        "qualification_status": "unverified"
+      },
+      "consistency": {
+        "source_registry_version_match": true,
+        "source_registry_image_match": true,
+        "immutable_registry_image": false
+      },
+      "home_assistant": {
+        "kind": "quality_standard",
+        "name": "Home Assistant IQS; no supported direct Core owner-account equivalent",
+        "sources": [
+          "https://developers.home-assistant.io/docs/core/integration-quality-scale/rules"
+        ]
+      },
+      "audit": {
+        "status": "audited",
+        "evidence": [
+          "docs/cloud-vehicle-account-quality-comparison.md",
+          "docs/home-assistant-parity/ledger.md"
+        ]
+      }
+    },
+    {
+      "id": "piphi-network-knx",
+      "type": "integration",
+      "source": {
+        "folder": "apps/integrations/piphi-network-knx",
+        "source_version": "0.2.4",
+        "manifest_path": "manifest.json",
+        "manifest_image": "ghcr.io/piphi-io/piphi-network-knx:0.2.4",
+        "imported_from": "https://github.com/PiPhi-io/piphi-network-knx",
+        "ci_enforcement": "full",
+        "ci_build_container": true,
+        "ci_commands": [
+          "PDM_IGNORE_ACTIVE_VENV=1 pdm lock --check",
+          "PDM_IGNORE_ACTIVE_VENV=1 pdm install --check -G dev",
+          "PDM_IGNORE_ACTIVE_VENV=1 pdm run ruff check src tests",
+          "PDM_IGNORE_ACTIVE_VENV=1 pdm run mypy src",
+          "PDM_IGNORE_ACTIVE_VENV=1 pdm run pytest",
+          "PDM_IGNORE_ACTIVE_VENV=1 pdm run python scripts/validate.py"
+        ]
+      },
+      "release": {
+        "artifact_kind": "oci",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "publishing_mode": "piphi_managed",
+        "publishing_target": {
+          "registry": "ghcr.io",
+          "repository": "piphi-io/piphi-network-knx"
+        },
+        "expected_tag": "apps/piphi-network-knx/v0.2.4",
+        "tag_present_locally": true,
+        "registry_ref": "apps/piphi-network-knx/v0.2.4",
+        "registry_image": "ghcr.io/piphi-io/piphi-network-knx:0.2.4",
+        "image_digest": "sha256:efd3b42fb6e87ffb2136e63ed6473a2e58f8a71ee0becb4aa7e9f82b03ba1a06",
+        "immutable_image": "ghcr.io/piphi-io/piphi-network-knx@sha256:efd3b42fb6e87ffb2136e63ed6473a2e58f8a71ee0becb4aa7e9f82b03ba1a06",
+        "platforms_verified": true,
+        "oci_labels_verified": false,
+        "sbom_verified": true,
+        "provenance_verified": true,
+        "attestations_verified": true,
+        "non_root_verified": false,
+        "verified_at": "2026-11-19",
+        "verification_note": "Baseline registry digest had linux/amd64 and linux/arm64 SBOMs and cryptographically verified provenance. OCI labels and non-root execution were not independently verified by this portfolio pass."
+      },
+      "registry": {
+        "version": "0.2.4",
+        "repo_url": "https://github.com/PiPhi-io/piphi-apps",
+        "manifest_path": "apps/integrations/piphi-network-knx/manifest.json",
+        "owner": "PiPhi-io",
+        "trust_level": "official",
+        "risk_level": "high",
+        "runtime_requirements": [
+          "host_filesystem_mounts",
+          "secrets_or_api_tokens"
+        ],
+        "quality_tier": "unrated",
+        "publication_status": "draft",
+        "rollout_percent": 0,
+        "lifecycle_status": "active",
+        "qualification_status": "unverified"
+      },
+      "consistency": {
+        "source_registry_version_match": true,
+        "source_registry_image_match": true,
+        "immutable_registry_image": true
+      },
+      "home_assistant": {
+        "kind": "direct",
+        "name": "Home Assistant KNX",
+        "sources": [
+          "https://github.com/home-assistant/core/tree/dev/homeassistant/components/knx"
+        ]
+      },
+      "audit": {
+        "status": "audited",
+        "evidence": [
+          "apps/integrations/piphi-network-knx/docs/home-assistant-quality-comparison.md",
+          "docs/home-assistant-parity/ledger.md"
+        ]
+      }
+    },
+    {
+      "id": "piphi-network-llm-vision",
+      "type": "platform_service",
+      "source": {
+        "folder": "apps/services/piphi-network-llm-vision",
+        "source_version": "0.1.1",
+        "manifest_path": "manifest.json",
+        "manifest_image": "docker.io/piphinetwork/piphi-network-llm-vision:0.1.1",
+        "imported_from": "https://github.com/PiPhi-io/piphi-network-llm-vision",
+        "ci_enforcement": "legacy-static",
+        "ci_build_container": false,
+        "ci_commands": [
+          "pdm install --check",
+          "pdm run pytest"
+        ]
+      },
+      "release": {
+        "artifact_kind": "oci",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "publishing_mode": "piphi_managed",
+        "publishing_target": {
+          "registry": "ghcr.io",
+          "repository": "piphi-io/piphi-network-llm-vision"
+        },
+        "expected_tag": "apps/piphi-network-llm-vision/v0.1.1",
+        "tag_present_locally": false,
+        "registry_ref": "v0.1.3",
+        "registry_image": "docker.io/piphinetwork/piphi-network-llm-vision:0.1.3",
+        "image_digest": "sha256:18e5eeef0591a857725c978a42296a5e400894e48da31fd165c9e87544aeb8f4",
+        "immutable_image": "docker.io/piphinetwork/piphi-network-llm-vision@sha256:18e5eeef0591a857725c978a42296a5e400894e48da31fd165c9e87544aeb8f4",
+        "platforms_verified": true,
+        "oci_labels_verified": false,
+        "sbom_verified": true,
+        "provenance_verified": true,
+        "attestations_verified": false,
+        "non_root_verified": false,
+        "verified_at": "2026-11-19",
+        "verification_note": "Both-platform SBOM and embedded BuildKit SLSA provenance were present, but GitHub attestation verification did not succeed."
+      },
+      "registry": {
+        "version": "0.1.3",
+        "repo_url": "https://github.com/PiPhi-io/piphi-network-llm-vision",
+        "manifest_path": "manifest.json",
+        "owner": "PiPhi-io",
+        "trust_level": "official",
+        "risk_level": "high",
+        "runtime_requirements": [
+          "secrets_or_api_tokens",
+          "sidecar_runtime",
+          "host_filesystem_mounts"
+        ],
+        "quality_tier": "unrated",
+        "publication_status": "draft",
+        "rollout_percent": 0,
+        "lifecycle_status": "active",
+        "qualification_status": "unverified"
+      },
+      "consistency": {
+        "source_registry_version_match": false,
+        "source_registry_image_match": false,
+        "immutable_registry_image": true
+      },
+      "home_assistant": {
+        "kind": "quality_standard",
+        "name": "Home Assistant IQS plus privacy and secure add-on standards",
+        "sources": [
+          "https://developers.home-assistant.io/docs/core/integration-quality-scale/rules"
+        ]
+      },
+      "audit": {
+        "status": "audited",
+        "evidence": [
+          "apps/services/piphi-network-llm-vision/docs/home-assistant-quality-comparison.md",
+          "docs/home-assistant-parity/ledger.md"
+        ]
+      }
+    },
+    {
+      "id": "piphi-network-matter-integration",
+      "type": "integration",
+      "source": {
+        "folder": "apps/integrations/piphi-network-matter",
+        "source_version": "0.1.2",
+        "manifest_path": "manifest.json",
+        "manifest_image": "ghcr.io/piphi-io/piphi-network-matter-integration:0.1.2",
+        "imported_from": "https://github.com/PiPhi-io/piphi-apps",
+        "ci_enforcement": "full",
+        "ci_build_container": true,
+        "ci_commands": [
+          "npm ci",
+          "npm --prefix ../../services/piphi-matter-js-sidecar ci",
+          "npm audit --omit=dev --audit-level=high",
+          "npm run check",
+          "npm test",
+          "npm run test:coverage",
+          "npm run build"
+        ]
+      },
+      "release": {
+        "artifact_kind": "oci",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "publishing_mode": "piphi_managed",
+        "publishing_target": {
+          "registry": "ghcr.io",
+          "repository": "piphi-io/piphi-network-matter-integration"
+        },
+        "expected_tag": "apps/piphi-network-matter-integration/v0.1.2",
+        "tag_present_locally": true,
+        "registry_ref": "apps/piphi-network-matter-integration/v0.1.2",
+        "registry_image": "ghcr.io/piphi-io/piphi-network-matter-integration:0.1.2",
+        "image_digest": "sha256:6ed9ddff1745293807b017950df2becd6e7f2d9609f9e874da68a1f5edc59645",
+        "immutable_image": "ghcr.io/piphi-io/piphi-network-matter-integration@sha256:6ed9ddff1745293807b017950df2becd6e7f2d9609f9e874da68a1f5edc59645",
+        "platforms_verified": true,
+        "oci_labels_verified": false,
+        "sbom_verified": true,
+        "provenance_verified": true,
+        "attestations_verified": true,
+        "non_root_verified": false,
+        "verified_at": "2026-11-19",
+        "verification_note": "Baseline registry digest had linux/amd64 and linux/arm64 SBOMs and cryptographically verified provenance. OCI labels and non-root execution were not independently verified by this portfolio pass."
+      },
+      "registry": {
+        "version": "0.1.2",
+        "repo_url": "https://github.com/PiPhi-io/piphi-apps",
+        "manifest_path": "apps/integrations/piphi-network-matter/manifest.json",
+        "owner": "PiPhi-io",
+        "trust_level": "official",
+        "risk_level": "low",
+        "runtime_requirements": [],
+        "quality_tier": "unrated",
+        "publication_status": "draft",
+        "rollout_percent": 0,
+        "lifecycle_status": "active",
+        "qualification_status": "unverified"
+      },
+      "consistency": {
+        "source_registry_version_match": true,
+        "source_registry_image_match": true,
+        "immutable_registry_image": true
+      },
+      "home_assistant": {
+        "kind": "direct",
+        "name": "Home Assistant Matter",
+        "sources": [
+          "https://github.com/home-assistant/core/tree/dev/homeassistant/components/matter"
+        ]
+      },
+      "audit": {
+        "status": "audited",
+        "evidence": [
+          "docs/home-assistant-parity/ledger.md"
+        ]
+      }
+    },
+    {
+      "id": "piphi-network-midea-ac-lan",
+      "type": "integration",
+      "source": {
+        "folder": "apps/integrations/piphi-network-midea-ac-lan",
+        "source_version": "0.3.0",
+        "manifest_path": "manifest.json",
+        "manifest_image": "docker.io/piphinetwork/piphi-network-midea-ac-lan:0.3.0",
+        "imported_from": "https://github.com/PiPhi-io/piphi-network-midea-ac-lan",
+        "ci_enforcement": "legacy-static",
+        "ci_build_container": false,
+        "ci_commands": [
+          "pdm install --check",
+          "pdm run pytest"
+        ]
+      },
+      "release": {
+        "artifact_kind": "oci",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "publishing_mode": "piphi_managed",
+        "publishing_target": {
+          "registry": "ghcr.io",
+          "repository": "piphi-io/piphi-network-midea-ac-lan"
+        },
+        "expected_tag": "apps/piphi-network-midea-ac-lan/v0.3.0",
+        "tag_present_locally": false,
+        "registry_ref": null,
+        "registry_image": "docker.io/piphinetwork/piphi-network-midea-ac-lan:0.1.0",
+        "image_digest": null,
+        "immutable_image": null,
+        "platforms_verified": false,
+        "oci_labels_verified": false,
+        "sbom_verified": false,
+        "provenance_verified": false,
+        "attestations_verified": false,
+        "non_root_verified": false
+      },
+      "registry": {
+        "version": "0.1.0",
+        "repo_url": "https://github.com/PiPhi-io/piphi-network-midea-ac-lan",
+        "manifest_path": "manifest.json",
+        "owner": "PiPhi-io",
+        "trust_level": "official",
+        "risk_level": "moderate",
+        "runtime_requirements": [
+          "secrets_or_api_tokens"
+        ],
+        "quality_tier": "unrated",
+        "publication_status": "draft",
+        "rollout_percent": 0,
+        "lifecycle_status": "active",
+        "qualification_status": "unverified"
+      },
+      "consistency": {
+        "source_registry_version_match": false,
+        "source_registry_image_match": false,
+        "immutable_registry_image": false
+      },
+      "home_assistant": {
+        "kind": "direct",
+        "name": "Home Assistant Midea",
+        "sources": [
+          "https://github.com/home-assistant/core/tree/dev/homeassistant/components/midea"
+        ]
+      },
+      "audit": {
+        "status": "audited",
+        "evidence": [
+          "docs/home-assistant-parity/ledger.md"
+        ]
+      }
+    },
+    {
+      "id": "piphi-network-mikrotik-router",
+      "type": "integration",
+      "source": {
+        "folder": "apps/integrations/piphi-network-mikrotik-router",
+        "source_version": "0.1.2",
+        "manifest_path": "manifest.json",
+        "manifest_image": "ghcr.io/piphi-io/piphi-network-mikrotik-router:0.1.2",
+        "imported_from": "https://github.com/PiPhi-io/piphi-network-mikrotik-router",
+        "ci_enforcement": "full",
+        "ci_build_container": true,
+        "ci_commands": [
+          "pdm install --check",
+          "pdm run pytest",
+          "pdm run ruff check src tests",
+          "pdm run mypy src/piphi_network_mikrotik_router",
+          "pdm run python scripts/validate.py"
+        ]
+      },
+      "release": {
+        "artifact_kind": "oci",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "publishing_mode": "piphi_managed",
+        "publishing_target": {
+          "registry": "ghcr.io",
+          "repository": "piphi-io/piphi-network-mikrotik-router"
+        },
+        "expected_tag": "apps/piphi-network-mikrotik-router/v0.1.2",
+        "tag_present_locally": true,
+        "registry_ref": "apps/piphi-network-mikrotik-router/v0.1.2",
+        "registry_image": "ghcr.io/piphi-io/piphi-network-mikrotik-router:0.1.2",
+        "image_digest": "sha256:113e8d96e81777125a6ba95a43f3995d71b3c05d131ca16accb1568900381113",
+        "immutable_image": "ghcr.io/piphi-io/piphi-network-mikrotik-router@sha256:113e8d96e81777125a6ba95a43f3995d71b3c05d131ca16accb1568900381113",
+        "platforms_verified": true,
+        "oci_labels_verified": false,
+        "sbom_verified": true,
+        "provenance_verified": true,
+        "attestations_verified": true,
+        "non_root_verified": false,
+        "verified_at": "2026-11-19",
+        "verification_note": "Baseline registry digest had linux/amd64 and linux/arm64 SBOMs and cryptographically verified provenance. OCI labels and non-root execution were not independently verified by this portfolio pass."
+      },
+      "registry": {
+        "version": "0.1.2",
+        "repo_url": "https://github.com/PiPhi-io/piphi-apps",
+        "manifest_path": "apps/integrations/piphi-network-mikrotik-router/manifest.json",
+        "owner": "PiPhi-io",
+        "trust_level": "official",
+        "risk_level": "moderate",
+        "runtime_requirements": [
+          "secrets_or_api_tokens"
+        ],
+        "quality_tier": "unrated",
+        "publication_status": "draft",
+        "rollout_percent": 0,
+        "lifecycle_status": "active",
+        "qualification_status": "unverified"
+      },
+      "consistency": {
+        "source_registry_version_match": true,
+        "source_registry_image_match": true,
+        "immutable_registry_image": true
+      },
+      "home_assistant": {
+        "kind": "direct",
+        "name": "Home Assistant MikroTik",
+        "sources": [
+          "https://github.com/home-assistant/core/tree/dev/homeassistant/components/mikrotik"
+        ]
+      },
+      "audit": {
+        "status": "audited",
+        "evidence": [
+          "docs/home-assistant-parity/ledger.md"
+        ]
+      }
+    },
+    {
+      "id": "piphi-network-modbus",
+      "type": "integration",
+      "source": {
+        "folder": "apps/integrations/piphi-network-modbus",
+        "source_version": "0.10.0",
+        "manifest_path": "manifest.json",
+        "manifest_image": "ghcr.io/piphi-io/piphi-network-modbus:0.10.0",
+        "imported_from": "https://github.com/PiPhi-io/piphi-network-modbus",
+        "ci_enforcement": "full",
+        "ci_build_container": true,
+        "ci_commands": [
+          "pdm install --check",
+          "pdm export --prod --output /tmp/piphi-network-modbus-requirements.txt && pdm run pip-audit --disable-pip --require-hashes -r /tmp/piphi-network-modbus-requirements.txt",
+          "pdm run pytest",
+          "pdm run python scripts/validate.py"
+        ]
+      },
+      "release": {
+        "artifact_kind": "oci",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "publishing_mode": "piphi_managed",
+        "publishing_target": {
+          "registry": "ghcr.io",
+          "repository": "piphi-io/piphi-network-modbus"
+        },
+        "expected_tag": "apps/piphi-network-modbus/v0.10.0",
+        "tag_present_locally": true,
+        "registry_ref": "apps/piphi-network-modbus/v0.10.0",
+        "registry_image": "ghcr.io/piphi-io/piphi-network-modbus:0.10.0",
+        "image_digest": "sha256:92bba86bfe250a150274c8d1e3141ccd477211072b5d01234d577522437b22e3",
+        "immutable_image": "ghcr.io/piphi-io/piphi-network-modbus@sha256:92bba86bfe250a150274c8d1e3141ccd477211072b5d01234d577522437b22e3",
+        "platforms_verified": true,
+        "oci_labels_verified": false,
+        "sbom_verified": true,
+        "provenance_verified": true,
+        "attestations_verified": true,
+        "non_root_verified": false,
+        "verified_at": "2026-11-19",
+        "verification_note": "Baseline registry digest had linux/amd64 and linux/arm64 SBOMs and cryptographically verified provenance. OCI labels and non-root execution were not independently verified by this portfolio pass."
+      },
+      "registry": {
+        "version": "0.10.0",
+        "repo_url": "https://github.com/PiPhi-io/piphi-apps",
+        "manifest_path": "apps/integrations/piphi-network-modbus/manifest.json",
+        "owner": "PiPhi-io",
+        "trust_level": "official",
+        "risk_level": "low",
+        "runtime_requirements": [],
+        "quality_tier": "unrated",
+        "publication_status": "draft",
+        "rollout_percent": 0,
+        "lifecycle_status": "active",
+        "qualification_status": "unverified"
+      },
+      "consistency": {
+        "source_registry_version_match": true,
+        "source_registry_image_match": true,
+        "immutable_registry_image": true
+      },
+      "home_assistant": {
+        "kind": "direct",
+        "name": "Home Assistant Modbus",
+        "sources": [
+          "https://github.com/home-assistant/core/tree/dev/homeassistant/components/modbus"
+        ]
+      },
+      "audit": {
+        "status": "audited",
+        "evidence": [
+          "apps/integrations/piphi-network-modbus/docs/home-assistant-quality-comparison.md",
+          "docs/home-assistant-parity/ledger.md"
+        ]
+      }
+    },
+    {
+      "id": "piphi-network-nord-pool",
+      "type": "integration",
+      "source": {
+        "folder": "apps/integrations/piphi-network-nord-pool",
+        "source_version": "0.1.0",
+        "manifest_path": "manifest.json",
+        "manifest_image": "docker.io/piphinetwork/piphi-network-nord-pool:0.1.0",
+        "imported_from": "https://github.com/PiPhi-io/piphi-network-nord-pool",
+        "ci_enforcement": "legacy-static",
+        "ci_build_container": false,
+        "ci_commands": [
+          "pdm install --check",
+          "pdm run pytest"
+        ]
+      },
+      "release": {
+        "artifact_kind": "oci",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "publishing_mode": "piphi_managed",
+        "publishing_target": {
+          "registry": "ghcr.io",
+          "repository": "piphi-io/piphi-network-nord-pool"
+        },
+        "expected_tag": "apps/piphi-network-nord-pool/v0.1.0",
+        "tag_present_locally": false,
+        "registry_ref": null,
+        "registry_image": "docker.io/piphinetwork/piphi-network-nord-pool:0.1.0",
+        "image_digest": null,
+        "immutable_image": null,
+        "platforms_verified": false,
+        "oci_labels_verified": false,
+        "sbom_verified": false,
+        "provenance_verified": false,
+        "attestations_verified": false,
+        "non_root_verified": false
+      },
+      "registry": {
+        "version": "0.1.0",
+        "repo_url": "https://github.com/PiPhi-io/piphi-network-nord-pool",
+        "manifest_path": "manifest.json",
+        "owner": "PiPhi-io",
+        "trust_level": "official",
+        "risk_level": "low",
+        "runtime_requirements": [],
+        "quality_tier": "unrated",
+        "publication_status": "draft",
+        "rollout_percent": 0,
+        "lifecycle_status": "active",
+        "qualification_status": "unverified"
+      },
+      "consistency": {
+        "source_registry_version_match": true,
+        "source_registry_image_match": true,
+        "immutable_registry_image": false
+      },
+      "home_assistant": {
+        "kind": "direct",
+        "name": "Home Assistant Nord Pool",
+        "sources": [
+          "https://github.com/home-assistant/core/tree/dev/homeassistant/components/nordpool"
+        ]
+      },
+      "audit": {
+        "status": "audited",
+        "evidence": [
+          "docs/cloud-monitoring-account-quality-comparison.md",
+          "docs/home-assistant-parity/ledger.md"
+        ]
+      }
+    },
+    {
+      "id": "piphi-network-octopus-energy",
+      "type": "integration",
+      "source": {
+        "folder": "apps/integrations/piphi-network-octopus-energy",
+        "source_version": "0.1.1",
+        "manifest_path": "manifest.json",
+        "manifest_image": "ghcr.io/piphi-io/piphi-network-octopus-energy:0.1.1",
+        "imported_from": "https://github.com/PiPhi-io/piphi-network-octopus-energy",
+        "ci_enforcement": "full",
+        "ci_build_container": true,
+        "ci_commands": [
+          "pdm install --check",
+          "pdm run pytest"
+        ]
+      },
+      "release": {
+        "artifact_kind": "oci",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "publishing_mode": "piphi_managed",
+        "publishing_target": {
+          "registry": "ghcr.io",
+          "repository": "piphi-io/piphi-network-octopus-energy"
+        },
+        "expected_tag": "apps/piphi-network-octopus-energy/v0.1.1",
+        "tag_present_locally": true,
+        "registry_ref": "apps/piphi-network-octopus-energy/v0.1.1",
+        "registry_image": "ghcr.io/piphi-io/piphi-network-octopus-energy:0.1.1",
+        "image_digest": "sha256:812caef02da313de9a5126e6a44e96eaedbaf247c1a3f35bde6da237832f043d",
+        "immutable_image": "ghcr.io/piphi-io/piphi-network-octopus-energy@sha256:812caef02da313de9a5126e6a44e96eaedbaf247c1a3f35bde6da237832f043d",
+        "platforms_verified": true,
+        "oci_labels_verified": false,
+        "sbom_verified": true,
+        "provenance_verified": true,
+        "attestations_verified": true,
+        "non_root_verified": false,
+        "verified_at": "2026-11-19",
+        "verification_note": "Baseline registry digest had linux/amd64 and linux/arm64 SBOMs and cryptographically verified provenance. OCI labels and non-root execution were not independently verified by this portfolio pass."
+      },
+      "registry": {
+        "version": "0.1.1",
+        "repo_url": "https://github.com/PiPhi-io/piphi-apps",
+        "manifest_path": "apps/integrations/piphi-network-octopus-energy/manifest.json",
+        "owner": "PiPhi-io",
+        "trust_level": "official",
+        "risk_level": "low",
+        "runtime_requirements": [],
+        "quality_tier": "unrated",
+        "publication_status": "draft",
+        "rollout_percent": 0,
+        "lifecycle_status": "active",
+        "qualification_status": "unverified"
+      },
+      "consistency": {
+        "source_registry_version_match": true,
+        "source_registry_image_match": true,
+        "immutable_registry_image": true
+      },
+      "home_assistant": {
+        "kind": "quality_standard",
+        "name": "Home Assistant IQS and public energy-price semantics",
+        "sources": [
+          "https://developers.home-assistant.io/docs/core/integration-quality-scale/rules"
+        ]
+      },
+      "audit": {
+        "status": "audited",
+        "evidence": [
+          "docs/cloud-monitoring-account-quality-comparison.md",
+          "docs/home-assistant-parity/ledger.md"
+        ]
+      }
+    },
+    {
+      "id": "piphi-network-openepaperlink",
+      "type": "integration",
+      "source": {
+        "folder": "apps/integrations/piphi-network-openepaperlink",
+        "source_version": "0.1.0",
+        "manifest_path": "manifest.json",
+        "manifest_image": "docker.io/piphinetwork/piphi-network-openepaperlink:0.1.0",
+        "imported_from": "https://github.com/PiPhi-io/piphi-network-openepaperlink",
+        "ci_enforcement": "legacy-static",
+        "ci_build_container": false,
+        "ci_commands": [
+          "pdm install --check",
+          "pdm run pytest"
+        ]
+      },
+      "release": {
+        "artifact_kind": "oci",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "publishing_mode": "piphi_managed",
+        "publishing_target": {
+          "registry": "ghcr.io",
+          "repository": "piphi-io/piphi-network-openepaperlink"
+        },
+        "expected_tag": "apps/piphi-network-openepaperlink/v0.1.0",
+        "tag_present_locally": false,
+        "registry_ref": null,
+        "registry_image": "docker.io/piphinetwork/piphi-network-openepaperlink:0.1.0",
+        "image_digest": null,
+        "immutable_image": null,
+        "platforms_verified": false,
+        "oci_labels_verified": false,
+        "sbom_verified": false,
+        "provenance_verified": false,
+        "attestations_verified": false,
+        "non_root_verified": false
+      },
+      "registry": {
+        "version": "0.1.0",
+        "repo_url": "https://github.com/PiPhi-io/piphi-network-openepaperlink",
+        "manifest_path": "manifest.json",
+        "owner": "PiPhi-io",
+        "trust_level": "official",
+        "risk_level": "low",
+        "runtime_requirements": [],
+        "quality_tier": "unrated",
+        "publication_status": "draft",
+        "rollout_percent": 0,
+        "lifecycle_status": "active",
+        "qualification_status": "unverified"
+      },
+      "consistency": {
+        "source_registry_version_match": true,
+        "source_registry_image_match": true,
+        "immutable_registry_image": false
+      },
+      "home_assistant": {
+        "kind": "direct",
+        "name": "Home Assistant OpenEPaperLink",
+        "sources": [
+          "https://github.com/home-assistant/core/tree/dev/homeassistant/components/open_epaper_link"
+        ]
+      },
+      "audit": {
+        "status": "audited",
+        "evidence": [
+          "docs/home-assistant-parity/ledger.md"
+        ]
+      }
+    },
+    {
+      "id": "piphi-network-passive-ble-monitor",
+      "type": "integration",
+      "source": {
+        "folder": "apps/integrations/piphi-network-passive-ble-monitor",
+        "source_version": "0.3.1",
+        "manifest_path": "manifest.json",
+        "manifest_image": "ghcr.io/piphi-io/piphi-network-passive-ble-monitor:0.3.1",
+        "imported_from": "https://github.com/PiPhi-io/piphi-network-passive-ble-monitor",
+        "ci_enforcement": "full",
+        "ci_build_container": true,
+        "ci_commands": [
+          "pdm install --check",
+          "pdm export --prod --output /tmp/piphi-network-passive-ble-monitor-requirements.txt && pdm run pip-audit --disable-pip --require-hashes -r /tmp/piphi-network-passive-ble-monitor-requirements.txt",
+          "pdm run pytest",
+          "pdm run python scripts/validate.py"
+        ]
+      },
+      "release": {
+        "artifact_kind": "oci",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "publishing_mode": "piphi_managed",
+        "publishing_target": {
+          "registry": "ghcr.io",
+          "repository": "piphi-io/piphi-network-passive-ble-monitor"
+        },
+        "expected_tag": "apps/piphi-network-passive-ble-monitor/v0.3.1",
+        "tag_present_locally": true,
+        "registry_ref": "apps/piphi-network-passive-ble-monitor/v0.3.1",
+        "registry_image": "ghcr.io/piphi-io/piphi-network-passive-ble-monitor:0.3.1",
+        "image_digest": "sha256:3267b10eb688c7450fd2d7eea9256ab2f52c9bb0d00283a5bdef983bfc559eec",
+        "immutable_image": "ghcr.io/piphi-io/piphi-network-passive-ble-monitor@sha256:3267b10eb688c7450fd2d7eea9256ab2f52c9bb0d00283a5bdef983bfc559eec",
+        "platforms_verified": true,
+        "oci_labels_verified": false,
+        "sbom_verified": true,
+        "provenance_verified": true,
+        "attestations_verified": true,
+        "non_root_verified": false,
+        "verified_at": "2026-11-19",
+        "verification_note": "Baseline registry digest had linux/amd64 and linux/arm64 SBOMs and cryptographically verified provenance. OCI labels and non-root execution were not independently verified by this portfolio pass."
+      },
+      "registry": {
+        "version": "0.3.1",
+        "repo_url": "https://github.com/PiPhi-io/piphi-apps",
+        "manifest_path": "apps/integrations/piphi-network-passive-ble-monitor/manifest.json",
+        "owner": "PiPhi-io",
+        "trust_level": "official",
+        "risk_level": "moderate",
+        "runtime_requirements": [
+          "local_network_access",
+          "secrets_or_api_tokens"
+        ],
+        "quality_tier": "bronze",
+        "publication_status": "draft",
+        "rollout_percent": 0,
+        "lifecycle_status": "active",
+        "qualification_status": "unverified"
+      },
+      "consistency": {
+        "source_registry_version_match": true,
+        "source_registry_image_match": true,
+        "immutable_registry_image": true
+      },
+      "home_assistant": {
+        "kind": "architecture",
+        "name": "Home Assistant Bluetooth integrations",
+        "sources": [
+          "https://github.com/home-assistant/core/tree/dev/homeassistant/components/bluetooth"
+        ]
+      },
+      "audit": {
+        "status": "audited",
+        "evidence": [
+          "docs/home-assistant-parity/ledger.md"
+        ]
+      }
+    },
+    {
+      "id": "piphi-network-pfsense",
+      "type": "integration",
+      "source": {
+        "folder": "apps/integrations/piphi-network-pfsense",
+        "source_version": "0.1.10",
+        "manifest_path": "manifest.json",
+        "manifest_image": "ghcr.io/piphi-io/piphi-network-pfsense:0.1.10",
+        "imported_from": "https://github.com/PiPhi-io/piphi-network-pfsense",
+        "ci_enforcement": "full",
+        "ci_build_container": true,
+        "ci_commands": [
+          "pdm install --check",
+          "pdm run pytest",
+          "pdm run ruff check src tests scripts",
+          "pdm run mypy src/piphi_network_pfsense",
+          "pdm run python scripts/validate.py",
+          "npm ci --prefix widgets/pfsense-overview",
+          "npm test --prefix widgets/pfsense-overview",
+          "npm run validate --prefix widgets/pfsense-overview",
+          "npm run conformance --prefix widgets/pfsense-overview",
+          "npm ci --prefix widgets/pfsense-client-security",
+          "npm test --prefix widgets/pfsense-client-security",
+          "npm run validate --prefix widgets/pfsense-client-security",
+          "npm run conformance --prefix widgets/pfsense-client-security"
+        ]
+      },
+      "release": {
+        "artifact_kind": "oci",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "publishing_mode": "piphi_managed",
+        "publishing_target": {
+          "registry": "ghcr.io",
+          "repository": "piphi-io/piphi-network-pfsense"
+        },
+        "expected_tag": "apps/piphi-network-pfsense/v0.1.10",
+        "tag_present_locally": true,
+        "registry_ref": "apps/piphi-network-pfsense/v0.1.10",
+        "registry_image": "ghcr.io/piphi-io/piphi-network-pfsense:0.1.10",
+        "image_digest": "sha256:163b71b4b17d9fe299e54f4b61477ecb8cfc78eb1f226429d71bfc8f5826ade9",
+        "immutable_image": "ghcr.io/piphi-io/piphi-network-pfsense@sha256:163b71b4b17d9fe299e54f4b61477ecb8cfc78eb1f226429d71bfc8f5826ade9",
+        "platforms_verified": true,
+        "oci_labels_verified": false,
+        "sbom_verified": true,
+        "provenance_verified": true,
+        "attestations_verified": true,
+        "non_root_verified": false,
+        "verified_at": "2026-11-19",
+        "verification_note": "Baseline registry digest had linux/amd64 and linux/arm64 SBOMs and cryptographically verified provenance. OCI labels and non-root execution were not independently verified by this portfolio pass."
+      },
+      "registry": {
+        "version": "0.1.10",
+        "repo_url": "https://github.com/PiPhi-io/piphi-apps",
+        "manifest_path": "apps/integrations/piphi-network-pfsense/manifest.json",
+        "owner": "PiPhi-io",
+        "trust_level": "official",
+        "risk_level": "high",
+        "runtime_requirements": [
+          "host_filesystem_mounts",
+          "secrets_or_api_tokens"
+        ],
+        "quality_tier": "unrated",
+        "publication_status": "draft",
+        "rollout_percent": 0,
+        "lifecycle_status": "active",
+        "qualification_status": "unverified"
+      },
+      "consistency": {
+        "source_registry_version_match": true,
+        "source_registry_image_match": true,
+        "immutable_registry_image": true
+      },
+      "home_assistant": {
+        "kind": "quality_standard",
+        "name": "Home Assistant IQS; no direct Core pfSense equivalent",
+        "sources": [
+          "https://developers.home-assistant.io/docs/core/integration-quality-scale/rules"
+        ]
+      },
+      "audit": {
+        "status": "audited",
+        "evidence": [
+          "apps/integrations/piphi-network-pfsense/docs/home-assistant-quality-comparison.md",
+          "docs/home-assistant-parity/ledger.md"
+        ]
+      }
+    },
+    {
+      "id": "piphi-network-plex",
+      "type": "integration",
+      "source": {
+        "folder": "apps/integrations/piphi-network-plex",
+        "source_version": "0.1.1",
+        "manifest_path": "manifest.json",
+        "manifest_image": "docker.io/piphinetwork/piphi-network-plex:0.1.1",
+        "imported_from": "https://github.com/PiPhi-io/piphi-network-plex",
+        "ci_enforcement": "legacy-static",
+        "ci_build_container": false,
+        "ci_commands": [
+          "pdm install --check",
+          "pdm run pytest",
+          "npm ci",
+          "npm audit --omit=dev --audit-level=high",
+          "npm run test",
+          "npm run build"
+        ]
+      },
+      "release": {
+        "artifact_kind": "oci",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "publishing_mode": "piphi_managed",
+        "publishing_target": {
+          "registry": "ghcr.io",
+          "repository": "piphi-io/piphi-network-plex"
+        },
+        "expected_tag": "apps/piphi-network-plex/v0.1.1",
+        "tag_present_locally": false,
+        "registry_ref": "v0.1.1",
+        "registry_image": "docker.io/piphinetwork/piphi-network-plex:0.1.1",
+        "image_digest": null,
+        "immutable_image": null,
+        "platforms_verified": false,
+        "oci_labels_verified": false,
+        "sbom_verified": false,
+        "provenance_verified": false,
+        "attestations_verified": false,
+        "non_root_verified": false
+      },
+      "registry": {
+        "version": "0.1.1",
+        "repo_url": "https://github.com/PiPhi-io/piphi-network-plex",
+        "manifest_path": "manifest.json",
+        "owner": "PiPhi-io",
+        "trust_level": "experimental",
+        "risk_level": "moderate",
+        "runtime_requirements": [
+          "secrets_or_api_tokens"
+        ],
+        "quality_tier": "unrated",
+        "publication_status": "stable",
+        "rollout_percent": 100,
+        "lifecycle_status": "active",
+        "qualification_status": "unverified"
+      },
+      "consistency": {
+        "source_registry_version_match": true,
+        "source_registry_image_match": true,
+        "immutable_registry_image": false
+      },
+      "home_assistant": {
+        "kind": "direct",
+        "name": "Home Assistant Plex",
+        "sources": [
+          "https://github.com/home-assistant/core/tree/dev/homeassistant/components/plex"
+        ]
+      },
+      "audit": {
+        "status": "audited",
+        "evidence": [
+          "docs/home-assistant-parity/ledger.md"
+        ]
+      }
+    },
+    {
+      "id": "piphi-network-reolink",
+      "type": "integration",
+      "source": {
+        "folder": "apps/integrations/piphi-network-reolink",
+        "source_version": "0.2.0",
+        "manifest_path": "manifest.json",
+        "manifest_image": "ghcr.io/piphi-io/piphi-network-reolink:0.2.0",
+        "imported_from": "https://github.com/PiPhi-io/piphi-network-reolink",
+        "ci_enforcement": "full",
+        "ci_build_container": true,
+        "ci_commands": [
+          "pdm install --check -G dev",
+          "pdm run pytest --cov=piphi_network_reolink --cov-fail-under=70",
+          "pdm run ruff check src tests scripts",
+          "pdm run python scripts/validate.py"
+        ]
+      },
+      "release": {
+        "artifact_kind": "oci",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "publishing_mode": "piphi_managed",
+        "publishing_target": {
+          "registry": "ghcr.io",
+          "repository": "piphi-io/piphi-network-reolink"
+        },
+        "expected_tag": "apps/piphi-network-reolink/v0.2.0",
+        "tag_present_locally": false,
+        "registry_ref": "v0.2.0",
+        "registry_image": "ghcr.io/piphi-io/piphi-network-reolink:0.2.0",
+        "image_digest": "sha256:ff5e2dcdfe1742f4590e97a984c8a83dfd99b969fb5a469acbcb8add34e66240",
+        "immutable_image": "ghcr.io/piphi-io/piphi-network-reolink@sha256:ff5e2dcdfe1742f4590e97a984c8a83dfd99b969fb5a469acbcb8add34e66240",
+        "platforms_verified": true,
+        "oci_labels_verified": false,
+        "sbom_verified": true,
+        "provenance_verified": true,
+        "attestations_verified": true,
+        "non_root_verified": false,
+        "verified_at": "2026-11-19",
+        "verification_note": "Baseline registry digest had linux/amd64 and linux/arm64 SBOMs and cryptographically verified provenance. OCI labels and non-root execution were not independently verified by this portfolio pass."
+      },
+      "registry": {
+        "version": "0.2.0",
+        "repo_url": "https://github.com/PiPhi-io/piphi-network-reolink",
+        "manifest_path": "manifest.json",
+        "owner": "PiPhi-io",
+        "trust_level": "official",
+        "risk_level": "moderate",
+        "runtime_requirements": [
+          "secrets_or_api_tokens"
+        ],
+        "quality_tier": "bronze",
+        "publication_status": "beta",
+        "rollout_percent": 1,
+        "lifecycle_status": "active",
+        "qualification_status": "unverified"
+      },
+      "consistency": {
+        "source_registry_version_match": true,
+        "source_registry_image_match": true,
+        "immutable_registry_image": true
+      },
+      "home_assistant": {
+        "kind": "direct",
+        "name": "Home Assistant Reolink",
+        "sources": [
+          "https://github.com/home-assistant/core/tree/dev/homeassistant/components/reolink"
+        ]
+      },
+      "audit": {
+        "status": "audited",
+        "evidence": [
+          "apps/integrations/piphi-network-reolink/docs/home-assistant-quality-comparison.md",
+          "docs/home-assistant-parity/ledger.md"
+        ]
+      }
+    },
+    {
+      "id": "piphi-network-sense",
+      "type": "integration",
+      "source": {
+        "folder": "apps/integrations/piphi-network-sense",
+        "source_version": "0.1.2",
+        "manifest_path": "manifest.json",
+        "manifest_image": "piphinetwork/piphi-network-sense:0.1.2",
+        "imported_from": "https://github.com/PiPhi-io/piphi-network-sense",
+        "ci_enforcement": "legacy-static",
+        "ci_build_container": false,
+        "ci_commands": [
+          "pdm install --check",
+          "pdm run pytest"
+        ]
+      },
+      "release": {
+        "artifact_kind": "oci",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "publishing_mode": "piphi_managed",
+        "publishing_target": {
+          "registry": "ghcr.io",
+          "repository": "piphi-io/piphi-network-sense"
+        },
+        "expected_tag": "apps/piphi-network-sense/v0.1.2",
+        "tag_present_locally": false,
+        "registry_ref": "v0.1.2",
+        "registry_image": "piphinetwork/piphi-network-sense:0.1.2",
+        "image_digest": null,
+        "immutable_image": null,
+        "platforms_verified": false,
+        "oci_labels_verified": false,
+        "sbom_verified": false,
+        "provenance_verified": false,
+        "attestations_verified": false,
+        "non_root_verified": false
+      },
+      "registry": {
+        "version": "0.2.0",
+        "repo_url": "https://github.com/PiPhi-io/piphi-network-sense",
+        "manifest_path": "manifest.json",
+        "owner": "PiPhi-io",
+        "trust_level": "official",
+        "risk_level": "moderate",
+        "runtime_requirements": [
+          "secrets_or_api_tokens"
+        ],
+        "quality_tier": "unrated",
+        "publication_status": "stable",
+        "rollout_percent": 100,
+        "lifecycle_status": "active",
+        "qualification_status": "unverified"
+      },
+      "consistency": {
+        "source_registry_version_match": false,
+        "source_registry_image_match": true,
+        "immutable_registry_image": false
+      },
+      "home_assistant": {
+        "kind": "direct",
+        "name": "Home Assistant Sense",
+        "sources": [
+          "https://github.com/home-assistant/core/tree/dev/homeassistant/components/sense"
+        ]
+      },
+      "audit": {
+        "status": "audited",
+        "evidence": [
+          "docs/cloud-monitoring-account-quality-comparison.md",
+          "docs/home-assistant-parity/ledger.md"
+        ]
+      }
+    },
+    {
+      "id": "piphi-network-solaredge",
+      "type": "integration",
+      "source": {
+        "folder": "apps/integrations/piphi-network-solaredge",
+        "source_version": "0.2.2",
+        "manifest_path": "manifest.json",
+        "manifest_image": "piphinetwork/piphi-network-solaredge:0.2.2",
+        "imported_from": "https://github.com/PiPhi-io/piphi-network-SolarEdge",
+        "ci_enforcement": "legacy-static",
+        "ci_build_container": false,
+        "ci_commands": [
+          "pdm install --check",
+          "pdm run pytest"
+        ]
+      },
+      "release": {
+        "artifact_kind": "oci",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "publishing_mode": "piphi_managed",
+        "publishing_target": {
+          "registry": "ghcr.io",
+          "repository": "piphi-io/piphi-network-solaredge"
+        },
+        "expected_tag": "apps/piphi-network-solaredge/v0.2.2",
+        "tag_present_locally": false,
+        "registry_ref": "v0.2.2",
+        "registry_image": "piphinetwork/piphi-network-solaredge:0.2.2",
+        "image_digest": null,
+        "immutable_image": null,
+        "platforms_verified": false,
+        "oci_labels_verified": false,
+        "sbom_verified": false,
+        "provenance_verified": false,
+        "attestations_verified": false,
+        "non_root_verified": false
+      },
+      "registry": {
+        "version": "0.2.2",
+        "repo_url": "https://github.com/PiPhi-io/piphi-network-SolarEdge",
+        "manifest_path": "manifest.json",
+        "owner": "PiPhi-io",
+        "trust_level": "official",
+        "risk_level": "moderate",
+        "runtime_requirements": [
+          "secrets_or_api_tokens"
+        ],
+        "quality_tier": "bronze",
+        "publication_status": "stable",
+        "rollout_percent": 100,
+        "lifecycle_status": "active",
+        "qualification_status": "unverified"
+      },
+      "consistency": {
+        "source_registry_version_match": true,
+        "source_registry_image_match": true,
+        "immutable_registry_image": false
+      },
+      "home_assistant": {
+        "kind": "direct",
+        "name": "Home Assistant SolarEdge",
+        "sources": [
+          "https://github.com/home-assistant/core/tree/dev/homeassistant/components/solaredge"
+        ]
+      },
+      "audit": {
+        "status": "audited",
+        "evidence": [
+          "docs/cloud-monitoring-account-quality-comparison.md",
+          "docs/home-assistant-parity/ledger.md"
+        ]
+      }
+    },
+    {
+      "id": "piphi-network-sonoff-lan",
+      "type": "integration",
+      "source": {
+        "folder": "apps/integrations/piphi-network-sonoff-lan",
+        "source_version": "0.1.0",
+        "manifest_path": "manifest.json",
+        "manifest_image": "docker.io/piphinetwork/piphi-network-sonoff-lan:0.1.0",
+        "imported_from": "https://github.com/PiPhi-io/piphi-network-sonoff-lan",
+        "ci_enforcement": "legacy-static",
+        "ci_build_container": false,
+        "ci_commands": [
+          "pdm install --check",
+          "pdm run pytest"
+        ]
+      },
+      "release": {
+        "artifact_kind": "oci",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "publishing_mode": "piphi_managed",
+        "publishing_target": {
+          "registry": "ghcr.io",
+          "repository": "piphi-io/piphi-network-sonoff-lan"
+        },
+        "expected_tag": "apps/piphi-network-sonoff-lan/v0.1.0",
+        "tag_present_locally": false,
+        "registry_ref": null,
+        "registry_image": "docker.io/piphinetwork/piphi-network-sonoff-lan:0.1.0",
+        "image_digest": null,
+        "immutable_image": null,
+        "platforms_verified": false,
+        "oci_labels_verified": false,
+        "sbom_verified": false,
+        "provenance_verified": false,
+        "attestations_verified": false,
+        "non_root_verified": false
+      },
+      "registry": {
+        "version": "0.1.0",
+        "repo_url": "https://github.com/PiPhi-io/piphi-network-sonoff-lan",
+        "manifest_path": "manifest.json",
+        "owner": "PiPhi-io",
+        "trust_level": "official",
+        "risk_level": "moderate",
+        "runtime_requirements": [
+          "secrets_or_api_tokens"
+        ],
+        "quality_tier": "unrated",
+        "publication_status": "draft",
+        "rollout_percent": 0,
+        "lifecycle_status": "active",
+        "qualification_status": "unverified"
+      },
+      "consistency": {
+        "source_registry_version_match": true,
+        "source_registry_image_match": true,
+        "immutable_registry_image": false
+      },
+      "home_assistant": {
+        "kind": "quality_standard",
+        "name": "Home Assistant IQS; no direct Core Sonoff LAN equivalent",
+        "sources": [
+          "https://developers.home-assistant.io/docs/core/integration-quality-scale/rules"
+        ]
+      },
+      "audit": {
+        "status": "audited",
+        "evidence": [
+          "docs/home-assistant-parity/ledger.md"
+        ]
+      }
+    },
+    {
+      "id": "piphi-network-spi",
+      "type": "integration",
+      "source": {
+        "folder": "apps/integrations/piphi-network-spi",
+        "source_version": "0.1.5",
+        "manifest_path": "src/manifest.json",
+        "manifest_image": "ghcr.io/piphi-io/spi-integration:0.1.5",
+        "imported_from": "https://github.com/PiPhi-io/piphi_network-spi",
+        "ci_enforcement": "full",
+        "ci_build_container": true,
+        "ci_commands": [
+          "pdm install --check -G:all",
+          "pdm export --prod --output /tmp/piphi-network-spi-requirements.txt && pdm run pip-audit --disable-pip --require-hashes -r /tmp/piphi-network-spi-requirements.txt",
+          "pdm run ruff check src tests scripts",
+          "pdm run pytest",
+          "pdm run python scripts/validate.py"
+        ]
+      },
+      "release": {
+        "artifact_kind": "oci",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "publishing_mode": "piphi_managed",
+        "publishing_target": {
+          "registry": "ghcr.io",
+          "repository": "piphi-io/spi-integration"
+        },
+        "expected_tag": "apps/piphi-network-spi/v0.1.5",
+        "tag_present_locally": true,
+        "registry_ref": "apps/piphi-network-spi/v0.1.5",
+        "registry_image": "ghcr.io/piphi-io/spi-integration:0.1.5",
+        "image_digest": "sha256:5b9a9e3c0f332ffc02ea996098917569b51ee6adf9969837050d335ce6702fc9",
+        "immutable_image": "ghcr.io/piphi-io/spi-integration@sha256:5b9a9e3c0f332ffc02ea996098917569b51ee6adf9969837050d335ce6702fc9",
+        "platforms_verified": true,
+        "oci_labels_verified": false,
+        "sbom_verified": true,
+        "provenance_verified": true,
+        "attestations_verified": true,
+        "non_root_verified": false,
+        "verified_at": "2026-11-19",
+        "verification_note": "Baseline registry digest had linux/amd64 and linux/arm64 SBOMs and cryptographically verified provenance. OCI labels and non-root execution were not independently verified by this portfolio pass."
+      },
+      "registry": {
+        "version": "0.1.5",
+        "repo_url": "https://github.com/PiPhi-io/piphi-apps",
+        "manifest_path": "apps/integrations/piphi-network-spi/src/manifest.json",
+        "owner": "PiPhi-io",
+        "trust_level": "official",
+        "risk_level": "moderate",
+        "runtime_requirements": [
+          "direct_hardware_access",
+          "usb_or_device_access"
+        ],
+        "quality_tier": "bronze",
+        "publication_status": "draft",
+        "rollout_percent": 0,
+        "lifecycle_status": "active",
+        "qualification_status": "unverified"
+      },
+      "consistency": {
+        "source_registry_version_match": true,
+        "source_registry_image_match": true,
+        "immutable_registry_image": true
+      },
+      "home_assistant": {
+        "kind": "quality_standard",
+        "name": "Home Assistant IQS and hardware lifecycle standards",
+        "sources": [
+          "https://developers.home-assistant.io/docs/core/integration-quality-scale/rules"
+        ]
+      },
+      "audit": {
+        "status": "audited",
+        "evidence": [
+          "docs/home-assistant-parity/ledger.md"
+        ]
+      }
+    },
+    {
+      "id": "piphi-network-steam",
+      "type": "integration",
+      "source": {
+        "folder": "apps/integrations/piphi-network-steam",
+        "source_version": "0.1.0",
+        "manifest_path": "src/manifest.json",
+        "manifest_image": "piphinetwork/piphi-network-steam:0.1.0",
+        "imported_from": "https://github.com/PiPhi-io/piphi-network-steam",
+        "ci_enforcement": "legacy-static",
+        "ci_build_container": false,
+        "ci_commands": [
+          "pdm install --check",
+          "pdm run pytest"
+        ]
+      },
+      "release": {
+        "artifact_kind": "oci",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "publishing_mode": "piphi_managed",
+        "publishing_target": {
+          "registry": "ghcr.io",
+          "repository": "piphi-io/piphi-network-steam"
+        },
+        "expected_tag": "apps/piphi-network-steam/v0.1.0",
+        "tag_present_locally": false,
+        "registry_ref": null,
+        "registry_image": "docker.io/piphinetwork/piphi-network-steam:0.1.0",
+        "image_digest": null,
+        "immutable_image": null,
+        "platforms_verified": false,
+        "oci_labels_verified": false,
+        "sbom_verified": false,
+        "provenance_verified": false,
+        "attestations_verified": false,
+        "non_root_verified": false
+      },
+      "registry": {
+        "version": "0.1.0",
+        "repo_url": "https://github.com/PiPhi-io/piphi-network-steam",
+        "manifest_path": "src/manifest.json",
+        "owner": "PiPhi-io",
+        "trust_level": "experimental",
+        "risk_level": "low",
+        "runtime_requirements": [
+          "secrets_or_api_tokens",
+          "internet_access"
+        ],
+        "quality_tier": "unrated",
+        "publication_status": "draft",
+        "rollout_percent": 0,
+        "lifecycle_status": "active",
+        "qualification_status": "unverified"
+      },
+      "consistency": {
+        "source_registry_version_match": true,
+        "source_registry_image_match": false,
+        "immutable_registry_image": false
+      },
+      "home_assistant": {
+        "kind": "direct",
+        "name": "Home Assistant Steam Online",
+        "sources": [
+          "https://github.com/home-assistant/core/tree/dev/homeassistant/components/steam_online"
+        ]
+      },
+      "audit": {
+        "status": "audited",
+        "evidence": [
+          "docs/home-assistant-parity/ledger.md"
+        ]
+      }
+    },
+    {
+      "id": "piphi-network-tapo-cameras",
+      "type": "integration",
+      "source": {
+        "folder": "apps/integrations/piphi-network-tapo-cameras",
+        "source_version": "0.1.0",
+        "manifest_path": "manifest.json",
+        "manifest_image": "docker.io/piphinetwork/piphi-network-tapo-cameras:0.1.0",
+        "imported_from": "https://github.com/PiPhi-io/piphi-network-tapo-cameras",
+        "ci_enforcement": "legacy-static",
+        "ci_build_container": false,
+        "ci_commands": [
+          "pdm install --check",
+          "pdm run pytest"
+        ]
+      },
+      "release": {
+        "artifact_kind": "oci",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "publishing_mode": "piphi_managed",
+        "publishing_target": {
+          "registry": "ghcr.io",
+          "repository": "piphi-io/piphi-network-tapo-cameras"
+        },
+        "expected_tag": "apps/piphi-network-tapo-cameras/v0.1.0",
+        "tag_present_locally": false,
+        "registry_ref": null,
+        "registry_image": "docker.io/piphinetwork/piphi-network-tapo-cameras:0.1.0",
+        "image_digest": null,
+        "immutable_image": null,
+        "platforms_verified": false,
+        "oci_labels_verified": false,
+        "sbom_verified": false,
+        "provenance_verified": false,
+        "attestations_verified": false,
+        "non_root_verified": false
+      },
+      "registry": {
+        "version": "0.1.0",
+        "repo_url": "https://github.com/PiPhi-io/piphi-network-tapo-cameras",
+        "manifest_path": "manifest.json",
+        "owner": "PiPhi-io",
+        "trust_level": "official",
+        "risk_level": "moderate",
+        "runtime_requirements": [
+          "secrets_or_api_tokens"
+        ],
+        "quality_tier": "unrated",
+        "publication_status": "draft",
+        "rollout_percent": 0,
+        "lifecycle_status": "active",
+        "qualification_status": "unverified"
+      },
+      "consistency": {
+        "source_registry_version_match": true,
+        "source_registry_image_match": true,
+        "immutable_registry_image": false
+      },
+      "home_assistant": {
+        "kind": "architecture",
+        "name": "Home Assistant TP-Link/Tapo device and camera quality patterns",
+        "sources": [
+          "https://github.com/home-assistant/core/tree/dev/homeassistant/components/tplink",
+          "https://developers.home-assistant.io/docs/core/integration-quality-scale/rules"
+        ]
+      },
+      "audit": {
+        "status": "audited",
+        "evidence": [
+          "docs/home-assistant-parity/ledger.md"
+        ]
+      }
+    },
+    {
+      "id": "piphi-network-tesla-ev",
+      "type": "integration",
+      "source": {
+        "folder": "apps/integrations/piphi-network-tesla-ev",
+        "source_version": "0.2.3",
+        "manifest_path": "src/manifest.json",
+        "manifest_image": "piphinetwork/tesla-ev:0.2.3",
+        "imported_from": "https://github.com/PiPhi-io/piphi_network_tesla_ev",
+        "ci_enforcement": "legacy-static",
+        "ci_build_container": false,
+        "ci_commands": [
+          "pdm install --check",
+          "pdm run pytest"
+        ]
+      },
+      "release": {
+        "artifact_kind": "oci",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "publishing_mode": "piphi_managed",
+        "publishing_target": {
+          "registry": "ghcr.io",
+          "repository": "piphi-io/tesla-ev"
+        },
+        "expected_tag": "apps/piphi-network-tesla-ev/v0.2.3",
+        "tag_present_locally": false,
+        "registry_ref": "v0.2.3",
+        "registry_image": "piphinetwork/tesla-ev:0.2.3",
+        "image_digest": null,
+        "immutable_image": null,
+        "platforms_verified": false,
+        "oci_labels_verified": false,
+        "sbom_verified": false,
+        "provenance_verified": false,
+        "attestations_verified": false,
+        "non_root_verified": false
+      },
+      "registry": {
+        "version": "0.2.3",
+        "repo_url": "https://github.com/PiPhi-io/piphi_network_tesla_ev",
+        "manifest_path": "src/manifest.json",
+        "owner": "PiPhi-io",
+        "trust_level": "official",
+        "risk_level": "moderate",
+        "runtime_requirements": [
+          "secrets_or_api_tokens"
+        ],
+        "quality_tier": "bronze",
+        "publication_status": "stable",
+        "rollout_percent": 100,
+        "lifecycle_status": "active",
+        "qualification_status": "unverified"
+      },
+      "consistency": {
+        "source_registry_version_match": true,
+        "source_registry_image_match": true,
+        "immutable_registry_image": false
+      },
+      "home_assistant": {
+        "kind": "direct",
+        "name": "Home Assistant Tesla Fleet",
+        "sources": [
+          "https://github.com/home-assistant/core/tree/dev/homeassistant/components/tesla_fleet"
+        ]
+      },
+      "audit": {
+        "status": "audited",
+        "evidence": [
+          "docs/cloud-vehicle-account-quality-comparison.md",
+          "docs/home-assistant-parity/ledger.md"
+        ]
+      }
+    },
+    {
+      "id": "piphi-network-tuya",
+      "type": "integration",
+      "source": {
+        "folder": "apps/integrations/piphi-network-tuya",
+        "source_version": "0.1.4",
+        "manifest_path": "src/manifest.json",
+        "manifest_image": "docker.io/piphinetwork/piphi-network-tuya:0.1.4",
+        "imported_from": "https://github.com/PiPhi-io/piphi_network_tuya",
+        "ci_enforcement": "legacy-static",
+        "ci_build_container": false,
+        "ci_commands": [
+          "pdm install --check",
+          "pdm run pytest"
+        ]
+      },
+      "release": {
+        "artifact_kind": "oci",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "publishing_mode": "piphi_managed",
+        "publishing_target": {
+          "registry": "ghcr.io",
+          "repository": "piphi-io/piphi-network-tuya"
+        },
+        "expected_tag": "apps/piphi-network-tuya/v0.1.4",
+        "tag_present_locally": false,
+        "registry_ref": "v0.1.4",
+        "registry_image": "docker.io/piphinetwork/piphi-network-tuya:0.1.4",
+        "image_digest": null,
+        "immutable_image": null,
+        "platforms_verified": false,
+        "oci_labels_verified": false,
+        "sbom_verified": false,
+        "provenance_verified": false,
+        "attestations_verified": false,
+        "non_root_verified": false
+      },
+      "registry": {
+        "version": "0.1.4",
+        "repo_url": "https://github.com/PiPhi-io/piphi_network_tuya",
+        "manifest_path": "src/manifest.json",
+        "owner": "PiPhi-io",
+        "trust_level": "official",
+        "risk_level": "moderate",
+        "runtime_requirements": [
+          "secrets_or_api_tokens"
+        ],
+        "quality_tier": "bronze",
+        "publication_status": "stable",
+        "rollout_percent": 100,
+        "lifecycle_status": "active",
+        "qualification_status": "unverified"
+      },
+      "consistency": {
+        "source_registry_version_match": true,
+        "source_registry_image_match": true,
+        "immutable_registry_image": false
+      },
+      "home_assistant": {
+        "kind": "architecture",
+        "name": "Home Assistant Tuya; cloud transport is not equivalent to PiPhi LAN operation",
+        "sources": [
+          "https://github.com/home-assistant/core/tree/dev/homeassistant/components/tuya"
+        ]
+      },
+      "audit": {
+        "status": "audited",
+        "evidence": [
+          "docs/cloud-home-account-quality-comparison.md",
+          "docs/home-assistant-parity/ledger.md"
+        ]
+      }
+    },
+    {
+      "id": "piphi-network-washdata",
+      "type": "integration",
+      "source": {
+        "folder": "apps/integrations/piphi-network-washdata",
+        "source_version": "0.1.0",
+        "manifest_path": "manifest.json",
+        "manifest_image": "docker.io/piphinetwork/piphi-network-washdata:0.1.0",
+        "imported_from": "https://github.com/PiPhi-io/piphi-network-washdata",
+        "ci_enforcement": "legacy-static",
+        "ci_build_container": false,
+        "ci_commands": [
+          "pdm install --check",
+          "pdm run pytest"
+        ]
+      },
+      "release": {
+        "artifact_kind": "oci",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "publishing_mode": "piphi_managed",
+        "publishing_target": {
+          "registry": "ghcr.io",
+          "repository": "piphi-io/piphi-network-washdata"
+        },
+        "expected_tag": "apps/piphi-network-washdata/v0.1.0",
+        "tag_present_locally": false,
+        "registry_ref": null,
+        "registry_image": "docker.io/piphinetwork/piphi-network-washdata:0.1.0",
+        "image_digest": null,
+        "immutable_image": null,
+        "platforms_verified": false,
+        "oci_labels_verified": false,
+        "sbom_verified": false,
+        "provenance_verified": false,
+        "attestations_verified": false,
+        "non_root_verified": false
+      },
+      "registry": {
+        "version": "0.1.0",
+        "repo_url": "https://github.com/PiPhi-io/piphi-network-washdata",
+        "manifest_path": "manifest.json",
+        "owner": "PiPhi-io",
+        "trust_level": "official",
+        "risk_level": "moderate",
+        "runtime_requirements": [
+          "secrets_or_api_tokens"
+        ],
+        "quality_tier": "unrated",
+        "publication_status": "draft",
+        "rollout_percent": 0,
+        "lifecycle_status": "active",
+        "qualification_status": "unverified"
+      },
+      "consistency": {
+        "source_registry_version_match": true,
+        "source_registry_image_match": true,
+        "immutable_registry_image": false
+      },
+      "home_assistant": {
+        "kind": "quality_standard",
+        "name": "Home Assistant IQS; no direct Core WashData equivalent",
+        "sources": [
+          "https://developers.home-assistant.io/docs/core/integration-quality-scale/rules"
+        ]
+      },
+      "audit": {
+        "status": "audited",
+        "evidence": [
+          "docs/home-assistant-parity/ledger.md"
+        ]
+      }
+    },
+    {
+      "id": "piphi-network-waste-collection",
+      "type": "integration",
+      "source": {
+        "folder": "apps/integrations/piphi-network-waste-collection",
+        "source_version": "0.1.0",
+        "manifest_path": "manifest.json",
+        "manifest_image": "docker.io/piphinetwork/piphi-network-waste-collection:0.1.0",
+        "imported_from": "https://github.com/PiPhi-io/piphi-network-waste-collection",
+        "ci_enforcement": "legacy-static",
+        "ci_build_container": false,
+        "ci_commands": [
+          "pdm install --check",
+          "pdm run pytest"
+        ]
+      },
+      "release": {
+        "artifact_kind": "oci",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "publishing_mode": "piphi_managed",
+        "publishing_target": {
+          "registry": "ghcr.io",
+          "repository": "piphi-io/piphi-network-waste-collection"
+        },
+        "expected_tag": "apps/piphi-network-waste-collection/v0.1.0",
+        "tag_present_locally": false,
+        "registry_ref": null,
+        "registry_image": "docker.io/piphinetwork/piphi-network-waste-collection:0.1.0",
+        "image_digest": null,
+        "immutable_image": null,
+        "platforms_verified": false,
+        "oci_labels_verified": false,
+        "sbom_verified": false,
+        "provenance_verified": false,
+        "attestations_verified": false,
+        "non_root_verified": false
+      },
+      "registry": {
+        "version": "0.1.0",
+        "repo_url": "https://github.com/PiPhi-io/piphi-network-waste-collection",
+        "manifest_path": "manifest.json",
+        "owner": "PiPhi-io",
+        "trust_level": "official",
+        "risk_level": "moderate",
+        "runtime_requirements": [
+          "secrets_or_api_tokens"
+        ],
+        "quality_tier": "unrated",
+        "publication_status": "draft",
+        "rollout_percent": 0,
+        "lifecycle_status": "active",
+        "qualification_status": "unverified"
+      },
+      "consistency": {
+        "source_registry_version_match": true,
+        "source_registry_image_match": true,
+        "immutable_registry_image": false
+      },
+      "home_assistant": {
+        "kind": "architecture",
+        "name": "Home Assistant ReCollect Waste and HA IQS",
+        "sources": [
+          "https://github.com/home-assistant/core/tree/dev/homeassistant/components/recollect_waste",
+          "https://developers.home-assistant.io/docs/core/integration-quality-scale/rules"
+        ]
+      },
+      "audit": {
+        "status": "audited",
+        "evidence": [
+          "docs/home-assistant-parity/ledger.md"
+        ]
+      }
+    },
+    {
+      "id": "piphi-network-weatherxm",
+      "type": "integration",
+      "source": {
+        "folder": "apps/integrations/piphi-network-weatherxm",
+        "source_version": "0.1.4",
+        "manifest_path": "src/manifest.json",
+        "manifest_image": "piphinetwork/weatherxm:0.1.4",
+        "imported_from": "https://github.com/PiPhi-io/piphi_network_weatherxm",
+        "ci_enforcement": "legacy-static",
+        "ci_build_container": false,
+        "ci_commands": [
+          "pdm install --check",
+          "pdm run pytest"
+        ]
+      },
+      "release": {
+        "artifact_kind": "oci",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "publishing_mode": "piphi_managed",
+        "publishing_target": {
+          "registry": "ghcr.io",
+          "repository": "piphi-io/weatherxm"
+        },
+        "expected_tag": "apps/piphi-network-weatherxm/v0.1.4",
+        "tag_present_locally": false,
+        "registry_ref": "v0.1.4",
+        "registry_image": "piphinetwork/weatherxm:0.1.4",
+        "image_digest": null,
+        "immutable_image": null,
+        "platforms_verified": false,
+        "oci_labels_verified": false,
+        "sbom_verified": false,
+        "provenance_verified": false,
+        "attestations_verified": false,
+        "non_root_verified": false
+      },
+      "registry": {
+        "version": "0.1.4",
+        "repo_url": "https://github.com/PiPhi-io/piphi_network_weatherxm",
+        "manifest_path": "src/manifest.json",
+        "owner": "PiPhi-io",
+        "trust_level": "official",
+        "risk_level": "low",
+        "runtime_requirements": [],
+        "quality_tier": "bronze",
+        "publication_status": "stable",
+        "rollout_percent": 100,
+        "lifecycle_status": "active",
+        "qualification_status": "unverified"
+      },
+      "consistency": {
+        "source_registry_version_match": true,
+        "source_registry_image_match": true,
+        "immutable_registry_image": false
+      },
+      "home_assistant": {
+        "kind": "quality_standard",
+        "name": "Home Assistant IQS; no direct Core WeatherXM equivalent",
+        "sources": [
+          "https://developers.home-assistant.io/docs/core/integration-quality-scale/rules"
+        ]
+      },
+      "audit": {
+        "status": "audited",
+        "evidence": [
+          "docs/cloud-monitoring-account-quality-comparison.md",
+          "docs/home-assistant-parity/ledger.md"
+        ]
+      }
+    },
+    {
+      "id": "piphi-network-xiaomi-home",
+      "type": "integration",
+      "source": {
+        "folder": "apps/integrations/piphi-network-xiaomi-home",
+        "source_version": "0.1.0",
+        "manifest_path": "manifest.json",
+        "manifest_image": "docker.io/piphinetwork/piphi-network-xiaomi-home:0.1.0",
+        "imported_from": "https://github.com/PiPhi-io/piphi-network-xiaomi-home",
+        "ci_enforcement": "legacy-static",
+        "ci_build_container": false,
+        "ci_commands": [
+          "pdm install --check",
+          "pdm run pytest"
+        ]
+      },
+      "release": {
+        "artifact_kind": "oci",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "publishing_mode": "piphi_managed",
+        "publishing_target": {
+          "registry": "ghcr.io",
+          "repository": "piphi-io/piphi-network-xiaomi-home"
+        },
+        "expected_tag": "apps/piphi-network-xiaomi-home/v0.1.0",
+        "tag_present_locally": false,
+        "registry_ref": null,
+        "registry_image": "docker.io/piphinetwork/piphi-network-xiaomi-home:0.1.0",
+        "image_digest": null,
+        "immutable_image": null,
+        "platforms_verified": false,
+        "oci_labels_verified": false,
+        "sbom_verified": false,
+        "provenance_verified": false,
+        "attestations_verified": false,
+        "non_root_verified": false
+      },
+      "registry": {
+        "version": "0.1.0",
+        "repo_url": "https://github.com/PiPhi-io/piphi-network-xiaomi-home",
+        "manifest_path": "manifest.json",
+        "owner": "PiPhi-io",
+        "trust_level": "official",
+        "risk_level": "moderate",
+        "runtime_requirements": [
+          "secrets_or_api_tokens"
+        ],
+        "quality_tier": "unrated",
+        "publication_status": "draft",
+        "rollout_percent": 0,
+        "lifecycle_status": "active",
+        "qualification_status": "unverified"
+      },
+      "consistency": {
+        "source_registry_version_match": true,
+        "source_registry_image_match": true,
+        "immutable_registry_image": false
+      },
+      "home_assistant": {
+        "kind": "architecture",
+        "name": "Xiaomi Home for Home Assistant and HA IQS",
+        "sources": [
+          "https://github.com/XiaoMi/ha_xiaomi_home",
+          "https://developers.home-assistant.io/docs/core/integration-quality-scale/rules"
+        ]
+      },
+      "audit": {
+        "status": "audited",
+        "evidence": [
+          "docs/cloud-home-account-quality-comparison.md",
+          "docs/home-assistant-parity/ledger.md"
+        ]
+      }
+    },
+    {
+      "id": "piphi-network-zigbee",
+      "type": "integration",
+      "source": {
+        "folder": "apps/integrations/piphi-network-zigbee",
+        "source_version": "0.1.12",
+        "manifest_path": "src/manifest.json",
+        "manifest_image": "ghcr.io/piphi-io/zigbee-integration:0.1.12",
+        "imported_from": "https://github.com/PiPhi-io/piphi_network_zigbee",
+        "ci_enforcement": "full",
+        "ci_build_container": true,
+        "ci_commands": [
+          "pdm install --check",
+          "pdm run python scripts/validate.py",
+          "pdm run pytest"
+        ]
+      },
+      "release": {
+        "artifact_kind": "oci",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "publishing_mode": "piphi_managed",
+        "publishing_target": {
+          "registry": "ghcr.io",
+          "repository": "piphi-io/zigbee-integration"
+        },
+        "expected_tag": "apps/piphi-network-zigbee/v0.1.12",
+        "tag_present_locally": true,
+        "registry_ref": "apps/piphi-network-zigbee/v0.1.12",
+        "registry_image": "ghcr.io/piphi-io/zigbee-integration:0.1.12",
+        "image_digest": "sha256:f10e70cb7dea64dc1583513a3e2f8aa79fcf5b7fe37c7384b4015e9f95823b05",
+        "immutable_image": "ghcr.io/piphi-io/zigbee-integration@sha256:f10e70cb7dea64dc1583513a3e2f8aa79fcf5b7fe37c7384b4015e9f95823b05",
+        "platforms_verified": true,
+        "oci_labels_verified": false,
+        "sbom_verified": true,
+        "provenance_verified": true,
+        "attestations_verified": true,
+        "non_root_verified": false,
+        "verified_at": "2026-11-19",
+        "verification_note": "Baseline registry digest had linux/amd64 and linux/arm64 SBOMs and cryptographically verified provenance. OCI labels and non-root execution were not independently verified by this portfolio pass."
+      },
+      "registry": {
+        "version": "0.1.12",
+        "repo_url": "https://github.com/PiPhi-io/piphi-apps",
+        "manifest_path": "apps/integrations/piphi-network-zigbee/src/manifest.json",
+        "owner": "PiPhi-io",
+        "trust_level": "official",
+        "risk_level": "moderate",
+        "runtime_requirements": [
+          "sidecar_runtime",
+          "mqtt_broker"
+        ],
+        "quality_tier": "unrated",
+        "publication_status": "draft",
+        "rollout_percent": 0,
+        "lifecycle_status": "active",
+        "qualification_status": "unverified"
+      },
+      "consistency": {
+        "source_registry_version_match": true,
+        "source_registry_image_match": true,
+        "immutable_registry_image": true
+      },
+      "home_assistant": {
+        "kind": "direct",
+        "name": "Home Assistant ZHA",
+        "sources": [
+          "https://github.com/home-assistant/core/tree/dev/homeassistant/components/zha"
+        ]
+      },
+      "audit": {
+        "status": "audited",
+        "evidence": [
+          "apps/integrations/piphi-network-zigbee/docs/home-assistant-quality-comparison.md",
+          "docs/home-assistant-parity/ledger.md"
+        ]
+      }
+    },
+    {
+      "id": "piphi-network-zwave",
+      "type": "integration",
+      "source": {
+        "folder": "apps/integrations/piphi-network-zwave",
+        "source_version": "0.3.1",
+        "manifest_path": "manifest.json",
+        "manifest_image": "ghcr.io/piphi-io/piphi-network-zwave:0.3.1",
+        "imported_from": "https://github.com/PiPhi-io/piphi-network-zwave",
+        "ci_enforcement": "full",
+        "ci_build_container": true,
+        "ci_commands": [
+          "pdm install --check",
+          "pdm run pytest",
+          "pdm run python scripts/validate.py"
+        ]
+      },
+      "release": {
+        "artifact_kind": "oci",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "publishing_mode": "piphi_managed",
+        "publishing_target": {
+          "registry": "ghcr.io",
+          "repository": "piphi-io/piphi-network-zwave"
+        },
+        "expected_tag": "apps/piphi-network-zwave/v0.3.1",
+        "tag_present_locally": true,
+        "registry_ref": "apps/piphi-network-zwave/v0.3.1",
+        "registry_image": "ghcr.io/piphi-io/piphi-network-zwave:0.3.1",
+        "image_digest": "sha256:a9bfa3b21f47bdc7c954f17d5993c18ab8a761133e6784215fe974668f006f80",
+        "immutable_image": "ghcr.io/piphi-io/piphi-network-zwave@sha256:a9bfa3b21f47bdc7c954f17d5993c18ab8a761133e6784215fe974668f006f80",
+        "platforms_verified": true,
+        "oci_labels_verified": false,
+        "sbom_verified": true,
+        "provenance_verified": true,
+        "attestations_verified": true,
+        "non_root_verified": false,
+        "verified_at": "2026-11-19",
+        "verification_note": "Baseline registry digest had linux/amd64 and linux/arm64 SBOMs and cryptographically verified provenance. OCI labels and non-root execution were not independently verified by this portfolio pass."
+      },
+      "registry": {
+        "version": "0.3.1",
+        "repo_url": "https://github.com/PiPhi-io/piphi-apps",
+        "manifest_path": "apps/integrations/piphi-network-zwave/manifest.json",
+        "owner": "PiPhi-io",
+        "trust_level": "official",
+        "risk_level": "moderate",
+        "runtime_requirements": [
+          "sidecar_runtime"
+        ],
+        "quality_tier": "unrated",
+        "publication_status": "draft",
+        "rollout_percent": 0,
+        "lifecycle_status": "active",
+        "qualification_status": "unverified"
+      },
+      "consistency": {
+        "source_registry_version_match": true,
+        "source_registry_image_match": true,
+        "immutable_registry_image": true
+      },
+      "home_assistant": {
+        "kind": "direct",
+        "name": "Home Assistant Z-Wave JS",
+        "sources": [
+          "https://github.com/home-assistant/core/tree/dev/homeassistant/components/zwave_js"
+        ]
+      },
+      "audit": {
+        "status": "audited",
+        "evidence": [
+          "apps/integrations/piphi-network-zwave/docs/home-assistant-quality-comparison.md",
+          "docs/home-assistant-parity/ledger.md"
+        ]
+      }
+    },
+    {
+      "id": "piphi-zwave-js-sidecar",
+      "type": "platform_service",
+      "source": {
+        "folder": "apps/services/piphi-zwave-js-sidecar",
+        "source_version": "0.3.1",
+        "manifest_path": "manifest.json",
+        "manifest_image": "ghcr.io/piphi-io/piphi-zwave-js-sidecar:0.3.1",
+        "imported_from": "https://github.com/PiPhi-io/piphi-zwave-js-sidecar",
+        "ci_enforcement": "full",
+        "ci_build_container": true,
+        "ci_commands": [
+          "npm ci",
+          "npm audit --omit=dev --audit-level=high",
+          "npm run check",
+          "npm run test",
+          "npm run validate",
+          "npm run build"
+        ]
+      },
+      "release": {
+        "artifact_kind": "oci",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "publishing_mode": "piphi_managed",
+        "publishing_target": {
+          "registry": "ghcr.io",
+          "repository": "piphi-io/piphi-zwave-js-sidecar"
+        },
+        "expected_tag": "apps/piphi-zwave-js-sidecar/v0.3.1",
+        "tag_present_locally": true,
+        "registry_ref": "apps/piphi-zwave-js-sidecar/v0.3.1",
+        "registry_image": "ghcr.io/piphi-io/piphi-zwave-js-sidecar:0.3.1",
+        "image_digest": "sha256:f2bee5309c7327b30addfe5a734b80fc8e8b7ffa446575b475635d7451a84f53",
+        "immutable_image": "ghcr.io/piphi-io/piphi-zwave-js-sidecar@sha256:f2bee5309c7327b30addfe5a734b80fc8e8b7ffa446575b475635d7451a84f53",
+        "platforms_verified": true,
+        "oci_labels_verified": false,
+        "sbom_verified": true,
+        "provenance_verified": true,
+        "attestations_verified": true,
+        "non_root_verified": false,
+        "verified_at": "2026-11-19",
+        "verification_note": "Baseline registry digest had linux/amd64 and linux/arm64 SBOMs and cryptographically verified provenance. OCI labels and non-root execution were not independently verified by this portfolio pass."
+      },
+      "registry": {
+        "version": "0.3.1",
+        "repo_url": "https://github.com/PiPhi-io/piphi-apps",
+        "manifest_path": "apps/services/piphi-zwave-js-sidecar/manifest.json",
+        "owner": "PiPhi-io",
+        "trust_level": "official",
+        "risk_level": "moderate",
+        "runtime_requirements": [
+          "sidecar_runtime",
+          "usb_or_device_access",
+          "direct_hardware_access"
+        ],
+        "quality_tier": "unrated",
+        "publication_status": "draft",
+        "rollout_percent": 0,
+        "lifecycle_status": "active",
+        "qualification_status": "unverified"
+      },
+      "consistency": {
+        "source_registry_version_match": true,
+        "source_registry_image_match": true,
+        "immutable_registry_image": true
+      },
+      "home_assistant": {
+        "kind": "direct",
+        "name": "Home Assistant Z-Wave JS Server architecture",
+        "sources": [
+          "https://github.com/home-assistant/core/tree/dev/homeassistant/components/zwave_js",
+          "https://github.com/zwave-js/zwave-js-server"
+        ]
+      },
+      "audit": {
+        "status": "audited",
+        "evidence": [
+          "docs/home-assistant-parity/ledger.md"
+        ]
+      }
+    },
+    {
+      "id": "piphi.service.matter-sidecar",
+      "type": "platform_service",
+      "source": {
+        "folder": "apps/services/piphi-matter-js-sidecar",
+        "source_version": "0.2.0-alpha.7",
+        "manifest_path": "src/manifest.json",
+        "manifest_image": "ghcr.io/piphi-io/matter-sidecar:0.2.0-alpha.7",
+        "imported_from": "https://github.com/PiPhi-io/piphi-network-matter",
+        "ci_enforcement": "full",
+        "ci_build_container": true,
+        "ci_commands": [
+          "npm ci",
+          "npm audit --omit=dev --audit-level=high",
+          "npm run check",
+          "npm run check:e2e",
+          "npm run test",
+          "npm run test:coverage",
+          "npm run qualify:backup-restore",
+          "npm run validate",
+          "npm run build"
+        ]
+      },
+      "release": {
+        "artifact_kind": "oci",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "publishing_mode": "piphi_managed",
+        "publishing_target": {
+          "registry": "ghcr.io",
+          "repository": "piphi-io/matter-sidecar"
+        },
+        "expected_tag": "apps/piphi.service.matter-sidecar/v0.2.0-alpha.7",
+        "tag_present_locally": true,
+        "registry_ref": "apps/piphi.service.matter-sidecar/v0.2.0-alpha.7",
+        "registry_image": "ghcr.io/piphi-io/matter-sidecar:0.2.0-alpha.7",
+        "image_digest": "sha256:164e1fb2c5ef7c10503e92eac7bed1198f7ee5da2648f498ef5543662264d91c",
+        "immutable_image": "ghcr.io/piphi-io/matter-sidecar@sha256:164e1fb2c5ef7c10503e92eac7bed1198f7ee5da2648f498ef5543662264d91c",
+        "platforms_verified": true,
+        "oci_labels_verified": false,
+        "sbom_verified": true,
+        "provenance_verified": true,
+        "attestations_verified": true,
+        "non_root_verified": false,
+        "verified_at": "2026-11-19",
+        "verification_note": "Baseline registry digest had linux/amd64 and linux/arm64 SBOMs and cryptographically verified provenance. OCI labels and non-root execution were not independently verified by this portfolio pass."
+      },
+      "registry": {
+        "version": "0.2.0-alpha.7",
+        "repo_url": "https://github.com/PiPhi-io/piphi-apps",
+        "manifest_path": "apps/services/piphi-matter-js-sidecar/src/manifest.json",
+        "owner": "PiPhi-io",
+        "trust_level": "official",
+        "risk_level": "high",
+        "runtime_requirements": [
+          "sidecar_runtime",
+          "host_networking",
+          "host_filesystem_mounts",
+          "secrets_or_api_tokens"
+        ],
+        "quality_tier": "bronze",
+        "publication_status": "beta",
+        "rollout_percent": 1,
+        "lifecycle_status": "active",
+        "qualification_status": "unverified"
+      },
+      "consistency": {
+        "source_registry_version_match": true,
+        "source_registry_image_match": true,
+        "immutable_registry_image": true
+      },
+      "home_assistant": {
+        "kind": "direct",
+        "name": "Home Assistant Matter Server",
+        "sources": [
+          "https://github.com/home-assistant-libs/python-matter-server"
+        ]
+      },
+      "audit": {
+        "status": "audited",
+        "evidence": [
+          "apps/services/piphi-matter-js-sidecar/docs/home-assistant-quality-comparison.md",
+          "docs/home-assistant-parity/ledger.md"
+        ]
+      }
+    },
+    {
+      "id": "piphi.service.mqtt-broker",
+      "type": "platform_service",
+      "source": {
+        "folder": "apps/services/piphi-mqtt-broker",
+        "source_version": "0.3.2",
+        "manifest_path": "src/manifest.json",
+        "manifest_image": "ghcr.io/piphi-io/mqtt-broker:0.3.2",
+        "imported_from": "https://github.com/PiPhi-io/piphi-mqtt-broker",
+        "ci_enforcement": "full",
+        "ci_build_container": true,
+        "ci_commands": [
+          "npm ci",
+          "npm audit --omit=dev --audit-level=high",
+          "npm run test",
+          "npm run build",
+          "sh tests/container-smoke.sh"
+        ]
+      },
+      "release": {
+        "artifact_kind": "oci",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "publishing_mode": "piphi_managed",
+        "publishing_target": {
+          "registry": "ghcr.io",
+          "repository": "piphi-io/mqtt-broker"
+        },
+        "expected_tag": "apps/piphi.service.mqtt-broker/v0.3.2",
+        "tag_present_locally": true,
+        "registry_ref": "apps/piphi.service.mqtt-broker/v0.3.2",
+        "registry_image": "ghcr.io/piphi-io/mqtt-broker:0.3.2",
+        "image_digest": "sha256:d01aeb0853a4a3156f973769d4182737b296b80d5db550e647658ecfd557cccf",
+        "immutable_image": "ghcr.io/piphi-io/mqtt-broker@sha256:d01aeb0853a4a3156f973769d4182737b296b80d5db550e647658ecfd557cccf",
+        "platforms_verified": true,
+        "oci_labels_verified": false,
+        "sbom_verified": true,
+        "provenance_verified": true,
+        "attestations_verified": true,
+        "non_root_verified": false,
+        "verified_at": "2026-11-19",
+        "verification_note": "Baseline registry digest had linux/amd64 and linux/arm64 SBOMs and cryptographically verified provenance. OCI labels and non-root execution were not independently verified by this portfolio pass."
+      },
+      "registry": {
+        "version": "0.3.2",
+        "repo_url": "https://github.com/PiPhi-io/piphi-apps",
+        "manifest_path": "apps/services/piphi-mqtt-broker/src/manifest.json",
+        "owner": "PiPhi-io",
+        "trust_level": "official",
+        "risk_level": "high",
+        "runtime_requirements": [
+          "sidecar_runtime",
+          "secrets_or_api_tokens",
+          "host_filesystem_mounts"
+        ],
+        "quality_tier": "bronze",
+        "publication_status": "draft",
+        "rollout_percent": 0,
+        "lifecycle_status": "active",
+        "qualification_status": "unverified"
+      },
+      "consistency": {
+        "source_registry_version_match": true,
+        "source_registry_image_match": true,
+        "immutable_registry_image": true
+      },
+      "home_assistant": {
+        "kind": "architecture",
+        "name": "Home Assistant MQTT and Mosquitto add-on",
+        "sources": [
+          "https://github.com/home-assistant/core/tree/dev/homeassistant/components/mqtt",
+          "https://github.com/home-assistant/addons/tree/master/mosquitto"
+        ]
+      },
+      "audit": {
+        "status": "audited",
+        "evidence": [
+          "apps/services/piphi-mqtt-broker/docs/home-assistant-quality-comparison.md",
+          "docs/home-assistant-parity/ledger.md"
+        ]
+      }
+    },
+    {
+      "id": "piphi.service.rtl433-bridge",
+      "type": "platform_service",
+      "source": {
+        "folder": "apps/services/piphi-rtl433-bridge",
+        "source_version": "0.2.0",
+        "manifest_path": "src/manifest.json",
+        "manifest_image": "ghcr.io/piphi-io/rtl433-bridge:0.2.0",
+        "imported_from": "https://github.com/PiPhi-io/piphi-rtl433-bridge",
+        "ci_enforcement": "full",
+        "ci_build_container": true,
+        "ci_commands": [
+          "pdm install --check",
+          "pdm run pytest",
+          "pdm run python scripts/validate.py"
+        ]
+      },
+      "release": {
+        "artifact_kind": "oci",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "publishing_mode": "piphi_managed",
+        "publishing_target": {
+          "registry": "ghcr.io",
+          "repository": "piphi-io/rtl433-bridge"
+        },
+        "expected_tag": "apps/piphi.service.rtl433-bridge/v0.2.0",
+        "tag_present_locally": true,
+        "registry_ref": "apps/piphi.service.rtl433-bridge/v0.2.0",
+        "registry_image": "ghcr.io/piphi-io/rtl433-bridge:0.2.0",
+        "image_digest": "sha256:67b533f181c8de8169545bc4cb656175b4705374c8c36dda975a9c9ca7a6a6f9",
+        "immutable_image": "ghcr.io/piphi-io/rtl433-bridge@sha256:67b533f181c8de8169545bc4cb656175b4705374c8c36dda975a9c9ca7a6a6f9",
+        "platforms_verified": true,
+        "oci_labels_verified": false,
+        "sbom_verified": true,
+        "provenance_verified": true,
+        "attestations_verified": true,
+        "non_root_verified": false,
+        "verified_at": "2026-11-19",
+        "verification_note": "Baseline registry digest had linux/amd64 and linux/arm64 SBOMs and cryptographically verified provenance. OCI labels and non-root execution were not independently verified by this portfolio pass."
+      },
+      "registry": {
+        "version": "0.2.0",
+        "repo_url": "https://github.com/PiPhi-io/piphi-apps",
+        "manifest_path": "apps/services/piphi-rtl433-bridge/src/manifest.json",
+        "owner": "PiPhi-io",
+        "trust_level": "official",
+        "risk_level": "high",
+        "runtime_requirements": [
+          "sidecar_runtime",
+          "usb_or_device_access",
+          "direct_hardware_access"
+        ],
+        "quality_tier": "unrated",
+        "publication_status": "beta",
+        "rollout_percent": 10,
+        "lifecycle_status": "active",
+        "qualification_status": "unverified"
+      },
+      "consistency": {
+        "source_registry_version_match": true,
+        "source_registry_image_match": true,
+        "immutable_registry_image": true
+      },
+      "home_assistant": {
+        "kind": "quality_standard",
+        "name": "Home Assistant IQS and secure sidecar practices",
+        "sources": [
+          "https://developers.home-assistant.io/docs/core/integration-quality-scale/rules",
+          "https://developers.home-assistant.io/docs/add-ons/presentation/"
+        ]
+      },
+      "audit": {
+        "status": "audited",
+        "evidence": [
+          "docs/home-assistant-parity/ledger.md"
+        ]
+      }
+    },
+    {
+      "id": "piphi.service.zigbee2mqtt-sidecar",
+      "type": "platform_service",
+      "source": {
+        "folder": "apps/services/piphi-network-zigbee2mqtt",
+        "source_version": "0.1.26",
+        "manifest_path": "src/manifest.json",
+        "manifest_image": "ghcr.io/piphi-io/zigbee2mqtt-sidecar:0.1.26",
+        "imported_from": "https://github.com/PiPhi-io/piphi_network_zigbee2mqtt",
+        "ci_enforcement": "full",
+        "ci_build_container": true,
+        "ci_commands": [
+          "pdm install --check",
+          "pdm export --prod --without-hashes --output /tmp/piphi-zigbee2mqtt-requirements.txt && pdm run pip-audit -r /tmp/piphi-zigbee2mqtt-requirements.txt --no-deps --disable-pip",
+          "pdm run ruff check .",
+          "pdm run python scripts/validate.py",
+          "pdm run pytest"
+        ]
+      },
+      "release": {
+        "artifact_kind": "oci",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "publishing_mode": "piphi_managed",
+        "publishing_target": {
+          "registry": "ghcr.io",
+          "repository": "piphi-io/zigbee2mqtt-sidecar"
+        },
+        "expected_tag": "apps/piphi.service.zigbee2mqtt-sidecar/v0.1.26",
+        "tag_present_locally": true,
+        "registry_ref": "apps/piphi.service.zigbee2mqtt-sidecar/v0.1.26",
+        "registry_image": "ghcr.io/piphi-io/zigbee2mqtt-sidecar:0.1.26",
+        "image_digest": "sha256:e039274ec10f9f1e807eb743c309bd8d35fe6e3e76450145bcbcf9b9c920009b",
+        "immutable_image": "ghcr.io/piphi-io/zigbee2mqtt-sidecar@sha256:e039274ec10f9f1e807eb743c309bd8d35fe6e3e76450145bcbcf9b9c920009b",
+        "platforms_verified": true,
+        "oci_labels_verified": false,
+        "sbom_verified": true,
+        "provenance_verified": true,
+        "attestations_verified": true,
+        "non_root_verified": false,
+        "verified_at": "2026-11-19",
+        "verification_note": "Baseline registry digest had linux/amd64 and linux/arm64 SBOMs and cryptographically verified provenance. OCI labels and non-root execution were not independently verified by this portfolio pass."
+      },
+      "registry": {
+        "version": "0.1.26",
+        "repo_url": "https://github.com/PiPhi-io/piphi-apps",
+        "manifest_path": "apps/services/piphi-network-zigbee2mqtt/src/manifest.json",
+        "owner": "PiPhi-io",
+        "trust_level": "official",
+        "risk_level": "high",
+        "runtime_requirements": [
+          "sidecar_runtime"
+        ],
+        "quality_tier": "unrated",
+        "publication_status": "draft",
+        "rollout_percent": 0,
+        "lifecycle_status": "active",
+        "qualification_status": "unverified"
+      },
+      "consistency": {
+        "source_registry_version_match": true,
+        "source_registry_image_match": true,
+        "immutable_registry_image": true
+      },
+      "home_assistant": {
+        "kind": "architecture",
+        "name": "Home Assistant ZHA lifecycle and secure add-on practices",
+        "sources": [
+          "https://github.com/home-assistant/core/tree/dev/homeassistant/components/zha",
+          "https://developers.home-assistant.io/docs/add-ons/presentation/"
+        ]
+      },
+      "audit": {
+        "status": "audited",
+        "evidence": [
+          "docs/home-assistant-parity/ledger.md"
+        ]
+      }
+    },
+    {
+      "id": "tp-link-kasa-local-api",
+      "type": "integration",
+      "source": {
+        "folder": "apps/integrations/piphi-network-tp-link",
+        "source_version": "0.1.14",
+        "manifest_path": "src/manifest.json",
+        "manifest_image": "piphinetwork/tp-link-kasa:0.1.14",
+        "imported_from": "https://github.com/KelvinSan/piphi_network_tp_link",
+        "ci_enforcement": "legacy-static",
+        "ci_build_container": false,
+        "ci_commands": [
+          "pdm install --check",
+          "pdm run pytest"
+        ]
+      },
+      "release": {
+        "artifact_kind": "oci",
+        "platforms": [
+          "linux/amd64",
+          "linux/arm64"
+        ],
+        "publishing_mode": "piphi_managed",
+        "publishing_target": {
+          "registry": "ghcr.io",
+          "repository": "piphi-io/tp-link-kasa"
+        },
+        "expected_tag": "apps/tp-link-kasa-local-api/v0.1.14",
+        "tag_present_locally": false,
+        "registry_ref": "v0.1.14",
+        "registry_image": "piphinetwork/tp-link-kasa:0.1.14",
+        "image_digest": null,
+        "immutable_image": null,
+        "platforms_verified": false,
+        "oci_labels_verified": false,
+        "sbom_verified": false,
+        "provenance_verified": false,
+        "attestations_verified": false,
+        "non_root_verified": false
+      },
+      "registry": {
+        "version": "0.1.14",
+        "repo_url": "https://github.com/KelvinSan/piphi_network_tp_link",
+        "manifest_path": "src/manifest.json",
+        "owner": "PiPhi-io",
+        "trust_level": "official",
+        "risk_level": "moderate",
+        "runtime_requirements": [
+          "secrets_or_api_tokens"
+        ],
+        "quality_tier": "bronze",
+        "publication_status": "stable",
+        "rollout_percent": 100,
+        "lifecycle_status": "active",
+        "qualification_status": "unverified"
+      },
+      "consistency": {
+        "source_registry_version_match": true,
+        "source_registry_image_match": true,
+        "immutable_registry_image": false
+      },
+      "home_assistant": {
+        "kind": "direct",
+        "name": "Home Assistant TP-Link Smart Home",
+        "sources": [
+          "https://github.com/home-assistant/core/tree/dev/homeassistant/components/tplink"
+        ]
+      },
+      "audit": {
+        "status": "audited",
+        "evidence": [
+          "docs/home-assistant-parity/ledger.md"
+        ]
+      }
+    }
+  ]
+}
