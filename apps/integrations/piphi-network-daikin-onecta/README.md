@@ -1,5 +1,9 @@
 # Piphi Network Daikin Onecta
 
+> **Unavailable preview:** no Daikin OAuth or Onecta API adapter is implemented.
+> The runtime refuses configuration and commands and advertises no devices or
+> capabilities. Do not provide account credentials.
+
 Generated PiPhi integration runtime.
 
 ## Run locally

@@ -1,5 +1,9 @@
 # Piphi Network Llm Vision
 
+> **Non-installable quarantine:** no authenticated media ingestion, provider
+> execution, consent, queue, or retention pipeline is implemented. The service
+> refuses configuration and commands and must not receive media or credentials.
+
 Generated PiPhi sidecar runtime.
 
 ## Run locally

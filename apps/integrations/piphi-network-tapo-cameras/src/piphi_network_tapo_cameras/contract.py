@@ -16,90 +16,19 @@ ENDPOINTS = {
     "command": "/command",
 }
 
-REQUIRED_ENDPOINTS = ["health", "entities", "command", "config", "ui_config"]
+REQUIRED_ENDPOINTS = ["health", "config", "ui_config"]
 
-CAPABILITIES: dict[str, dict[str, Any]] = {
-    "connected": {
-        "kind": "sensor",
-        "unit": "bool"
-    },
-    "refresh": {
-        "kind": "action"
-    }
-}
+CAPABILITIES: dict[str, dict[str, Any]] = {}
 
-COMMANDS: dict[str, dict[str, Any]] = {
-    "refresh": {
-        "description": "Refresh the device state.",
-        "timeout_ms": 5000
-    }
-}
+COMMANDS: dict[str, dict[str, Any]] = {}
 
 CONFIG_SCHEMA: dict[str, Any] = {
     "schema": {
-        "title": "Piphi Network Tapo Cameras Setup",
+        "title": "Tapo Cameras unavailable",
         "type": "object",
-        "required": [
-            "host"
-        ],
-        "properties": {
-            "host": {
-                "type": "string",
-                "title": "Host"
-            },
-            "alias": {
-                "type": "string",
-                "title": "Alias"
-            },
-            "poll_interval_seconds": {
-                "type": "integer",
-                "title": "Poll Interval Seconds",
-                "minimum": 5
-            },
-            "safety_mode": {
-                "type": "string",
-                "title": "Safety Mode"
-            }
-        }
+        "description": "This preview is quarantined because no Tapo transport is implemented. Configuration is disabled.",
+        "properties": {},
+        "additionalProperties": False
     },
-    "uiSchema": {
-        "host": {
-            "placeholder": "192.168.1.50"
-        },
-        "alias": {
-            "placeholder": "Office Device"
-        },
-        "poll_interval_seconds": {
-            "placeholder": "30"
-        },
-        "safety_mode": {
-            "placeholder": "enabled"
-        }
-    }
-}
-
-FALLBACK_ENTITY: dict[str, Any] = {
-    "id": "demo-device",
-    "name": "Demo Device",
-    "device_id": "demo-device",
-    "entity_type": "camera",
-    "capabilities": [
-        "connected",
-        "refresh"
-    ],
-    "available_commands": [
-        {
-            "id": "refresh",
-            "label": "Refresh",
-            "kind": "action"
-        }
-    ],
-    "dashboard": {
-        "allowed_widgets": [
-            "tile",
-            "stat",
-            "button"
-        ],
-        "default_widget": "tile"
-    }
+    "uiSchema": {}
 }

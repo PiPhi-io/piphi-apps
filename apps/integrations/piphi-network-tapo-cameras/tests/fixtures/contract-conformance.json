@@ -43,22 +43,13 @@
       "id": "config",
       "method": "POST",
       "path": "/config",
-      "status": 200,
+      "status": 503,
       "body": {
         "id": "demo-device",
         "host": "127.0.0.1",
         "alias": "Demo Device"
       },
-      "required_any_keys": [
-        [
-          "config_id",
-          "configId"
-        ],
-        [
-          "status",
-          "ok"
-        ]
-      ]
+      "required_keys": ["detail"]
     },
     {
       "id": "entities",
@@ -75,7 +66,7 @@
       "id": "command",
       "method": "POST",
       "path": "/command",
-      "status": 200,
+      "status": 503,
       "body": {
         "contract_version": "automation.runtime.command.v1",
         "command": "refresh",
@@ -89,16 +80,7 @@
           "device.refresh"
         ]
       },
-      "required_any_keys": [
-        [
-          "ok",
-          "status"
-        ],
-        [
-          "command",
-          "event"
-        ]
-      ]
+      "required_keys": ["detail"]
     }
   ]
 }

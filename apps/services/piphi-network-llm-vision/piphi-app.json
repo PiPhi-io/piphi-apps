@@ -12,18 +12,19 @@
     "python": "3.12"
   },
   "ci": {
-    "enforcement": "legacy-static",
+    "enforcement": "full",
     "commands": [
       "pdm install --check",
-      "pdm run pytest"
+      "pdm run pytest",
+      "pdm run python scripts/validate.py"
     ],
-    "build_container": false
+    "build_container": true
   },
   "packages": [
     {
       "id": "piphi-network-llm-vision",
       "type": "platform_service",
-      "version": "0.1.1",
+      "version": "0.1.4",
       "manifest": "manifest.json",
       "release": {
         "tag": "apps/{package_id}/v{version}",

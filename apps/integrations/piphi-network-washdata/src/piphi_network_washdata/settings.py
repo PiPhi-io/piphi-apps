@@ -4,7 +4,7 @@ import os
 
 INTEGRATION_ID = "piphi-network-washdata"
 INTEGRATION_NAME = "Piphi Network Washdata"
-INTEGRATION_VERSION = "0.1.0"
+INTEGRATION_VERSION = "0.1.1"
 PROJECT_KIND = "integration"
 PROJECT_PRESET = "sensor-device"
 PROJECT_DOMAIN = "sensor"

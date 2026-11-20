@@ -1,6 +1,8 @@
 # Piphi Network Tapo Cameras
 
-Generated PiPhi integration runtime.
+Quarantined PiPhi preview. This package does not currently implement Tapo
+discovery, authentication, state, controls, or media. It deliberately refuses
+configuration and commands and advertises no devices or capabilities.
 
 ## Run locally
 
@@ -33,8 +35,8 @@ The runtime listens on port `4207` by default and exposes the common PiPhi runti
 
 `capability-catalog.json` inventories the reviewed camera state, detections,
 events, conditions, controls, media-broker responsibilities, and model gates.
-Every entry is classified as implemented, planned, or excluded. Contract tests
-enforce that only implemented entries are advertised.
+Every entry is classified as planned or excluded. Contract tests enforce that
+none are advertised while the package is quarantined.
 
 Camera features remain planned until local discovery, authentication, ONVIF or
 RTSP negotiation, brokered WebRTC sessions, and representative model fixtures
@@ -54,6 +56,6 @@ sidecar owns transcoding and WebRTC lifecycle.
 ## Docker
 
 ```bash
-docker build -t docker.io/piphinetwork/piphi-network-tapo-cameras:0.1.0 .
-docker run --rm -p 4207:4207 docker.io/piphinetwork/piphi-network-tapo-cameras:0.1.0
+docker build -t ghcr.io/piphi-io/piphi-network-tapo-cameras:0.1.1 .
+docker run --rm -p 4207:4207 ghcr.io/piphi-io/piphi-network-tapo-cameras:0.1.1
 ```

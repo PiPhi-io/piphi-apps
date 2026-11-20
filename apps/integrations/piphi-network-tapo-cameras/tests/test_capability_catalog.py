@@ -113,24 +113,20 @@ def test_implemented_behavior_events_and_conditions_are_declared() -> None:
 
 
 @pytest.mark.anyio
-async def test_config_apply_emits_the_implemented_behavior_event() -> None:
+async def test_quarantine_rejects_configuration_without_retaining_state() -> None:
     transport = httpx.ASGITransport(app=app)
     config_id = "capability-catalog-test"
     async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
-        try:
-            response = await client.post(
-                "/config",
-                json={"id": config_id, "host": "127.0.0.1", "alias": "Coverage Test"},
-            )
-            assert response.status_code == 200
-            events = (await client.get("/events")).json()["events"]
-            assert any(
-                event["event_type"] == "runtime.config.applied"
-                and event["config_id"] == config_id
-                for event in events
-            )
-        finally:
-            await client.post(f"/deconfigure/{config_id}")
+        response = await client.post(
+            "/config",
+            json={"id": config_id, "host": "127.0.0.1", "api_key": "canary-secret"},
+        )
+        assert response.status_code == 503
+        assert response.json()["detail"]["code"] == "not_implemented"
+        assert response.json()["detail"]["installable"] is False
+        state = (await client.get("/state")).json()
+        assert state["states"] == []
+        assert "canary-secret" not in str(state)
 
 
 @pytest.mark.anyio
@@ -147,5 +143,5 @@ async def test_unimplemented_and_unsafe_commands_fail_closed(command: str) -> No
                 "params": {},
             },
         )
-    assert response.status_code == 400
-    assert response.json()["detail"] == f"Unsupported command: {command}"
+    assert response.status_code == 503
+    assert response.json()["detail"]["code"] == "not_implemented"
