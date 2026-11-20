@@ -12,7 +12,7 @@ charset-normalizer==3.5.2
 click==8.5.0
 colorama==0.4.6; sys_platform == "win32" or platform_system == "Windows"
 detect-installer==0.2.1
-dnspython==2.9.0
+dnspython==2.9.2
 email-validator==2.3.0
 fastapi-cli[standard]==0.0.32
 fastapi-cloud-cli==0.26.0
