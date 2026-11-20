@@ -1,5 +1,22 @@
 {
-  "entities": [],
-  "capabilities": {},
-  "commands": {}
+  "entities": [
+    {
+      "id": "piphi-network-tapo-cameras:fixture-opaque-id",
+      "name": "Front camera",
+      "device_id": "piphi-network-tapo-cameras:fixture-opaque-id",
+      "entity_type": "camera",
+      "capabilities": ["connected", "available", "stale", "privacy_mode", "camera_enabled", "signal_strength", "refresh"],
+      "available_commands": [{"id": "refresh", "label": "Refresh", "kind": "action"}]
+    }
+  ],
+  "capabilities": {
+    "connected": {"kind": "sensor", "unit": "bool"},
+    "available": {"kind": "sensor", "unit": "bool"},
+    "stale": {"kind": "sensor", "unit": "bool"},
+    "privacy_mode": {"kind": "sensor", "unit": "bool", "optional": true},
+    "camera_enabled": {"kind": "sensor", "unit": "bool", "optional": true},
+    "signal_strength": {"kind": "sensor", "unit": "dBm", "optional": true},
+    "refresh": {"kind": "action", "read_only": true}
+  },
+  "commands": {"refresh": {"description": "Refresh read-only camera state.", "timeout_ms": 20000}}
 }

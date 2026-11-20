@@ -3,8 +3,8 @@
   "manifest_version": "1.0",
   "id": "piphi-network-tapo-cameras",
   "name": "Tapo cameras",
-  "version": "0.1.1",
-  "description": "Quarantined preview. No Tapo camera transport or media functionality is implemented.",
+  "version": "0.2.0",
+  "description": "Monitor powered Tapo cameras and doorbells through an authenticated, read-only local connection.",
   "metadata": {
     "generator": "piphi-network-create",
     "scaffold_version": "0.3.0",
@@ -17,7 +17,7 @@
     "website": "https://piphi.io"
   },
   "license": "Apache-2.0",
-  "image": "ghcr.io/piphi-io/piphi-network-tapo-cameras:0.1.1",
+  "image": "ghcr.io/piphi-io/piphi-network-tapo-cameras:0.2.0",
   "platforms": [
     "linux"
   ],
@@ -25,7 +25,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "ghcr.io/piphi-io/piphi-network-tapo-cameras:0.1.1",
+        "image": "ghcr.io/piphi-io/piphi-network-tapo-cameras:0.2.0",
         "ports": [
           {
             "container": 4207,
@@ -41,13 +41,15 @@
         }
       },
       "discovery": {
-        "method": "passive"
+        "method": "manual"
       }
     }
   },
   "api": {
     "required": [
       "health",
+      "entities",
+      "command",
       "config",
       "ui_config"
     ],
@@ -69,20 +71,30 @@
     "source": "endpoint",
     "endpoint": "/ui-config",
     "required": true,
-    "editable_fields": [],
+    "editable_fields": ["host", "username", "password", "alias", "poll_interval_seconds"],
     "runtime_fields": [
       "id",
       "config_id",
       "container_id",
       "device_id"
     ],
-    "identity_fields": []
+    "identity_fields": ["config_id"]
   },
   "identity": {
-    "fields": []
+    "fields": ["config_id"]
   },
-  "capabilities": {},
-  "commands": {},
+  "capabilities": {
+    "connected": {"kind": "sensor", "unit": "bool"},
+    "available": {"kind": "sensor", "unit": "bool"},
+    "stale": {"kind": "sensor", "unit": "bool"},
+    "privacy_mode": {"kind": "sensor", "unit": "bool", "optional": true},
+    "camera_enabled": {"kind": "sensor", "unit": "bool", "optional": true},
+    "signal_strength": {"kind": "sensor", "unit": "dBm", "optional": true},
+    "refresh": {"kind": "action", "read_only": true}
+  },
+  "commands": {
+    "refresh": {"description": "Refresh read-only camera state.", "timeout_ms": 20000}
+  },
   "entities": [],
   "ui": {
     "experience_packages": [
@@ -96,7 +108,7 @@
   "marketplace": {
     "metadata_version": 2,
     "display_name": "Tapo cameras",
-    "summary": "Unavailable preview with no implemented Tapo transport or media functionality.",
+    "summary": "Read-only local availability and privacy monitoring for powered Tapo cameras.",
     "category": "camera",
     "regions": [
       "WW"
@@ -110,8 +122,13 @@
       "support_url": "https://github.com/PiPhi-io/piphi-network-tapo-cameras/issues",
       "security_contact": "support@piphi.io"
     },
-    "access": [],
-    "compatibility": [],
+    "access": [
+      {"id": "local_network", "label": "Local network access", "reason": "Connects directly to the configured camera address.", "required": true},
+      {"id": "credentials", "label": "Camera credentials", "reason": "Authenticates locally; credentials are excluded from state, events, diagnostics, and logs.", "required": true}
+    ],
+    "compatibility": [
+      {"brand": "TP-Link Tapo", "model": "Powered cameras and doorbells supported by python-kasa 0.10.x"}
+    ],
     "documentation_url": "https://github.com/PiPhi-io/piphi-network-tapo-cameras",
     "support_url": "https://github.com/PiPhi-io/piphi-network-tapo-cameras/issues",
     "changelog_url": "https://github.com/PiPhi-io/piphi-network-tapo-cameras/releases",
@@ -129,12 +146,12 @@
       "camera",
       "video doorbell"
     ],
-    "protocols": [],
-    "discovery_methods": [],
-    "connectivity": "none",
-    "offline_support": "none"
+    "protocols": ["Tapo local API"],
+    "discovery_methods": ["authenticated targeted address"],
+    "connectivity": "local",
+    "offline_support": "last-known state marked stale"
   },
   "onboarding": {
-    "mode": "discovery"
+    "mode": "manual"
   }
 }

@@ -4,7 +4,7 @@ import os
 
 INTEGRATION_ID = "piphi-network-tapo-cameras"
 INTEGRATION_NAME = "Piphi Network Tapo Cameras"
-INTEGRATION_VERSION = "0.1.1"
+INTEGRATION_VERSION = "0.2.0"
 PROJECT_KIND = "integration"
 PROJECT_PRESET = "actuator-device"
 PROJECT_DOMAIN = "local-device"

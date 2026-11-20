@@ -15,20 +15,49 @@ ENDPOINTS = {
     "events": "/events",
     "command": "/command",
 }
-
-REQUIRED_ENDPOINTS = ["health", "config", "ui_config"]
-
-CAPABILITIES: dict[str, dict[str, Any]] = {}
-
-COMMANDS: dict[str, dict[str, Any]] = {}
-
+REQUIRED_ENDPOINTS = ["health", "entities", "command", "config", "ui_config"]
+CAPABILITIES: dict[str, dict[str, Any]] = {
+    "connected": {"kind": "sensor", "unit": "bool"},
+    "available": {"kind": "sensor", "unit": "bool"},
+    "stale": {"kind": "sensor", "unit": "bool"},
+    "privacy_mode": {"kind": "sensor", "unit": "bool", "optional": True},
+    "camera_enabled": {"kind": "sensor", "unit": "bool", "optional": True},
+    "signal_strength": {"kind": "sensor", "unit": "dBm", "optional": True},
+    "refresh": {"kind": "action", "read_only": True},
+}
+COMMANDS: dict[str, dict[str, Any]] = {
+    "refresh": {"description": "Refresh read-only camera state.", "timeout_ms": 20000}
+}
 CONFIG_SCHEMA: dict[str, Any] = {
     "schema": {
-        "title": "Tapo Cameras unavailable",
+        "title": "Tapo camera setup",
         "type": "object",
-        "description": "This preview is quarantined because no Tapo transport is implemented. Configuration is disabled.",
-        "properties": {},
-        "additionalProperties": False
+        "required": ["host", "username", "password"],
+        "properties": {
+            "host": {"type": "string", "title": "Camera address"},
+            "username": {"type": "string", "title": "Camera account username"},
+            "password": {"type": "string", "title": "Camera account password", "format": "password"},
+            "alias": {"type": "string", "title": "Display name"},
+            "poll_interval_seconds": {
+                "type": "integer",
+                "title": "Polling interval",
+                "minimum": 60,
+                "maximum": 3600,
+                "default": 60,
+            },
+        },
+        "additionalProperties": False,
     },
-    "uiSchema": {}
+    "uiSchema": {
+        "host": {"placeholder": "192.0.2.10"},
+        "username": {"placeholder": "camera@example.invalid"},
+        "password": {"ui:widget": "password"},
+        "alias": {"placeholder": "Front camera"},
+    },
+}
+ENTITY_TEMPLATE: dict[str, Any] = {
+    "entity_type": "camera",
+    "capabilities": list(CAPABILITIES),
+    "available_commands": [{"id": "refresh", "label": "Refresh", "kind": "action"}],
+    "dashboard": {"allowed_widgets": ["tile", "stat", "button"], "default_widget": "tile"},
 }

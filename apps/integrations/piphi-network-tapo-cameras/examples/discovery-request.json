@@ -1,6 +1,7 @@
 {
   "inputs": {
-    "host": "127.0.0.1",
-    "alias": "Demo Device"
+    "host": "192.0.2.10",
+    "username": "camera@example.invalid",
+    "password": "replace-with-camera-account-password"
   }
 }
