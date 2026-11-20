@@ -2,17 +2,45 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import Any
 
 from fastapi import FastAPI
-from piphi_runtime_kit_python import runtime_lifespan
+from piphi_runtime_kit_python import (
+    RuntimeConfig,
+    rehydrate_runtime_configs,
+    runtime_lifespan,
+)
 
-from .state import pfsense_service, runtime
+from .schemas import DeviceConfig
+from .state import (
+    apply_config,
+    config_sync,
+    pfsense_service,
+    registry,
+    remove_config,
+    runtime,
+)
 
 
-async def startup_sync(_runtime: Any, _client: Any) -> None:
-    # Real integrations can fetch an existing config snapshot from Core here.
-    return None
+async def _apply_rehydrated_config(config: RuntimeConfig) -> None:
+    await apply_config(DeviceConfig.model_validate(config.model_dump()))
+
+
+async def startup_sync(runtime_context, client) -> None:
+    async def apply_snapshot(snapshot) -> None:
+        await config_sync.apply_snapshot(
+            snapshot=snapshot,
+            active_config_ids=registry.ids(),
+            apply_config=_apply_rehydrated_config,
+            remove_config=remove_config,
+            get_active_config_ids=registry.ids,
+        )
+
+    await rehydrate_runtime_configs(
+        runtime_context=runtime_context,
+        client=client,
+        apply_snapshot=apply_snapshot,
+        config_model=DeviceConfig,
+    )
 
 
 @asynccontextmanager

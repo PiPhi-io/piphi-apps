@@ -142,6 +142,13 @@ rates after the first sample. No VPN keys are projected into PiPhi state.
 
 The runtime exposes the standard PiPhi endpoints, including `/health`,
 `/diagnostics`, `/discover`, `/config`, `/entities`, `/state`, and `/command`.
+Only `GET /health` is public. Core must inject
+`PIPHI_INTEGRATION_INTERNAL_TOKEN` and send it in
+`X-PiPhi-Integration-Token` for every operational route, including bundled
+static assets. The runtime fails closed when the token is absent or invalid.
+On startup it restores the mounted Core config snapshot first, then refreshes
+from Core when managed-runtime credentials are available, so a container
+restart does not silently lose configured firewalls.
 `refresh` performs an immediate read-only poll. `diagnostic_ping` accepts only
 targets in `allowed_ping_hosts`. `restart_service` accepts only services in
 `allowed_services`; `start_service` uses the same allowlist. `wake_on_lan`
@@ -188,7 +195,7 @@ safe reason/remediation classes and aggregate status.
 ## Container
 
 ```bash
-docker build -t ghcr.io/piphi-io/piphi-network-pfsense:0.1.10 .
+docker build -t ghcr.io/piphi-io/piphi-network-pfsense:0.1.11 .
 ```
 
 The container does not require host networking, privileged mode, or access to
@@ -205,8 +212,8 @@ supported writable-volume contract.
 Use the monorepo **Release one app package** workflow with package ID
 `piphi-network-pfsense`, the committed version, and `publish=false` for
 qualification. Publishing creates the immutable tag
-`apps/piphi-network-pfsense/v0.1.10` and the managed GHCR image
-`ghcr.io/piphi-io/piphi-network-pfsense:0.1.10`; do not create standalone `v*`
+`apps/piphi-network-pfsense/v0.1.11` and the managed GHCR image
+`ghcr.io/piphi-io/piphi-network-pfsense:0.1.11`; do not create standalone `v*`
 tags or Docker Hub releases.
 
 ## Upstream status
