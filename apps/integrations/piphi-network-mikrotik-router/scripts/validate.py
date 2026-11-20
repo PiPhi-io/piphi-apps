@@ -1,12 +1,19 @@
 from __future__ import annotations
 
 import json
+import tomllib
 from pathlib import Path
 
-from piphi_network_mikrotik_router.contract import COMMANDS, ENDPOINTS, REQUIRED_ENDPOINTS
+from piphi_network_mikrotik_router.contract import (
+    COMMANDS,
+    ENDPOINTS,
+    REQUIRED_ENDPOINTS,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 manifest = json.loads((ROOT / "manifest.json").read_text())
+app = json.loads((ROOT / "piphi-app.json").read_text())
+project = tomllib.loads((ROOT / "pyproject.toml").read_text())
 behavior_path = ROOT / "src" / "behaviors.json"
 if not behavior_path.exists():
     behavior_path = ROOT / "behaviors.json"
@@ -15,6 +22,20 @@ dockerfile = (ROOT / "Dockerfile").read_text() if (ROOT / "Dockerfile").exists()
 errors: list[str] = []
 risk_levels = {"low", "medium", "high", "critical"}
 automation_schema_versions = {"automation.behavior.v1", "automation.behavior.v2"}
+version = project["project"]["version"]
+
+if version != manifest.get("version") or version != app["packages"][0]["version"]:
+    errors.append("pyproject, manifest, and piphi-app versions must match")
+image = f"ghcr.io/piphi-io/piphi-network-mikrotik-router:{version}"
+if manifest.get("image") != image:
+    errors.append("manifest image must match the package version")
+container_image = (
+    manifest.get("runtime", {}).get("linux", {}).get("container", {}).get("image")
+)
+if container_image != image:
+    errors.append("nested container image must match the package version")
+if f"ARG RELEASE_VERSION={version}" not in dockerfile:
+    errors.append("Dockerfile release version must match the package version")
 
 if manifest.get("$schema") != "./schema/piphi-manifest.schema.json":
     errors.append("manifest must reference ./schema/piphi-manifest.schema.json")

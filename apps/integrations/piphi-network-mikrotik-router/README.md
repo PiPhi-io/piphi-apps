@@ -29,6 +29,14 @@ The runtime listens on port `4218` by default and exposes the common PiPhi runti
 - `POST /telemetry/device/{config_id}/example`
 - `POST /command`
 
+Only `GET /health` is public. Core must inject
+`PIPHI_INTEGRATION_INTERNAL_TOKEN` and send it in
+`X-PiPhi-Integration-Token` for every operational route. The runtime fails
+closed when the token is absent or invalid. On startup it restores the mounted
+Core config snapshot first, then refreshes from Core when managed-runtime
+credentials are available, so a container restart does not silently lose
+configured routers.
+
 ## Capability coverage
 
 The first live capability slice uses an HTTPS-only, authenticated GET of
@@ -92,12 +100,14 @@ makes no broad RouterOS hardware compatibility claim.
 ## Docker
 
 ```bash
-docker build -t ghcr.io/piphi-io/piphi-network-mikrotik-router:0.1.2 .
+docker build -t ghcr.io/piphi-io/piphi-network-mikrotik-router:0.1.3 .
 docker volume create piphi-mikrotik-data
 docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges \
   --tmpfs /tmp:rw,noexec,nosuid,size=64m \
   -v piphi-mikrotik-data:/data/piphi \
-  -p 4218:4218 ghcr.io/piphi-io/piphi-network-mikrotik-router:0.1.2
+  -e PIPHI_INTEGRATION_INTERNAL_TOKEN=replace-with-core-issued-token \
+  -p 127.0.0.1:4218:4218 \
+  ghcr.io/piphi-io/piphi-network-mikrotik-router:0.1.3
 ```
 
 The runtime and its persistent ledger execute as UID/GID `10001`. Deployments

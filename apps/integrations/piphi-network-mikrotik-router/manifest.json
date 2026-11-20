@@ -3,7 +3,7 @@
   "manifest_version": "1.0",
   "id": "piphi-network-mikrotik-router",
   "name": "MikroTik RouterOS",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Read-only CPU and memory health monitoring for RouterOS 7 over authenticated HTTPS REST.",
   "metadata": {
     "generator": "piphi-network-create",
@@ -17,7 +17,7 @@
     "website": "https://piphi.io"
   },
   "license": "Apache-2.0",
-  "image": "ghcr.io/piphi-io/piphi-network-mikrotik-router:0.1.2",
+  "image": "ghcr.io/piphi-io/piphi-network-mikrotik-router:0.1.3",
   "platforms": [
     "linux"
   ],
@@ -25,7 +25,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "ghcr.io/piphi-io/piphi-network-mikrotik-router:0.1.2",
+        "image": "ghcr.io/piphi-io/piphi-network-mikrotik-router:0.1.3",
         "ports": [
           {
             "container": 4218,
