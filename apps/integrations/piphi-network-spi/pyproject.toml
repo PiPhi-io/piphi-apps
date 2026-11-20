@@ -1,6 +1,6 @@
 [project]
 name = "piphi-network-spi"
-version = "0.1.5"
+version = "0.1.6"
 description = "PiPhi integration runtime for local SPI environmental sensors."
 requires-python = ">=3.11"
 dependencies = [

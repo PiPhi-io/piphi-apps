@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.6 — 2026-11-20
+
+- Leave only `/health` public and require a constant-time checked Core-issued runtime token on every operational route.
+- Add route-enumeration tests for missing, incorrect, and accepted runtime credentials while preserving the mock-only hardware boundary.
+
 ## 0.1.5 — 2026-11-17
 
 - Add immutable OCI source/revision/version labels for exact-image provenance checks.

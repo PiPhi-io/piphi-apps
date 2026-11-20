@@ -3,7 +3,7 @@
   "identity": {
     "publisher_id": "io.piphi",
     "package_id": "i2c-environment",
-    "version": "0.1.5"
+    "version": "0.1.6"
   },
   "name": "I2C Environmental Sensor",
   "description": "Current readings from a locally connected environmental sensor.",
