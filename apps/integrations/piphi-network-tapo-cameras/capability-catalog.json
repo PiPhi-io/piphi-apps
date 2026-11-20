@@ -14,10 +14,10 @@
   "groups": [
     {
       "id": "runtime-foundation",
-      "status": "implemented",
+      "status": "planned",
       "scope": ["all-configurations"],
       "source_refs": ["core_vocabulary"],
-      "reason": "The scaffold implements configuration presence, connectivity state, refresh dispatch, and its configuration event.",
+      "reason": "The preview is quarantined until a real authenticated Tapo transport and truthful lifecycle are implemented.",
       "state": ["connected"],
       "events": ["runtime.config.applied"],
       "conditions": ["state_matches"],

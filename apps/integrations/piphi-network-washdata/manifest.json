@@ -3,8 +3,8 @@
   "manifest_version": "1.0",
   "id": "piphi-network-washdata",
   "name": "WashData",
-  "version": "0.1.0",
-  "description": "Monitor appliance cycles, phases, estimates, energy, and maintenance state.",
+  "version": "0.1.1",
+  "description": "Quarantined preview. No appliance data adapter or cycle model is implemented.",
   "metadata": {
     "generator": "piphi-network-create",
     "scaffold_version": "0.3.0",
@@ -17,7 +17,7 @@
     "website": "https://piphi.io"
   },
   "license": "Apache-2.0",
-  "image": "docker.io/piphinetwork/piphi-network-washdata:0.1.0",
+  "image": "ghcr.io/piphi-io/piphi-network-washdata:0.1.1",
   "platforms": [
     "linux"
   ],
@@ -25,7 +25,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "docker.io/piphinetwork/piphi-network-washdata:0.1.0",
+        "image": "ghcr.io/piphi-io/piphi-network-washdata:0.1.1",
         "ports": [
           {
             "container": 4211,
@@ -48,8 +48,6 @@
   "api": {
     "required": [
       "health",
-      "entities",
-      "command",
       "config",
       "ui_config"
     ],
@@ -71,81 +69,34 @@
     "source": "endpoint",
     "endpoint": "/ui-config",
     "required": true,
-    "editable_fields": [
-      "host",
-      "alias",
-      "poll_interval_seconds"
-    ],
+    "editable_fields": [],
     "runtime_fields": [
       "id",
       "config_id",
       "container_id",
       "device_id"
     ],
-    "identity_fields": [
-      "host"
-    ]
+    "identity_fields": []
   },
   "identity": {
-    "fields": [
-      "host"
-    ]
+    "fields": []
   },
-  "capabilities": {
-    "connected": {
-      "kind": "sensor",
-      "unit": "bool"
-    },
-    "refresh": {
-      "kind": "action"
-    }
-  },
-  "commands": {
-    "refresh": {
-      "description": "Refresh the device state.",
-      "timeout_ms": 5000
-    }
-  },
-  "entities": [
-    {
-      "id": "demo-device",
-      "name": "Demo Device",
-      "device_id": "demo-device",
-      "entity_type": "appliance_cycle",
-      "capabilities": [
-        "connected",
-        "refresh"
-      ],
-      "available_commands": [
-        {
-          "id": "refresh",
-          "label": "Refresh",
-          "kind": "action"
-        }
-      ],
-      "dashboard": {
-        "allowed_widgets": [
-          "tile",
-          "stat",
-          "button"
-        ],
-        "default_widget": "tile"
-      }
-    }
-  ],
+  "capabilities": {},
+  "commands": {},
+  "entities": [],
   "ui": {
     "experience_packages": [
       {
         "registry_id": "io.piphi.washdata-status",
         "version_range": ">=0.1,<1",
-        "auto_install": true
+        "auto_install": false
       }
     ]
   },
   "marketplace": {
     "metadata_version": 2,
     "display_name": "WashData",
-    "summary": "Monitor appliance cycles, phases, estimates, energy, and maintenance state.",
+    "summary": "Unavailable preview with no implemented appliance data adapter or cycle model.",
     "category": "appliances",
     "regions": [
       "WW"

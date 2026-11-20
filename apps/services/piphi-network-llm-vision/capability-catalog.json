@@ -14,10 +14,10 @@
   "groups": [
     {
       "id": "runtime-foundation",
-      "status": "implemented",
+      "status": "planned",
       "scope": ["sidecar-service"],
       "source_refs": ["core_vocabulary"],
-      "reason": "The scaffold implements sidecar configuration presence, connectivity state, refresh dispatch, and configuration events.",
+      "reason": "The service is quarantined until authenticated brokered media, provider execution, and retention controls are implemented.",
       "state": ["connected"],
       "events": ["runtime.config.applied"],
       "conditions": [],

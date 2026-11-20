@@ -1,5 +1,11 @@
 # Home Assistant AI/LLM quality comparison
 
+> **0.1.4 status update:** the unsafe scaffold described below has been
+> quarantined. Configuration and commands now fail closed, discovery/entities/
+> state are empty, no secrets are accepted or retained, and the runtime reports
+> `installable: false`. The findings remain requirements for a future
+> implementation, not claims about an active service.
+
 **Research cutoff:** 2026-11-16
 
 **PiPhi revision audited:** [`e3eb2d3`](https://github.com/PiPhi-io/piphi-apps/tree/e3eb2d3084645ab2cf4f80e925368b28f6fdb27e/apps/services/piphi-network-llm-vision)

@@ -3,8 +3,8 @@
   "manifest_version": "1.0",
   "id": "piphi-network-llm-vision",
   "name": "LLM vision sidecar",
-  "version": "0.1.1",
-  "description": "Run bounded, opt-in vision analysis for explicitly brokered camera media.",
+  "version": "0.1.4",
+  "description": "Quarantined service. No authenticated media or vision-provider pipeline is implemented.",
   "metadata": {
     "generator": "piphi-network-create",
     "scaffold_version": "0.3.0",
@@ -17,7 +17,7 @@
     "website": "https://piphi.io"
   },
   "license": "Apache-2.0",
-  "image": "docker.io/piphinetwork/piphi-network-llm-vision:0.1.1",
+  "image": "ghcr.io/piphi-io/piphi-network-llm-vision:0.1.4",
   "platforms": [
     "linux"
   ],
@@ -25,7 +25,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "docker.io/piphinetwork/piphi-network-llm-vision:0.1.1",
+        "image": "ghcr.io/piphi-io/piphi-network-llm-vision:0.1.4",
         "ports": [
           {
             "container": 4209
@@ -47,8 +47,6 @@
   "api": {
     "required": [
       "health",
-      "entities",
-      "command",
       "config",
       "ui_config"
     ],
@@ -70,72 +68,25 @@
     "source": "endpoint",
     "endpoint": "/ui-config",
     "required": true,
-    "editable_fields": [
-      "host",
-      "alias",
-      "service_name"
-    ],
+    "editable_fields": [],
     "runtime_fields": [
       "id",
       "config_id",
       "container_id",
       "device_id"
     ],
-    "identity_fields": [
-      "host"
-    ]
+    "identity_fields": []
   },
   "identity": {
-    "fields": [
-      "host"
-    ]
+    "fields": []
   },
-  "capabilities": {
-    "connected": {
-      "kind": "sensor",
-      "unit": "bool"
-    },
-    "refresh": {
-      "kind": "action"
-    }
-  },
-  "commands": {
-    "refresh": {
-      "description": "Refresh the device state.",
-      "timeout_ms": 5000
-    }
-  },
-  "entities": [
-    {
-      "id": "llm-vision-service",
-      "name": "LLM Vision Service",
-      "device_id": "llm-vision-service",
-      "entity_type": "service",
-      "capabilities": [
-        "connected",
-        "refresh"
-      ],
-      "available_commands": [
-        {
-          "id": "refresh",
-          "label": "Refresh",
-          "kind": "action"
-        }
-      ],
-      "dashboard": {
-        "allowed_widgets": [
-          "tile",
-          "stat",
-          "button"
-        ],
-        "default_widget": "tile"
-      }
-    }
-  ],
+  "capabilities": {},
+  "commands": {},
+  "entities": [],
   "marketplace": {
     "metadata_version": 2,
     "display_name": "LLM vision sidecar",
-    "summary": "Run bounded, opt-in vision analysis for explicitly brokered camera media.",
+    "summary": "Unavailable service with no authenticated media or vision-provider pipeline.",
     "category": "camera",
     "regions": [
       "WW"

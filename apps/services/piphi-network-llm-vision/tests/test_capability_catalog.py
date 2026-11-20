@@ -75,10 +75,7 @@ def test_only_implemented_capabilities_are_advertised() -> None:
 
 def test_sidecar_uses_a_service_entity_and_has_no_device_behaviors() -> None:
     assert not (ROOT / "src" / "behaviors.json").exists()
-    assert len(MANIFEST["entities"]) == 1
-    service = MANIFEST["entities"][0]
-    assert service["id"] == "llm-vision-service"
-    assert service["entity_type"] == "service"
+    assert MANIFEST["entities"] == []
     assert not _by_status("implemented", "conditions")
 
 
@@ -93,24 +90,14 @@ async def test_contract_identifies_the_runtime_as_a_sidecar() -> None:
 
 
 @pytest.mark.anyio
-async def test_config_apply_emits_the_implemented_event() -> None:
+async def test_quarantine_rejects_configuration_without_retaining_secrets() -> None:
     transport = httpx.ASGITransport(app=app)
     config_id = "capability-catalog-test"
     async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
-        try:
-            response = await client.post(
-                "/config",
-                json={"id": config_id, "host": "127.0.0.1", "alias": "Coverage Test"},
-            )
-            assert response.status_code == 200
-            events = (await client.get("/events")).json()["events"]
-            assert any(
-                event["event_type"] == "runtime.config.applied"
-                and event["config_id"] == config_id
-                for event in events
-            )
-        finally:
-            await client.post(f"/deconfigure/{config_id}")
+        response = await client.post("/config", json={"id": config_id, "host": "127.0.0.1", "api_key": "canary-secret"})
+        assert response.status_code == 503
+        assert response.json()["detail"]["installable"] is False
+        assert "canary-secret" not in str((await client.get("/state")).json())
 
 
 @pytest.mark.anyio
@@ -130,5 +117,5 @@ async def test_unimplemented_and_unsafe_commands_fail_closed(command: str) -> No
                 "params": {},
             },
         )
-    assert response.status_code == 400
-    assert response.json()["detail"] == f"Unsupported command: {command}"
+    assert response.status_code == 503
+    assert response.json()["detail"]["code"] == "not_implemented"

@@ -1,5 +1,9 @@
 # Piphi Network Washdata
 
+> **Unavailable preview:** no appliance source binding or persistent cycle
+> model is implemented. The runtime refuses configuration and commands and
+> advertises no devices or capabilities.
+
 Generated PiPhi integration runtime.
 
 ## Run locally
