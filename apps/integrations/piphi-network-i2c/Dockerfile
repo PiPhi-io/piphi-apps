@@ -14,7 +14,7 @@ RUN python -m pip install 'pdm==2.26.7' \
 
 FROM python:3.12-slim@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b
 
-ARG RELEASE_VERSION=0.1.5
+ARG RELEASE_VERSION=0.1.6
 ARG SOURCE_REVISION=unknown
 ARG SOURCE_REPOSITORY=https://github.com/PiPhi-io/piphi-apps
 LABEL org.opencontainers.image.source="${SOURCE_REPOSITORY}" \

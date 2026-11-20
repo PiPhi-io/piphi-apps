@@ -3,7 +3,7 @@
   "identity": {
     "publisher_id": "io.piphi",
     "package_id": "spi-environment",
-    "version": "0.1.5"
+    "version": "0.1.6"
   },
   "name": "SPI Environmental Sensor",
   "description": "Current readings from a locally connected environmental sensor.",

@@ -2,14 +2,14 @@
   "manifest_version": "1.0",
   "id": "piphi-network-i2c",
   "name": "PiPhi Network I2C Sensors",
-  "version": "0.1.5",
-  "description": "Mock-only I2C sensor contract; physical backends are not deployable in version 0.1.5.",
+  "version": "0.1.6",
+  "description": "Authenticated mock-only I2C sensor contract; physical backends are not deployable in version 0.1.6.",
   "maintainer": {
     "name": "PiPhi Integrations Team",
     "website": "https://github.com/PiPhi-io"
   },
   "license": "Apache-2.0",
-  "image": "ghcr.io/piphi-io/i2c-integration:0.1.5",
+  "image": "ghcr.io/piphi-io/i2c-integration:0.1.6",
   "platforms": [
     "linux"
   ],
@@ -17,7 +17,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "ghcr.io/piphi-io/i2c-integration:0.1.5",
+        "image": "ghcr.io/piphi-io/i2c-integration:0.1.6",
         "ports": [
           {
             "container": 3674,
@@ -48,7 +48,7 @@
             "options": [
               "mock"
             ],
-            "description": "Version 0.1.5 supports mock operation only. Physical I2C requires a future governed Core mechanism for dynamic supplementary device GID resolution."
+            "description": "Version 0.1.6 supports mock operation only. Physical I2C requires a future governed Core mechanism for dynamic supplementary device GID resolution."
           },
           {
             "name": "adapter_id",
@@ -89,7 +89,7 @@
             "label": "Actively scan the full bus",
             "type": "boolean",
             "required": false,
-            "description": "Mock discovery option only; version 0.1.5 never scans a physical bus."
+            "description": "Mock discovery option only; version 0.1.6 never scans a physical bus."
           }
         ]
       }

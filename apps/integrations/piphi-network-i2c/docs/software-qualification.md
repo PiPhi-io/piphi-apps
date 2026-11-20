@@ -1,6 +1,6 @@
 # Software qualification and residual limits
 
-Version 0.1.5 is qualified only for its opt-in mock contract, protocol fixtures, negative backend tests, and exact local container images.
+Version 0.1.6 is qualified only for its authenticated opt-in mock contract, protocol fixtures, negative backend tests, and exact local container images.
 
 ## Software-enforced invariants
 
@@ -15,6 +15,6 @@ Version 0.1.5 is qualified only for its opt-in mock contract, protocol fixtures,
 
 ## Not qualified
 
-No physical I2C path is deployable or qualified. Before one can be advertised, Core must implement and govern dynamic supplementary device GID resolution for an exact device mapping; the shared runtime/orchestrator does not support that prerequisite in 0.1.5. App-local `group_add` or `device_gid` schema is explicitly not used. Physical hardware qualification and a documented matrix would still be required after Core support exists. SPI also remains mock-only.
+No physical I2C path is deployable or qualified. Before one can be advertised, Core must implement and govern dynamic supplementary device GID resolution for an exact device mapping; the shared runtime/orchestrator does not support that prerequisite in 0.1.6. App-local `group_add` or `device_gid` schema is explicitly not used. Physical hardware qualification and a documented matrix would still be required after Core support exists. SPI also remains mock-only.
 
 Timeouts cannot forcibly cancel a Python dependency already executing in a worker thread; the queue slot remains occupied until that call unwinds and its `finally` cleanup runs. Cross-process ownership beyond kernel-driver checks is not detectable by this process.

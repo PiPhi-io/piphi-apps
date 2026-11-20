@@ -2,14 +2,14 @@
   "manifest_version": "1.0",
   "id": "piphi-network-spi",
   "name": "PiPhi Network SPI Sensors",
-  "version": "0.1.5",
-  "description": "Software-contract SPI sensor integration; physical SPI backends remain experimental, unverified, and disabled.",
+  "version": "0.1.6",
+  "description": "Authenticated mock-only SPI sensor contract; physical SPI backends remain unverified and disabled.",
   "maintainer": {
     "name": "PiPhi Integrations Team",
     "website": "https://github.com/PiPhi-io"
   },
   "license": "Apache-2.0",
-  "image": "ghcr.io/piphi-io/spi-integration:0.1.5",
+  "image": "ghcr.io/piphi-io/spi-integration:0.1.6",
   "platforms": [
     "linux"
   ],
@@ -17,7 +17,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "ghcr.io/piphi-io/spi-integration:0.1.5",
+        "image": "ghcr.io/piphi-io/spi-integration:0.1.6",
         "ports": [
           {
             "container": 3675
@@ -47,7 +47,7 @@
             "options": [
               "mock"
             ],
-            "description": "Only the opt-in mock backend is enabled. Physical transport settings are not part of the 0.1.5 public contract."
+            "description": "Only the opt-in mock backend is enabled. Physical transport settings are not part of the 0.1.6 public contract."
           },
           {
             "name": "adapter_id",

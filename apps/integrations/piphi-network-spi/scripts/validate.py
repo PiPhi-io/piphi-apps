@@ -18,6 +18,7 @@ def main() -> None:
     assert version == app["packages"][0]["version"] == manifest["version"]
     assert manifest["image"] == f"ghcr.io/piphi-io/spi-integration:{version}"
     container = manifest["runtime"]["linux"]["container"]
+    assert container["image"] == manifest["image"]
     assert container["privileged"] is False
     assert container["read_only"] is True
     assert not container.get("devices")
@@ -42,8 +43,13 @@ def main() -> None:
     assert "/unbind" not in source and "/bind" not in source
     dockerfile = (ROOT / "Dockerfile").read_text()
     assert "@sha256:" in dockerfile and "USER piphi" in dockerfile
+    assert f"ARG RELEASE_VERSION={version}" in dockerfile
+    app_source = (ROOT / "src/piphi_network_spi/app.py").read_text()
+    assert 'request.url.path == "/health"' in app_source
+    assert "PIPHI_INTEGRATION_INTERNAL_TOKEN" in app_source
+    assert "hmac.compare_digest" in app_source
     readme = (ROOT / "README.md").read_text()
-    assert "standalone ingress-auth boundary" in readme
+    assert "PIPHI_INTEGRATION_INTERNAL_TOKEN" in readme
     assert "-p 127.0.0.1:3675:3675" in readme
     assert "`bus`, `chip_select`, and `baudrate` are rejected caller fields" in readme
     assert (ROOT / "CHANGELOG.md").exists()

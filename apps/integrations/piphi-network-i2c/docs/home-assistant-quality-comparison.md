@@ -1,6 +1,6 @@
 # PiPhi I2C/SPI direct-hardware quality comparison
 
-> **Historical 0.1.3 baseline.** The findings below describe the audited revision and remain for traceability. Version 0.1.5 disables all physical I2C/SPI routes and requests no host bus devices because governed dynamic supplementary device-GID resolution is not available in Core. See `software-qualification.md` for current residual limits.
+> **Historical 0.1.3 baseline.** The findings below describe the audited revision and remain for traceability. Version 0.1.6 disables all physical I2C/SPI routes, requests no host bus devices, and authenticates every operational route because governed dynamic supplementary device-GID resolution is not available in Core. See `software-qualification.md` for current residual limits.
 
 **Research cutoff:** 2026-11-16
 
