@@ -68,14 +68,20 @@ def find_snapshot(payload: dict[str, Any]) -> dict[str, Any] | None:
     return None
 
 
-def qualify(image: str, timeout: float) -> None:
-    container = f"piphi-bacnet-qualification-{uuid.uuid4().hex[:12]}"
-    image_user = subprocess.run(
+def pull_and_inspect_image_user(image: str) -> str:
+    if "@sha256:" in image:
+        subprocess.run(["docker", "pull", image], check=True)
+    return subprocess.run(
         ["docker", "image", "inspect", image, "--format", "{{.Config.User}}"],
         check=True,
         capture_output=True,
         text=True,
     ).stdout.strip()
+
+
+def qualify(image: str, timeout: float) -> None:
+    container = f"piphi-bacnet-qualification-{uuid.uuid4().hex[:12]}"
+    image_user = pull_and_inspect_image_user(image)
     if image_user in {"", "0", "root", "0:0"}:
         raise AssertionError(f"release image must run as non-root, got {image_user!r}")
     simulator = subprocess.Popen(
