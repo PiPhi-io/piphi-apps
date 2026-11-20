@@ -3,7 +3,7 @@
   "identity": {
     "publisher_id": "io.piphi",
     "package_id": "daikin-onecta-status",
-    "version": "0.1.1"
+    "version": "0.2.0"
   },
   "name": "Daikin Onecta Connection",
   "description": "A compact live connection view for the configured Daikin Onecta runtime.",
