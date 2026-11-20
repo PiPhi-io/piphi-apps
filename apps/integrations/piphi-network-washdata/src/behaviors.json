@@ -1,1 +1,23 @@
-{"behaviorSchemaVersion":"integration.behaviors.v2","templates":[],"devices":[{"id":"piphi_network_washdata_quarantine","name":"WashData unavailable","description":"No automation surface is available while this preview is quarantined.","deviceClass":"service","entityType":"service","capabilities":[],"actions":[],"triggers":[],"conditions":[]}]}
+{
+  "behaviorSchemaVersion": "integration.behaviors.v2",
+  "templates": [],
+  "devices": [
+    {
+      "id": "washdata_cycle_monitor",
+      "name": "WashData cycle monitor",
+      "description": "Read-only cycle monitoring from a Core-authorized power source.",
+      "deviceClass": "appliance",
+      "entityType": "appliance_cycle",
+      "capabilities": ["connected", "available", "stale", "detector_status", "cycle_state", "cycle_active", "cycle_started_at", "cycle_finished_at", "cycle_duration_s", "power_w", "peak_power_w", "cycle_energy_kwh", "lifetime_cycle_count", "last_sample_at", "refresh"],
+      "triggers": [
+        {"id": "configured", "runtime": {"event": "runtime.config.applied"}},
+        {"id": "cycle_started", "runtime": {"event": "cycle.started"}},
+        {"id": "cycle_finished", "runtime": {"event": "cycle.finished"}},
+        {"id": "detector_degraded", "runtime": {"event": "detector.degraded"}},
+        {"id": "detector_recovered", "runtime": {"event": "detector.recovered"}}
+      ],
+      "conditions": [{"id": "state_matches"}, {"id": "cycle_state_is"}, {"id": "cycle_is_active"}, {"id": "sample_is_stale"}],
+      "actions": [{"id": "refresh", "label": "Refresh", "runtime": {"command": "refresh"}, "safety": {"riskLevel": "low"}}]
+    }
+  ]
+}

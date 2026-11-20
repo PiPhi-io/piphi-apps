@@ -1,6 +1,14 @@
 {
-  "id": "demo-device",
-  "host": "127.0.0.1",
-  "alias": "Demo Device",
-  "poll_interval_seconds": 5
+  "id": "washer-monitor",
+  "config_id": "washer-monitor",
+  "container_id": "core-managed-container-id",
+  "alias": "Washing machine",
+  "binding_key": "appliance_power",
+  "power_metric": "power_w",
+  "start_threshold_w": 10,
+  "stop_threshold_w": 5,
+  "start_debounce_samples": 2,
+  "stop_debounce_samples": 3,
+  "poll_interval_seconds": 5,
+  "page_size": 100
 }

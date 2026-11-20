@@ -1,12 +1,10 @@
-from __future__ import annotations
-
 from piphi_network_washdata.contract import COMMANDS, REQUIRED_ENDPOINTS
 from piphi_network_washdata.main import app
 
 
-def test_runtime_implements_contract_routes() -> None:
+def test_runtime_implements_monitoring_contract_routes() -> None:
     routes = set(app.openapi()["paths"])
-    for path in [
+    assert {
         "/health",
         "/diagnostics",
         "/discover",
@@ -19,12 +17,13 @@ def test_runtime_implements_contract_routes() -> None:
         "/state",
         "/contract",
         "/events",
-        "/events/device/{config_id}/example",
-        "/telemetry/example",
-        "/telemetry/device/{config_id}/example",
         "/command",
-    ]:
-        assert path in routes
+    } <= routes
+    assert REQUIRED_ENDPOINTS == ["health", "entities", "command", "config", "ui_config"]
+    assert set(COMMANDS) == {"refresh"}
 
-    assert REQUIRED_ENDPOINTS == ["health", "config", "ui_config"]
-    assert COMMANDS == {}
+
+def test_power_control_is_not_in_public_contract() -> None:
+    schema = app.openapi()
+    assert "set_power" not in repr(schema)
+    assert "cut_appliance_power" not in repr(schema)

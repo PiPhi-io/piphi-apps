@@ -2,19 +2,20 @@
 
 ## Data handled
 
-WashData processes appliance identifiers, cycle state, program information, estimates, energy or cost readings, and maintenance observations.
+WashData receives canonical device identity plus bounded power observations from
+PiPhi Core. It derives cycle timestamps, duration, peak power, and energy. It
+does not receive provider credentials and does not access producer integration
+storage.
 
-Credentials are used only for the configured upstream service or device. They
-must not be emitted through PiPhi state, telemetry, events, logs, or diagnostics.
+## Local retention
 
-## Data flow and retention
+The runtime stores the last derived state, opaque Core cursor, and source event
+IDs needed for deterministic deduplication in its local SQLite volume. Removing
+the configuration deletes that configuration's retained cycle state and event
+IDs.
 
-The runtime sends only the requests needed to discover devices, refresh state,
-or execute an explicitly requested command. PiPhi installations control their
-own configuration and retention. This integration does not introduce a separate
-PiPhi-operated analytics or advertising data flow.
+## Data flow
 
-Refer to the configured upstream provider's privacy terms for data the provider
-already stores and processes. Remove the integration configuration to stop new
-requests and delete locally retained credentials according to the PiPhi host's
-configuration controls.
+Derived state and events return to the local PiPhi Core using managed-runtime
+authentication. There is no PiPhi-operated analytics, advertising, community
+profile, or third-party notification flow in this slice.
