@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 from piphi_runtime_kit_python import (
     RuntimeConfigSnapshot,
     build_config_apply_response,
@@ -11,6 +11,7 @@ from piphi_runtime_kit_python import (
 )
 from piphi_runtime_kit_python.fastapi import sync_runtime_auth_from_fastapi_payload
 
+from ..bacnet_client import BacnetReadError
 from ..schemas import DeviceConfig
 from ..state import (
     apply_config,
@@ -26,7 +27,10 @@ router = APIRouter(tags=["config"])
 @router.post("/config")
 async def configure(payload: DeviceConfig, request: Request):
     sync_runtime_auth_from_fastapi_payload(runtime, request, payload)
-    await apply_config(payload)
+    try:
+        await apply_config(payload)
+    except BacnetReadError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     return build_config_apply_response(
         config_id=payload.config_id or payload.id,
         container_id=payload.container_id,

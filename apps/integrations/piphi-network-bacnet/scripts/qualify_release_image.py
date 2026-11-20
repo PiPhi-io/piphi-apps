@@ -16,14 +16,18 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 SIMULATOR = ROOT / "tests" / "fixtures" / "senseedge_simulator.py"
 BASE_URL = "http://127.0.0.1:4224"
+QUALIFICATION_TOKEN = "bacnet-release-qualification-token"
 
 
 def request_json(path: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
     body = None if payload is None else json.dumps(payload).encode("utf-8")
+    headers = {"Content-Type": "application/json"}
+    if path != "/health":
+        headers["X-PiPhi-Integration-Token"] = QUALIFICATION_TOKEN
     request = urllib.request.Request(
         f"{BASE_URL}{path}",
         data=body,
-        headers={"Content-Type": "application/json"},
+        headers=headers,
         method="GET" if body is None else "POST",
     )
     with urllib.request.urlopen(request, timeout=5) as response:
@@ -66,6 +70,14 @@ def find_snapshot(payload: dict[str, Any]) -> dict[str, Any] | None:
 
 def qualify(image: str, timeout: float) -> None:
     container = f"piphi-bacnet-qualification-{uuid.uuid4().hex[:12]}"
+    image_user = subprocess.run(
+        ["docker", "image", "inspect", image, "--format", "{{.Config.User}}"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    if image_user in {"", "0", "root", "0:0"}:
+        raise AssertionError(f"release image must run as non-root, got {image_user!r}")
     simulator = subprocess.Popen(
         [sys.executable, str(SIMULATOR)],
         cwd=ROOT,
@@ -81,11 +93,19 @@ def qualify(image: str, timeout: float) -> None:
                 "docker",
                 "run",
                 "--detach",
-                "--rm",
                 "--name",
                 container,
                 "--network",
                 "host",
+                "--read-only",
+                "--cap-drop",
+                "ALL",
+                "--security-opt",
+                "no-new-privileges:true",
+                "--tmpfs",
+                "/app/data:rw,noexec,nosuid,size=16m,uid=10001,gid=10001,mode=0700",
+                "--env",
+                f"PIPHI_INTEGRATION_INTERNAL_TOKEN={QUALIFICATION_TOKEN}",
                 image,
             ],
             check=True,

@@ -1,0 +1,394 @@
+{
+  "schema_version": 1,
+  "portfolio_ledger": "docs/home-assistant-parity/ledger.md",
+  "exclusions": {
+    "piphi-camera-stream": "completed camera broker batch",
+    "piphi.service.webrtc-sidecar": "completed camera broker batch",
+    "piphi.service.wyze-camera-bridge": "completed camera broker batch"
+  },
+  "comparators": {
+    "official-usb-gps-integration": {
+      "kind": "direct",
+      "name": "Home Assistant GPSD",
+      "sources": ["https://github.com/home-assistant/core/tree/dev/homeassistant/components/gpsd"]
+    },
+    "piphi-network-433mhz": {
+      "kind": "quality_standard",
+      "name": "Home Assistant IQS and receive-only device modeling",
+      "sources": ["https://developers.home-assistant.io/docs/core/integration-quality-scale/rules"]
+    },
+    "airthings-consumer-cloud-api": {
+      "kind": "direct",
+      "name": "Home Assistant Airthings",
+      "sources": ["https://github.com/home-assistant/core/tree/dev/homeassistant/components/airthings"]
+    },
+    "piphi-network-android-tv": {
+      "kind": "direct",
+      "name": "Home Assistant Android TV Remote",
+      "sources": ["https://github.com/home-assistant/core/tree/dev/homeassistant/components/androidtv_remote"]
+    },
+    "aqara-open-api": {
+      "kind": "architecture",
+      "name": "Home Assistant Aqara user experience and HA IQS",
+      "sources": [
+        "https://www.home-assistant.io/integrations/aqara/",
+        "https://developers.home-assistant.io/docs/core/integration-quality-scale/rules"
+      ]
+    },
+    "atmotube-pro-ble": {
+      "kind": "direct",
+      "name": "Home Assistant Atmotube",
+      "sources": ["https://github.com/home-assistant/core/tree/dev/homeassistant/components/atmotube"]
+    },
+    "awair-element-local-api": {
+      "kind": "direct",
+      "name": "Home Assistant Awair",
+      "sources": ["https://github.com/home-assistant/core/tree/dev/homeassistant/components/awair"]
+    },
+    "piphi-network-bacnet": {
+      "kind": "quality_standard",
+      "name": "Home Assistant IQS; no direct Core BACnet equivalent",
+      "sources": ["https://developers.home-assistant.io/docs/core/integration-quality-scale/rules"]
+    },
+    "piphi-network-bambu-lab": {
+      "kind": "quality_standard",
+      "name": "Home Assistant IQS; no direct Core Bambu Lab equivalent",
+      "sources": ["https://developers.home-assistant.io/docs/core/integration-quality-scale/rules"]
+    },
+    "piphi-network-bermuda-presence": {
+      "kind": "architecture",
+      "name": "Home Assistant Bluetooth and Private BLE Device",
+      "sources": [
+        "https://github.com/home-assistant/core/tree/dev/homeassistant/components/bluetooth",
+        "https://github.com/home-assistant/core/tree/dev/homeassistant/components/private_ble_device"
+      ]
+    },
+    "piphi-network-daikin-onecta": {
+      "kind": "architecture",
+      "name": "Home Assistant Daikin lifecycle patterns; transport is not equivalent",
+      "sources": [
+        "https://github.com/home-assistant/core/tree/dev/homeassistant/components/daikin",
+        "https://developers.home-assistant.io/docs/core/integration-quality-scale/rules"
+      ]
+    },
+    "piphi-network-dyson": {
+      "kind": "quality_standard",
+      "name": "Home Assistant IQS; no current direct Core Dyson equivalent",
+      "sources": ["https://developers.home-assistant.io/docs/core/integration-quality-scale/rules"]
+    },
+    "piphi-network-eufy-security": {
+      "kind": "architecture",
+      "name": "Home Assistant EufyHome is a different product surface; use HA IQS",
+      "sources": [
+        "https://github.com/home-assistant/core/tree/dev/homeassistant/components/eufy",
+        "https://developers.home-assistant.io/docs/core/integration-quality-scale/rules"
+      ]
+    },
+    "piphi-network-huawei-solar": {
+      "kind": "quality_standard",
+      "name": "Home Assistant IQS; no direct Core Huawei Solar equivalent",
+      "sources": ["https://developers.home-assistant.io/docs/core/integration-quality-scale/rules"]
+    },
+    "piphi-network-i2c": {
+      "kind": "quality_standard",
+      "name": "Home Assistant IQS and hardware lifecycle standards",
+      "sources": ["https://developers.home-assistant.io/docs/core/integration-quality-scale/rules"]
+    },
+    "piphi-network-kaiterra-api": {
+      "kind": "direct",
+      "name": "Home Assistant Kaiterra",
+      "sources": ["https://github.com/home-assistant/core/tree/dev/homeassistant/components/kaiterra"]
+    },
+    "piphi-network-kia-hyundai-connect": {
+      "kind": "quality_standard",
+      "name": "Home Assistant IQS; no supported direct Core owner-account equivalent",
+      "sources": ["https://developers.home-assistant.io/docs/core/integration-quality-scale/rules"]
+    },
+    "piphi-network-knx": {
+      "kind": "direct",
+      "name": "Home Assistant KNX",
+      "sources": ["https://github.com/home-assistant/core/tree/dev/homeassistant/components/knx"]
+    },
+    "piphi-network-matter-integration": {
+      "kind": "direct",
+      "name": "Home Assistant Matter",
+      "sources": ["https://github.com/home-assistant/core/tree/dev/homeassistant/components/matter"]
+    },
+    "piphi-network-midea-ac-lan": {
+      "kind": "direct",
+      "name": "Home Assistant Midea",
+      "sources": ["https://github.com/home-assistant/core/tree/dev/homeassistant/components/midea"]
+    },
+    "piphi-network-mikrotik-router": {
+      "kind": "direct",
+      "name": "Home Assistant MikroTik",
+      "sources": ["https://github.com/home-assistant/core/tree/dev/homeassistant/components/mikrotik"]
+    },
+    "piphi-network-modbus": {
+      "kind": "direct",
+      "name": "Home Assistant Modbus",
+      "sources": ["https://github.com/home-assistant/core/tree/dev/homeassistant/components/modbus"]
+    },
+    "piphi-network-nord-pool": {
+      "kind": "direct",
+      "name": "Home Assistant Nord Pool",
+      "sources": ["https://github.com/home-assistant/core/tree/dev/homeassistant/components/nordpool"]
+    },
+    "piphi-network-octopus-energy": {
+      "kind": "quality_standard",
+      "name": "Home Assistant IQS and public energy-price semantics",
+      "sources": ["https://developers.home-assistant.io/docs/core/integration-quality-scale/rules"]
+    },
+    "piphi-network-openepaperlink": {
+      "kind": "direct",
+      "name": "Home Assistant OpenEPaperLink",
+      "sources": ["https://github.com/home-assistant/core/tree/dev/homeassistant/components/open_epaper_link"]
+    },
+    "piphi-network-passive-ble-monitor": {
+      "kind": "architecture",
+      "name": "Home Assistant Bluetooth integrations",
+      "sources": ["https://github.com/home-assistant/core/tree/dev/homeassistant/components/bluetooth"]
+    },
+    "piphi-network-pfsense": {
+      "kind": "quality_standard",
+      "name": "Home Assistant IQS; no direct Core pfSense equivalent",
+      "sources": ["https://developers.home-assistant.io/docs/core/integration-quality-scale/rules"]
+    },
+    "piphi-network-plex": {
+      "kind": "direct",
+      "name": "Home Assistant Plex",
+      "sources": ["https://github.com/home-assistant/core/tree/dev/homeassistant/components/plex"]
+    },
+    "piphi-network-reolink": {
+      "kind": "direct",
+      "name": "Home Assistant Reolink",
+      "sources": ["https://github.com/home-assistant/core/tree/dev/homeassistant/components/reolink"]
+    },
+    "piphi-network-sense": {
+      "kind": "direct",
+      "name": "Home Assistant Sense",
+      "sources": ["https://github.com/home-assistant/core/tree/dev/homeassistant/components/sense"]
+    },
+    "piphi-network-solaredge": {
+      "kind": "direct",
+      "name": "Home Assistant SolarEdge",
+      "sources": ["https://github.com/home-assistant/core/tree/dev/homeassistant/components/solaredge"]
+    },
+    "piphi-network-sonoff-lan": {
+      "kind": "quality_standard",
+      "name": "Home Assistant IQS; no direct Core Sonoff LAN equivalent",
+      "sources": ["https://developers.home-assistant.io/docs/core/integration-quality-scale/rules"]
+    },
+    "piphi-network-spi": {
+      "kind": "quality_standard",
+      "name": "Home Assistant IQS and hardware lifecycle standards",
+      "sources": ["https://developers.home-assistant.io/docs/core/integration-quality-scale/rules"]
+    },
+    "piphi-network-steam": {
+      "kind": "direct",
+      "name": "Home Assistant Steam Online",
+      "sources": ["https://github.com/home-assistant/core/tree/dev/homeassistant/components/steam_online"]
+    },
+    "piphi-network-tapo-cameras": {
+      "kind": "architecture",
+      "name": "Home Assistant TP-Link/Tapo device and camera quality patterns",
+      "sources": [
+        "https://github.com/home-assistant/core/tree/dev/homeassistant/components/tplink",
+        "https://developers.home-assistant.io/docs/core/integration-quality-scale/rules"
+      ]
+    },
+    "piphi-network-tesla-ev": {
+      "kind": "direct",
+      "name": "Home Assistant Tesla Fleet",
+      "sources": ["https://github.com/home-assistant/core/tree/dev/homeassistant/components/tesla_fleet"]
+    },
+    "lg-thinq-connect-api": {
+      "kind": "direct",
+      "name": "Home Assistant LG ThinQ",
+      "sources": ["https://github.com/home-assistant/core/tree/dev/homeassistant/components/lg_thinq"]
+    },
+    "tp-link-kasa-local-api": {
+      "kind": "direct",
+      "name": "Home Assistant TP-Link Smart Home",
+      "sources": ["https://github.com/home-assistant/core/tree/dev/homeassistant/components/tplink"]
+    },
+    "piphi-network-tuya": {
+      "kind": "architecture",
+      "name": "Home Assistant Tuya; cloud transport is not equivalent to PiPhi LAN operation",
+      "sources": ["https://github.com/home-assistant/core/tree/dev/homeassistant/components/tuya"]
+    },
+    "piphi-network-washdata": {
+      "kind": "quality_standard",
+      "name": "Home Assistant IQS; no direct Core WashData equivalent",
+      "sources": ["https://developers.home-assistant.io/docs/core/integration-quality-scale/rules"]
+    },
+    "piphi-network-waste-collection": {
+      "kind": "architecture",
+      "name": "Home Assistant ReCollect Waste and HA IQS",
+      "sources": [
+        "https://github.com/home-assistant/core/tree/dev/homeassistant/components/recollect_waste",
+        "https://developers.home-assistant.io/docs/core/integration-quality-scale/rules"
+      ]
+    },
+    "piphi-network-weatherxm": {
+      "kind": "quality_standard",
+      "name": "Home Assistant IQS; no direct Core WeatherXM equivalent",
+      "sources": ["https://developers.home-assistant.io/docs/core/integration-quality-scale/rules"]
+    },
+    "piphi-network-xiaomi-home": {
+      "kind": "architecture",
+      "name": "Xiaomi Home for Home Assistant and HA IQS",
+      "sources": [
+        "https://github.com/XiaoMi/ha_xiaomi_home",
+        "https://developers.home-assistant.io/docs/core/integration-quality-scale/rules"
+      ]
+    },
+    "piphi-network-zigbee": {
+      "kind": "direct",
+      "name": "Home Assistant ZHA",
+      "sources": ["https://github.com/home-assistant/core/tree/dev/homeassistant/components/zha"]
+    },
+    "piphi-network-zwave": {
+      "kind": "direct",
+      "name": "Home Assistant Z-Wave JS",
+      "sources": ["https://github.com/home-assistant/core/tree/dev/homeassistant/components/zwave_js"]
+    },
+    "piphi-android-adb-sidecar": {
+      "kind": "architecture",
+      "name": "Home Assistant Android TV Remote transport lifecycle",
+      "sources": ["https://github.com/home-assistant/core/tree/dev/homeassistant/components/androidtv_remote"]
+    },
+    "piphi-ble-gateway-sidecar": {
+      "kind": "architecture",
+      "name": "Home Assistant Bluetooth stack",
+      "sources": ["https://github.com/home-assistant/core/tree/dev/homeassistant/components/bluetooth"]
+    },
+    "piphi.service.matter-sidecar": {
+      "kind": "direct",
+      "name": "Home Assistant Matter Server",
+      "sources": ["https://github.com/home-assistant-libs/python-matter-server"]
+    },
+    "piphi-modbus-rtu-sidecar": {
+      "kind": "architecture",
+      "name": "Home Assistant Modbus transport behavior",
+      "sources": ["https://github.com/home-assistant/core/tree/dev/homeassistant/components/modbus"]
+    },
+    "piphi.service.mqtt-broker": {
+      "kind": "architecture",
+      "name": "Home Assistant MQTT and Mosquitto add-on",
+      "sources": [
+        "https://github.com/home-assistant/core/tree/dev/homeassistant/components/mqtt",
+        "https://github.com/home-assistant/addons/tree/master/mosquitto"
+      ]
+    },
+    "piphi-network-llm-vision": {
+      "kind": "quality_standard",
+      "name": "Home Assistant IQS plus privacy and secure add-on standards",
+      "sources": ["https://developers.home-assistant.io/docs/core/integration-quality-scale/rules"]
+    },
+    "piphi.service.zigbee2mqtt-sidecar": {
+      "kind": "architecture",
+      "name": "Home Assistant ZHA lifecycle and secure add-on practices",
+      "sources": [
+        "https://github.com/home-assistant/core/tree/dev/homeassistant/components/zha",
+        "https://developers.home-assistant.io/docs/add-ons/presentation/"
+      ]
+    },
+    "piphi.service.rtl433-bridge": {
+      "kind": "quality_standard",
+      "name": "Home Assistant IQS and secure sidecar practices",
+      "sources": [
+        "https://developers.home-assistant.io/docs/core/integration-quality-scale/rules",
+        "https://developers.home-assistant.io/docs/add-ons/presentation/"
+      ]
+    },
+    "piphi-zwave-js-sidecar": {
+      "kind": "direct",
+      "name": "Home Assistant Z-Wave JS Server architecture",
+      "sources": [
+        "https://github.com/home-assistant/core/tree/dev/homeassistant/components/zwave_js",
+        "https://github.com/zwave-js/zwave-js-server"
+      ]
+    }
+  },
+  "release_verification_sets": {
+    "full_ci_baseline_2026_11_19": {
+      "packages": [
+        "airthings-consumer-cloud-api",
+        "aqara-open-api",
+        "piphi-android-adb-sidecar",
+        "piphi-ble-gateway-sidecar",
+        "piphi-modbus-rtu-sidecar",
+        "piphi-network-433mhz",
+        "piphi-network-android-tv",
+        "piphi-network-bacnet",
+        "piphi-network-bermuda-presence",
+        "piphi-network-i2c",
+        "piphi-network-knx",
+        "piphi-network-matter-integration",
+        "piphi-network-mikrotik-router",
+        "piphi-network-modbus",
+        "piphi-network-octopus-energy",
+        "piphi-network-passive-ble-monitor",
+        "piphi-network-pfsense",
+        "piphi-network-reolink",
+        "piphi-network-spi",
+        "piphi-network-zigbee",
+        "piphi-network-zwave",
+        "piphi-zwave-js-sidecar",
+        "piphi.service.matter-sidecar",
+        "piphi.service.mqtt-broker",
+        "piphi.service.rtl433-bridge",
+        "piphi.service.zigbee2mqtt-sidecar"
+      ],
+      "platforms_verified": true,
+      "sbom_verified": true,
+      "provenance_verified": true,
+      "attestations_verified": true,
+      "verified_at": "2026-11-19",
+      "verification_note": "Baseline registry digest had linux/amd64 and linux/arm64 SBOMs and cryptographically verified provenance. OCI labels and non-root execution were not independently verified by this portfolio pass."
+    }
+  },
+  "release_verification_overrides": {
+    "piphi-network-llm-vision": {
+      "platforms_verified": true,
+      "sbom_verified": true,
+      "provenance_verified": true,
+      "attestations_verified": false,
+      "verified_at": "2026-11-19",
+      "verification_note": "Both-platform SBOM and embedded BuildKit SLSA provenance were present, but GitHub attestation verification did not succeed."
+    }
+  },
+  "audit_evidence": {
+    "piphi-network-433mhz": ["apps/integrations/piphi-network-433mhz/docs/home-assistant-quality-comparison.md"],
+    "airthings-consumer-cloud-api": ["docs/cloud-monitoring-account-quality-comparison.md"],
+    "piphi-network-android-tv": ["apps/integrations/piphi-network-android-tv/docs/home-assistant-quality-comparison.md"],
+    "aqara-open-api": ["docs/cloud-home-account-quality-comparison.md"],
+    "piphi-network-bacnet": ["apps/integrations/piphi-network-bacnet/docs/home-assistant-quality-comparison.md"],
+    "piphi-network-daikin-onecta": ["docs/cloud-home-account-quality-comparison.md"],
+    "piphi-network-dyson": ["docs/cloud-home-account-quality-comparison.md"],
+    "piphi-network-eufy-security": ["docs/cloud-home-account-quality-comparison.md"],
+    "piphi-network-i2c": ["apps/integrations/piphi-network-i2c/docs/home-assistant-quality-comparison.md"],
+    "piphi-network-kaiterra-api": ["docs/cloud-monitoring-account-quality-comparison.md"],
+    "piphi-network-kia-hyundai-connect": ["docs/cloud-vehicle-account-quality-comparison.md"],
+    "piphi-network-knx": ["apps/integrations/piphi-network-knx/docs/home-assistant-quality-comparison.md"],
+    "piphi-network-modbus": ["apps/integrations/piphi-network-modbus/docs/home-assistant-quality-comparison.md"],
+    "piphi-network-nord-pool": ["docs/cloud-monitoring-account-quality-comparison.md"],
+    "piphi-network-octopus-energy": ["docs/cloud-monitoring-account-quality-comparison.md"],
+    "piphi-network-pfsense": ["apps/integrations/piphi-network-pfsense/docs/home-assistant-quality-comparison.md"],
+    "piphi-network-reolink": ["apps/integrations/piphi-network-reolink/docs/home-assistant-quality-comparison.md"],
+    "piphi-network-sense": ["docs/cloud-monitoring-account-quality-comparison.md"],
+    "piphi-network-solaredge": ["docs/cloud-monitoring-account-quality-comparison.md"],
+    "piphi-network-tesla-ev": ["docs/cloud-vehicle-account-quality-comparison.md"],
+    "lg-thinq-connect-api": ["docs/cloud-home-account-quality-comparison.md"],
+    "piphi-network-tuya": ["docs/cloud-home-account-quality-comparison.md"],
+    "piphi-network-weatherxm": ["docs/cloud-monitoring-account-quality-comparison.md"],
+    "piphi-network-xiaomi-home": ["docs/cloud-home-account-quality-comparison.md"],
+    "piphi-network-zigbee": ["apps/integrations/piphi-network-zigbee/docs/home-assistant-quality-comparison.md"],
+    "piphi-network-zwave": ["apps/integrations/piphi-network-zwave/docs/home-assistant-quality-comparison.md"],
+    "piphi-ble-gateway-sidecar": ["apps/services/piphi-ble-gateway-sidecar/docs/home-assistant-quality-comparison.md"],
+    "piphi.service.matter-sidecar": ["apps/services/piphi-matter-js-sidecar/docs/home-assistant-quality-comparison.md"],
+    "piphi.service.mqtt-broker": ["apps/services/piphi-mqtt-broker/docs/home-assistant-quality-comparison.md"],
+    "piphi-network-llm-vision": ["apps/services/piphi-network-llm-vision/docs/home-assistant-quality-comparison.md"]
+  }
+}

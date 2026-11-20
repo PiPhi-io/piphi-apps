@@ -11,6 +11,7 @@ class FakeBacnetReader:
     def __init__(self) -> None:
         self.calls: list[DeviceConfig] = []
         self.closed = False
+        self.error: Exception | None = None
         self.snapshot = DeviceSnapshot(
             device_instance=1234,
             object_name="Kaiterra-SE-200",
@@ -47,6 +48,8 @@ class FakeBacnetReader:
 
     async def read_snapshot(self, config: DeviceConfig) -> DeviceSnapshot:
         self.calls.append(config)
+        if self.error is not None:
+            raise self.error
         return self.snapshot
 
     async def close(self) -> None:
@@ -59,3 +62,9 @@ async def fake_bacnet_reader():
     set_bacnet_reader(reader)
     yield reader
     await reset_runtime_state()
+
+
+@pytest.fixture(autouse=True)
+def allow_unauthenticated_test_runtime(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PIPHI_ALLOW_UNAUTHENTICATED", "true")
+    monkeypatch.delenv("PIPHI_INTEGRATION_INTERNAL_TOKEN", raising=False)
