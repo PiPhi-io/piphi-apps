@@ -3,8 +3,8 @@
   "manifest_version": "1.0",
   "id": "piphi-network-washdata",
   "name": "WashData",
-  "version": "0.1.1",
-  "description": "Quarantined preview. No appliance data adapter or cycle model is implemented.",
+  "version": "0.2.0",
+  "description": "Durable, read-only appliance cycle monitoring from Core-authorized power telemetry.",
   "metadata": {
     "generator": "piphi-network-create",
     "scaffold_version": "0.3.0",
@@ -17,7 +17,7 @@
     "website": "https://piphi.io"
   },
   "license": "Apache-2.0",
-  "image": "ghcr.io/piphi-io/piphi-network-washdata:0.1.1",
+  "image": "ghcr.io/piphi-io/piphi-network-washdata:0.2.0",
   "platforms": [
     "linux"
   ],
@@ -25,7 +25,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "ghcr.io/piphi-io/piphi-network-washdata:0.1.1",
+        "image": "ghcr.io/piphi-io/piphi-network-washdata:0.2.0",
         "ports": [
           {
             "container": 4211,
@@ -33,8 +33,13 @@
           }
         ],
         "environment": {
-          "LOG_LEVEL": "info"
+          "LOG_LEVEL": "info",
+          "PIPHI_WASHDATA_STATE_PATH": "/app/data/washdata-state.sqlite3",
+          "PIPHI_AUTOMATION_LEDGER_PATH": "/app/data/automation-actions.sqlite3"
         },
+        "volumes": [
+          {"host": "/var/lib/piphi/washdata", "container": "/app/data", "mode": "rw"}
+        ],
         "restart_policy": {
           "name": "unless-stopped",
           "maximum_retry_count": 0
@@ -48,6 +53,8 @@
   "api": {
     "required": [
       "health",
+      "entities",
+      "command",
       "config",
       "ui_config"
     ],
@@ -69,21 +76,45 @@
     "source": "endpoint",
     "endpoint": "/ui-config",
     "required": true,
-    "editable_fields": [],
+    "editable_fields": ["alias", "start_threshold_w", "stop_threshold_w", "start_debounce_samples", "stop_debounce_samples", "poll_interval_seconds", "page_size", "max_sample_gap_seconds"],
     "runtime_fields": [
       "id",
       "config_id",
       "container_id",
       "device_id"
     ],
-    "identity_fields": []
+    "identity_fields": ["config_id"]
   },
   "identity": {
-    "fields": []
+    "fields": ["config_id"]
   },
-  "capabilities": {},
-  "commands": {},
-  "entities": [],
+  "capabilities": {
+    "connected": {"kind": "sensor", "unit": "bool"},
+    "available": {"kind": "sensor", "unit": "bool"},
+    "stale": {"kind": "sensor", "unit": "bool"},
+    "detector_status": {"kind": "sensor"},
+    "cycle_state": {"kind": "sensor"},
+    "cycle_active": {"kind": "sensor", "unit": "bool"},
+    "cycle_started_at": {"kind": "sensor", "optional": true},
+    "cycle_finished_at": {"kind": "sensor", "optional": true},
+    "cycle_duration_s": {"kind": "sensor", "unit": "s", "optional": true},
+    "power_w": {"kind": "sensor", "unit": "W", "optional": true},
+    "peak_power_w": {"kind": "sensor", "unit": "W", "optional": true},
+    "cycle_energy_kwh": {"kind": "sensor", "unit": "kWh"},
+    "lifetime_cycle_count": {"kind": "sensor", "unit": "count"},
+    "last_sample_at": {"kind": "sensor", "optional": true},
+    "refresh": {"kind": "action", "read_only": true}
+  },
+  "commands": {"refresh": {"description": "Read one bounded source telemetry page.", "timeout_ms": 10000}},
+  "entities": [
+    {
+      "id": "dynamic-cycle-monitor",
+      "name": "Appliance cycle",
+      "entity_type": "appliance_cycle",
+      "capabilities": ["connected", "available", "stale", "detector_status", "cycle_state", "cycle_active", "cycle_started_at", "cycle_finished_at", "cycle_duration_s", "power_w", "peak_power_w", "cycle_energy_kwh", "lifetime_cycle_count", "last_sample_at", "refresh"],
+      "available_commands": [{"id": "refresh", "label": "Refresh", "kind": "action"}]
+    }
+  ],
   "ui": {
     "experience_packages": [
       {
@@ -96,7 +127,7 @@
   "marketplace": {
     "metadata_version": 2,
     "display_name": "WashData",
-    "summary": "Unavailable preview with no implemented appliance data adapter or cycle model.",
+    "summary": "Monitor appliance cycles from an authorized power telemetry source without controlling appliance power.",
     "category": "appliances",
     "regions": [
       "WW"
@@ -112,22 +143,16 @@
     },
     "access": [
       {
-        "id": "local_network",
-        "label": "Local network access",
-        "reason": "Discovers or communicates with supported services and devices on the homeowner's local network.",
-        "required": true
-      },
-      {
-        "id": "credentials",
-        "label": "Account or device credentials",
-        "reason": "Authenticates only to the configured vendor account, service, or local device and keeps credentials out of state and diagnostics.",
+        "id": "core_source_telemetry",
+        "label": "Authorized Core source telemetry",
+        "reason": "Reads only the canonical power source explicitly bound to this integration configuration by PiPhi Core.",
         "required": true
       }
     ],
     "compatibility": [
       {
         "brand": "Multi-vendor",
-        "model": "Appliances supported by configured WashData adapters"
+        "model": "Appliances observed by a bound power telemetry source"
       }
     ],
     "documentation_url": "https://github.com/PiPhi-io/piphi-network-washdata",
@@ -149,14 +174,13 @@
       "dishwasher"
     ],
     "protocols": [
-      "configured appliance data adapter"
+      "PiPhi Core source telemetry contract"
     ],
     "discovery_methods": [
-      "configured appliance discovery",
-      "manual"
+      "Core source binding"
     ],
-    "connectivity": "hybrid",
-    "offline_support": "partial",
+    "connectivity": "local",
+    "offline_support": "durable last-known cycle state marked stale",
     "privacy_url": "https://github.com/PiPhi-io/piphi-network-washdata/blob/main/docs/privacy.md"
   },
   "onboarding": {

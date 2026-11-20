@@ -1,1 +1,7 @@
-{"entities":[],"capabilities":{},"commands":{}}
+{
+  "id": "piphi-network-washdata:example",
+  "name": "Appliance cycle",
+  "entity_type": "appliance_cycle",
+  "capabilities": ["connected", "available", "stale", "detector_status", "cycle_state", "cycle_active", "cycle_started_at", "cycle_finished_at", "cycle_duration_s", "power_w", "peak_power_w", "cycle_energy_kwh", "lifetime_cycle_count", "last_sample_at", "refresh"],
+  "commands": ["refresh"]
+}

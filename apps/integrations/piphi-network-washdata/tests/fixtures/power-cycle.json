@@ -1,0 +1,5 @@
+{
+  "description": "Synthetic appliance power cycle; no provider or household identifiers.",
+  "sample_interval_seconds": 10,
+  "power_w": [0, 20, 30, 40, 2, 1, 0]
+}

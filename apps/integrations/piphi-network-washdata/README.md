@@ -1,63 +1,47 @@
-# Piphi Network Washdata
+# WashData
 
-> **Unavailable preview:** no appliance source binding or persistent cycle
-> model is implemented. The runtime refuses configuration and commands and
-> advertises no devices or capabilities.
+WashData is a monitoring-only PiPhi integration that derives appliance cycle
+state from a power telemetry source explicitly bound by PiPhi Core. It never
+reads another integration's files or database and cannot switch appliance power.
 
-Generated PiPhi integration runtime.
+## Bounded monitoring slice
+
+Version `0.2.0` implements:
+
+- binding discovery through Runtime Kit `SourceTelemetryClient`
+- one bounded telemetry page per read with no hidden cursor state
+- configurable start/stop thresholds and sample debounce
+- cycle start/finish, duration, peak power, and per-cycle energy
+- durable SQLite state, migrations, source-event deduplication, and restart replay
+- Core-owned stale/unavailable-source handling and recovery events
+- read-only `refresh`; all appliance-control commands fail closed
+
+Program matching, phase estimation, profile learning, maintenance, community
+sharing, and historical cost management remain planned and unadvertised.
+
+## Durable replay contract
+
+For every source page, WashData commits the derived cycle state, every processed
+`event_id`, and `next_cursor` in one SQLite transaction. A crash before commit
+reuses the previous cursor and intentionally replays the page; committed event
+IDs suppress duplicate transitions. State is stored at
+`PIPHI_WASHDATA_STATE_PATH` (default `./data/washdata-state.sqlite3`).
 
 ## Run locally
 
 ```bash
 pdm install -G dev
-pdm run uvicorn piphi_network_washdata.main:app --reload --port 4211
 pdm run pytest
 pdm run python scripts/validate.py
+pdm run uvicorn piphi_network_washdata.main:app --reload --port 4211
 ```
 
-The runtime listens on port `4211` by default and exposes the common PiPhi runtime route contract:
+Local configuration requires a Core runtime auth context and an
+`IntegrationSourceBinding` whose key matches `binding_key` (default
+`appliance_power`). The source metric defaults to `power_w`.
 
-- `GET /health`
-- `GET /diagnostics`
-- `POST /discover`
-- `POST /config`
-- `POST /config/sync`
-- `POST /deconfigure`
-- `POST /deconfigure/{config_id}`
-- `GET /state`
-- `GET /contract`
-- `GET /entities`
-- `GET /events`
-- `POST /events/device/{config_id}/example`
-- `POST /telemetry/example`
-- `POST /telemetry/device/{config_id}/example`
-- `POST /command`
+## Safety boundary
 
-## Capability coverage
-
-`capability-catalog.json` inventories appliance cycles, phases, program
-matching, estimates, energy and cost, profiles, maintenance, learning, events,
-conditions, and administrative operations. Contract tests enforce that only
-implemented entries are advertised.
-
-WashData is monitoring-first. Physical appliance power control is excluded.
-Cycle events will require baseline-aware transitions, debounce, persistent
-ghost-cycle suppression, restart recovery, and deduplication before being
-promoted from planned status.
-
-## Manifest
-
-`manifest.json` is a starter manifest. Before publishing, update:
-
-- `image`
-- `version`
-- capabilities and commands
-- config fields and identity fields
-- entity metadata
-
-## Docker
-
-```bash
-docker build -t docker.io/piphinetwork/piphi-network-washdata:0.1.0 .
-docker run --rm -p 4211:4211 docker.io/piphinetwork/piphi-network-washdata:0.1.0
-```
+WashData exposes cycle monitoring and a read-only refresh action. It does not
+expose `set_power`, mains switching, physical appliance start, arbitrary
+detector code, or direct notification credentials.
