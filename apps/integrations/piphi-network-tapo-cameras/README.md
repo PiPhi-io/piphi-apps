@@ -1,61 +1,68 @@
-# Piphi Network Tapo Cameras
+# PiPhi Network Tapo Cameras
 
-Quarantined PiPhi preview. This package does not currently implement Tapo
-discovery, authentication, state, controls, or media. It deliberately refuses
-configuration and commands and advertises no devices or capabilities.
+Authenticated, read-only local monitoring for directly reachable, powered Tapo
+cameras and doorbells supported by `python-kasa` 0.10.x.
 
-## Run locally
+## Functional scope
+
+The `0.2.0` slice publishes connectivity, availability, stale-last-good state,
+privacy mode when the camera exposes a lens-mask module, camera-enabled state,
+signal strength, and sanitized model/firmware metadata. Its only command is the
+non-mutating `refresh` action.
+
+Configuration requires a camera address and camera-account username/password.
+Discovery is targeted and authenticated; this runtime never performs a broad LAN
+scan. Runtime endpoints other than `/health` require the PiPhi integration token.
+
+Not supported: streams, snapshots, RTSP/ONVIF URLs, detections, PTZ, alarms,
+lights, pairing, firmware updates, privacy setters, arbitrary commands, hubs,
+child cameras, battery cameras, or devices without stable identity.
+
+## State and recovery
+
+Each successful poll replaces the current observation. A failed poll preserves
+the last known privacy and signal values while setting `connected=false`,
+`available=false`, and `stale=true`. Authentication failures require
+reauthorization. Outage and recovery events are emitted once per transition.
+
+Configurations are rehydrated through the Core runtime snapshot after restart.
+Masked passwords are accepted only when replacing an existing in-memory config
+for the same host and username; a new or restarted config must contain a resolved
+secret from Core.
+
+## Routes
+
+- `GET /health` (public container health check)
+- `GET /diagnostics`, `/state`, `/contract`, `/entities`, `/events`
+- `POST /discover`, `/config`, `/config/sync`, `/deconfigure`
+- `POST /deconfigure/{config_id}`, `/command`
+- `GET /ui-config`
+
+## Development
 
 ```bash
 pdm install -G dev
-pdm run uvicorn piphi_network_tapo_cameras.main:app --reload --port 4207
 pdm run pytest
 pdm run python scripts/validate.py
+pdm run python scripts/check_release.py apps/piphi-network-tapo-cameras/v0.2.0
 ```
 
-The runtime listens on port `4207` by default and exposes the common PiPhi runtime route contract:
-
-- `GET /health`
-- `GET /diagnostics`
-- `POST /discover`
-- `POST /config`
-- `POST /config/sync`
-- `POST /deconfigure`
-- `POST /deconfigure/{config_id}`
-- `GET /state`
-- `GET /contract`
-- `GET /entities`
-- `GET /events`
-- `POST /events/device/{config_id}/example`
-- `POST /telemetry/example`
-- `POST /telemetry/device/{config_id}/example`
-- `POST /command`
-
-## Capability coverage
-
-`capability-catalog.json` inventories the reviewed camera state, detections,
-events, conditions, controls, media-broker responsibilities, and model gates.
-Every entry is classified as planned or excluded. Contract tests enforce that
-none are advertised while the package is quarantined.
-
-Camera features remain planned until local discovery, authentication, ONVIF or
-RTSP negotiation, brokered WebRTC sessions, and representative model fixtures
-exist. Raw authenticated stream URLs never enter PiPhi state; the shared media
-sidecar owns transcoding and WebRTC lifecycle.
-
-## Manifest
-
-`manifest.json` is a starter manifest. Before publishing, update:
-
-- `image`
-- `version`
-- capabilities and commands
-- config fields and identity fields
-- entity metadata
-
-## Docker
+Run locally only with explicit test bypass or a runtime token:
 
 ```bash
-docker build -t ghcr.io/piphi-io/piphi-network-tapo-cameras:0.1.1 .
-docker run --rm -p 4207:4207 ghcr.io/piphi-io/piphi-network-tapo-cameras:0.1.1
+PIPHI_ALLOW_UNAUTHENTICATED=true \
+  pdm run uvicorn piphi_network_tapo_cameras.main:app --reload --port 4207
 ```
+
+## Container
+
+```bash
+docker build -t ghcr.io/piphi-io/piphi-network-tapo-cameras:0.2.0 .
+docker run --rm -p 4207:4207 \
+  -e PIPHI_INTEGRATION_INTERNAL_TOKEN=replace-me \
+  ghcr.io/piphi-io/piphi-network-tapo-cameras:0.2.0
+```
+
+The image runs as non-root UID/GID `10001`. Marketplace governance remains
+`draft`, rollout `0`, and qualification `unverified` until representative powered
+camera and doorbell hardware is certified.

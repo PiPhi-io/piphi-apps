@@ -16,6 +16,7 @@
     "commands": [
       "pdm install --check",
       "pdm run pytest",
+      "pdm run ruff check src tests scripts/check_release.py scripts/validate.py",
       "pdm run python scripts/validate.py"
     ],
     "build_container": true
@@ -24,7 +25,7 @@
     {
       "id": "piphi-network-tapo-cameras",
       "type": "integration",
-      "version": "0.1.1",
+      "version": "0.2.0",
       "manifest": "manifest.json",
       "release": {
         "tag": "apps/{package_id}/v{version}",

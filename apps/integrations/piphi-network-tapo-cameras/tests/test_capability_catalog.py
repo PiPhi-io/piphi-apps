@@ -8,7 +8,6 @@ import pytest
 
 from piphi_network_tapo_cameras.main import app
 
-
 ROOT = Path(__file__).parents[1]
 CATALOG = json.loads((ROOT / "capability-catalog.json").read_text())
 MANIFEST = json.loads((ROOT / "manifest.json").read_text())
@@ -86,8 +85,8 @@ def test_only_implemented_capabilities_are_advertised() -> None:
 
     assert manifest_capabilities == implemented_capabilities
     assert manifest_commands == implemented_actions
-    assert entity_capabilities == implemented_capabilities
-    assert entity_commands == implemented_actions
+    assert entity_capabilities == set()
+    assert entity_commands == set()
     assert behavior_capabilities == implemented_capabilities
     assert behavior_actions == implemented_actions
     assert set(ENTITY_EXAMPLE["capabilities"]) == implemented_capabilities
@@ -113,20 +112,12 @@ def test_implemented_behavior_events_and_conditions_are_declared() -> None:
 
 
 @pytest.mark.anyio
-async def test_quarantine_rejects_configuration_without_retaining_state() -> None:
+async def test_config_schema_requires_credentials() -> None:
     transport = httpx.ASGITransport(app=app)
     config_id = "capability-catalog-test"
     async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
-        response = await client.post(
-            "/config",
-            json={"id": config_id, "host": "127.0.0.1", "api_key": "canary-secret"},
-        )
-        assert response.status_code == 503
-        assert response.json()["detail"]["code"] == "not_implemented"
-        assert response.json()["detail"]["installable"] is False
-        state = (await client.get("/state")).json()
-        assert state["states"] == []
-        assert "canary-secret" not in str(state)
+        response = await client.post("/config", json={"id": config_id, "host": "127.0.0.1"})
+        assert response.status_code == 422
 
 
 @pytest.mark.anyio
@@ -143,5 +134,5 @@ async def test_unimplemented_and_unsafe_commands_fail_closed(command: str) -> No
                 "params": {},
             },
         )
-    assert response.status_code == 503
-    assert response.json()["detail"]["code"] == "not_implemented"
+    assert response.status_code == 400
+    assert response.json()["detail"]["error"] == "unsupported_command"

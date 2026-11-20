@@ -3,7 +3,14 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from piphi_network_tapo_cameras.contract import COMMANDS, ENDPOINTS, REQUIRED_ENDPOINTS
+import jsonschema
+
+from piphi_network_tapo_cameras.contract import (
+    CAPABILITIES,
+    COMMANDS,
+    ENDPOINTS,
+    REQUIRED_ENDPOINTS,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 manifest = json.loads((ROOT / "manifest.json").read_text())
@@ -20,6 +27,12 @@ if manifest.get("$schema") != "./schema/piphi-manifest.schema.json":
     errors.append("manifest must reference ./schema/piphi-manifest.schema.json")
 if not (ROOT / "schema" / "piphi-manifest.schema.json").exists():
     errors.append("schema/piphi-manifest.schema.json is missing")
+else:
+    schema = json.loads((ROOT / "schema" / "piphi-manifest.schema.json").read_text())
+    try:
+        jsonschema.Draft202012Validator(schema).validate(manifest)
+    except jsonschema.ValidationError as exc:
+        errors.append(f"manifest schema validation failed: {exc.message}")
 
 for key in REQUIRED_ENDPOINTS:
     if key not in manifest.get("api", {}).get("required", []):
@@ -39,6 +52,17 @@ elif dockerfile and f"EXPOSE {port}" not in dockerfile:
 for capability_id, capability in manifest.get("capabilities", {}).items():
     if capability.get("kind") == "action" and capability_id not in COMMANDS:
         errors.append(f"action capability {capability_id} must map to a command")
+
+if manifest.get("capabilities") != CAPABILITIES:
+    errors.append("manifest capabilities must exactly match the runtime contract")
+if manifest.get("commands") != COMMANDS:
+    errors.append("manifest commands must exactly match the runtime contract")
+if manifest.get("entities"):
+    errors.append("dynamic Tapo entities must not be declared as static manifest entities")
+
+for forbidden in ("password", "username", "host", "device_id", "mac", "stream_url"):
+    if forbidden in manifest.get("identity", {}).get("fields", []):
+        errors.append(f"identity must not use sensitive or mutable field {forbidden}")
 
 if behavior is None:
     errors.append("behaviors.json is missing")

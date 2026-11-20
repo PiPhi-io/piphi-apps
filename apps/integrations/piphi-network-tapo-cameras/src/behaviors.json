@@ -3,15 +3,31 @@
   "templates": [],
   "devices": [
     {
-      "id": "piphi_network_tapo_cameras_quarantine",
-      "name": "Tapo Cameras unavailable",
-      "description": "No automation surface is available while this preview is quarantined.",
-      "deviceClass": "service",
-      "entityType": "service",
-      "capabilities": [],
-      "actions": [],
-      "triggers": [],
-      "conditions": []
+      "id": "tapo_camera",
+      "name": "Tapo camera",
+      "description": "Read-only powered camera availability and privacy state.",
+      "deviceClass": "camera",
+      "entityType": "camera",
+      "capabilities": ["connected", "available", "stale", "privacy_mode", "camera_enabled", "signal_strength", "refresh"],
+      "triggers": [
+        {"id": "configured", "runtime": {"event": "runtime.config.applied"}},
+        {"id": "unavailable", "runtime": {"event": "device.unavailable"}},
+        {"id": "restored", "runtime": {"event": "device.restored"}}
+      ],
+      "conditions": [
+        {"id": "state_matches"},
+        {"id": "device_is_available"},
+        {"id": "device_is_stale"},
+        {"id": "privacy_mode_is"}
+      ],
+      "actions": [
+        {
+          "id": "refresh",
+          "label": "Refresh",
+          "runtime": {"command": "refresh"},
+          "safety": {"riskLevel": "low"}
+        }
+      ]
     }
   ]
 }

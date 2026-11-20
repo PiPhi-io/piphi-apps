@@ -14,13 +14,13 @@
   "groups": [
     {
       "id": "runtime-foundation",
-      "status": "planned",
+      "status": "implemented",
       "scope": ["all-configurations"],
       "source_refs": ["core_vocabulary"],
-      "reason": "The preview is quarantined until a real authenticated Tapo transport and truthful lifecycle are implemented.",
-      "state": ["connected"],
-      "events": ["runtime.config.applied"],
-      "conditions": ["state_matches"],
+      "reason": "Authenticated targeted local connections provide read-only availability, stale-last-good, privacy, signal, restart, and refresh behavior for powered cameras.",
+      "state": ["connected", "available", "stale", "privacy_mode", "camera_enabled", "signal_strength"],
+      "events": ["runtime.config.applied", "device.unavailable", "device.restored"],
+      "conditions": ["state_matches", "device_is_available", "device_is_stale", "privacy_mode_is"],
       "actions": ["refresh"]
     },
     {
@@ -29,9 +29,9 @@
       "scope": ["authenticated-non-battery-cameras", "models-with-third-party-compatibility"],
       "source_refs": ["python_kasa", "python_kasa_smartcam", "tapo_control", "onvif", "media_broker"],
       "reason": "Camera identity and media availability require model discovery, local authentication, ONVIF/RTSP negotiation, and broker session tests.",
-      "state": ["camera_enabled", "privacy_mode", "stream_available", "main_stream_available", "sub_stream_available", "audio_available", "two_way_audio_available", "stream_profile", "video_codec", "resolution", "frame_rate_fps", "device_time", "last_frame_at"],
+      "state": ["stream_available", "main_stream_available", "sub_stream_available", "audio_available", "two_way_audio_available", "stream_profile", "video_codec", "resolution", "frame_rate_fps", "device_time", "last_frame_at"],
       "events": ["camera.online", "camera.offline", "privacy.changed", "stream.available", "stream.unavailable"],
-      "conditions": ["camera_is_enabled", "privacy_mode_is", "stream_is_available", "last_frame_age_threshold"],
+      "conditions": ["camera_is_enabled", "stream_is_available", "last_frame_age_threshold"],
       "actions": ["set_camera_enabled", "set_privacy_mode", "request_stream_session", "close_stream_session", "capture_snapshot"]
     },
     {
@@ -64,7 +64,7 @@
       "reason": "Alarm, LED, battery, and radio features are optional modules and require per-entity discovery.",
       "state": ["alarm_active", "alarm_sound", "alarm_volume_percent", "alarm_duration_s", "status_led_enabled", "battery_percent", "battery_low", "charging", "rssi_dbm", "signal_level", "last_seen_at"],
       "events": ["alarm.started", "alarm.stopped", "battery.low", "charging.changed", "signal.degraded", "signal.recovered"],
-      "conditions": ["alarm_is_active", "battery_below", "signal_below", "device_is_stale"],
+      "conditions": ["alarm_is_active", "battery_below", "signal_below"],
       "actions": ["start_alarm", "stop_alarm", "test_alarm", "set_alarm_sound", "set_alarm_volume", "set_alarm_duration", "set_status_led"]
     },
     {

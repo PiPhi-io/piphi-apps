@@ -3,7 +3,7 @@
   "identity": {
     "publisher_id": "io.piphi",
     "package_id": "tapo-cameras-status",
-    "version": "0.1.1"
+    "version": "0.2.0"
   },
   "name": "Tapo Cameras Connection",
   "description": "A compact live connection view for the configured Tapo Cameras runtime.",
@@ -84,7 +84,7 @@
           ],
           "data_delivery": {
             "mode": "stream_preferred",
-            "stale_after_seconds": 120
+            "stale_after_seconds": 7200
           }
         }
       ],
