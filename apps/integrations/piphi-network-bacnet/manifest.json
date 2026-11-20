@@ -3,7 +3,7 @@
   "manifest_version": "1.0",
   "id": "piphi-network-bacnet",
   "name": "BACnet",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Read-only BACnet/IP monitoring for an explicitly configured Kaiterra SenseEdge Mini.",
   "metadata": {
     "generator": "piphi-network-create",
@@ -17,7 +17,7 @@
     "website": "https://piphi.io"
   },
   "license": "Apache-2.0",
-  "image": "ghcr.io/piphi-io/piphi-network-bacnet:0.1.1",
+  "image": "ghcr.io/piphi-io/piphi-network-bacnet:0.1.2",
   "platforms": [
     "linux"
   ],
@@ -25,7 +25,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "ghcr.io/piphi-io/piphi-network-bacnet:0.1.1",
+        "image": "ghcr.io/piphi-io/piphi-network-bacnet:0.1.2",
         "network_mode": "host",
         "privileged": false,
         "read_only": true,
