@@ -4,7 +4,7 @@ import os
 
 INTEGRATION_ID = "piphi-network-mikrotik-router"
 INTEGRATION_NAME = "Piphi Network Mikrotik Router"
-INTEGRATION_VERSION = "0.1.2"
+INTEGRATION_VERSION = "0.1.3"
 PROJECT_KIND = "integration"
 PROJECT_PRESET = "sensor-device"
 PROJECT_DOMAIN = "local-device"
