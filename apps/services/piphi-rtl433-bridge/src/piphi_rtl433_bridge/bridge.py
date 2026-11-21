@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import asyncio
-from collections import OrderedDict
-from contextlib import AsyncExitStack
 import hashlib
 import json
 import logging
 import time
+from collections import OrderedDict
+from contextlib import AsyncExitStack
 from typing import Any
 
 import aiomqtt
@@ -33,6 +33,10 @@ class Rtl433Bridge:
         self.duplicate_count = 0
         self.retry_count = 0
         self.failed_count = 0
+        self.restart_count = 0
+        self.process_running = False
+        self.last_exit_code: int | None = None
+        self.last_error: str | None = None
         self.last_forward_at: float | None = None
         self._fingerprints: OrderedDict[str, float] = OrderedDict()
 
@@ -42,8 +46,10 @@ class Rtl433Bridge:
                 await self.run_once()
             except asyncio.CancelledError:
                 raise
-            except Exception as exc:
-                logger.exception("bridge_cycle_failed error=%s", exc)
+            except (OSError, RuntimeError, httpx.HTTPError, aiomqtt.MqttError) as exc:
+                self.last_error = type(exc).__name__
+                logger.exception("bridge_cycle_failed error_type=%s", self.last_error)
+            self.restart_count += 1
             await asyncio.sleep(self.config.retry_delay_seconds)
 
     async def run_once(self) -> None:
@@ -57,6 +63,8 @@ class Rtl433Bridge:
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
+        self.process_running = True
+        self.last_error = None
         try:
             stdout_task = asyncio.create_task(self._forward_stdout(process))
             stderr_task = asyncio.create_task(self._log_stderr(process))
@@ -65,11 +73,15 @@ class Rtl433Bridge:
             if process.returncode is None:
                 process.kill()
                 await process.wait()
+            self.process_running = False
+            self.last_exit_code = process.returncode
 
         logger.warning("rtl433_process_exited returncode=%s", process.returncode)
 
     async def _forward_stdout(self, process: asyncio.subprocess.Process) -> None:
-        assert process.stdout is not None
+        if process.stdout is None:
+            raise RuntimeError("rtl_433 stdout pipe is unavailable")
+        stdout = process.stdout
         await asyncio.sleep(self.config.startup_delay_seconds)
         async with AsyncExitStack() as stack:
             http_client: httpx.AsyncClient | None = None
@@ -88,11 +100,13 @@ class Rtl433Bridge:
                         identifier=self.config.mqtt_client_id,
                     )
                 )
-            queue: asyncio.Queue[dict[str, Any] | None] = asyncio.Queue(maxsize=self.config.queue_size)
+            queue: asyncio.Queue[dict[str, Any] | None] = asyncio.Queue(
+                maxsize=self.config.queue_size
+            )
 
             async def produce() -> None:
                 while True:
-                    line = await process.stdout.readline()
+                    line = await stdout.readline()
                     if not line:
                         break
                     packet = parse_packet_line(line, max_packet_bytes=self.config.max_packet_bytes)
@@ -121,7 +135,8 @@ class Rtl433Bridge:
             await asyncio.gather(produce(), consume())
 
     async def _log_stderr(self, process: asyncio.subprocess.Process) -> None:
-        assert process.stderr is not None
+        if process.stderr is None:
+            raise RuntimeError("rtl_433 stderr pipe is unavailable")
         while True:
             line = await process.stderr.readline()
             if not line:
@@ -151,7 +166,7 @@ class Rtl433Bridge:
                 return
             except asyncio.CancelledError:
                 raise
-            except Exception as exc:
+            except (OSError, RuntimeError, httpx.HTTPError, aiomqtt.MqttError) as exc:
                 if attempt >= self.config.max_forward_attempts:
                     self.failed_count += 1
                     self.dropped_count += 1
@@ -159,7 +174,9 @@ class Rtl433Bridge:
                     return
                 self.retry_count += 1
                 delay = min(self.config.retry_delay_seconds * (2 ** (attempt - 1)), 30.0)
-                logger.warning("packet_forward_failed attempt=%s error=%s retrying_in=%ss", attempt, exc, delay)
+                logger.warning(
+                    "packet_forward_failed attempt=%s error=%s retrying_in=%ss", attempt, exc, delay
+                )
                 await asyncio.sleep(delay)
 
     def _is_duplicate(self, packet: dict[str, Any]) -> bool:
@@ -174,10 +191,10 @@ class Rtl433Bridge:
             self._fingerprints.popitem(last=False)
         canonical = json.dumps(packet, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
         fingerprint = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
-        seen_at = self._fingerprints.get(fingerprint)
+        previous_seen_at = self._fingerprints.get(fingerprint)
         self._fingerprints[fingerprint] = now
         self._fingerprints.move_to_end(fingerprint)
-        return seen_at is not None and seen_at >= cutoff
+        return previous_seen_at is not None and previous_seen_at >= cutoff
 
     async def _forward_packet_http(
         self,
@@ -222,7 +239,9 @@ class Rtl433Bridge:
             )
 
 
-def parse_packet_line(line: bytes | str, *, max_packet_bytes: int = 65_536) -> dict[str, Any] | None:
+def parse_packet_line(
+    line: bytes | str, *, max_packet_bytes: int = 65_536
+) -> dict[str, Any] | None:
     if len(line) > max_packet_bytes:
         return None
     if isinstance(line, bytes):
@@ -253,9 +272,7 @@ def _bounded_json(value: Any, *, depth: int = 0) -> bool:
         return len(value) <= 128 and all(_bounded_json(item, depth=depth + 1) for item in value)
     if isinstance(value, dict):
         return len(value) <= 256 and all(
-            isinstance(key, str)
-            and len(key) <= 128
-            and _bounded_json(item, depth=depth + 1)
+            isinstance(key, str) and len(key) <= 128 and _bounded_json(item, depth=depth + 1)
             for key, item in value.items()
         )
     return False

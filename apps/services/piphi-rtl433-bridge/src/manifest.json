@@ -4,8 +4,8 @@
   "id": "piphi.service.rtl433-bridge",
   "name": "rtl_433 Radio Bridge",
   "description": "Shared rtl_433 radio bridge for receiving sub-GHz sensor packets through PiPhi Core.",
-  "version": "0.2.0",
-  "image": "ghcr.io/piphi-io/rtl433-bridge:0.2.0",
+  "version": "0.2.1",
+  "image": "ghcr.io/piphi-io/rtl433-bridge:0.2.1",
   "platforms": [
     "linux"
   ],
@@ -13,7 +13,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "ghcr.io/piphi-io/rtl433-bridge:0.2.0",
+        "image": "ghcr.io/piphi-io/rtl433-bridge:0.2.1",
         "ports": [
           {
             "container": 8091
@@ -27,8 +27,12 @@
           }
         ],
         "read_only": true,
-        "cap_drop": ["ALL"],
-        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": [
+          "ALL"
+        ],
+        "security_opt": [
+          "no-new-privileges:true"
+        ],
         "environment": {
           "RUNTIME_INGEST_URL": "http://127.0.0.1:8090/ingest/rtl433",
           "HTTP_FORWARD_ENABLED": "true",
@@ -41,12 +45,20 @@
           "MAX_FORWARD_ATTEMPTS": "4",
           "PACKET_QUEUE_SIZE": "256",
           "DEDUP_WINDOW_SECONDS": "2",
-          "MAX_PACKET_BYTES": "65536"
+          "MAX_PACKET_BYTES": "65536",
+          "PIPHI_RTL433_STATE_PATH": "/var/lib/piphi/radio-config.json"
         },
         "restart_policy": {
           "name": "unless-stopped",
           "maximum_retry_count": 0
-        }
+        },
+        "volumes": [
+          {
+            "host": "/var/lib/piphi/rtl433-bridge",
+            "container": "/var/lib/piphi",
+            "mode": "rw"
+          }
+        ]
       }
     }
   },
@@ -200,11 +212,23 @@
     "display_name": "433 MHz radio bridge (experimental)",
     "summary": "Receive rtl_433 packets through one explicitly mapped RTL-SDR receiver.",
     "category": "networking",
-    "device_types": ["platform service", "RTL-SDR receiver"],
-    "protocols": ["rtl_433", "sub-GHz receive-only radio"],
-    "regions": ["WW"],
-    "languages": ["en"],
-    "discovery_methods": ["local radio reception"],
+    "device_types": [
+      "platform service",
+      "RTL-SDR receiver"
+    ],
+    "protocols": [
+      "rtl_433",
+      "sub-GHz receive-only radio"
+    ],
+    "regions": [
+      "WW"
+    ],
+    "languages": [
+      "en"
+    ],
+    "discovery_methods": [
+      "local radio reception"
+    ],
     "connectivity": "local",
     "offline_support": "partial",
     "publisher": {
@@ -237,19 +261,23 @@
       {
         "brand": "RTL-SDR",
         "model": "RTL-SDR-compatible USB receivers with host udev/group permissions",
-        "regions": ["WW"]
+        "regions": [
+          "WW"
+        ]
       }
     ],
-    "documentation_url": "https://github.com/PiPhi-io/piphi-apps/tree/apps/piphi.service.rtl433-bridge/v0.2.0/apps/services/piphi-rtl433-bridge",
+    "documentation_url": "https://github.com/PiPhi-io/piphi-apps/tree/apps/piphi.service.rtl433-bridge/v0.2.1/apps/services/piphi-rtl433-bridge",
     "support_url": "https://github.com/PiPhi-io/piphi-apps/issues",
-    "changelog_url": "https://github.com/PiPhi-io/piphi-apps/releases/tag/apps/piphi.service.rtl433-bridge/v0.2.0",
+    "changelog_url": "https://github.com/PiPhi-io/piphi-apps/releases/tag/apps/piphi.service.rtl433-bridge/v0.2.1",
     "quality_tier": "unrated",
     "governance": {
       "schema_version": 1,
       "publication_status": "beta",
       "rollout_percent": 10,
       "lifecycle_status": "active",
-      "qualification": {"status": "unverified"}
+      "qualification": {
+        "status": "unverified"
+      }
     }
   },
   "onboarding": {

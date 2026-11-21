@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import asyncio
-from contextlib import asynccontextmanager, suppress
+import json
 import os
 import secrets
-from typing import Callable
+from collections.abc import Callable
+from contextlib import asynccontextmanager, suppress
+from pathlib import Path
 
 from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel, ConfigDict
@@ -28,9 +30,11 @@ class BridgeSupervisor:
         config: BridgeConfig,
         *,
         bridge_factory: Callable[[BridgeConfig], Rtl433Bridge] = Rtl433Bridge,
+        state_path: Path | None = None,
     ) -> None:
         self.config = config
         self._bridge_factory = bridge_factory
+        self._state_path = state_path
         self._task: asyncio.Task[None] | None = None
         self._bridge: Rtl433Bridge | None = None
         self._lock = asyncio.Lock()
@@ -54,15 +58,28 @@ class BridgeSupervisor:
             )
             if next_config == self.config:
                 return self.config
+            candidate = self._bridge_factory(next_config)
+            previous_config = self.config
             await self._stop_unlocked()
             self.config = next_config
-            self._start_unlocked()
+            self._start_unlocked(candidate)
+            await asyncio.sleep(0)
+            if self._task is not None and self._task.done():
+                error = self._task.exception()
+                self._task = None
+                self._bridge = None
+                self.config = previous_config
+                self._start_unlocked()
+                raise ValueError(
+                    "The requested radio configuration could not be started"
+                ) from error
+            self._persist_config()
             return self.config
 
-    def _start_unlocked(self) -> None:
+    def _start_unlocked(self, bridge: Rtl433Bridge | None = None) -> None:
         if self._task is not None and not self._task.done():
             return
-        self._bridge = self._bridge_factory(self.config)
+        self._bridge = bridge or self._bridge_factory(self.config)
         self._task = asyncio.create_task(self._bridge.run_forever())
 
     async def _stop_unlocked(self) -> None:
@@ -74,18 +91,42 @@ class BridgeSupervisor:
         self._task = None
         self._bridge = None
 
+    def _persist_config(self) -> None:
+        if self._state_path is None:
+            return
+        self._state_path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = self._state_path.with_suffix(f"{self._state_path.suffix}.tmp")
+        temporary.write_text(
+            json.dumps(
+                {
+                    "frequency": self.config.frequency,
+                    "rtlsdr_device": self.config.rtl_sdr_device,
+                    "receiver_gain": self.config.receiver_gain,
+                    "rtl433_protocols": ",".join(self.config.protocol_ids),
+                },
+                sort_keys=True,
+            )
+            + "\n"
+        )
+        temporary.replace(self._state_path)
+
     def health(self) -> dict[str, object]:
         running = self._task is not None and not self._task.done()
         bridge = self._bridge
+        decoder_running = bool(bridge and getattr(bridge, "process_running", running))
         return {
-            "status": "ok" if running else "degraded",
+            "status": "ok" if running and decoder_running else "degraded",
             "process_supervisor_running": running,
-            "forwarded_count": bridge.forwarded_count if bridge else 0,
-            "invalid_line_count": bridge.invalid_line_count if bridge else 0,
-            "dropped_count": bridge.dropped_count if bridge else 0,
-            "duplicate_count": bridge.duplicate_count if bridge else 0,
-            "retry_count": bridge.retry_count if bridge else 0,
-            "failed_count": bridge.failed_count if bridge else 0,
+            "decoder_process_running": decoder_running,
+            "forwarded_count": getattr(bridge, "forwarded_count", 0),
+            "invalid_line_count": getattr(bridge, "invalid_line_count", 0),
+            "dropped_count": getattr(bridge, "dropped_count", 0),
+            "duplicate_count": getattr(bridge, "duplicate_count", 0),
+            "retry_count": getattr(bridge, "retry_count", 0),
+            "failed_count": getattr(bridge, "failed_count", 0),
+            "restart_count": getattr(bridge, "restart_count", 0),
+            "last_exit_code": getattr(bridge, "last_exit_code", None),
+            "last_error": getattr(bridge, "last_error", None),
             **_public_config(self.config),
         }
 
@@ -97,7 +138,11 @@ def _clean_optional(value: str | None) -> str | None:
     return cleaned or None
 
 
-supervisor = BridgeSupervisor(load_bridge_config())
+_state_path_value = str(os.getenv("PIPHI_RTL433_STATE_PATH") or "").strip()
+supervisor = BridgeSupervisor(
+    load_bridge_config(),
+    state_path=Path(_state_path_value) if _state_path_value else None,
+)
 
 
 @asynccontextmanager
@@ -132,17 +177,24 @@ async def configure_radio(
 
 def _authorize_service_request(received_token: str | None) -> None:
     expected_token = str(os.getenv("PIPHI_SERVICE_AUTH_TOKEN") or "").strip()
-    production = str(os.getenv("PIPHI_ENV") or os.getenv("ENVIRONMENT") or "").lower() == "production"
     if not expected_token:
-        if production:
-            raise HTTPException(status_code=503, detail="Radio service authentication is not configured")
-        return
+        if str(os.getenv("PIPHI_ALLOW_UNAUTHENTICATED") or "").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }:
+            return
+        raise HTTPException(
+            status_code=503, detail="Radio service authentication is not configured"
+        )
     if not received_token or not secrets.compare_digest(received_token, expected_token):
         raise HTTPException(status_code=401, detail="Invalid radio service authentication")
 
 
 def _public_config(config: BridgeConfig) -> dict[str, object]:
     return {
+        "simulation_mode": config.simulation_mode,
         "frequency": config.frequency,
         "rtlsdr_device": config.rtl_sdr_device,
         "receiver_gain": config.receiver_gain,
@@ -152,6 +204,7 @@ def _public_config(config: BridgeConfig) -> dict[str, object]:
 
 def runtime_port() -> int:
     import os
+
     raw_port = os.getenv("PORT")
     try:
         port = 8091 if raw_port is None else int(raw_port)
@@ -165,7 +218,7 @@ def runtime_port() -> int:
 def main() -> None:
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=runtime_port())
+    uvicorn.run(app, host="0.0.0.0", port=runtime_port())  # nosec B104
 
 
 if __name__ == "__main__":

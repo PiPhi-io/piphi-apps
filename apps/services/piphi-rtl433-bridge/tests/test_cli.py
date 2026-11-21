@@ -1,8 +1,7 @@
-from click.testing import CliRunner
 import httpx
 import pytest
-
 from click import BadParameter
+from click.testing import CliRunner
 
 from piphi_rtl433_bridge.cli import (
     _config_to_dict,
@@ -152,9 +151,7 @@ def test_ping_runtime_disabled_returns_non_zero_exit() -> None:
 
 
 def test_parse_header_pairs_allows_equals_in_value() -> None:
-    assert _parse_header_pairs(("Authorization=Bearer=token",)) == {
-        "Authorization": "Bearer=token"
-    }
+    assert _parse_header_pairs(("Authorization=Bearer=token",)) == {"Authorization": "Bearer=token"}
 
 
 def test_validate_extra_headers_json_rejects_non_object() -> None:
@@ -200,7 +197,9 @@ async def test_ping_runtime_returns_failure_on_transport_error(monkeypatch) -> N
         async def get(self, url, headers):
             raise httpx.ConnectError("refused", request=httpx.Request("GET", url))
 
-    monkeypatch.setattr("piphi_rtl433_bridge.cli.httpx.AsyncClient", lambda timeout: FailingAsyncClient())
+    monkeypatch.setattr(
+        "piphi_rtl433_bridge.cli.httpx.AsyncClient", lambda timeout: FailingAsyncClient()
+    )
 
     result = await _ping_runtime(config)
 
@@ -232,7 +231,9 @@ async def test_ping_runtime_success_passes_headers(monkeypatch) -> None:
             captured["headers"] = headers
             return type("Response", (), {"status_code": 204})()
 
-    monkeypatch.setattr("piphi_rtl433_bridge.cli.httpx.AsyncClient", lambda timeout: SuccessAsyncClient())
+    monkeypatch.setattr(
+        "piphi_rtl433_bridge.cli.httpx.AsyncClient", lambda timeout: SuccessAsyncClient()
+    )
 
     result = await _ping_runtime(config)
 

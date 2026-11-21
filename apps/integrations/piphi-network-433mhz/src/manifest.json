@@ -2,13 +2,13 @@
   "manifest_version": "1.0",
   "id": "piphi-network-433mhz",
   "name": "PiPhi Network 433MHz Devices",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Experimental receive-only rtl_433 integration for a bounded weather, contact, battery, and signal sensor slice.",
   "maintainer": {
     "name": "PiPhi Network",
     "website": "https://piphi.io"
   },
-  "image": "ghcr.io/piphi-io/piphi-network-433mhz:0.2.0",
+  "image": "ghcr.io/piphi-io/piphi-network-433mhz:0.2.1",
   "platforms": [
     "linux"
   ],
@@ -16,7 +16,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "ghcr.io/piphi-io/piphi-network-433mhz:0.2.0",
+        "image": "ghcr.io/piphi-io/piphi-network-433mhz:0.2.1",
         "ports": [
           {
             "container": 8090,
@@ -26,16 +26,23 @@
         "environment": {
           "LOG_LEVEL": "info",
           "RTL433_DISCOVERY_WAIT_SECONDS": "8",
-          "RTL433_DISCOVERY_CACHE_PATH": "/tmp/piphi-network-433mhz-discovery.json",
+          "RTL433_DISCOVERY_CACHE_PATH": "/var/lib/piphi/discovery.json",
           "RTL433_MAX_PACKET_BYTES": "65536",
           "RTL433_DEDUP_WINDOW_SECONDS": "2",
           "RTL433_DEVICE_EXPIRY_SECONDS": "610",
-          "PIPHI_AUTOMATION_LEDGER_PATH": "/tmp/piphi-network-433mhz-actions.sqlite3"
+          "PIPHI_AUTOMATION_LEDGER_PATH": "/var/lib/piphi/automation-actions.sqlite3"
         },
         "restart_policy": {
           "name": "unless-stopped",
           "maximum_retry_count": 0
-        }
+        },
+        "volumes": [
+          {
+            "host": "/var/lib/piphi/rtl433-integration",
+            "container": "/var/lib/piphi",
+            "mode": "rw"
+          }
+        ]
       },
       "discovery": {
         "method": "passive",
@@ -66,7 +73,7 @@
         "id": "piphi.service.rtl433-bridge",
         "kind": "platform_service",
         "version_range": ">=0.2.0,<0.3.0",
-        "recommended_version": "0.2.0",
+        "recommended_version": "0.2.1",
         "required": true,
         "shared": true,
         "auto_install": true,
@@ -305,11 +312,24 @@
     "display_name": "433 MHz sensors (experimental)",
     "summary": "Receive a bounded set of weather, contact, battery, and radio-signal readings from rtl_433.",
     "category": "sensors",
-    "device_types": ["weather sensor", "contact sensor", "battery sensor"],
-    "protocols": ["rtl_433", "sub-GHz receive-only radio"],
-    "regions": ["WW"],
-    "languages": ["en"],
-    "discovery_methods": ["local radio reception"],
+    "device_types": [
+      "weather sensor",
+      "contact sensor",
+      "battery sensor"
+    ],
+    "protocols": [
+      "rtl_433",
+      "sub-GHz receive-only radio"
+    ],
+    "regions": [
+      "WW"
+    ],
+    "languages": [
+      "en"
+    ],
+    "discovery_methods": [
+      "local radio reception"
+    ],
     "connectivity": "local",
     "offline_support": "partial",
     "publisher": {
@@ -336,19 +356,23 @@
       {
         "brand": "Multi-vendor",
         "model": "Explicitly accepted rtl_433 weather/contact sensors with stable identifiers; decoder support does not imply PiPhi qualification",
-        "regions": ["WW"]
+        "regions": [
+          "WW"
+        ]
       }
     ],
-    "documentation_url": "https://github.com/PiPhi-io/piphi-apps/tree/apps/piphi-network-433mhz/v0.2.0/apps/integrations/piphi-network-433mhz",
+    "documentation_url": "https://github.com/PiPhi-io/piphi-apps/tree/apps/piphi-network-433mhz/v0.2.1/apps/integrations/piphi-network-433mhz",
     "support_url": "https://github.com/PiPhi-io/piphi-apps/issues",
-    "changelog_url": "https://github.com/PiPhi-io/piphi-apps/releases/tag/apps/piphi-network-433mhz/v0.2.0",
+    "changelog_url": "https://github.com/PiPhi-io/piphi-apps/releases/tag/apps/piphi-network-433mhz/v0.2.1",
     "quality_tier": "unrated",
     "governance": {
       "schema_version": 1,
       "publication_status": "beta",
       "rollout_percent": 10,
       "lifecycle_status": "active",
-      "qualification": {"status": "unverified"}
+      "qualification": {
+        "status": "unverified"
+      }
     }
   },
   "runtime_contract": {

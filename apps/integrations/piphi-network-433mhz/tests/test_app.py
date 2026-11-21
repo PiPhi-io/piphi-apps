@@ -1,8 +1,8 @@
-import importlib
 import asyncio
+import importlib
 import json
-from pathlib import Path
 import time
+from pathlib import Path
 from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
@@ -368,9 +368,12 @@ def test_generic_leak_packets_never_emit_canonical_safety_events(monkeypatch) ->
     )
     assert partial_response.status_code == 200
     assert event_deliveries == []
-    assert client.get("/state").json()["state_snapshots"]["cfg-leak-1"]["state"][
-        "last_metrics"
-    ]["leak_detected"] is False
+    assert (
+        client.get("/state").json()["state_snapshots"]["cfg-leak-1"]["state"]["last_metrics"][
+            "leak_detected"
+        ]
+        is False
+    )
 
     ingest(1)
     ingest(1)
@@ -378,10 +381,7 @@ def test_generic_leak_packets_never_emit_canonical_safety_events(monkeypatch) ->
 
     assert event_deliveries == []
 
-    event_types = [
-        event["event_type"]
-        for event in client.get("/events").json()["events"]
-    ]
+    event_types = [event["event_type"] for event in client.get("/events").json()["events"]]
     assert "rtl433.safety.leak.detected" not in event_types
     assert "rtl433.safety.leak.cleared" not in event_types
 
@@ -411,16 +411,22 @@ def test_generic_leak_transition_does_not_deliver_safety_event_to_mock_core(
 
     with TestClient(app) as client:
         assert client.post("/config", json=payload, headers=headers).status_code == 200
-        assert client.post(
-            "/ingest/rtl433",
-            json={"model": "Generic-Leak", "id": 18, "leak": 0},
-            headers=headers,
-        ).status_code == 200
-        assert client.post(
-            "/ingest/rtl433",
-            json={"model": "Generic-Leak", "id": 18, "leak": 1},
-            headers=headers,
-        ).status_code == 200
+        assert (
+            client.post(
+                "/ingest/rtl433",
+                json={"model": "Generic-Leak", "id": 18, "leak": 0},
+                headers=headers,
+            ).status_code
+            == 200
+        )
+        assert (
+            client.post(
+                "/ingest/rtl433",
+                json={"model": "Generic-Leak", "id": 18, "leak": 1},
+                headers=headers,
+            ).status_code
+            == 200
+        )
 
         time.sleep(0.05)
         assert mock_core.event_requests == []
@@ -438,9 +444,7 @@ def test_manifest_declares_fail_closed_security_coverage() -> None:
     assert all(mapping["required_permissions"] for mapping in mappings)
     assert not any(mapping["status"] == "implemented" for mapping in mappings)
     assert {
-        mapping["source_event_type"]
-        for mapping in mappings
-        if mapping["status"] == "excluded"
+        mapping["source_event_type"] for mapping in mappings if mapping["status"] == "excluded"
     } == {
         "rtl433.safety.leak.detected",
         "rtl433.safety.leak.cleared",
@@ -500,8 +504,14 @@ def test_ingest_generic_config_uses_inferred_weather_metrics(monkeypatch) -> Non
         "humidity_percent": "%",
         "pressure_hpa": "hPa",
     }
-    assert any(entity["id"] == "Fineoffset-WH0290::62::na.temperature_c" for entity in entities_response.json())
-    assert any(entity["id"] == "Fineoffset-WH0290::62::na.pressure_hpa" for entity in entities_response.json())
+    assert any(
+        entity["id"] == "Fineoffset-WH0290::62::na.temperature_c"
+        for entity in entities_response.json()
+    )
+    assert any(
+        entity["id"] == "Fineoffset-WH0290::62::na.pressure_hpa"
+        for entity in entities_response.json()
+    )
 
 
 def test_ingest_matching_config_sends_telemetry_to_mock_core(
@@ -769,7 +779,9 @@ def test_ingest_unmatched_packet_emits_discovery_event_and_skips_telemetry(monke
 def test_handle_mqtt_packet_ignores_invalid_envelope() -> None:
     reset_runtime_state()
 
-    result = asyncio.run(app_module.handle_mqtt_packet("piphi/sources/rtl433/packets", {"packet": "bad"}))
+    result = asyncio.run(
+        app_module.handle_mqtt_packet("piphi/sources/rtl433/packets", {"packet": "bad"})
+    )
 
     assert result is None
     assert list(recent_seen_devices.values()) == []
@@ -816,11 +828,42 @@ def test_ingest_requires_configured_bridge_token(monkeypatch) -> None:
     packet = {"model": "Nexus-TH", "id": 42, "temperature_C": 23.1}
 
     assert client.post("/ingest/rtl433", json=packet).status_code == 401
-    assert client.post(
-        "/ingest/rtl433",
-        json=packet,
-        headers={"X-PiPhi-Bridge-Token": "bridge-secret"},
-    ).status_code == 200
+    assert (
+        client.post(
+            "/ingest/rtl433",
+            json=packet,
+            headers={"X-PiPhi-Bridge-Token": "bridge-secret"},
+        ).status_code
+        == 200
+    )
+
+
+def test_runtime_and_ingest_auth_fail_closed(monkeypatch) -> None:
+    reset_runtime_state()
+    monkeypatch.delenv("PIPHI_ALLOW_UNAUTHENTICATED", raising=False)
+    monkeypatch.delenv("PIPHI_INTEGRATION_INTERNAL_TOKEN", raising=False)
+    monkeypatch.delenv("RTL433_INGEST_TOKEN", raising=False)
+    client = TestClient(app)
+
+    assert client.get("/health").status_code == 200
+    assert client.get("/entities").status_code == 503
+    assert client.post("/ingest/rtl433", json={"model": "Nexus-TH", "id": 42}).status_code == 503
+
+    monkeypatch.setenv("PIPHI_INTEGRATION_INTERNAL_TOKEN", "runtime-secret")
+    monkeypatch.setenv("RTL433_INGEST_TOKEN", "bridge-secret")
+    assert client.get("/entities").status_code == 401
+    assert (
+        client.get("/entities", headers={"X-PiPhi-Integration-Token": "runtime-secret"}).status_code
+        == 200
+    )
+    assert (
+        client.post(
+            "/ingest/rtl433",
+            json={"model": "Nexus-TH", "id": 42},
+            headers={"X-PiPhi-Bridge-Token": "bridge-secret"},
+        ).status_code
+        == 200
+    )
 
 
 def test_packet_without_stable_identity_stays_undiscoverable() -> None:

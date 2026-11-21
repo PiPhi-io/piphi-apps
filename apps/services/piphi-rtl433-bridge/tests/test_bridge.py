@@ -307,6 +307,8 @@ def test_run_once_kills_process_when_still_running(monkeypatch) -> None:
 
     assert process.kill_called is True
     assert process.wait_called is True
+    assert bridge.process_running is False
+    assert bridge.last_exit_code == process.returncode
 
 
 def test_run_once_does_not_kill_process_when_already_exited(monkeypatch) -> None:
@@ -334,6 +336,8 @@ def test_run_once_does_not_kill_process_when_already_exited(monkeypatch) -> None
 
     assert process.kill_called is False
     assert process.wait_called is False
+    assert bridge.process_running is False
+    assert bridge.last_exit_code == 0
 
 
 def test_run_forever_logs_exception_and_sleeps(monkeypatch, caplog) -> None:
@@ -354,10 +358,16 @@ def test_run_forever_logs_exception_and_sleeps(monkeypatch, caplog) -> None:
     monkeypatch.setattr(bridge, "run_once", fake_run_once)
     monkeypatch.setattr("piphi_rtl433_bridge.bridge.asyncio.sleep", fake_sleep)
 
-    with caplog.at_level("ERROR", logger="piphi_rtl433_bridge"):
-        with pytest.raises(asyncio.CancelledError):
-            asyncio.run(bridge.run_forever())
+    with (
+        caplog.at_level("ERROR", logger="piphi_rtl433_bridge"),
+        pytest.raises(asyncio.CancelledError),
+    ):
+        asyncio.run(bridge.run_forever())
 
     assert run_once_calls["count"] == 2
     assert sleep_calls == [0.25]
-    assert any("bridge_cycle_failed error=boom" in record.message for record in caplog.records)
+    assert bridge.restart_count == 1
+    assert bridge.last_error == "RuntimeError"
+    assert any(
+        "bridge_cycle_failed error_type=RuntimeError" in record.message for record in caplog.records
+    )

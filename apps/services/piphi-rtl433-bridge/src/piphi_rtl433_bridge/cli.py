@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import asyncio
-from importlib.metadata import PackageNotFoundError, version as package_version
 import json
 import logging
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as package_version
 from typing import Any
 
 import click
@@ -11,8 +12,8 @@ import httpx
 
 from .bridge import Rtl433Bridge
 from .config import (
-    DEFAULT_RADIO_BAND,
     DEFAULT_MQTT_TOPIC_ROOT,
+    DEFAULT_RADIO_BAND,
     DEFAULT_RUNTIME_INGEST_URL,
     BridgeConfig,
     build_bridge_config,
@@ -501,7 +502,7 @@ async def _ping_runtime(config: BridgeConfig) -> dict[str, Any]:
             "status_code": response.status_code,
             "runtime_ingest_url": config.runtime_ingest_url,
         }
-    except Exception as exc:
+    except httpx.HTTPError as exc:
         return {
             "reachable": False,
             "error": str(exc),
