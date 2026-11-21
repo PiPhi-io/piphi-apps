@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from collections.abc import Mapping
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, Request
@@ -50,7 +51,7 @@ from .steam_client import (
 
 INTEGRATION_ID = "piphi-network-steam"
 INTEGRATION_NAME = "Steam"
-INTEGRATION_VERSION = "0.1.0"
+INTEGRATION_VERSION = "0.2.0"
 DEFAULT_POLL_INTERVAL_SECONDS = 300
 logger = logging.getLogger(__name__)
 
@@ -58,7 +59,7 @@ starter = create_runtime_starter(
     integration_id=INTEGRATION_ID,
     integration_name=INTEGRATION_NAME,
     version=INTEGRATION_VERSION,
-    core_base_url=resolve_core_base_url("http://127.0.0.1:31419"),
+    core_base_url=resolve_core_base_url("http://127.0.0.1:31419") or "http://127.0.0.1:31419",
 )
 runtime = starter.runtime
 registry = starter.registry
@@ -78,6 +79,20 @@ async def _refresh_all_state() -> None:
 starter.state.provide(_refresh_all_state, source=INTEGRATION_ID)
 poll_tasks: dict[str, asyncio.Task[Any]] = {}
 poll_status: dict[str, dict[str, Any]] = {}
+refresh_locks: dict[str, asyncio.Lock] = {}
+PUBLIC_STATE_FIELDS = {
+    "persona_state",
+    "is_online",
+    "is_in_game",
+    "current_game_app_id",
+    "current_game_name",
+    "library_visible",
+    "recent_games_visible",
+    "owned_game_count",
+    "recent_game_count",
+    "total_playtime_minutes",
+    "recent_playtime_minutes",
+}
 
 
 class SteamConfig(RuntimeConfig):
@@ -120,9 +135,10 @@ def _credentials_from_config(config: SteamConfig) -> SteamCredentials:
 
 
 def _credentials_from_entry(entry: dict[str, Any]) -> SteamCredentials:
+    secret = entry["web_api_key"]
     return SteamCredentials(
         steam_id=str(entry["steam_id"]),
-        web_api_key=str(entry["web_api_key"]),
+        web_api_key=(secret.get_secret_value() if isinstance(secret, SecretStr) else str(secret)),
     )
 
 
@@ -133,6 +149,10 @@ def _public_device(entry: dict[str, Any]) -> dict[str, Any]:
         "integration_id": INTEGRATION_ID,
         "name": entry.get("display_name") or f"Steam {entry['steam_id']}",
     }
+
+
+def _minimized_state(snapshot: SteamSnapshot) -> dict[str, Any]:
+    return {key: value for key, value in snapshot.state.items() if key in PUBLIC_STATE_FIELDS}
 
 
 def _raise_http_for_steam_error(exc: SteamAPIError) -> None:
@@ -211,82 +231,170 @@ def _transition_events(
 
 
 async def _read_and_store(config_id: str) -> SteamSnapshot:
+    async with refresh_locks.setdefault(config_id, asyncio.Lock()):
+        entry = registry.get(config_id)
+        if entry is None:
+            raise HTTPException(status_code=404, detail=f"unknown config_id={config_id}")
+        poll_status.setdefault(config_id, {})["poll_in_progress"] = True
+        previous = registry.state_snapshots.get(config_id, {}).get("state")
+        try:
+            snapshot = await steam_client.fetch_snapshot(_credentials_from_entry(entry))
+        except SteamAPIError as exc:
+            _record_failure(config_id, exc)
+            raise
+        state = {
+            **_minimized_state(snapshot),
+            "connected": True,
+            "available": True,
+            "stale": False,
+            "reauth_required": False,
+            "display_name": entry.get("display_name") or snapshot.state["persona_name"],
+            "last_success_at": snapshot.sampled_at,
+            "consecutive_failures": 0,
+            "sampled_at": snapshot.sampled_at,
+        }
+        registry.update_state(config_id, state)
+        _transition_events(entry, previous, state)
+        if entry.get("status") in {"unavailable", "reauth_required"}:
+            _schedule_event(event_type="steam.account.recovered", entry=entry)
+        entry["status"] = "available"
+        schedule_telemetry_delivery(
+            process_state=runtime.process_state,
+            telemetry_client=telemetry_client,
+            auth_context=runtime.auth,
+            config_id=config_id,
+            device_id=str(entry["steam_id"]),
+            metrics={
+                **snapshot.metrics,
+                "available": True,
+                "stale": False,
+                "reauth_required": False,
+                "consecutive_failures": 0,
+            },
+            container_id=entry.get("container_id"),
+            timestamp=snapshot.sampled_at,
+        )
+        poll_status[config_id] = {
+            "last_success_at": snapshot.sampled_at,
+            "failure_reason": None,
+            "consecutive_failures": 0,
+            "poll_in_progress": False,
+        }
+        return snapshot
+
+
+def _record_failure(config_id: str, exc: SteamAPIError | HTTPException) -> int:
     entry = registry.get(config_id)
     if entry is None:
-        raise HTTPException(status_code=404, detail=f"unknown config_id={config_id}")
-    poll_status.setdefault(config_id, {})["last_poll_started"] = asyncio.get_running_loop().time()
-    previous = registry.state_snapshots.get(config_id, {}).get("state")
-    snapshot = await steam_client.fetch_snapshot(_credentials_from_entry(entry))
+        return 300
+    old = registry.state_snapshots.get(config_id, {}).get("state", {})
+    previous_status = str(entry.get("status") or "initializing")
+    failures = int(entry.get("consecutive_failures") or 0) + 1
+    entry["consecutive_failures"] = failures
+    entry["status"] = "unavailable"
+    reauth_required = isinstance(exc, SteamAuthenticationError)
+    reason = (
+        "authentication_required"
+        if reauth_required
+        else "rate_limited"
+        if isinstance(exc, SteamRateLimitError)
+        else "provider_unavailable"
+    )
+    retry_after = (
+        exc.retry_after_seconds
+        if isinstance(exc, SteamRateLimitError)
+        else 3600
+        if reauth_required
+        else min(900, 60 * (2 ** min(failures - 1, 4)))
+    )
     state = {
-        **snapshot.state,
-        "connected": True,
-        "display_name": entry.get("display_name") or snapshot.state["persona_name"],
-        "last_error": None,
-        "sampled_at": snapshot.sampled_at,
+        **old,
+        "connected": False,
+        "available": False,
+        "stale": bool(old.get("last_success_at")),
+        "reauth_required": reauth_required,
+        "failure_reason": reason,
+        "consecutive_failures": failures,
     }
     registry.update_state(config_id, state)
-    _transition_events(entry, previous, state)
-    schedule_telemetry_delivery(
-        process_state=runtime.process_state,
-        telemetry_client=telemetry_client,
-        auth_context=runtime.auth,
-        config_id=config_id,
-        device_id=str(entry["steam_id"]),
-        metrics=snapshot.metrics,
-        container_id=entry.get("container_id"),
-        timestamp=snapshot.sampled_at,
-    )
-    poll_status[config_id].update(
-        {"last_poll_succeeded": snapshot.sampled_at, "last_poll_error": None}
-    )
-    return snapshot
+    poll_status[config_id] = {
+        "last_success_at": old.get("last_success_at"),
+        "failure_reason": reason,
+        "consecutive_failures": failures,
+        "retry_after_seconds": retry_after,
+        "poll_in_progress": False,
+    }
+    if reauth_required:
+        if previous_status != "reauth_required":
+            _schedule_event(
+                event_type="steam.account.reauth_required", entry=entry, severity="warning"
+            )
+        entry["status"] = "reauth_required"
+    elif previous_status not in {"initializing", "unavailable", "reauth_required"}:
+        _schedule_event(
+            event_type="steam.account.unavailable",
+            entry=entry,
+            payload={"reason": reason},
+            severity="warning",
+        )
+    return retry_after
+
+
+async def _refresh_with_failure_state(config_id: str) -> SteamSnapshot:
+    return await _read_and_store(config_id)
 
 
 async def _poll_config(config_id: str, interval_seconds: int) -> None:
+    delay = interval_seconds
     while True:
         try:
-            await asyncio.sleep(interval_seconds)
+            await asyncio.sleep(delay)
             await _read_and_store(config_id)
+            delay = interval_seconds
         except asyncio.CancelledError:
             raise
         except (SteamAPIError, HTTPException) as exc:
-            entry = registry.get(config_id)
-            if entry is not None:
-                old = registry.state_snapshots.get(config_id, {}).get("state", {})
-                registry.update_state(
-                    config_id,
-                    {**old, "connected": False, "last_error": str(exc)},
-                )
-                poll_status.setdefault(config_id, {})["last_poll_error"] = str(exc)
-                _schedule_event(
-                    event_type="steam.poll.failed",
-                    entry=entry,
-                    payload={"error": str(exc)},
-                    severity="warning",
-                )
+            del exc
+            delay = int(poll_status.get(config_id, {}).get("retry_after_seconds") or 300)
 
 
 async def apply_config(config: SteamConfig) -> dict[str, Any]:
     config_id = _config_id(config)
-    await remove_config(config_id)
+    duplicate = next(
+        (
+            existing_id
+            for existing_id, existing in registry.entries.items()
+            if existing_id != config_id and str(existing.get("steam_id")) == config.steam_id
+        ),
+        None,
+    )
+    if duplicate:
+        raise HTTPException(status_code=409, detail="Steam account is already configured")
     try:
         initial = await steam_client.fetch_snapshot(_credentials_from_config(config))
     except SteamAPIError as exc:
         _raise_http_for_steam_error(exc)
-    entry = {
+    await remove_config(config_id)
+    entry: dict[str, Any] = {
         "config_id": config_id,
         "container_id": getattr(config, "container_id", None),
         "steam_id": config.steam_id,
-        "web_api_key": config.web_api_key.get_secret_value(),
+        "web_api_key": SecretStr(config.web_api_key.get_secret_value()),
         "display_name": config.display_name or initial.state["persona_name"],
         "poll_interval_seconds": config.poll_interval_seconds,
+        "status": "available",
+        "consecutive_failures": 0,
     }
     registry.set(config_id, entry)
     state = {
-        **initial.state,
+        **_minimized_state(initial),
         "connected": True,
+        "available": True,
+        "stale": False,
+        "reauth_required": False,
         "display_name": entry["display_name"],
-        "last_error": None,
+        "last_success_at": initial.sampled_at,
+        "consecutive_failures": 0,
         "sampled_at": initial.sampled_at,
     }
     registry.update_state(config_id, state)
@@ -300,7 +408,12 @@ async def apply_config(config: SteamConfig) -> dict[str, Any]:
         container_id=entry.get("container_id"),
         timestamp=initial.sampled_at,
     )
-    poll_status[config_id] = {"last_poll_succeeded": initial.sampled_at}
+    poll_status[config_id] = {
+        "last_success_at": initial.sampled_at,
+        "failure_reason": None,
+        "consecutive_failures": 0,
+        "poll_in_progress": False,
+    }
     poll_tasks[config_id] = create_tracked_task(
         _poll_config(config_id, config.poll_interval_seconds),
         process_state=runtime.process_state,
@@ -319,6 +432,7 @@ async def remove_config(config_id: str) -> bool:
             pass
     entry = registry.remove(config_id)
     poll_status.pop(config_id, None)
+    refresh_locks.pop(config_id, None)
     if entry is None:
         return False
     _schedule_event(event_type="device.deconfigured", entry=entry)
@@ -337,7 +451,7 @@ async def reset_runtime_state() -> None:
 async def _refresh(action: AutomationActionRequest) -> AutomationActionResult:
     config_id = str(action.config_id or "").strip()
     try:
-        snapshot = await _read_and_store(config_id)
+        snapshot = await _refresh_with_failure_state(config_id)
     except (SteamAPIError, HTTPException) as exc:
         status = exc.status_code if isinstance(exc, HTTPException) else 503
         return AutomationActionResult.failure(
@@ -371,6 +485,11 @@ async def _extract_inputs(
 def _capabilities(state: dict[str, Any]) -> list[str]:
     keys = (
         "connected",
+        "available",
+        "stale",
+        "reauth_required",
+        "last_success_at",
+        "consecutive_failures",
         "is_online",
         "is_in_game",
         "persona_state",
@@ -430,7 +549,6 @@ async def diagnostics() -> RuntimeDiagnosticsResponse:
         diagnostics={
             "active_config_ids": registry.ids(),
             "poll_status": poll_status,
-            "state_snapshots": registry.state_snapshots,
             "recent_event_count": len(registry.recent_events),
         }
     )
@@ -493,7 +611,6 @@ async def discover(
                 "device_id": config.steam_id,
                 "device_class": "gaming_account",
                 "metadata": {
-                    "profile_url": snapshot.state.get("profile_url"),
                     "library_visible": snapshot.state["library_visible"],
                 },
             }
@@ -515,21 +632,19 @@ async def config(payload: SteamConfig, request: Request) -> RuntimeConfigApplyRe
 async def apply_runtime_config_snapshot(
     payload: RuntimeConfigSnapshot,
 ) -> RuntimeConfigSyncResponse:
-    typed = payload.model_copy(
-        update={
-            "configs": validate_typed_configs(
-                [c.model_dump() if hasattr(c, "model_dump") else c for c in payload.configs],
-                SteamConfig,
-            )
-        }
-    )
+    raw_configs: list[Mapping[str, Any]] = [config.model_dump() for config in payload.configs]
+    typed = payload.model_copy(update={"configs": validate_typed_configs(raw_configs, SteamConfig)})
     return await config_sync.apply_snapshot(
         snapshot=typed,
         active_config_ids=registry.ids(),
-        apply_config=apply_config,
+        apply_config=_apply_typed_config,
         remove_config=remove_config,
         get_active_config_ids=registry.ids,
     )
+
+
+async def _apply_typed_config(config: RuntimeConfig) -> None:
+    await apply_config(SteamConfig.model_validate(config.model_dump()))
 
 
 @router.post("/configs/sync")
@@ -588,7 +703,8 @@ async def events() -> IntegrationEventListResponse:
 @router.post("/command")
 async def command(payload: IntegrationCommandRequest, request: Request) -> dict[str, Any]:
     sync_runtime_auth_from_fastapi_payload(runtime, request, payload)
-    target = payload.target if isinstance(payload.target, dict) else {}
+    raw_target = getattr(payload, "target", None)
+    target: dict[str, Any] = raw_target if isinstance(raw_target, dict) else {}
     config_id = str(
         payload.config_id or payload.args.get("config_id") or target.get("config_id") or ""
     )
@@ -611,7 +727,7 @@ async def command(payload: IntegrationCommandRequest, request: Request) -> dict[
         request,
         {
             **payload.model_dump(mode="python"),
-            "args": payload.params or payload.args,
+            "args": getattr(payload, "params", None) or payload.args,
             "config_id": config_id,
             "device_id": device_id,
         },

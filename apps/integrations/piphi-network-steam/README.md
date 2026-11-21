@@ -1,6 +1,6 @@
 # PiPhi Network Steam integration
 
-Connects a homeowner's Steam account to PiPhi using Valve's documented Steam Web API. The integration monitors player presence, current-game activity, recent games, and library-level playtime summaries. It never asks for a Steam password and does not launch games, send messages, trade items, or make purchases.
+Connects a homeowner's Steam account to PiPhi using Valve's documented Steam Web API. The integration monitors player presence, current-game activity, and aggregate visible playtime summaries. Raw recent-game history, profile URLs, avatars, and last-logoff timestamps are discarded. It never asks for a Steam password and does not launch games, send messages, trade items, or make purchases.
 
 ## Configuration
 
@@ -10,6 +10,11 @@ Connects a homeowner's Steam account to PiPhi using Valve's documented Steam Web
 4. Game details must be visible under Steam profile privacy settings for library and recent-game data to be available. Games marked private remain absent.
 
 The Web API key stays inside the integration runtime and is sent only to `https://api.steampowered.com` using the `x-webapi-key` header. It is excluded from state, telemetry, events, diagnostics, and logs.
+
+Every route except `/health` requires the PiPhi runtime token. Polls and manual
+refreshes are serialized per account. Outages preserve last-good values as stale,
+rate limits honor bounded `Retry-After`, and authentication failures expose a
+deduplicated reauthentication-required transition without returning provider data.
 
 ## Development
 

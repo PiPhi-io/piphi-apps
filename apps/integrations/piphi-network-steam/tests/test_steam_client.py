@@ -6,7 +6,10 @@ import pytest
 from piphi_network_steam.steam_client import (
     SteamAuthenticationError,
     SteamCredentials,
+    SteamRateLimitError,
+    SteamResponseError,
     SteamWebAPIClient,
+    _retry_after_seconds,
     normalize_snapshot,
 )
 
@@ -70,3 +73,61 @@ async def test_summary_auth_error_is_typed() -> None:
         client = SteamWebAPIClient(http_client=http_client)
         with pytest.raises(SteamAuthenticationError):
             await client.fetch_snapshot(SteamCredentials("76561198000000000", "invalid"))
+
+
+@pytest.mark.asyncio
+async def test_rate_limit_preserves_bounded_retry_after() -> None:
+    transport = httpx.MockTransport(
+        lambda _request: httpx.Response(429, headers={"Retry-After": "240"})
+    )
+    async with httpx.AsyncClient(transport=transport) as http_client:
+        client = SteamWebAPIClient(http_client=http_client)
+        with pytest.raises(SteamRateLimitError) as captured:
+            await client.fetch_snapshot(SteamCredentials("76561198000000000", "limited"))
+    assert captured.value.retry_after_seconds == 240
+
+
+@pytest.mark.parametrize(
+    ("response", "message"),
+    [
+        (httpx.Response(500), "HTTP 500"),
+        (httpx.Response(200, text="not-json"), "invalid JSON"),
+        (httpx.Response(200, json=[]), "unexpected payload"),
+    ],
+)
+@pytest.mark.asyncio
+async def test_provider_failures_are_sanitized(response: httpx.Response, message: str) -> None:
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(
+            response.status_code,
+            headers=response.headers,
+            content=response.content,
+            request=request,
+        )
+    )
+    async with httpx.AsyncClient(transport=transport) as http_client:
+        client = SteamWebAPIClient(http_client=http_client)
+        with pytest.raises(SteamResponseError, match=message):
+            await client._get("/test", SteamCredentials("76561198000000000", "secret"))
+
+
+@pytest.mark.asyncio
+async def test_network_failure_is_typed_and_owned_client_closes() -> None:
+    def fail(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("secret must not appear", request=request)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(fail)) as http_client:
+        client = SteamWebAPIClient(http_client=http_client)
+        with pytest.raises(SteamResponseError, match="ConnectError") as captured:
+            await client._get("/test", SteamCredentials("76561198000000000", "secret"))
+        assert "secret must not appear" not in str(captured.value)
+    owned = SteamWebAPIClient()
+    await owned._client()
+    await owned.aclose()
+
+
+def test_retry_after_parser_is_bounded_and_fail_closed() -> None:
+    assert _retry_after_seconds(None) == 60
+    assert _retry_after_seconds("1") == 60
+    assert _retry_after_seconds("99999") == 3600
+    assert _retry_after_seconds("invalid") == 60

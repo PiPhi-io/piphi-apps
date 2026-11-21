@@ -6,24 +6,35 @@
     "imported_from": "https://github.com/PiPhi-io/piphi-network-steam"
   },
   "languages": [
-    "python"
+    "python",
+    "node"
   ],
   "toolchains": {
-    "python": "3.12"
+    "python": "3.12",
+    "node": "22"
   },
   "ci": {
-    "enforcement": "legacy-static",
+    "enforcement": "full",
     "commands": [
       "pdm install --check",
-      "pdm run pytest"
+      "pdm run pytest --cov=piphi_network_steam --cov-branch --cov-fail-under=80",
+      "pdm run ruff check src tests",
+      "pdm run ruff format --check src tests",
+      "pdm run mypy src/piphi_network_steam",
+      "pdm run bandit -q -r src",
+      "npm --prefix widgets/steam-activity ci",
+      "npm --prefix widgets/steam-activity test",
+      "npm --prefix widgets/steam-activity run build",
+      "npm --prefix widgets/steam-activity run validate",
+      "npm --prefix widgets/steam-activity run conformance"
     ],
-    "build_container": false
+    "build_container": true
   },
   "packages": [
     {
       "id": "piphi-network-steam",
       "type": "integration",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "manifest": "src/manifest.json",
       "release": {
         "tag": "apps/{package_id}/v{version}",

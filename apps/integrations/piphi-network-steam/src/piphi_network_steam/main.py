@@ -4,7 +4,7 @@ import uvicorn
 
 
 def main() -> None:
-    uvicorn.run("piphi_network_steam.app:app", host="0.0.0.0", port=8090)
+    uvicorn.run("piphi_network_steam.app:app", host="0.0.0.0", port=8090)  # nosec B104
 
 
 if __name__ == "__main__":
