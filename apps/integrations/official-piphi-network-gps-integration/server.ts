@@ -3,6 +3,8 @@ import { fileURLToPath } from "node:url";
 import expressWinston from "express-winston";
 import winston from "winston";
 
+import { requireRuntimeAuth } from "./lib/auth.js";
+import { restoreRuntimeConfigs } from "./lib/startup.js";
 import { router as healthRouter } from "./routes/health/health.routes.js";
 import { uischemaRouter } from "./routes/uischema/uischema.routes.js";
 import { router as configRouter } from "./routes/config/config.routes.js";
@@ -16,6 +18,7 @@ import { router as commandRouter } from "./routes/command/command.routes.js";
 
 export const app = express();
 app.use(express.json());
+app.use(requireRuntimeAuth);
 
 export const logger = winston.createLogger({
   level: "info",
@@ -35,7 +38,7 @@ export const logger = winston.createLogger({
 app.use(
   expressWinston.logger({
     winstonInstance: logger,
-    meta: true,
+    meta: false,
     msg: "HTTP {{req.method}} {{req.url}}",
     expressFormat: true,
     colorize: true,
@@ -56,7 +59,6 @@ app.use(commandRouter);
 const port = Number(process.env.PORT || 3080);
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  app.listen(port, () => {
-    logger.info(`Server started on port ${port}`);
-  });
+  await restoreRuntimeConfigs();
+  app.listen(port, () => logger.info(`Server started on port ${port}`));
 }

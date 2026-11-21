@@ -189,3 +189,32 @@ test("deconfigure route safely reports missing GPS devices", async () => {
     await server.close();
   }
 });
+
+test("operational routes fail closed while health remains public", async () => {
+  const allow = process.env.PIPHI_ALLOW_UNAUTHENTICATED;
+  const token = process.env.PIPHI_INTEGRATION_INTERNAL_TOKEN;
+  delete process.env.PIPHI_ALLOW_UNAUTHENTICATED;
+  delete process.env.PIPHI_INTEGRATION_INTERNAL_TOKEN;
+  const server = await startServer();
+  try {
+    assert.equal((await fetch(`${server.baseUrl}/health/`)).status, 200);
+    assert.equal((await fetch(`${server.baseUrl}/state`)).status, 503);
+
+    process.env.PIPHI_INTEGRATION_INTERNAL_TOKEN = "runtime-secret";
+    assert.equal((await fetch(`${server.baseUrl}/state`)).status, 401);
+    assert.equal(
+      (
+        await fetch(`${server.baseUrl}/state`, {
+          headers: { "X-PiPhi-Integration-Token": "runtime-secret" },
+        })
+      ).status,
+      200,
+    );
+  } finally {
+    if (allow === undefined) delete process.env.PIPHI_ALLOW_UNAUTHENTICATED;
+    else process.env.PIPHI_ALLOW_UNAUTHENTICATED = allow;
+    if (token === undefined) delete process.env.PIPHI_INTEGRATION_INTERNAL_TOKEN;
+    else process.env.PIPHI_INTEGRATION_INTERNAL_TOKEN = token;
+    await server.close();
+  }
+});

@@ -1,6 +1,6 @@
 import express from "express";
 import { body, validationResult } from "express-validator";
-import { buildConfigApplyResponse, ConfigSyncCoordinator, formatConfigApplyLog, } from "piphi-runtime-kit-node";
+import { buildConfigApplyResponse, ConfigSyncCoordinator, } from "piphi-runtime-kit-node";
 import { formatExpressRuntimeAuthSyncLog, syncRuntimeAuthFromExpressRequest, } from "piphi-runtime-kit-node/adapters/express";
 import { configureGPSDevice, deconfigureGPSDevice } from "../../lib/gps.js";
 import { getActiveConfigs, getRuntimeContext } from "../../lib/runtime.js";
@@ -20,12 +20,7 @@ router.post("/config", schema, async (req, res) => {
     }
     const payload = (req.body ?? {});
     syncRuntimeAuthFromRequest(req, payload);
-    logger.info(formatConfigApplyLog({
-        id: String(payload.id ?? payload.path ?? "gps-device"),
-        containerId: typeof payload.container_id === "string" ? payload.container_id : null,
-        integrationId: null,
-        ...payload,
-    }));
+    logger.info(`gps_config_apply config_id=${String(payload.id ?? "gps-device")} managed=${typeof payload.container_id === "string"}`);
     const result = await configureGPSDevice(payload);
     return res.json({
         ...buildConfigApplyResponse({

@@ -123,14 +123,25 @@ General interpretation:
 
 ## Deployment notes
 
-The container/runtime needs access to the host serial device.
+The container runs without root or privileged mode. The orchestrator must grant only the selected host serial device (for example, `--device=/dev/ttyACM0`) and its owning group. Do not expose all of `/dev`.
 
 Make sure:
 
 - the GPS receiver is visible on the host
 - the selected serial path exists
 - the integration runtime has permission to access that path
-- the container is running with the expected device/privileged settings from the manifest/runtime configuration
+- the container has an explicit grant for only the selected receiver
+
+Operational routes require `X-PiPhi-Integration-Token` matching
+`PIPHI_INTEGRATION_INTERNAL_TOKEN`; only `/health` is public. Configuration is
+restored from Core at startup with an atomic, non-secret snapshot under
+`/var/lib/piphi` as the offline fallback.
+
+Diagnostics expose receiver health and fix quality but omit serial paths,
+hardware serial numbers, coordinates, and telemetry payloads. For deterministic
+artifact qualification without hardware, set `GPS_SIMULATION_MODE=true` and
+configure a `simulation://...` path. This does not constitute receiver or model
+certification.
 
 ## Troubleshooting
 
@@ -152,7 +163,7 @@ Try:
 - moving the receiver near a window
 - giving the receiver more time to acquire satellites
 - using a receiver with a better antenna or external antenna
-- checking `satellites`, `hdop`, `fix_quality`, and `fix_age_ms` in `/state` or `/diagnostics`
+- checking `satellites`, `hdop`, `fix_quality`, and `fix_age_ms` in authenticated `/state`
 
 ### Coordinates look stale
 

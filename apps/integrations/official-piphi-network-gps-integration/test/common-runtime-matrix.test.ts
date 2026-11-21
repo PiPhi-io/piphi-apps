@@ -143,12 +143,12 @@ test("handle_runtime_error stores a runtime_error event", () => {
   handle_runtime_error(new Error("gps runtime exploded"));
   const event = getRecentEvents(1)[0];
   assert.equal(event?.type, "runtime_error");
-  assert.equal(event?.data.message, "gps runtime exploded");
+  assert.equal(event?.data.error_type, "Error");
 });
 
 test("handle_runtime_error updates the runtime error snapshot", () => {
   handle_runtime_error(new Error("gps runtime exploded"));
-  assert.equal(getHealthSummary().lastError?.message, "gps runtime exploded");
+  assert.equal(getHealthSummary().lastError?.message, "Error");
 });
 
 test("telemetry fallback uses container id from payload when provided", async () => {

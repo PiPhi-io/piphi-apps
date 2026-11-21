@@ -12,19 +12,21 @@ test.afterEach(() => {
   resetRuntimeForTests();
 });
 
-test("diagnostics route returns configured ids and runtime snapshot", async () => {
+test("diagnostics route returns privacy-safe operational state", async () => {
   const server = await startServer();
   try {
     upsertActiveConfig({ deviceId: "gps-diagnostics", path: "/dev/ttyUSBdiag" });
     const response = await fetch(`${server.baseUrl}/diagnostics`);
     const body = (await response.json()) as {
       ok: boolean;
-      diagnostics: { configuredDeviceIds: string[]; runtimeSnapshot: Record<string, unknown> };
+      diagnostics: { configured_device_count: number; devices: Array<Record<string, unknown>> };
     };
     assert.equal(response.status, 200);
     assert.equal(body.ok, true);
-    assert.deepEqual(body.diagnostics.configuredDeviceIds, ["gps-diagnostics"]);
-    assert.ok(body.diagnostics.runtimeSnapshot);
+    assert.equal(body.diagnostics.configured_device_count, 1);
+    assert.equal(body.diagnostics.devices.length, 1);
+    assert.equal(JSON.stringify(body).includes("/dev/ttyUSBdiag"), false);
+    assert.equal(JSON.stringify(body).includes("gps-diagnostics"), false);
   } finally {
     await server.close();
   }
@@ -355,7 +357,7 @@ test("health route includes last runtime errors", async () => {
     setRuntimeError(new Error("gps crashed"));
     const response = await fetch(`${server.baseUrl}/health/`);
     const body = (await response.json()) as { metadata: { last_error: { message: string } } };
-    assert.equal(body.metadata.last_error.message, "gps crashed");
+    assert.equal(body.metadata.last_error.message, "Error");
   } finally {
     await server.close();
   }
