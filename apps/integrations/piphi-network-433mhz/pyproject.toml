@@ -1,6 +1,6 @@
 [project]
 name = "piphi-network-433mhz"
-version = "0.2.0"
+version = "0.2.1"
 description = "Receive-only PiPhi integration for a bounded rtl_433 sensor slice"
 authors = [
     { name = "PiPhi Network" },
@@ -8,8 +8,7 @@ authors = [
 ]
 dependencies = [
     "fastapi[standard]>=0.116.1",
-    "piphi-runtime-kit-python[fastapi,mqtt]>=0.8.1,<1.0.0",
-    "pytest>=8.3,<9.0",
+    "piphi-runtime-kit-python[fastapi,mqtt]>=0.11.1,<1.0.0",
 ]
 requires-python = "==3.12.*"
 readme = "README.md"
@@ -18,8 +17,18 @@ license = { text = "MIT" }
 [project.optional-dependencies]
 dev = [
     "pytest>=8.3.0",
-    "piphi-runtime-testkit-python==0.1.4",
+    "bandit>=1.9.4",
+    "mypy>=1.18.2",
+    "pip-audit>=2.9.0",
+    "piphi-runtime-testkit-python>=0.2.0,<1.0.0",
+    "pytest>=8.3,<9.0",
+    "pytest-cov>=7.0.0",
+    "ruff>=0.13.0",
 ]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
 
 [tool.pdm]
 distribution = false

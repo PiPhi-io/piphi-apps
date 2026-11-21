@@ -15,7 +15,11 @@
     "enforcement": "full",
     "commands": [
       "pdm install --check",
-      "pdm run pytest",
+      "pdm run pytest --cov=piphi_rtl433_bridge --cov-branch --cov-fail-under=80",
+      "pdm run ruff check src tests",
+      "pdm run ruff format --check src tests",
+      "pdm run mypy src/piphi_rtl433_bridge",
+      "pdm run bandit -q -r src",
       "pdm run python scripts/validate.py"
     ],
     "build_container": true
@@ -24,7 +28,7 @@
     {
       "id": "piphi.service.rtl433-bridge",
       "type": "platform_service",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "manifest": "src/manifest.json",
       "release": {
         "tag": "apps/{package_id}/v{version}",

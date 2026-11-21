@@ -1,9 +1,14 @@
 from piphi_network_433mhz.profiles import (
+    _copy_first_present,
+    _copy_if_present,
+    _safe_metric_value,
+    _strict_bool,
     build_entities,
     extract_metrics,
     format_capability_name,
     infer_profile_id,
     metric_units,
+    normalize_metric_key,
     normalize_profile_id,
 )
 
@@ -130,3 +135,40 @@ def test_unknown_and_out_of_range_fields_are_not_product_metrics() -> None:
     )
 
     assert metrics == {}
+
+
+def test_direct_contact_leak_and_boolean_variants_are_strict() -> None:
+    metrics = extract_metrics(
+        {
+            "contact_open": "closed",
+            "leak": "wet",
+            "battery_ok": False,
+        },
+        "generic_sensor",
+    )
+    assert metrics == {
+        "contact_open": False,
+        "leak_detected": True,
+        "battery_ok": False,
+    }
+    assert infer_profile_id({"contact_open": True}) == "contact_sensor"
+    assert _strict_bool(True) is True
+    assert _strict_bool(2) is None
+    assert _strict_bool("dry") is False
+    assert _strict_bool("maybe") is None
+
+
+def test_metric_normalization_and_copy_helpers_reject_identity_and_unsafe_values() -> None:
+    metrics = {}
+    consumed = set()
+    packet = {"first": None, "second": 3, "present": "value"}
+    _copy_if_present(metrics, packet, "present", "copied", consumed)
+    _copy_first_present(metrics, packet, ("first", "second"), "selected", consumed)
+    assert metrics == {"copied": "value", "selected": 3}
+    assert consumed == {"present", "second"}
+    assert normalize_metric_key("Temperature C") == "temperature_c"
+    assert normalize_metric_key("device_id") is None
+    assert normalize_metric_key("debug_flags") is None
+    assert _safe_metric_value(1.5) == 1.5
+    assert _safe_metric_value(True) is True
+    assert _safe_metric_value("unsafe") is None

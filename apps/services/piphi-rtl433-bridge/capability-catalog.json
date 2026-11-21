@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "release": "0.2.0",
+  "release": "0.2.1",
   "upstream": {
     "name": "rtl_433",
     "revision": "f15b67699e902522014e7593d060ad37410eda00",
@@ -8,14 +8,50 @@
     "maximum_selectable_decoder_id": 398
   },
   "capabilities": [
-    {"id": "receive_json", "status": "implemented", "scope": "one rtl_433 process and one selected receiver"},
-    {"id": "bounded_ingress", "status": "implemented", "scope": "64 KiB packets, bounded 256-packet queue, bounded JSON depth/cardinality"},
-    {"id": "repeat_deduplication", "status": "implemented", "scope": "two-second exact normalized packet window"},
-    {"id": "bounded_delivery_retry", "status": "implemented", "scope": "four attempts with exponential backoff"},
-    {"id": "authoritative_transport", "status": "implemented", "scope": "exactly one of local HTTP or MQTT"},
-    {"id": "radio_reconfiguration", "status": "implemented", "scope": "validated frequency, receiver, gain, and numeric decoder IDs"},
-    {"id": "arbitrary_command", "status": "excluded", "reason": "Production and CLI raw process overrides are removed."},
-    {"id": "rf_transmit", "status": "excluded", "reason": "No transmit binary, route, action, or command is exposed."},
-    {"id": "mqtt_tls", "status": "planned", "reason": "0.2.0 MQTT mode is local-only and mutually exclusive with HTTP delivery."}
+    {
+      "id": "receive_json",
+      "status": "implemented",
+      "scope": "one rtl_433 process and one selected receiver"
+    },
+    {
+      "id": "bounded_ingress",
+      "status": "implemented",
+      "scope": "64 KiB packets, bounded 256-packet queue, bounded JSON depth/cardinality"
+    },
+    {
+      "id": "repeat_deduplication",
+      "status": "implemented",
+      "scope": "two-second exact normalized packet window"
+    },
+    {
+      "id": "bounded_delivery_retry",
+      "status": "implemented",
+      "scope": "four attempts with exponential backoff"
+    },
+    {
+      "id": "authoritative_transport",
+      "status": "implemented",
+      "scope": "exactly one of local HTTP or MQTT"
+    },
+    {
+      "id": "radio_reconfiguration",
+      "status": "implemented",
+      "scope": "validated frequency, receiver, gain, and numeric decoder IDs"
+    },
+    {
+      "id": "arbitrary_command",
+      "status": "excluded",
+      "reason": "Production and CLI raw process overrides are removed."
+    },
+    {
+      "id": "rf_transmit",
+      "status": "excluded",
+      "reason": "No transmit binary, route, action, or command is exposed."
+    },
+    {
+      "id": "mqtt_tls",
+      "status": "planned",
+      "reason": "0.2.1 MQTT mode is local-only and mutually exclusive with HTTP delivery."
+    }
   ]
 }

@@ -1,3 +1,5 @@
+import pytest
+
 from piphi_rtl433_bridge.config import (
     build_bridge_config,
     build_model_packets_topic,
@@ -12,7 +14,34 @@ from piphi_rtl433_bridge.config import (
     validate_receiver_gain,
     validate_rtlsdr_device,
 )
-import pytest
+
+
+def test_persisted_radio_configuration_is_restored(tmp_path, monkeypatch) -> None:
+    state_path = tmp_path / "radio.json"
+    state_path.write_text(
+        '{"frequency":"868M","rtlsdr_device":"serial=restored","receiver_gain":"24.5","rtl433_protocols":"40,41"}\n'
+    )
+    monkeypatch.setenv("PIPHI_RTL433_STATE_PATH", str(state_path))
+
+    config = load_bridge_config()
+
+    assert config.frequency == "868M"
+    assert config.rtl_sdr_device == "serial=restored"
+    assert config.receiver_gain == "24.5"
+    assert config.protocol_ids == ("40", "41")
+
+
+def test_simulation_mode_uses_bounded_synthetic_process(monkeypatch) -> None:
+    monkeypatch.setenv("RTL433_SIMULATION_MODE", "true")
+    config = load_bridge_config()
+
+    assert config.simulation_mode is True
+    assert config.rtl433_command[1:3] == ["-u", "-c"]
+    assert "PiPhi-Synthetic" in config.rtl433_command[3]
+
+    reconfigured = reconfigure_bridge_config(config, frequency="915mhz")
+    assert reconfigured.simulation_mode is True
+    assert reconfigured.rtl433_command == config.rtl433_command
 
 
 def test_load_bridge_config_builds_validated_command_and_headers(monkeypatch) -> None:
@@ -129,7 +158,19 @@ def test_reconfigure_bridge_config_accepts_frequency_and_receiver() -> None:
     assert updated.frequency == "915M"
     assert updated.rtl_sdr_device == "1"
     assert updated.rtl433_command == [
-        "rtl_433", "-F", "json", "-f", "915M", "-d", "1", "-g", "32.8", "-R", "40", "-R", "41"
+        "rtl_433",
+        "-F",
+        "json",
+        "-f",
+        "915M",
+        "-d",
+        "1",
+        "-g",
+        "32.8",
+        "-R",
+        "40",
+        "-R",
+        "41",
     ]
 
 

@@ -13,5 +13,5 @@ def test_manifest_recommends_the_tested_rtl433_sidecar_release() -> None:
     )
 
     assert dependency["version_range"] == ">=0.2.0,<0.3.0"
-    assert dependency["recommended_version"] == "0.2.0"
+    assert dependency["recommended_version"] == "0.2.1"
     assert dependency["auto_install"] is True

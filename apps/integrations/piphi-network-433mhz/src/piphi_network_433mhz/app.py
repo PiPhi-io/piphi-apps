@@ -1,21 +1,22 @@
 from __future__ import annotations
 
 import asyncio
-from collections import OrderedDict
-from contextlib import asynccontextmanager
-from datetime import datetime, timezone
 import hashlib
+import hmac
 import json
 import os
-from pathlib import Path
 import secrets
 import time
+from collections import OrderedDict
+from collections.abc import Mapping
+from contextlib import asynccontextmanager
+from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Query, Request
 import httpx
-from pydantic import BaseModel, ConfigDict
-
+from fastapi import FastAPI, HTTPException, Query, Request, Response
+from fastapi.responses import JSONResponse
 from piphi_runtime_kit_python import (
     AutomationActionRequest,
     AutomationRegistry,
@@ -23,6 +24,8 @@ from piphi_runtime_kit_python import (
     IntegrationDiscoveryRequest,
     IntegrationDiscoveryResponse,
     IntegrationEventListResponse,
+    MqttBrokerConfig,
+    MqttJsonClient,
     RuntimeConfig,
     RuntimeConfigApplyResponse,
     RuntimeConfigRemoveResponse,
@@ -31,15 +34,13 @@ from piphi_runtime_kit_python import (
     RuntimeDiagnosticsResponse,
     RuntimeHealthResponse,
     SQLiteAutomationIdempotencyStore,
-    MqttBrokerConfig,
-    MqttJsonClient,
-    build_source_topic_root,
     build_config_apply_response,
     build_discovery_response,
     build_event_list_response,
     build_local_event_record,
-    create_tracked_task,
+    build_source_topic_root,
     create_runtime_starter,
+    create_tracked_task,
     resolve_core_base_url,
     runtime_lifespan,
     schedule_event_delivery,
@@ -50,6 +51,7 @@ from piphi_runtime_kit_python.fastapi import (
     dispatch_automation_action_from_fastapi,
     sync_runtime_auth_from_fastapi_payload,
 )
+from pydantic import BaseModel, ConfigDict
 
 from .profiles import (
     PROFILE_DEFINITIONS,
@@ -84,12 +86,12 @@ def _resolve_discovery_cache_path() -> Path | None:
     value = os.getenv("RTL433_DISCOVERY_CACHE_PATH")
     if value is not None and not value.strip():
         return None
-    return Path(value or "/tmp/piphi-network-433mhz-discovery.json")
+    return Path(value or "/var/lib/piphi/discovery.json")
 
 
 INTEGRATION_ID = "piphi-network-433mhz"
 INTEGRATION_NAME = "PiPhi Network 433MHz Devices"
-INTEGRATION_VERSION = "0.2.0"
+INTEGRATION_VERSION = "0.2.1"
 RTL433_BRIDGE_SERVICE_ID = "piphi.service.rtl433-bridge"
 RTL433_BRIDGE_URL_ENV = "PIPHI_SERVICE_RTL433_BRIDGE_RUNTIME_URL"
 MAX_DISCOVERY_CACHE = 200
@@ -119,7 +121,7 @@ starter = create_runtime_starter(
     integration_id=INTEGRATION_ID,
     integration_name=INTEGRATION_NAME,
     version=INTEGRATION_VERSION,
-    core_base_url=resolve_core_base_url("http://127.0.0.1:31419"),
+    core_base_url=resolve_core_base_url("http://127.0.0.1:31419") or "http://127.0.0.1:31419",
 )
 runtime = starter.runtime
 registry = starter.registry
@@ -264,11 +266,7 @@ def emit_leak_transition_event(
     ):
         return
 
-    event_type = (
-        "rtl433.safety.leak.detected"
-        if current_value
-        else "rtl433.safety.leak.cleared"
-    )
+    event_type = "rtl433.safety.leak.detected" if current_value else "rtl433.safety.leak.cleared"
     event_payload = {
         "capability": "leak_detected",
         "previous_value": previous_value,
@@ -339,7 +337,9 @@ def remember_discovered_device(packet: dict[str, Any]) -> dict[str, Any]:
     model = str(packet.get("model") or "").strip()
     station_id = extract_station_id(packet)
     if not model or station_id == "unknown":
-        raise ValueError("A stable rtl_433 model and station identifier are required for discovery.")
+        raise ValueError(
+            "A stable rtl_433 model and station identifier are required for discovery."
+        )
     channel = extract_channel(packet)
     device_key = build_device_key(model, station_id, channel)
     metrics = extract_metrics(packet, profile_id)
@@ -365,7 +365,7 @@ def remember_discovered_device(packet: dict[str, Any]) -> dict[str, Any]:
 
 
 def now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def persist_discovery_cache(*, force: bool = False) -> None:
@@ -418,7 +418,9 @@ def load_discovery_cache() -> None:
         if item.get("channel") is None:
             item["channel"] = ""
         recent_seen_devices[device_id] = item
-    print(f"rtl433_discovery_cache_loaded count={len(recent_seen_devices)} path={DISCOVERY_CACHE_PATH}")
+    print(
+        f"rtl433_discovery_cache_loaded count={len(recent_seen_devices)} path={DISCOVERY_CACHE_PATH}"
+    )
 
 
 def notify_discovery_waiters() -> None:
@@ -530,6 +532,23 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+
+
+@app.middleware("http")
+async def require_runtime_auth(request: Request, call_next) -> Response:
+    if request.url.path in {"/health", "/ingest/rtl433"}:
+        return await call_next(request)
+    expected = str(os.getenv("PIPHI_INTEGRATION_INTERNAL_TOKEN") or "").strip()
+    allow_unauthenticated = _env_flag("PIPHI_ALLOW_UNAUTHENTICATED", False)
+    if not expected and not allow_unauthenticated:
+        return JSONResponse(
+            status_code=503,
+            content={"detail": "runtime authentication is not configured"},
+        )
+    supplied = str(request.headers.get("X-PiPhi-Integration-Token") or "")
+    if expected and not hmac.compare_digest(supplied, expected):
+        return JSONResponse(status_code=401, content={"detail": "invalid runtime token"})
+    return await call_next(request)
 
 
 @app.get("/health")
@@ -788,20 +807,25 @@ async def config(
 async def apply_runtime_config_snapshot(
     snapshot: RuntimeConfigSnapshot,
 ) -> RuntimeConfigSyncResponse:
+    raw_configs: list[Mapping[str, Any]] = [
+        config.model_dump() if isinstance(config, RuntimeConfig) else config
+        for config in snapshot.configs
+    ]
     typed_configs = validate_typed_configs(
-        [
-            config.model_dump() if isinstance(config, RuntimeConfig) else config
-            for config in snapshot.configs
-        ],
+        raw_configs,
         Rtl433DeviceConfig,
     )
     return await config_sync.apply_snapshot(
         snapshot=snapshot.model_copy(update={"configs": typed_configs}),
         active_config_ids=registry.ids(),
-        apply_config=apply_config,
+        apply_config=_apply_typed_config,
         remove_config=remove_config,
         get_active_config_ids=registry.ids,
     )
+
+
+async def _apply_typed_config(config: RuntimeConfig) -> None:
+    await apply_config(Rtl433DeviceConfig.model_validate(config.model_dump()))
 
 
 @app.post("/config/sync")
@@ -905,11 +929,15 @@ async def ingest_rtl433(packet: Rtl433Packet, request: Request) -> dict[str, Any
     _authorize_ingest(request)
     content_length = request.headers.get("content-length")
     if content_length and content_length.isdecimal() and int(content_length) > MAX_PACKET_BYTES:
-        raise HTTPException(status_code=413, detail="rtl_433 packet exceeds the configured size limit")
+        raise HTTPException(
+            status_code=413, detail="rtl_433 packet exceeds the configured size limit"
+        )
     runtime.auth.sync_from_headers(request.headers)
     payload = packet.model_dump(exclude_none=True)
     if len(json.dumps(payload, separators=(",", ":")).encode("utf-8")) > MAX_PACKET_BYTES:
-        raise HTTPException(status_code=413, detail="rtl_433 packet exceeds the configured size limit")
+        raise HTTPException(
+            status_code=413, detail="rtl_433 packet exceeds the configured size limit"
+        )
     return await process_rtl433_packet(payload, source_transport="http")
 
 
@@ -927,11 +955,18 @@ async def process_rtl433_packet(
 ) -> dict[str, Any]:
     if not _bounded_json(payload):
         ingress_counters["invalid"] += 1
-        raise HTTPException(status_code=422, detail="rtl_433 packet contains unsupported or excessive values")
+        raise HTTPException(
+            status_code=422, detail="rtl_433 packet contains unsupported or excessive values"
+        )
     fingerprint = _packet_fingerprint(payload)
     if _is_duplicate_fingerprint(fingerprint):
         ingress_counters["duplicates"] += 1
-        return {"status": "duplicate", "transport": source_transport, "matched_configs": 0, "metric_names": []}
+        return {
+            "status": "duplicate",
+            "transport": source_transport,
+            "matched_configs": 0,
+            "metric_names": [],
+        }
     try:
         discovered = remember_discovered_device(payload)
     except ValueError as exc:
@@ -955,29 +990,22 @@ async def process_rtl433_packet(
         inferred_profile_id = str(discovered.get("profile") or "generic_sensor")
         profile_id = (
             inferred_profile_id
-            if configured_profile_id in {"auto", "generic_sensor"} and inferred_profile_id != "generic_sensor"
+            if configured_profile_id in {"auto", "generic_sensor"}
+            and inferred_profile_id != "generic_sensor"
             else configured_profile_id
         )
         if profile_id != entry.get("profile"):
             entry["profile"] = profile_id
         metrics = extract_metrics(payload, profile_id)
         current_snapshot = registry.state_snapshots.get(config_id)
-        current_state = (
-            current_snapshot.get("state")
-            if isinstance(current_snapshot, dict)
-            else {}
-        )
+        current_state = current_snapshot.get("state") if isinstance(current_snapshot, dict) else {}
         previous_metrics = (
-            current_state.get("last_metrics")
-            if isinstance(current_state, dict)
-            else {}
+            current_state.get("last_metrics") if isinstance(current_state, dict) else {}
         )
         if not isinstance(previous_metrics, dict):
             previous_metrics = {}
         merged_metrics = {**previous_metrics, **metrics}
-        entry["observed_metrics"] = sorted(
-            set(entry.get("observed_metrics") or []) | set(metrics)
-        )
+        entry["observed_metrics"] = sorted(set(entry.get("observed_metrics") or []) | set(metrics))
         registry.update_state(
             config_id,
             {
@@ -1031,20 +1059,20 @@ async def process_rtl433_packet(
         if last_event_at is None or now - last_event_at >= DISCOVERY_EVENT_INTERVAL_SECONDS:
             last_discovery_event_at[discovered["device_id"]] = now
             append_runtime_event(
-            event_type="rtl433.packet.discovered",
-            device={
-                "config_id": discovered["id"],
-                "device_id": discovered["device_id"],
-                "integration_id": INTEGRATION_ID,
-                "container_id": runtime.auth.container_id or None,
-            },
-            payload={
-                "transport": source_transport,
-                "profile": discovered["profile"],
-                "model": discovered["model"],
-                "station_id": discovered["station_id"],
-                "channel": discovered["channel"],
-            },
+                event_type="rtl433.packet.discovered",
+                device={
+                    "config_id": discovered["id"],
+                    "device_id": discovered["device_id"],
+                    "integration_id": INTEGRATION_ID,
+                    "container_id": runtime.auth.container_id or None,
+                },
+                payload={
+                    "transport": source_transport,
+                    "profile": discovered["profile"],
+                    "model": discovered["model"],
+                    "station_id": discovered["station_id"],
+                    "channel": discovered["channel"],
+                },
             )
         else:
             ingress_counters["discovery_events_suppressed"] += 1
@@ -1057,25 +1085,28 @@ async def process_rtl433_packet(
         "matched_configs": matched_configs,
         "metric_names": [
             format_capability_name(metric_name)
-            for metric_name in extract_metrics(payload, discovered["profile"]).keys()
+            for metric_name in extract_metrics(payload, discovered["profile"])
         ],
     }
 
 
 def _authorize_ingest(request: Request) -> None:
     expected_token = str(os.getenv("RTL433_INGEST_TOKEN") or "").strip()
-    production = str(os.getenv("PIPHI_ENV") or os.getenv("ENVIRONMENT") or "").lower() == "production"
     if not expected_token:
-        if production:
-            raise HTTPException(status_code=503, detail="rtl_433 ingest authentication is not configured")
-        return
+        if _env_flag("PIPHI_ALLOW_UNAUTHENTICATED", False):
+            return
+        raise HTTPException(
+            status_code=503, detail="rtl_433 ingest authentication is not configured"
+        )
     received_token = str(request.headers.get("X-PiPhi-Bridge-Token") or "").strip()
     if not received_token or not secrets.compare_digest(received_token, expected_token):
         raise HTTPException(status_code=401, detail="Invalid rtl_433 bridge authentication")
 
 
 def _packet_fingerprint(payload: dict[str, Any]) -> str:
-    stable_payload = {key: value for key, value in payload.items() if key not in {"time", "received_at"}}
+    stable_payload = {
+        key: value for key, value in payload.items() if key not in {"time", "received_at"}
+    }
     canonical = json.dumps(stable_payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
@@ -1090,10 +1121,10 @@ def _is_duplicate_fingerprint(fingerprint: str) -> bool:
         if seen_at >= cutoff:
             break
         packet_fingerprints.popitem(last=False)
-    seen_at = packet_fingerprints.get(fingerprint)
+    previous_seen_at = packet_fingerprints.get(fingerprint)
     packet_fingerprints[fingerprint] = now
     packet_fingerprints.move_to_end(fingerprint)
-    return seen_at is not None and seen_at >= cutoff
+    return previous_seen_at is not None and previous_seen_at >= cutoff
 
 
 def _bounded_json(value: Any, *, depth: int = 0) -> bool:
@@ -1107,9 +1138,7 @@ def _bounded_json(value: Any, *, depth: int = 0) -> bool:
         return len(value) <= 128 and all(_bounded_json(item, depth=depth + 1) for item in value)
     if isinstance(value, dict):
         return len(value) <= 256 and all(
-            isinstance(key, str)
-            and len(key) <= 128
-            and _bounded_json(item, depth=depth + 1)
+            isinstance(key, str) and len(key) <= 128 and _bounded_json(item, depth=depth + 1)
             for key, item in value.items()
         )
     return False
@@ -1124,7 +1153,9 @@ def refresh_availability() -> int:
         if not isinstance(state, dict):
             continue
         last_packet = state.get("last_packet_monotonic")
-        available = isinstance(last_packet, (int, float)) and now - last_packet <= DEVICE_EXPIRY_SECONDS
+        available = (
+            isinstance(last_packet, (int, float)) and now - last_packet <= DEVICE_EXPIRY_SECONDS
+        )
         if not available:
             stale_count += 1
         if state.get("available") != available:

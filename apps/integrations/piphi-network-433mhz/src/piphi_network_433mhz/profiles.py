@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import re
-from typing import Any, Mapping
+from collections.abc import Mapping
+from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -158,8 +159,12 @@ def extract_metrics(packet: Mapping[str, Any], profile_id: str = "auto") -> dict
     metrics: dict[str, Any] = {}
     consumed_keys: set[str] = set()
 
-    _copy_number_in_range(metrics, packet, "temperature_C", "temperature_c", -100, 100, consumed_keys)
-    _copy_number_in_range(metrics, packet, "temperature_F", "temperature_f", -148, 212, consumed_keys)
+    _copy_number_in_range(
+        metrics, packet, "temperature_C", "temperature_c", -100, 100, consumed_keys
+    )
+    _copy_number_in_range(
+        metrics, packet, "temperature_F", "temperature_f", -148, 212, consumed_keys
+    )
     _copy_number_in_range(metrics, packet, "humidity", "humidity_percent", 0, 100, consumed_keys)
     _copy_first_number_in_range(
         metrics,
@@ -200,7 +205,9 @@ def extract_metrics(packet: Mapping[str, Any], profile_id: str = "auto") -> dict
     _copy_number_in_range(metrics, packet, "snr", "signal_snr", -100, 100, consumed_keys)
     _copy_number_in_range(metrics, packet, "noise", "signal_noise", -200, 100, consumed_keys)
     _copy_number_in_range(metrics, packet, "pressure_hPa", "pressure_hpa", 100, 1200, consumed_keys)
-    _copy_number_in_range(metrics, packet, "pressure_Pa", "pressure_pa", 10_000, 120_000, consumed_keys)
+    _copy_number_in_range(
+        metrics, packet, "pressure_Pa", "pressure_pa", 10_000, 120_000, consumed_keys
+    )
     _copy_number_in_range(metrics, packet, "battery_mV", "battery_mv", 0, 20_000, consumed_keys)
 
     return metrics
@@ -231,11 +238,7 @@ def build_entities(
 
 
 def metric_units(profile_id: str, metric_names: list[str]) -> dict[str, str]:
-    return {
-        name: KNOWN_METRIC_UNITS[name]
-        for name in metric_names
-        if name in KNOWN_METRIC_UNITS
-    }
+    return {name: KNOWN_METRIC_UNITS[name] for name in metric_names if name in KNOWN_METRIC_UNITS}
 
 
 def format_capability_name(capability: str) -> str:
@@ -296,7 +299,11 @@ def _copy_number_in_range(
         return
     consumed_keys.add(packet_key)
     value = packet.get(packet_key)
-    if isinstance(value, (int, float)) and not isinstance(value, bool) and minimum <= value <= maximum:
+    if (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and minimum <= value <= maximum
+    ):
         metrics[metric_key] = value
 
 
@@ -314,7 +321,11 @@ def _copy_first_number_in_range(
             continue
         consumed_keys.add(packet_key)
         value = packet.get(packet_key)
-        if isinstance(value, (int, float)) and not isinstance(value, bool) and minimum <= value <= maximum:
+        if (
+            isinstance(value, (int, float))
+            and not isinstance(value, bool)
+            and minimum <= value <= maximum
+        ):
             metrics[metric_key] = value
             return
 

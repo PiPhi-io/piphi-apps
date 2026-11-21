@@ -1,15 +1,18 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import datetime, timezone
 import json
 import math
 import os
 import re
+import sys
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from pathlib import Path
 
 
 @dataclass(frozen=True)
 class BridgeConfig:
+    simulation_mode: bool
     http_forward_enabled: bool
     runtime_ingest_url: str
     radio_band: str
@@ -41,7 +44,10 @@ DEFAULT_RADIO_BAND = "433mhz"
 DEFAULT_FREQUENCY = "433.92M"
 DEFAULT_MQTT_TOPIC_ROOT = "piphi/sources/rtl433"
 MAX_PROTOCOL_ID = 398
-FREQUENCY_RE = re.compile(r"^(?:[2-9][0-9]|[1-9][0-9]{2}|1[0-6][0-9]{2}|17[0-5][0-9]|176[0-6])(?:\.[0-9]{1,6})?M$", re.IGNORECASE)
+FREQUENCY_RE = re.compile(
+    r"^(?:[2-9][0-9]|[1-9][0-9]{2}|1[0-6][0-9]{2}|17[0-5][0-9]|176[0-6])(?:\.[0-9]{1,6})?M$",
+    re.IGNORECASE,
+)
 DEVICE_SERIAL_RE = re.compile(r"^serial=[A-Za-z0-9._:-]{1,64}$")
 RADIO_BAND_PRESETS = {
     "315mhz": "315M",
@@ -52,7 +58,8 @@ RADIO_BAND_PRESETS = {
 
 
 def load_bridge_config() -> BridgeConfig:
-    return build_bridge_config(
+    config = build_bridge_config(
+        simulation_mode=_parse_bool_env("RTL433_SIMULATION_MODE", False),
         http_forward_enabled=_parse_bool_env("HTTP_FORWARD_ENABLED", True),
         runtime_ingest_url=os.getenv("RUNTIME_INGEST_URL", DEFAULT_RUNTIME_INGEST_URL),
         radio_band=os.getenv("RADIO_BAND", DEFAULT_RADIO_BAND),
@@ -82,10 +89,34 @@ def load_bridge_config() -> BridgeConfig:
         dedup_window_seconds=float(os.getenv("DEDUP_WINDOW_SECONDS", "2")),
         max_packet_bytes=int(os.getenv("MAX_PACKET_BYTES", "65536")),
     )
+    state_path = str(os.getenv("PIPHI_RTL433_STATE_PATH") or "").strip()
+    if not state_path:
+        return config
+    try:
+        persisted = json.loads(Path(state_path).read_text())
+        if not isinstance(persisted, dict):
+            return config
+        return reconfigure_bridge_config(
+            config,
+            frequency=_optional_persisted_value(persisted, "frequency"),
+            rtl_sdr_device=_optional_persisted_value(persisted, "rtlsdr_device"),
+            receiver_gain=_optional_persisted_value(persisted, "receiver_gain"),
+            protocol_ids_text=_optional_persisted_value(persisted, "rtl433_protocols"),
+        )
+    except (OSError, ValueError, json.JSONDecodeError):
+        return config
+
+
+def _optional_persisted_value(payload: dict[str, object], key: str) -> str | None:
+    value = payload.get(key)
+    if value is None:
+        return None
+    return str(value).strip() or None
 
 
 def build_bridge_config(
     *,
+    simulation_mode: bool = False,
     http_forward_enabled: bool,
     runtime_ingest_url: str,
     radio_band: str = DEFAULT_RADIO_BAND,
@@ -115,12 +146,16 @@ def build_bridge_config(
     merged_headers = parse_extra_headers(extra_headers_json)
     if extra_headers:
         merged_headers.update(extra_headers)
-    normalized_protocol_ids = validate_protocol_ids(tuple(protocol_ids or parse_protocol_ids(protocol_ids_text)))
+    normalized_protocol_ids = validate_protocol_ids(
+        tuple(protocol_ids or parse_protocol_ids(protocol_ids_text))
+    )
     frequency = resolve_frequency(radio_band=radio_band, custom_frequency=custom_frequency)
     normalized_device = validate_rtlsdr_device(rtl_sdr_device)
     normalized_gain = validate_receiver_gain(receiver_gain)
     if http_forward_enabled == mqtt_enabled:
-        raise ValueError("Exactly one authoritative forwarding transport (HTTP or MQTT) must be enabled.")
+        raise ValueError(
+            "Exactly one authoritative forwarding transport (HTTP or MQTT) must be enabled."
+        )
     if not 1 <= max_forward_attempts <= 10:
         raise ValueError("MAX_FORWARD_ATTEMPTS must be between 1 and 10.")
     if not 1 <= queue_size <= 4096:
@@ -129,13 +164,18 @@ def build_bridge_config(
         raise ValueError("DEDUP_WINDOW_SECONDS must be between 0 and 60.")
     if not 1024 <= max_packet_bytes <= 1_048_576:
         raise ValueError("MAX_PACKET_BYTES must be between 1024 and 1048576.")
-    rtl433_command = build_rtl433_command(
-        frequency=frequency,
-        rtl_sdr_device=normalized_device,
-        receiver_gain=normalized_gain,
-        protocol_ids=normalized_protocol_ids,
+    rtl433_command = (
+        build_simulation_command()
+        if simulation_mode
+        else build_rtl433_command(
+            frequency=frequency,
+            rtl_sdr_device=normalized_device,
+            receiver_gain=normalized_gain,
+            protocol_ids=normalized_protocol_ids,
+        )
     )
     return BridgeConfig(
+        simulation_mode=simulation_mode,
         http_forward_enabled=http_forward_enabled,
         runtime_ingest_url=runtime_ingest_url,
         radio_band=normalize_radio_band(radio_band),
@@ -179,6 +219,7 @@ def reconfigure_bridge_config(
         selected_band, selected_custom_frequency = parse_frequency_selection(frequency)
 
     return build_bridge_config(
+        simulation_mode=config.simulation_mode,
         http_forward_enabled=config.http_forward_enabled,
         runtime_ingest_url=config.runtime_ingest_url,
         radio_band=selected_band,
@@ -186,9 +227,7 @@ def reconfigure_bridge_config(
         rtl_sdr_device=rtl_sdr_device if rtl_sdr_device is not None else config.rtl_sdr_device,
         receiver_gain=receiver_gain if receiver_gain is not None else config.receiver_gain,
         protocol_ids_text=(
-            protocol_ids_text
-            if protocol_ids_text is not None
-            else ",".join(config.protocol_ids)
+            protocol_ids_text if protocol_ids_text is not None else ",".join(config.protocol_ids)
         ),
         forward_timeout_seconds=config.forward_timeout_seconds,
         retry_delay_seconds=config.retry_delay_seconds,
@@ -267,7 +306,7 @@ def resolve_frequency(*, radio_band: str, custom_frequency: str = "") -> str:
     return RADIO_BAND_PRESETS[normalized_band]
 
 
-def normalize_auto_value(value: str | int | float | None) -> str:
+def normalize_auto_value(value: str | float | None) -> str:
     normalized = str(value or "").strip()
     return normalized or "auto"
 
@@ -275,11 +314,7 @@ def normalize_auto_value(value: str | int | float | None) -> str:
 def parse_protocol_ids(raw_value: str) -> tuple[str, ...]:
     if not raw_value.strip():
         return ()
-    return tuple(
-        token.strip()
-        for token in raw_value.replace(";", ",").split(",")
-        if token.strip()
-    )
+    return tuple(token.strip() for token in raw_value.replace(";", ",").split(",") if token.strip())
 
 
 def validate_protocol_ids(protocol_ids: tuple[str, ...]) -> tuple[str, ...]:
@@ -299,7 +334,7 @@ def validate_protocol_ids(protocol_ids: tuple[str, ...]) -> tuple[str, ...]:
     return tuple(normalized)
 
 
-def validate_rtlsdr_device(value: str | int | float | None) -> str:
+def validate_rtlsdr_device(value: str | float | None) -> str:
     normalized = normalize_auto_value(value)
     if normalized.lower() == "auto":
         return "auto"
@@ -307,10 +342,12 @@ def validate_rtlsdr_device(value: str | int | float | None) -> str:
         return str(int(normalized))
     if DEVICE_SERIAL_RE.fullmatch(normalized):
         return normalized
-    raise ValueError("RTLSDR_DEVICE must be auto, an index from 0 to 31, or serial=<receiver-serial>.")
+    raise ValueError(
+        "RTLSDR_DEVICE must be auto, an index from 0 to 31, or serial=<receiver-serial>."
+    )
 
 
-def validate_receiver_gain(value: str | int | float | None) -> str:
+def validate_receiver_gain(value: str | float | None) -> str:
     normalized = normalize_auto_value(value)
     if normalized.lower() == "auto":
         return "auto"
@@ -342,6 +379,15 @@ def build_rtl433_command(
     return command
 
 
+def build_simulation_command() -> list[str]:
+    script = (
+        "import json,time;"
+        "print(json.dumps({'model':'PiPhi-Synthetic','id':1,'temperature_C':21.5}),flush=True);"
+        "time.sleep(86400)"
+    )
+    return [sys.executable, "-u", "-c", script]
+
+
 def parse_extra_headers(raw_value: str) -> dict[str, str]:
     raw_value = raw_value.strip()
     if not raw_value:
@@ -371,7 +417,7 @@ def build_model_packets_topic(topic_root: str, model: str) -> str:
 def build_packet_envelope(packet: dict[str, object]) -> dict[str, object]:
     return {
         "source": "rtl433",
-        "received_at": datetime.now(timezone.utc).isoformat(),
+        "received_at": datetime.now(UTC).isoformat(),
         "model": packet.get("model"),
         "device_hint": {
             "model": packet.get("model"),

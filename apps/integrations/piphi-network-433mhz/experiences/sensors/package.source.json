@@ -3,7 +3,7 @@
   "identity": {
     "publisher_id": "io.piphi",
     "package_id": "radio-sensors",
-    "version": "0.2.0"
+    "version": "0.2.1"
   },
   "name": "433 MHz Sensors",
   "description": "Native read-only dashboard views for 433 MHz Sensors.",
@@ -208,17 +208,45 @@
       },
       "certification": {
         "schema_version": "1",
-        "verified_gates": ["runtime", "persistence", "binding", "states", "responsive", "themes", "accessibility", "save-reload", "performance"],
+        "verified_gates": [
+          "runtime",
+          "persistence",
+          "binding",
+          "states",
+          "responsive",
+          "themes",
+          "accessibility",
+          "save-reload",
+          "performance"
+        ],
         "evidence": {
-          "runtime": ["core-profile:declarative-v2/runtime"],
-          "persistence": ["core-profile:declarative-v2/persistence"],
-          "binding": ["core-profile:declarative-v2/binding"],
-          "states": ["core-profile:declarative-v2/states"],
-          "responsive": ["core-profile:declarative-v2/responsive"],
-          "themes": ["core-profile:declarative-v2/themes"],
-          "accessibility": ["core-profile:declarative-v2/accessibility"],
-          "save-reload": ["core-profile:declarative-v2/save-reload"],
-          "performance": ["core-profile:declarative-v2/performance"]
+          "runtime": [
+            "core-profile:declarative-v2/runtime"
+          ],
+          "persistence": [
+            "core-profile:declarative-v2/persistence"
+          ],
+          "binding": [
+            "core-profile:declarative-v2/binding"
+          ],
+          "states": [
+            "core-profile:declarative-v2/states"
+          ],
+          "responsive": [
+            "core-profile:declarative-v2/responsive"
+          ],
+          "themes": [
+            "core-profile:declarative-v2/themes"
+          ],
+          "accessibility": [
+            "core-profile:declarative-v2/accessibility"
+          ],
+          "save-reload": [
+            "core-profile:declarative-v2/save-reload"
+          ],
+          "performance": [
+            "core-profile:declarative-v2/performance"
+          ]
         }
       },
       "default_column_span": 4,
@@ -374,17 +402,45 @@
       },
       "certification": {
         "schema_version": "1",
-        "verified_gates": ["runtime", "persistence", "binding", "states", "responsive", "themes", "accessibility", "save-reload", "performance"],
+        "verified_gates": [
+          "runtime",
+          "persistence",
+          "binding",
+          "states",
+          "responsive",
+          "themes",
+          "accessibility",
+          "save-reload",
+          "performance"
+        ],
         "evidence": {
-          "runtime": ["core-profile:declarative-v2/runtime"],
-          "persistence": ["core-profile:declarative-v2/persistence"],
-          "binding": ["core-profile:declarative-v2/binding"],
-          "states": ["core-profile:declarative-v2/states"],
-          "responsive": ["core-profile:declarative-v2/responsive"],
-          "themes": ["core-profile:declarative-v2/themes"],
-          "accessibility": ["core-profile:declarative-v2/accessibility"],
-          "save-reload": ["core-profile:declarative-v2/save-reload"],
-          "performance": ["core-profile:declarative-v2/performance"]
+          "runtime": [
+            "core-profile:declarative-v2/runtime"
+          ],
+          "persistence": [
+            "core-profile:declarative-v2/persistence"
+          ],
+          "binding": [
+            "core-profile:declarative-v2/binding"
+          ],
+          "states": [
+            "core-profile:declarative-v2/states"
+          ],
+          "responsive": [
+            "core-profile:declarative-v2/responsive"
+          ],
+          "themes": [
+            "core-profile:declarative-v2/themes"
+          ],
+          "accessibility": [
+            "core-profile:declarative-v2/accessibility"
+          ],
+          "save-reload": [
+            "core-profile:declarative-v2/save-reload"
+          ],
+          "performance": [
+            "core-profile:declarative-v2/performance"
+          ]
         }
       },
       "default_column_span": 4,
@@ -540,17 +596,45 @@
       },
       "certification": {
         "schema_version": "1",
-        "verified_gates": ["runtime", "persistence", "binding", "states", "responsive", "themes", "accessibility", "save-reload", "performance"],
+        "verified_gates": [
+          "runtime",
+          "persistence",
+          "binding",
+          "states",
+          "responsive",
+          "themes",
+          "accessibility",
+          "save-reload",
+          "performance"
+        ],
         "evidence": {
-          "runtime": ["core-profile:declarative-v2/runtime"],
-          "persistence": ["core-profile:declarative-v2/persistence"],
-          "binding": ["core-profile:declarative-v2/binding"],
-          "states": ["core-profile:declarative-v2/states"],
-          "responsive": ["core-profile:declarative-v2/responsive"],
-          "themes": ["core-profile:declarative-v2/themes"],
-          "accessibility": ["core-profile:declarative-v2/accessibility"],
-          "save-reload": ["core-profile:declarative-v2/save-reload"],
-          "performance": ["core-profile:declarative-v2/performance"]
+          "runtime": [
+            "core-profile:declarative-v2/runtime"
+          ],
+          "persistence": [
+            "core-profile:declarative-v2/persistence"
+          ],
+          "binding": [
+            "core-profile:declarative-v2/binding"
+          ],
+          "states": [
+            "core-profile:declarative-v2/states"
+          ],
+          "responsive": [
+            "core-profile:declarative-v2/responsive"
+          ],
+          "themes": [
+            "core-profile:declarative-v2/themes"
+          ],
+          "accessibility": [
+            "core-profile:declarative-v2/accessibility"
+          ],
+          "save-reload": [
+            "core-profile:declarative-v2/save-reload"
+          ],
+          "performance": [
+            "core-profile:declarative-v2/performance"
+          ]
         }
       },
       "default_column_span": 4,

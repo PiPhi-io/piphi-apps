@@ -26,12 +26,18 @@ assert f'INTEGRATION_VERSION = "{version}"' in (
 expected_image = f"ghcr.io/piphi-io/piphi-network-433mhz:{version}"
 assert manifest["image"] == expected_image
 assert manifest["runtime"]["linux"]["container"]["image"] == expected_image
-assert app["ci"] == {
-    "enforcement": "full",
-    "commands": ["pdm install --check", "pdm run pytest", "pdm run python scripts/validate.py"],
-    "build_container": True,
-}
-assert manifest["requires"]["services"][0]["recommended_version"] == "0.2.0"
+assert app["ci"]["enforcement"] == "full"
+assert app["ci"]["build_container"] is True
+assert {
+    "pdm install --check",
+    "pdm run pytest --cov=piphi_network_433mhz --cov-branch --cov-fail-under=80",
+    "pdm run ruff check src tests",
+    "pdm run ruff format --check src tests",
+    "pdm run mypy src/piphi_network_433mhz",
+    "pdm run bandit -q -r src",
+    "pdm run python scripts/validate.py",
+} <= set(app["ci"]["commands"])
+assert manifest["requires"]["services"][0]["recommended_version"] == "0.2.1"
 assert manifest["marketplace"]["quality_tier"] == "unrated"
 assert manifest["marketplace"]["governance"]["qualification"]["status"] == "unverified"
 assert not any(item.get("status") == "implemented" for item in manifest["security"]["event_mappings"])

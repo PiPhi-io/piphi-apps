@@ -1,6 +1,6 @@
 [project]
 name = "piphi-rtl433-bridge"
-version = "0.2.0"
+version = "0.2.1"
 description = "Bounded receive-only rtl_433 bridge for PiPhi Network"
 authors = [
     { name = "PiPhi Network" },
@@ -19,8 +19,17 @@ license = { text = "MIT" }
 
 [tool.pdm.dev-dependencies]
 dev = [
+    "bandit>=1.9.4",
+    "mypy>=1.18.2",
+    "pip-audit>=2.9.0",
     "pytest>=9.0.3",
+    "pytest-cov>=7.0.0",
+    "ruff>=0.13.0",
 ]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
 
 [tool.pdm]
 distribution = false
