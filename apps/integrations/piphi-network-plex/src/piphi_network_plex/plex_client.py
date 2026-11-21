@@ -3,9 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import quote
-from xml.etree import ElementTree
 
 import httpx
+from defusedxml import ElementTree
 
 from .settings import INTEGRATION_VERSION
 
@@ -45,14 +45,25 @@ class PlexClient:
             "X-Plex-Version": INTEGRATION_VERSION,
         }
 
-    async def request(self, server: PlexServer, path: str, *, params: dict[str, Any] | None = None, method: str = "GET") -> dict[str, Any]:
+    async def request(
+        self,
+        server: PlexServer,
+        path: str,
+        *,
+        params: dict[str, Any] | None = None,
+        method: str = "GET",
+    ) -> dict[str, Any]:
         target = f"{server.base_url.rstrip('/')}/{path.lstrip('/')}"
         async with httpx.AsyncClient(
             timeout=self.timeout,
             verify=self.verify_tls,
             transport=self.transport,
+            follow_redirects=False,
+            trust_env=False,
         ) as client:
-            response = await client.request(method, target, params=params, headers=self._headers(server.token))
+            response = await client.request(
+                method, target, params=params, headers=self._headers(server.token)
+            )
             response.raise_for_status()
             if not response.content:
                 return {"ok": True}
@@ -67,27 +78,47 @@ class PlexClient:
             timeout=self.timeout,
             verify=self.verify_tls,
             transport=self.transport,
+            follow_redirects=False,
+            trust_env=False,
         ) as client:
             response = await client.get(target, headers=self._headers(server.token))
             response.raise_for_status()
-            return response.content, response.headers.get("content-type", "application/octet-stream")
+            return response.content, response.headers.get(
+                "content-type", "application/octet-stream"
+            )
 
-    async def discover(self, token: str, *, base_url: str = "", host: str = "", include_remote: bool = True) -> list[PlexServer]:
+    async def discover(
+        self, token: str, *, base_url: str = "", host: str = "", include_remote: bool = True
+    ) -> list[PlexServer]:
         if base_url or host:
             url = base_url or (host if "://" in host else f"http://{host}:32400")
             provisional = PlexServer("pending", host or url, url.rstrip("/"), token)
-            root = await self.request(provisional, "/")
-            container = root.get("MediaContainer", root)
-            return [PlexServer(
-                machine_id=str(container.get("machineIdentifier") or container.get("machine_identifier") or url),
-                name=str(container.get("friendlyName") or container.get("friendly_name") or host or "Plex Server"),
-                base_url=url.rstrip("/"), token=token,
-            )]
+            root_payload = await self.request(provisional, "/")
+            container = root_payload.get("MediaContainer", root_payload)
+            return [
+                PlexServer(
+                    machine_id=str(
+                        container.get("machineIdentifier")
+                        or container.get("machine_identifier")
+                        or url
+                    ),
+                    name=str(
+                        container.get("friendlyName")
+                        or container.get("friendly_name")
+                        or host
+                        or "Plex Server"
+                    ),
+                    base_url=url.rstrip("/"),
+                    token=token,
+                )
+            ]
 
         async with httpx.AsyncClient(
             timeout=self.timeout,
             verify=self.verify_tls,
             transport=self.transport,
+            follow_redirects=False,
+            trust_env=False,
         ) as client:
             response = await client.get(
                 "https://plex.tv/api/v2/resources",
@@ -95,15 +126,17 @@ class PlexClient:
                 headers={**self._headers(token), "Accept": "application/xml"},
             )
             response.raise_for_status()
-        root = ElementTree.fromstring(response.text)
+        resource_root = ElementTree.fromstring(response.text)
         servers: list[PlexServer] = []
-        for device in root.findall(".//Device"):
+        for device in resource_root.findall(".//Device"):
             if "server" not in str(device.attrib.get("provides", "")).split(","):
                 continue
             connections = list(device.findall("Connection"))
             if not include_remote:
                 connections = [item for item in connections if item.attrib.get("local") == "1"]
-            connection = next((item for item in connections if item.attrib.get("local") == "1"), None)
+            connection = next(
+                (item for item in connections if item.attrib.get("local") == "1"), None
+            )
             if connection is None:
                 connection = next(
                     (item for item in connections if item.attrib.get("relay") != "1"),
@@ -113,15 +146,21 @@ class PlexClient:
                 connection = connections[0]
             if connection is None or not connection.attrib.get("uri"):
                 continue
-            servers.append(PlexServer(
-                machine_id=str(device.attrib.get("clientIdentifier") or device.attrib.get("machineIdentifier") or ""),
-                name=str(device.attrib.get("name") or "Plex Server"),
-                base_url=str(connection.attrib["uri"]).rstrip("/"),
-                token=str(device.attrib.get("accessToken") or token),
-                owned=device.attrib.get("owned", "1") == "1",
-                local=connection.attrib.get("local", "0") == "1",
-                relay=connection.attrib.get("relay", "0") == "1",
-            ))
+            servers.append(
+                PlexServer(
+                    machine_id=str(
+                        device.attrib.get("clientIdentifier")
+                        or device.attrib.get("machineIdentifier")
+                        or ""
+                    ),
+                    name=str(device.attrib.get("name") or "Plex Server"),
+                    base_url=str(connection.attrib["uri"]).rstrip("/"),
+                    token=str(device.attrib.get("accessToken") or token),
+                    owned=device.attrib.get("owned", "1") == "1",
+                    local=connection.attrib.get("local", "0") == "1",
+                    relay=connection.attrib.get("relay", "0") == "1",
+                )
+            )
         return [server for server in servers if server.machine_id]
 
     @staticmethod
@@ -152,11 +191,13 @@ class PlexClient:
     @staticmethod
     def _xml_payload(source: str) -> dict[str, Any]:
         root = ElementTree.fromstring(source)
-        def convert(element: ElementTree.Element) -> dict[str, Any]:
+
+        def convert(element: Any) -> dict[str, Any]:
             result: dict[str, Any] = dict(element.attrib)
             for child in element:
                 result.setdefault(child.tag, []).append(convert(child))
             return result
+
         return {"MediaContainer": convert(root)}
 
 
@@ -164,7 +205,9 @@ def normalize_item(item: dict[str, Any], *, config_id: str, server: PlexServer) 
     rating_key = str(item.get("ratingKey") or item.get("key") or item.get("id") or "")
     kind = str(item.get("type") or "unknown")
     title = str(item.get("title") or item.get("grandparentTitle") or "Untitled")
-    artist = str(item.get("grandparentTitle") or item.get("parentTitle") or item.get("originalTitle") or "")
+    artist = str(
+        item.get("grandparentTitle") or item.get("parentTitle") or item.get("originalTitle") or ""
+    )
     thumb = str(item.get("thumb") or item.get("parentThumb") or item.get("grandparentThumb") or "")
     instance_id = f"{config_id}:{server.machine_id}"
     return {
@@ -176,8 +219,12 @@ def normalize_item(item: dict[str, Any], *, config_id: str, server: PlexServer) 
         "artist": artist,
         "album": str(item.get("parentTitle") or ""),
         "kind": kind,
-        "thumbnail": f"/provider/{quote(instance_id, safe='')}/asset?path={quote(thumb, safe='')}" if thumb else "",
-        "artwork_url": f"/provider/{quote(instance_id, safe='')}/asset?path={quote(thumb, safe='')}" if thumb else "",
+        "thumbnail": f"/provider/{quote(instance_id, safe='')}/asset?path={quote(thumb, safe='')}"
+        if thumb
+        else "",
+        "artwork_url": f"/provider/{quote(instance_id, safe='')}/asset?path={quote(thumb, safe='')}"
+        if thumb
+        else "",
         "duration_seconds": int(item.get("duration") or 0) // 1000 or None,
         "view_offset_seconds": int(item.get("viewOffset") or 0) // 1000,
         "view_count": int(item.get("viewCount") or 0),
@@ -187,7 +234,9 @@ def normalize_item(item: dict[str, Any], *, config_id: str, server: PlexServer) 
     }
 
 
-def normalize_collection(item: dict[str, Any], *, config_id: str, server: PlexServer) -> dict[str, Any]:
+def normalize_collection(
+    item: dict[str, Any], *, config_id: str, server: PlexServer
+) -> dict[str, Any]:
     key = str(item.get("ratingKey") or item.get("key") or item.get("id") or "")
     instance_id = f"{config_id}:{server.machine_id}"
     return {

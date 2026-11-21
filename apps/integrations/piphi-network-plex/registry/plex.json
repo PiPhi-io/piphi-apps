@@ -1,7 +1,7 @@
 {
   "id": "piphi-network-plex",
   "name": "Plex Media Server",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "type": "integration",
   "deployment_mode": "standalone",
   "trust_level": "experimental",
@@ -11,7 +11,7 @@
   "platforms": [
     "linux"
   ],
-  "image": "docker.io/piphinetwork/piphi-network-plex:0.1.1",
+  "image": "ghcr.io/piphi-io/piphi-network-plex:0.2.0",
   "icon_url": "https://raw.githubusercontent.com/PiPhi-io/piphi-nework-registry/main/icons/placeholder.svg",
   "owner": "PiPhi-io",
   "repo_name": "piphi-network-plex",

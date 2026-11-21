@@ -24,32 +24,19 @@ ENDPOINTS = {
 REQUIRED_ENDPOINTS = ["health", "entities", "command", "config", "ui_config"]
 
 CAPABILITIES: dict[str, dict[str, Any]] = {
-    "connected": {
-        "kind": "sensor",
-        "unit": "bool"
-    },
-    "server_count": {
-        "kind": "sensor",
-        "unit": "servers"
-    },
-    "refresh": {
-        "kind": "action"
-    },
-    "active_sessions": {
-        "kind": "sensor",
-        "unit": "sessions"
-    },
-    "transcode_sessions": {
-        "kind": "sensor",
-        "unit": "sessions"
-    }
+    "connected": {"kind": "sensor", "unit": "bool"},
+    "available": {"kind": "sensor", "unit": "bool"},
+    "stale": {"kind": "sensor", "unit": "bool"},
+    "last_success_at": {"kind": "sensor", "unit": "timestamp"},
+    "consecutive_failures": {"kind": "sensor", "unit": "count"},
+    "server_count": {"kind": "sensor", "unit": "servers"},
+    "refresh": {"kind": "action"},
+    "active_sessions": {"kind": "sensor", "unit": "sessions"},
+    "transcode_sessions": {"kind": "sensor", "unit": "sessions"},
 }
 
 COMMANDS: dict[str, dict[str, Any]] = {
-    "refresh": {
-        "description": "Refresh the device state.",
-        "timeout_ms": 5000
-    },
+    "refresh": {"description": "Refresh the device state.", "timeout_ms": 5000},
 }
 
 CONFIG_SCHEMA: dict[str, Any] = {
@@ -58,60 +45,45 @@ CONFIG_SCHEMA: dict[str, Any] = {
         "type": "object",
         "required": [],
         "properties": {
-            "host": {
-                "type": "string",
-                "title": "Server host (optional)"
-            },
-            "alias": {
-                "type": "string",
-                "title": "Alias"
-            },
-            "base_url": {
-                "type": "string",
-                "title": "Server URL (optional)"
-            },
-            "token": {
-                "type": "string",
-                "title": "Plex token"
-            },
+            "host": {"type": "string", "title": "Server host (optional)"},
+            "alias": {"type": "string", "title": "Alias"},
+            "base_url": {"type": "string", "title": "Server URL (optional)"},
+            "token": {"type": "string", "title": "Plex token"},
             "poll_interval_seconds": {
                 "type": "integer",
                 "title": "Poll Interval Seconds",
-                "minimum": 5
+                "minimum": 5,
             },
             "include_remote_servers": {
                 "type": "boolean",
                 "title": "Include shared and remote servers",
-                "default": True
+                "default": True,
             },
             "simulation_mode": {
                 "type": "boolean",
                 "title": "Use simulated Plex server",
-                "default": False
-            }
-        }
+                "default": False,
+            },
+            "allow_mutating_actions": {
+                "type": "boolean",
+                "title": "Allow Plex library mutations",
+                "default": False,
+            },
+        },
     },
     "uiSchema": {
-        "host": {
-            "placeholder": "192.168.1.50"
-        },
-        "alias": {
-            "placeholder": "Office Device"
-        },
-        "base_url": {
-            "placeholder": "https://api.vendor.example"
-        },
-        "token": {
-            "ui:widget": "password",
-            "placeholder": "X-Plex-Token"
-        },
-        "poll_interval_seconds": {
-            "placeholder": "60"
-        },
+        "host": {"placeholder": "192.168.1.50"},
+        "alias": {"placeholder": "Office Device"},
+        "base_url": {"placeholder": "https://api.vendor.example"},
+        "token": {"ui:widget": "password", "placeholder": "X-Plex-Token"},
+        "poll_interval_seconds": {"placeholder": "60"},
         "simulation_mode": {
             "ui:help": "Developer mode: use deterministic libraries and playback sessions without contacting Plex."
-        }
-    }
+        },
+        "allow_mutating_actions": {
+            "ui:help": "Opt in to mark watched/unwatched, ratings, and library scans."
+        },
+    },
 }
 
 FALLBACK_ENTITY: dict[str, Any] = {
@@ -122,25 +94,18 @@ FALLBACK_ENTITY: dict[str, Any] = {
     "entity_type": "media_library",
     "capabilities": [
         "connected",
+        "available",
+        "stale",
+        "last_success_at",
+        "consecutive_failures",
         "server_count",
         "refresh",
         "active_sessions",
-        "transcode_sessions"
+        "transcode_sessions",
     ],
-    "available_commands": [
-        {
-            "id": "refresh",
-            "label": "Refresh",
-            "kind": "action"
-        }
-    ],
+    "available_commands": [{"id": "refresh", "label": "Refresh", "kind": "action"}],
     "dashboard": {
-        "allowed_widgets": [
-            "tile",
-            "stat",
-            "button",
-            "external-widget"
-        ],
-        "default_widget": "tile"
-    }
+        "allowed_widgets": ["tile", "stat", "button", "external-widget"],
+        "default_widget": "tile",
+    },
 }

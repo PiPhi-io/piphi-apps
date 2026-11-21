@@ -30,7 +30,13 @@ for key in REQUIRED_ENDPOINTS:
     if ENDPOINTS.get(key) != endpoint:
         errors.append(f"contract endpoint {key} does not match manifest")
 
-port = manifest.get("runtime", {}).get("linux", {}).get("container", {}).get("ports", [{}])[0].get("container")
+port = (
+    manifest.get("runtime", {})
+    .get("linux", {})
+    .get("container", {})
+    .get("ports", [{}])[0]
+    .get("container")
+)
 if not isinstance(port, int):
     errors.append("runtime.linux.container.ports[0].container must be an integer")
 elif dockerfile and f"EXPOSE {port}" not in dockerfile:
@@ -56,27 +62,42 @@ else:
         for action_index, action in enumerate(device.get("actions") or []):
             action_id = str(action.get("id") or "").strip()
             if action_id in action_ids:
-                errors.append(f"behaviors.devices[{device_index}].actions[{action_index}].id duplicates another action id")
+                errors.append(
+                    f"behaviors.devices[{device_index}].actions[{action_index}].id duplicates another action id"
+                )
             if action_id:
                 action_ids.add(action_id)
             runtime = action.get("runtime") if isinstance(action.get("runtime"), dict) else {}
             safety = action.get("safety") if isinstance(action.get("safety"), dict) else {}
             command = str(runtime.get("command") or "").strip()
-            risk_level = str(safety.get("riskLevel") or action.get("riskLevel") or runtime.get("riskLevel") or "").strip()
+            risk_level = str(
+                safety.get("riskLevel") or action.get("riskLevel") or runtime.get("riskLevel") or ""
+            ).strip()
             if not command:
-                errors.append(f"behaviors.devices[{device_index}].actions[{action_index}].runtime.command is required")
+                errors.append(
+                    f"behaviors.devices[{device_index}].actions[{action_index}].runtime.command is required"
+                )
             if risk_level not in risk_levels:
-                errors.append(f"behaviors.devices[{device_index}].actions[{action_index}].safety.riskLevel must be low, medium, high, or critical")
+                errors.append(
+                    f"behaviors.devices[{device_index}].actions[{action_index}].safety.riskLevel must be low, medium, high, or critical"
+                )
     if not behavior.get("devices") and not behavior.get("templates"):
         errors.append("behaviors.json must define at least one device or template")
     for template_index, template in enumerate(behavior.get("templates") or []):
         device_key = str(template.get("deviceKey") or template.get("device_key") or "").strip()
         if device_key and device_ids and device_key not in device_ids:
-            errors.append(f"behaviors.templates[{template_index}].deviceKey must reference a defined device")
+            errors.append(
+                f"behaviors.templates[{template_index}].deviceKey must reference a defined device"
+            )
         config = template.get("config") if isinstance(template.get("config"), dict) else {}
         automation_schema_version = str(config.get("automation_schema_version") or "").strip()
-        if automation_schema_version and automation_schema_version not in automation_schema_versions:
-            errors.append(f"behaviors.templates[{template_index}].config.automation_schema_version is unsupported")
+        if (
+            automation_schema_version
+            and automation_schema_version not in automation_schema_versions
+        ):
+            errors.append(
+                f"behaviors.templates[{template_index}].config.automation_schema_version is unsupported"
+            )
 
 if errors:
     raise SystemExit("\n".join(errors))

@@ -46,9 +46,8 @@
       "status": 200,
       "body": {
         "id": "demo-device",
-        "host": "127.0.0.1",
         "alias": "Demo Device",
-        "token": "test-token"
+        "simulation_mode": true
       },
       "required_any_keys": [
         [

@@ -14,22 +14,28 @@
     "node": "22"
   },
   "ci": {
-    "enforcement": "legacy-static",
+    "enforcement": "full",
     "commands": [
       "pdm install --check",
-      "pdm run pytest",
+      "pdm run pytest --cov=piphi_network_plex --cov-branch --cov-fail-under=80",
+      "pdm run ruff check src tests",
+      "pdm run ruff format --check src tests",
+      "pdm run mypy src/piphi_network_plex",
+      "pdm run bandit -q -r src",
       "npm ci",
       "npm audit --omit=dev --audit-level=high",
       "npm run test",
-      "npm run build"
+      "npm run build",
+      "npm run validate:widgets",
+      "npm run conformance:widgets"
     ],
-    "build_container": false
+    "build_container": true
   },
   "packages": [
     {
       "id": "piphi-network-plex",
       "type": "integration",
-      "version": "0.1.1",
+      "version": "0.2.0",
       "manifest": "manifest.json",
       "release": {
         "tag": "apps/{package_id}/v{version}",

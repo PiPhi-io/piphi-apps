@@ -1,18 +1,19 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, Field, field_validator, model_validator
 from piphi_runtime_kit_python import RuntimeConfig
+from pydantic import BaseModel, Field, SecretStr, field_validator, model_validator
 
 
 class DeviceConfig(RuntimeConfig):
     host: str = ""
     alias: str | None = None
-    token: str = Field(default="", repr=False)
+    token: SecretStr = Field(default_factory=lambda: SecretStr(""), repr=False)
     base_url: str = ""
     poll_interval_seconds: int = Field(default=15, ge=5, le=3600)
     include_remote_servers: bool = True
     verify_tls: bool = True
     simulation_mode: bool = False
+    allow_mutating_actions: bool = False
 
     @field_validator("base_url", "host")
     @classmethod
@@ -20,8 +21,8 @@ class DeviceConfig(RuntimeConfig):
         return value.strip().rstrip("/")
 
     @model_validator(mode="after")
-    def require_live_credentials(self) -> "DeviceConfig":
-        if not self.simulation_mode and not self.token.strip():
+    def require_live_credentials(self) -> DeviceConfig:
+        if not self.simulation_mode and not self.token.get_secret_value().strip():
             raise ValueError("Plex token is required unless simulation mode is enabled")
         return self
 

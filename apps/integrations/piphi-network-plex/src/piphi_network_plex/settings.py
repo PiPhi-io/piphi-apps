@@ -4,7 +4,7 @@ import os
 
 INTEGRATION_ID = "piphi-network-plex"
 INTEGRATION_NAME = "Plex Media Server"
-INTEGRATION_VERSION = "0.1.1"
+INTEGRATION_VERSION = "0.2.0"
 PROJECT_KIND = "integration"
 PROJECT_PRESET = "cloud-polling-api"
 PROJECT_DOMAIN = "local-device"

@@ -7,14 +7,13 @@ from piphi_runtime_kit_python import (
     RuntimeConfigSnapshot,
     build_config_apply_response,
     build_config_remove_response,
-    validate_typed_configs,
 )
 from piphi_runtime_kit_python.fastapi import sync_runtime_auth_from_fastapi_payload
 
 from ..schemas import DeviceConfig
 from ..state import (
     apply_config,
-    config_sync,
+    apply_runtime_config_snapshot,
     registry,
     remove_config,
     runtime,
@@ -37,14 +36,7 @@ async def configure(payload: DeviceConfig, request: Request):
 @router.post("/config/sync")
 async def sync_config(snapshot: RuntimeConfigSnapshot, request: Request):
     runtime.auth.sync_from_headers(request.headers, payload_container_id=snapshot.container_id)
-    typed_configs = validate_typed_configs(snapshot.configs, DeviceConfig)
-    return await config_sync.apply_snapshot(
-        snapshot=snapshot.model_copy(update={"configs": typed_configs}),
-        active_config_ids=registry.ids(),
-        apply_config=apply_config,
-        remove_config=remove_config,
-        get_active_config_ids=registry.ids,
-    )
+    return await apply_runtime_config_snapshot(snapshot)
 
 
 @router.post("/deconfigure")
