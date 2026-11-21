@@ -13,7 +13,7 @@ COPY pyproject.toml pdm.lock ./
 RUN pdm export --prod --output /requirements.txt
 
 FROM python:3.12-slim@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b
-ARG RELEASE_VERSION=0.2.0
+ARG RELEASE_VERSION=0.2.1
 ARG SOURCE_REVISION=unknown
 ARG SOURCE_REPOSITORY=https://github.com/PiPhi-io/piphi-apps
 LABEL org.opencontainers.image.source="${SOURCE_REPOSITORY}" \
@@ -31,7 +31,7 @@ RUN pip install --no-cache-dir --no-deps . \
     && groupadd --system --gid 10001 piphi \
     && useradd --system --uid 10001 --gid piphi --home-dir /app piphi \
     && chown -R piphi:piphi /app
-COPY --from=widget-build --chown=10001:10001 /widget/dist ./widgets
+COPY --from=widget-build --chown=10001:10001 /widget/dist ./widgets/dist
 COPY --from=widget-build --chown=10001:10001 /widget/widget.manifest.json ./widgets/widget.manifest.json
 USER 10001:10001
 EXPOSE 8090

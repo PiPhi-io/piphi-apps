@@ -34,7 +34,7 @@
     {
       "id": "piphi-network-steam",
       "type": "integration",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "manifest": "src/manifest.json",
       "release": {
         "tag": "apps/{package_id}/v{version}",

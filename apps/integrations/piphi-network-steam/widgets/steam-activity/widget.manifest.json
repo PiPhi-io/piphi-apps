@@ -2,7 +2,7 @@
   "id": "io.piphi.steam.activity",
   "name": "Steam activity",
   "description": "See Steam presence, current game, and recent playtime at a glance.",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "entry": "./dist/widget.js",
   "binding_modes": [
     "read"
