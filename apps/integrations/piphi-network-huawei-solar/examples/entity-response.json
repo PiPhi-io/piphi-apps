@@ -1,16 +1,15 @@
 {
   "entities": [],
-  "capabilities": {
-    "connected": {
-      "kind": "sensor",
-      "unit": "bool"
-    },
-    "active_power_w": {"kind": "sensor", "unit": "W", "value_kind": "numeric"},
-    "daily_yield_kwh": {"kind": "sensor", "unit": "kWh", "value_kind": "numeric"},
-    "refresh": {
-      "kind": "action"
-    }
-  },
+  "capabilities": [
+    "connected",
+    "available",
+    "stale",
+    "last_success_at",
+    "consecutive_failures",
+    "active_power_w",
+    "daily_yield_kwh",
+    "refresh"
+  ],
   "commands": {
     "refresh": {
       "description": "Refresh the device state.",

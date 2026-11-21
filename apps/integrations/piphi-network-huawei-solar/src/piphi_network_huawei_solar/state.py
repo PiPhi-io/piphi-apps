@@ -4,6 +4,7 @@ import asyncio
 import logging
 import os
 import time
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import HTTPException
@@ -40,15 +41,20 @@ automations = AutomationRegistry(
 
 capabilities = CAPABILITIES
 commands = COMMANDS
+refresh_locks: dict[str, asyncio.Lock] = {}
 
 
 def make_entry(config: DeviceConfig) -> dict[str, Any]:
     identity = build_runtime_identity(config, integration_id=INTEGRATION_ID)
+    config_id = str(config.config_id or config.id)
     return {
         **identity,
+        "config_id": config_id,
         "host": config.host,
         "alias": config.alias,
-        "config": config.model_dump(exclude={"api_key"}),
+        "source_identity": f"{config.host}/unit/{config.unit_id}",
+        "config": config.model_dump(),
+        "consecutive_failures": 0,
     }
 
 
@@ -82,7 +88,8 @@ async def apply_config(config: DeviceConfig) -> None:
         entry["config_id"],
         {
             "connected": False,
-            "host": config.host,
+            "available": False,
+            "stale": True,
             "alias": config.alias,
             "config_id": entry["config_id"],
         },
@@ -92,35 +99,56 @@ async def apply_config(config: DeviceConfig) -> None:
     append_runtime_event(
         "runtime.config.applied",
         entry,
-        {"host": config.host, "alias": config.alias},
+        {"alias": config.alias},
     )
 
 
 async def refresh_entry(entry: dict[str, Any]) -> dict[str, Any]:
-    config = DeviceConfig.model_validate(entry["config"])
-    try:
-        reading = await read_sun2000(
-            config.host,
-            config.unit_id if config.unit_id is not None else 1,
-        )
-    except (OSError, ValueError, EOFError, TimeoutError) as exc:
-        logger.warning(
-            "sun2000_read_failed config_id=%s error=%s",
-            entry["config_id"],
-            type(exc).__name__,
-        )
-        state = {"connected": False, "reason": "inverter_read_failed"}
-        registry.update_state(entry["config_id"], state, device_id=entry["device_id"])
-        return state
-    metrics = {
-        "connected": True,
-        "active_power_w": reading.active_power_w,
-        "daily_yield_kwh": reading.daily_yield_kwh,
-    }
-    registry.update_state(entry["config_id"], metrics, device_id=entry["device_id"])
-    entry["next_poll_at"] = time.monotonic() + max(
-        60, config.poll_interval_seconds or 300
-    )
+    config_id = str(entry["config_id"])
+    async with refresh_locks.setdefault(config_id, asyncio.Lock()):
+        config = DeviceConfig.model_validate(entry["config"])
+        previous_status = str(entry.get("status") or "initializing")
+        try:
+            reading = await read_sun2000(config.host, config.unit_id)
+        except (OSError, ValueError, EOFError, TimeoutError) as exc:
+            logger.warning(
+                "sun2000_read_failed config_id=%s error=%s",
+                config_id,
+                type(exc).__name__,
+            )
+            failures = int(entry.get("consecutive_failures") or 0) + 1
+            entry["consecutive_failures"] = failures
+            entry["status"] = "unavailable"
+            entry["next_poll_at"] = time.monotonic() + min(900, 60 * (2 ** min(failures - 1, 4)))
+            state = {
+                **dict(entry.get("last_good") or {}),
+                "connected": False,
+                "available": False,
+                "stale": bool(entry.get("last_good")),
+                "reason": "inverter_read_failed",
+                "consecutive_failures": failures,
+            }
+            registry.update_state(config_id, state, device_id=entry["device_id"])
+            if previous_status not in {"initializing", "unavailable"}:
+                append_runtime_event("inverter.unavailable", entry, {"reason": state["reason"]})
+            return state
+        now = datetime.now(UTC).isoformat()
+        metrics = {
+            "connected": True,
+            "available": True,
+            "stale": False,
+            "active_power_w": reading.active_power_w,
+            "daily_yield_kwh": reading.daily_yield_kwh,
+            "last_success_at": now,
+            "consecutive_failures": 0,
+        }
+        entry["last_good"] = metrics.copy()
+        entry["consecutive_failures"] = 0
+        entry["status"] = "available"
+        entry["next_poll_at"] = time.monotonic() + config.poll_interval_seconds
+        registry.update_state(config_id, metrics, device_id=entry["device_id"])
+        if previous_status == "unavailable":
+            append_runtime_event("inverter.recovered", entry)
     task = schedule_telemetry_delivery(
         process_state=runtime.process_state,
         telemetry_client=telemetry,
@@ -133,9 +161,7 @@ async def refresh_entry(entry: dict[str, Any]) -> dict[str, Any]:
     )
     if task is not None:
         task.add_done_callback(
-            lambda completed: (
-                completed.exception() if not completed.cancelled() else None
-            )
+            lambda completed: completed.exception() if not completed.cancelled() else None
         )
     return metrics
 
@@ -155,10 +181,11 @@ async def remove_config(config_id: str) -> bool:
     entry = registry.remove(config_id)
     if entry is None:
         return False
+    refresh_locks.pop(config_id, None)
     append_runtime_event(
         "runtime.config.removed",
         entry,
-        {"host": entry.get("host"), "alias": entry.get("alias")},
+        {"alias": entry.get("alias")},
     )
     return True
 
@@ -169,9 +196,7 @@ def _register_automation_actions() -> None:
         async def handler(request, *, _command_name=command_name):
             target = getattr(request, "target", None)
             target = target if isinstance(target, dict) else {}
-            device_id = str(
-                request.device_id or target.get("device_id") or "demo-device"
-            )
+            device_id = str(request.device_id or target.get("device_id") or "demo-device")
             config_id = str(request.config_id or target.get("config_id") or device_id)
             entry = registry.get(config_id)
             if entry is None:
@@ -208,6 +233,8 @@ def _register_automation_actions() -> None:
 
 
 _register_automation_actions()
+
+
 async def _refresh_all_state() -> None:
     for entry_id in registry.ids():
         entry = registry.get(entry_id)

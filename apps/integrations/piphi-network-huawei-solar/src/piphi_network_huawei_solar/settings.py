@@ -4,7 +4,7 @@ import os
 
 INTEGRATION_ID = "piphi-network-huawei-solar"
 INTEGRATION_NAME = "Piphi Network Huawei Solar"
-INTEGRATION_VERSION = "0.1.0"
+INTEGRATION_VERSION = "0.2.0"
 PROJECT_KIND = "integration"
 PROJECT_PRESET = "protocol-bridge"
 PROJECT_DOMAIN = "bridge"

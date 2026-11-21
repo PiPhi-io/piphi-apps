@@ -19,54 +19,42 @@ ENDPOINTS = {
 REQUIRED_ENDPOINTS = ["health", "entities", "command", "config", "ui_config"]
 
 CAPABILITIES: dict[str, dict[str, Any]] = {
-    "connected": {
-        "kind": "sensor",
-        "unit": "bool"
-    },
+    "connected": {"kind": "sensor", "unit": "bool"},
+    "available": {"kind": "sensor", "unit": "bool"},
+    "stale": {"kind": "sensor", "unit": "bool"},
+    "last_success_at": {"kind": "sensor", "optional": True},
+    "consecutive_failures": {"kind": "sensor", "unit": "count"},
     "active_power_w": {"kind": "sensor", "unit": "W", "value_kind": "numeric"},
     "daily_yield_kwh": {"kind": "sensor", "unit": "kWh", "value_kind": "numeric"},
-    "refresh": {
-        "kind": "action"
-    }
+    "refresh": {"kind": "action"},
 }
 
 COMMANDS: dict[str, dict[str, Any]] = {
-    "refresh": {
-        "description": "Refresh the device state.",
-        "timeout_ms": 15000
-    }
+    "refresh": {"description": "Refresh the device state.", "timeout_ms": 15000}
 }
 
 CONFIG_SCHEMA: dict[str, Any] = {
     "schema": {
         "title": "Huawei SUN2000 Modbus TCP",
         "type": "object",
-        "required": [
-            "host"
-        ],
+        "required": ["host"],
         "properties": {
-            "host": {
-                "type": "string",
-                "title": "Host"
-            },
-            "alias": {
-                "type": "string",
-                "title": "Alias"
-            },
+            "host": {"type": "string", "title": "Host"},
+            "alias": {"type": "string", "title": "Alias"},
             "unit_id": {"type": "integer", "title": "Modbus unit ID", "minimum": 0, "maximum": 247},
-            "poll_interval_seconds": {"type": "integer", "title": "Poll interval (seconds)", "minimum": 60}
-        }
+            "poll_interval_seconds": {
+                "type": "integer",
+                "title": "Poll interval (seconds)",
+                "minimum": 60,
+            },
+        },
     },
     "uiSchema": {
-        "host": {
-            "placeholder": "192.168.1.50"
-        },
-        "alias": {
-            "placeholder": "Solar inverter"
-        },
+        "host": {"placeholder": "192.168.1.50"},
+        "alias": {"placeholder": "Solar inverter"},
         "unit_id": {"placeholder": "1"},
-        "poll_interval_seconds": {"placeholder": "300"}
-    }
+        "poll_interval_seconds": {"placeholder": "300"},
+    },
 }
 
 FALLBACK_ENTITY: dict[str, Any] = {
@@ -76,23 +64,14 @@ FALLBACK_ENTITY: dict[str, Any] = {
     "entity_type": "solar_system",
     "capabilities": [
         "connected",
+        "available",
+        "stale",
+        "last_success_at",
+        "consecutive_failures",
         "active_power_w",
         "daily_yield_kwh",
-        "refresh"
+        "refresh",
     ],
-    "available_commands": [
-        {
-            "id": "refresh",
-            "label": "Refresh",
-            "kind": "action"
-        }
-    ],
-    "dashboard": {
-        "allowed_widgets": [
-            "tile",
-            "stat",
-            "button"
-        ],
-        "default_widget": "tile"
-    }
+    "available_commands": [{"id": "refresh", "label": "Refresh", "kind": "action"}],
+    "dashboard": {"allowed_widgets": ["tile", "stat", "button"], "default_widget": "tile"},
 }

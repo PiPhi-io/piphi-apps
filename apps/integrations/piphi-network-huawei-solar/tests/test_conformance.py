@@ -17,9 +17,7 @@ FIXTURES = json.loads(
 @pytest.mark.anyio
 async def test_runtime_conforms_to_shared_contract_fixtures() -> None:
     transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(
-        transport=transport, base_url="http://testserver"
-    ) as client:
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
         try:
             for fixture in FIXTURES["cases"]:
                 response = await client.request(
@@ -29,19 +27,13 @@ async def test_runtime_conforms_to_shared_contract_fixtures() -> None:
                 )
                 assert response.status_code == fixture["status"], fixture["id"]
                 body = response.json()
-                _assert_required_keys(
-                    body, fixture.get("required_keys", []), fixture["id"]
-                )
-                _assert_required_any_keys(
-                    body, fixture.get("required_any_keys", []), fixture["id"]
-                )
+                _assert_required_keys(body, fixture.get("required_keys", []), fixture["id"])
+                _assert_required_any_keys(body, fixture.get("required_any_keys", []), fixture["id"])
         finally:
             await client.post("/deconfigure/demo-device")
 
 
-def _assert_required_keys(
-    body: dict[str, Any], keys: list[str], fixture_id: str
-) -> None:
+def _assert_required_keys(body: dict[str, Any], keys: list[str], fixture_id: str) -> None:
     for key in keys:
         assert key in body, f"{fixture_id} missing {key}"
 
@@ -50,6 +42,4 @@ def _assert_required_any_keys(
     body: dict[str, Any], groups: list[list[str]], fixture_id: str
 ) -> None:
     for group in groups:
-        assert any(key in body for key in group), (
-            f"{fixture_id} missing one of {', '.join(group)}"
-        )
+        assert any(key in body for key in group), f"{fixture_id} missing one of {', '.join(group)}"

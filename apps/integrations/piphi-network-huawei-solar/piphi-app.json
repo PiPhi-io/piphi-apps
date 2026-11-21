@@ -12,18 +12,23 @@
     "python": "3.12"
   },
   "ci": {
-    "enforcement": "legacy-static",
+    "enforcement": "full",
     "commands": [
       "pdm install --check",
-      "pdm run pytest"
+      "pdm run pytest --cov=piphi_network_huawei_solar --cov-branch --cov-fail-under=80",
+      "pdm run ruff check src tests",
+      "pdm run ruff format --check src tests",
+      "pdm run mypy src/piphi_network_huawei_solar",
+      "pdm run bandit -q -r src",
+      "pdm run python scripts/validate.py"
     ],
-    "build_container": false
+    "build_container": true
   },
   "packages": [
     {
       "id": "piphi-network-huawei-solar",
       "type": "integration",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "manifest": "manifest.json",
       "release": {
         "tag": "apps/{package_id}/v{version}",
