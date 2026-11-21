@@ -3,7 +3,8 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any
+from email.utils import parsedate_to_datetime
+from typing import Any, cast
 
 import httpx
 
@@ -28,7 +29,9 @@ class SteamAuthenticationError(SteamAPIError):
 
 
 class SteamRateLimitError(SteamAPIError):
-    pass
+    def __init__(self, message: str, *, retry_after_seconds: int = 60) -> None:
+        super().__init__(message)
+        self.retry_after_seconds = retry_after_seconds
 
 
 class SteamResponseError(SteamAPIError):
@@ -53,7 +56,6 @@ class SteamSnapshot:
             "connected": True,
             "is_online": bool(values["is_online"]),
             "is_in_game": bool(values["is_in_game"]),
-            "persona_state_code": int(values["persona_state_code"]),
             "owned_game_count": int(values["owned_game_count"]),
             "recent_game_count": int(values["recent_game_count"]),
             "total_playtime_minutes": int(values["total_playtime_minutes"]),
@@ -75,6 +77,22 @@ def _bounded_text(value: Any, limit: int = 160) -> str | None:
     return cleaned[:limit] or None
 
 
+def _retry_after_seconds(value: str | None) -> int:
+    if not value:
+        return 60
+    try:
+        seconds = int(value)
+    except ValueError:
+        try:
+            retry_at = parsedate_to_datetime(value)
+            if retry_at.tzinfo is None:
+                retry_at = retry_at.replace(tzinfo=UTC)
+            seconds = int((retry_at - datetime.now(UTC)).total_seconds())
+        except (TypeError, ValueError, OverflowError):
+            return 60
+    return min(3600, max(60, seconds))
+
+
 def normalize_snapshot(
     *,
     steam_id: str,
@@ -87,7 +105,7 @@ def normalize_snapshot(
     current_app_id = _bounded_text(player.get("gameid"), 20)
     current_game = _bounded_text(player.get("gameextrainfo"), 160)
     recent_games_raw = (recent_payload or {}).get("games")
-    recent_games = []
+    recent_games: list[dict[str, Any]] = []
     if isinstance(recent_games_raw, list):
         for item in recent_games_raw[:10]:
             if not isinstance(item, dict):
@@ -109,12 +127,9 @@ def normalize_snapshot(
             if isinstance(game, dict)
         )
     recent_playtime = sum(game["playtime_2weeks_minutes"] for game in recent_games)
-    last_logoff = _safe_int(player.get("lastlogoff"))
     state = {
         "steam_id": steam_id,
         "persona_name": _bounded_text(player.get("personaname"), 80) or f"Steam {steam_id}",
-        "profile_url": _bounded_text(player.get("profileurl"), 300),
-        "avatar_url": _bounded_text(player.get("avatarfull"), 500),
         "community_visibility_state": _safe_int(player.get("communityvisibilitystate")),
         "persona_state": PERSONA_STATES.get(persona_code, "unknown"),
         "persona_state_code": persona_code,
@@ -122,7 +137,6 @@ def normalize_snapshot(
         "is_in_game": bool(current_app_id or current_game),
         "current_game_app_id": current_app_id,
         "current_game_name": current_game,
-        "last_logoff": last_logoff or None,
         "library_visible": owned_payload is not None,
         "recent_games_visible": recent_payload is not None,
         "owned_game_count": _safe_int((owned_payload or {}).get("game_count")),
@@ -131,7 +145,6 @@ def normalize_snapshot(
         ),
         "total_playtime_minutes": total_playtime,
         "recent_playtime_minutes": recent_playtime,
-        "recent_games": recent_games,
     }
     return SteamSnapshot(
         sampled_at=sampled_at or datetime.now(tz=UTC).isoformat(),
@@ -144,11 +157,13 @@ class SteamWebAPIClient:
         self,
         *,
         timeout_seconds: float = 15.0,
+        max_concurrent_requests: int = 4,
         http_client: httpx.AsyncClient | None = None,
     ) -> None:
         self.timeout_seconds = timeout_seconds
         self._http_client = http_client
         self._owns_client = http_client is None
+        self._request_limit = asyncio.Semaphore(max_concurrent_requests)
 
     async def aclose(self) -> None:
         if self._http_client is not None and self._owns_client:
@@ -157,24 +172,35 @@ class SteamWebAPIClient:
 
     async def _client(self) -> httpx.AsyncClient:
         if self._http_client is None:
-            self._http_client = httpx.AsyncClient(timeout=self.timeout_seconds)
+            self._http_client = httpx.AsyncClient(
+                timeout=self.timeout_seconds,
+                follow_redirects=False,
+                trust_env=False,
+            )
             self._owns_client = True
         return self._http_client
 
     async def _get(self, path: str, credentials: SteamCredentials, **params: Any) -> dict[str, Any]:
         client = await self._client()
         try:
-            response = await client.get(
-                f"{STEAM_API_BASE_URL}{path}",
-                params=params,
-                headers={"x-webapi-key": credentials.web_api_key, "accept": "application/json"},
-            )
+            async with self._request_limit:
+                response = await client.get(
+                    f"{STEAM_API_BASE_URL}{path}",
+                    params=params,
+                    headers={
+                        "x-webapi-key": credentials.web_api_key,
+                        "accept": "application/json",
+                    },
+                )
         except httpx.RequestError as exc:
             raise SteamResponseError(f"Steam Web API request failed: {type(exc).__name__}") from exc
         if response.status_code in {401, 403}:
             raise SteamAuthenticationError("Steam rejected the Web API key or account access.")
         if response.status_code == 429:
-            raise SteamRateLimitError("Steam Web API rate limit exceeded.")
+            raise SteamRateLimitError(
+                "Steam Web API rate limit exceeded.",
+                retry_after_seconds=_retry_after_seconds(response.headers.get("retry-after")),
+            )
         if response.status_code >= 400:
             raise SteamResponseError(f"Steam Web API returned HTTP {response.status_code}.")
         try:
@@ -204,12 +230,15 @@ class SteamWebAPIClient:
             include_appinfo=False,
             include_played_free_games=True,
         )
-        summary_result, recent_result, owned_result = await asyncio.gather(
+        results = await asyncio.gather(
             summary_request,
             recent_request,
             owned_request,
             return_exceptions=True,
         )
+        summary_result = cast(dict[str, Any] | Exception, results[0])
+        recent_result = cast(dict[str, Any] | Exception, results[1])
+        owned_result = cast(dict[str, Any] | Exception, results[2])
         if isinstance(summary_result, Exception):
             raise summary_result
         for optional_result in (recent_result, owned_result):
