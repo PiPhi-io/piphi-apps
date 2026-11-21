@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import ipaddress
 import re
+import socket
 import struct
 from contextlib import suppress
 from dataclasses import dataclass
@@ -35,11 +36,7 @@ def local_endpoint(host: str) -> tuple[str, int]:
     try:
         address = ipaddress.ip_address(name)
     except ValueError:
-        if (
-            not LOCAL_NAME.fullmatch(name)
-            or ".." in name
-            or not name.endswith((".local", ".lan"))
-        ):
+        if not LOCAL_NAME.fullmatch(name) or ".." in name or not name.endswith((".local", ".lan")):
             raise ValueError("SUN2000 host must be local") from None
     else:
         if not (address.is_private or address.is_link_local or address.is_loopback):
@@ -52,7 +49,15 @@ async def read_sun2000(host: str, unit_id: int = 1) -> InverterReading:
     if type(unit_id) is not int or not 0 <= unit_id <= 247:
         raise ValueError("Modbus unit ID must be 0–247")
     name, port = local_endpoint(host)
-    reader, writer = await asyncio.wait_for(asyncio.open_connection(name, port), 5)
+    loop = asyncio.get_running_loop()
+    resolved = await asyncio.wait_for(
+        loop.getaddrinfo(name, port, family=socket.AF_UNSPEC, type=socket.SOCK_STREAM), 5
+    )
+    addresses = {str(item[4][0]) for item in resolved}
+    if not addresses or any(not _is_local_address(value) for value in addresses):
+        raise ValueError("SUN2000 hostname resolved outside the local network")
+    address = min(addresses)
+    reader, writer = await asyncio.wait_for(asyncio.open_connection(address, port), 5)
     try:
         active = await _read_two_registers(reader, writer, unit_id, 32080, 1)
         daily = await _read_two_registers(reader, writer, unit_id, 32114, 2)
@@ -69,9 +74,7 @@ async def read_sun2000(host: str, unit_id: int = 1) -> InverterReading:
 async def _read_two_registers(
     reader, writer, unit_id: int, address: int, transaction: int
 ) -> bytes:
-    writer.write(
-        MBAP.pack(transaction, 0, 6, unit_id) + struct.pack(">BHH", 3, address, 2)
-    )
+    writer.write(MBAP.pack(transaction, 0, 6, unit_id) + struct.pack(">BHH", 3, address, 2))
     await asyncio.wait_for(writer.drain(), 5)
     header = await asyncio.wait_for(reader.readexactly(MBAP.size), 5)
     reply_transaction, protocol, length, reply_unit = MBAP.unpack(header)
@@ -87,3 +90,8 @@ async def _read_two_registers(
     if len(pdu) != 6 or pdu[:2] != bytes([3, 4]):
         raise ValueError("Invalid SUN2000 register response")
     return pdu[2:]
+
+
+def _is_local_address(value: str) -> bool:
+    address = ipaddress.ip_address(value)
+    return address.is_private or address.is_link_local or address.is_loopback

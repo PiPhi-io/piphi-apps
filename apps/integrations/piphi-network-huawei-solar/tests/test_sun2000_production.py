@@ -84,9 +84,7 @@ async def test_exception_response_is_not_a_reading(
     assert writer.closed
 
 
-@pytest.mark.parametrize(
-    "host", ["example.com", "8.8.8.8", "127.0.0.1/path", "user@127.0.0.1"]
-)
+@pytest.mark.parametrize("host", ["example.com", "8.8.8.8", "127.0.0.1/path", "user@127.0.0.1"])
 def test_nonlocal_or_ambiguous_hosts_rejected(host: str) -> None:
     with pytest.raises(ValueError):
         local_endpoint(host)
@@ -105,12 +103,28 @@ async def test_out_of_range_unit_never_connects(
 
 
 @pytest.mark.anyio
+async def test_dns_rebinding_to_public_address_never_connects(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    loop = asyncio.get_running_loop()
+
+    async def public_result(*_args, **_kwargs):
+        return [(2, 1, 6, "", ("8.8.8.8", 502))]
+
+    async def no_connect(*_args, **_kwargs):
+        raise AssertionError("public destination must not be contacted")
+
+    monkeypatch.setattr(loop, "getaddrinfo", public_result)
+    monkeypatch.setattr(asyncio, "open_connection", no_connect)
+    with pytest.raises(ValueError, match="outside the local network"):
+        await read_sun2000("inverter.local")
+
+
+@pytest.mark.anyio
 async def test_runtime_publishes_actual_reading_and_failure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    entry = state.make_entry(
-        DeviceConfig(id="huawei-test", host="127.0.0.1", unit_id=0)
-    )
+    entry = state.make_entry(DeviceConfig(id="huawei-test", host="127.0.0.1", unit_id=0))
     state.registry.set(entry["config_id"], entry)
     calls: list[tuple[str, int]] = []
 
@@ -122,31 +136,71 @@ async def test_runtime_publishes_actual_reading_and_failure(
     monkeypatch.setattr(state, "schedule_telemetry_delivery", lambda **_kwargs: None)
     try:
         metrics = await state.refresh_entry(entry)
-        assert metrics == {
-            "connected": True,
-            "active_power_w": 2040,
-            "daily_yield_kwh": 8.5,
-        }
-        assert calls == [("127.0.0.1", 0)]
+        assert metrics["connected"] is True
+        assert metrics["available"] is True
+        assert metrics["stale"] is False
+        assert metrics["active_power_w"] == 2040
+        assert metrics["daily_yield_kwh"] == 8.5
+        assert calls == [("127.0.0.1:502", 0)]
 
         async def failed_read(_host: str, _unit_id: int) -> InverterReading:
             raise TimeoutError
 
         monkeypatch.setattr(state, "read_sun2000", failed_read)
-        assert await state.refresh_entry(entry) == {
-            "connected": False,
-            "reason": "inverter_read_failed",
-        }
+        failed = await state.refresh_entry(entry)
+        assert failed["connected"] is False
+        assert failed["available"] is False
+        assert failed["stale"] is True
+        assert failed["active_power_w"] == 2040
+        assert failed["reason"] == "inverter_read_failed"
+        assert failed["consecutive_failures"] == 1
     finally:
         state.registry.remove(entry["config_id"])
 
 
 @pytest.mark.anyio
+async def test_refreshes_are_serialized_and_recovery_transition_is_deduplicated(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    entry = state.make_entry(DeviceConfig(id="serialized", host="127.0.0.1"))
+    state.registry.set(entry["config_id"], entry)
+    event_offset = len(state.registry.recent_events)
+    active = 0
+    maximum = 0
+    outcomes = iter(
+        [InverterReading(1, 2.0), TimeoutError(), TimeoutError(), InverterReading(3, 4.0)]
+    )
+
+    async def fake_read(_host: str, _unit_id: int) -> InverterReading:
+        nonlocal active, maximum
+        active += 1
+        maximum = max(maximum, active)
+        await asyncio.sleep(0)
+        active -= 1
+        outcome = next(outcomes)
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome
+
+    monkeypatch.setattr(state, "read_sun2000", fake_read)
+    monkeypatch.setattr(state, "schedule_telemetry_delivery", lambda **_kwargs: None)
+    try:
+        await state.refresh_entry(entry)
+        await asyncio.gather(state.refresh_entry(entry), state.refresh_entry(entry))
+        recovered = await state.refresh_entry(entry)
+        assert maximum == 1
+        assert recovered["active_power_w"] == 3
+        event_types = [event["event_type"] for event in state.registry.recent_events[event_offset:]]
+        assert event_types.count("inverter.unavailable") == 1
+        assert event_types.count("inverter.recovered") == 1
+    finally:
+        await state.remove_config(entry["config_id"])
+
+
+@pytest.mark.anyio
 async def test_unconfigured_runtime_has_no_demo_entity() -> None:
     transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(
-        transport=transport, base_url="http://testserver"
-    ) as client:
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
         entities = (await client.get("/entities")).json()["entities"]
         assert all(entity["id"] != "demo-device" for entity in entities)
         discovery = (await client.post("/discover", json={})).json()
@@ -155,9 +209,7 @@ async def test_unconfigured_runtime_has_no_demo_entity() -> None:
 
 def test_widget_consumes_only_read_only_metrics() -> None:
     root = Path(__file__).parents[1]
-    package = json.loads(
-        (root / "experiences/production/package.source.json").read_text()
-    )
+    package = json.loads((root / "experiences/production/package.source.json").read_text())
     widget = package["widgets"][0]
     assert widget["runtime"] == "declarative"
     assert {slot["capability_requirements"][0] for slot in widget["binding_slots"]} == {

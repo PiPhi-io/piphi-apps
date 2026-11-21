@@ -6,7 +6,10 @@ electricity (register 32114, unsigned U32 / 100 kWh). These addresses and
 types come from Huawei's Solar Inverter Modbus Interface Definitions V3.0.
 Only models exposing both registers are supported by this slice. Configure a
 local `host` (optionally `:port`) and `unit_id` (default 1). The runtime never
-assumes that configured means connected; unsuccessful reads report unavailable.
+assumes that configured means connected. After a successful baseline, outages
+preserve the last values as stale, use bounded exponential retry backoff, and
+emit one unavailable/recovered event per transition. Per-inverter reads are
+serialized, and every resolved destination address must remain local.
 Modbus TCP is unencrypted, so use a trusted local network. The bundled
 declarative widget shows only those two values and offers details/history, not
 write controls.
@@ -64,6 +67,6 @@ unsafe protection changes are excluded.
 ## Docker
 
 ```bash
-docker build -t docker.io/piphinetwork/piphi-network-huawei-solar:0.1.0 .
-docker run --rm -p 4213:4213 docker.io/piphinetwork/piphi-network-huawei-solar:0.1.0
+docker build -t ghcr.io/piphi-io/piphi-network-huawei-solar:0.2.0 .
+docker run --rm -p 4213:4213 ghcr.io/piphi-io/piphi-network-huawei-solar:0.2.0
 ```

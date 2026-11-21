@@ -3,7 +3,7 @@
   "manifest_version": "1.0",
   "id": "piphi-network-huawei-solar",
   "name": "Huawei Solar",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Read active power and daily generated energy from supported Huawei SUN2000 inverters over local Modbus TCP.",
   "metadata": {
     "generator": "piphi-network-create",
@@ -17,7 +17,7 @@
     "website": "https://piphi.io"
   },
   "license": "Apache-2.0",
-  "image": "docker.io/piphinetwork/piphi-network-huawei-solar:0.1.0",
+  "image": "ghcr.io/piphi-io/piphi-network-huawei-solar:0.2.0",
   "platforms": [
     "linux"
   ],
@@ -25,7 +25,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "docker.io/piphinetwork/piphi-network-huawei-solar:0.1.0",
+        "image": "ghcr.io/piphi-io/piphi-network-huawei-solar:0.2.0",
         "ports": [
           {
             "container": 4213,
@@ -33,12 +33,20 @@
           }
         ],
         "environment": {
-          "LOG_LEVEL": "info"
+          "LOG_LEVEL": "info",
+          "PIPHI_AUTOMATION_LEDGER_PATH": "/app/data/automation-actions.sqlite3"
         },
         "restart_policy": {
           "name": "unless-stopped",
           "maximum_retry_count": 0
-        }
+        },
+        "volumes": [
+          {
+            "host": "/var/lib/piphi/huawei-solar",
+            "container": "/app/data",
+            "mode": "rw"
+          }
+        ]
       },
       "discovery": {
         "method": "passive"
@@ -84,12 +92,14 @@
       "device_id"
     ],
     "identity_fields": [
-      "host"
+      "host",
+      "unit_id"
     ]
   },
   "identity": {
     "fields": [
-      "host"
+      "host",
+      "unit_id"
     ]
   },
   "capabilities": {
@@ -97,10 +107,34 @@
       "kind": "sensor",
       "unit": "bool"
     },
-    "active_power_w": {"kind": "sensor", "unit": "W", "value_kind": "numeric"},
-    "daily_yield_kwh": {"kind": "sensor", "unit": "kWh", "value_kind": "numeric"},
+    "active_power_w": {
+      "kind": "sensor",
+      "unit": "W",
+      "value_kind": "numeric"
+    },
+    "daily_yield_kwh": {
+      "kind": "sensor",
+      "unit": "kWh",
+      "value_kind": "numeric"
+    },
     "refresh": {
       "kind": "action"
+    },
+    "available": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "stale": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "last_success_at": {
+      "kind": "sensor",
+      "optional": true
+    },
+    "consecutive_failures": {
+      "kind": "sensor",
+      "unit": "count"
     }
   },
   "commands": {
@@ -117,6 +151,10 @@
       "entity_type": "solar_system",
       "capabilities": [
         "connected",
+        "available",
+        "stale",
+        "last_success_at",
+        "consecutive_failures",
         "active_power_w",
         "daily_yield_kwh",
         "refresh"
@@ -140,7 +178,11 @@
   ],
   "ui": {
     "experience_packages": [
-      {"registry_id": "io.piphi.huawei-solar-production", "version_range": ">=0.1,<1", "auto_install": true}
+      {
+        "registry_id": "io.piphi.huawei-solar-production",
+        "version_range": ">=0.1,<1",
+        "auto_install": true
+      }
     ]
   },
   "marketplace": {
@@ -188,11 +230,15 @@
         "status": "unverified"
       }
     },
-    "device_types": ["solar inverter"],
+    "device_types": [
+      "solar inverter"
+    ],
     "protocols": [
       "Modbus TCP"
     ],
-    "discovery_methods": ["manual"],
+    "discovery_methods": [
+      "manual"
+    ],
     "connectivity": "local",
     "offline_support": "full"
   },

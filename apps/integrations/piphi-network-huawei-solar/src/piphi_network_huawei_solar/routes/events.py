@@ -36,9 +36,6 @@ async def device_event_example(config_id: str):
     event = append_runtime_event(
         "runtime.device.checked",
         entry,
-        {
-            "message": "Example local runtime event for a configured device",
-            "host": entry.get("host"),
-        },
+        {"message": "Example local runtime event for a configured device"},
     )
     return build_event_ingest_response(event)

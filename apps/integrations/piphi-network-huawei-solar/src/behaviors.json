@@ -125,6 +125,10 @@
       "entityType": "solar_system",
       "capabilities": [
         "connected",
+        "available",
+        "stale",
+        "last_success_at",
+        "consecutive_failures",
         "active_power_w",
         "daily_yield_kwh",
         "refresh"
@@ -182,6 +186,40 @@
           "freshness": {
             "maxAgeSeconds": 300,
             "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "when"
+          }
+        },
+        {
+          "id": "inverter_unavailable",
+          "label": "Inverter unavailable",
+          "description": "Inverter unavailable.",
+          "capability": "telemetry.state",
+          "runtime": {
+            "event": "inverter.unavailable",
+            "source": "integration"
+          },
+          "freshness": {
+            "maxAgeSeconds": 300,
+            "staleDataMode": "allow"
+          },
+          "ui": {
+            "group": "when"
+          }
+        },
+        {
+          "id": "inverter_recovered",
+          "label": "Inverter recovered",
+          "description": "Inverter recovered.",
+          "capability": "telemetry.state",
+          "runtime": {
+            "event": "inverter.recovered",
+            "source": "integration"
+          },
+          "freshness": {
+            "maxAgeSeconds": 300,
+            "staleDataMode": "allow"
           },
           "ui": {
             "group": "when"
