@@ -1,3 +1,5 @@
+import crypto from "node:crypto";
+import { EventEmitter } from "node:events";
 import { ReadlineParser, SerialPort } from "serialport";
 
 import { logger } from "../server.js";
@@ -21,6 +23,7 @@ import {
   updateDeviceRuntime,
   upsertActiveConfig,
 } from "./runtime.js";
+import { persistConfigs } from "./persistence.js";
 
 const LIKELY_SERIAL_PATH_PATTERN =
   /(tty(USB|ACM|AMA)\d+|rfcomm\d+|cu\.(usb|SLAB_USB|usbserial|wchusbserial)|tty\.usb)/i;
@@ -49,6 +52,7 @@ const SERIAL_BRIDGE_HINTS: Record<string, string> = {
 interface GPSDiscoveryDevice extends Record<string, unknown> {
   id: string;
   path: string;
+  receiver_id?: string;
   name: string;
   manufacturer: string | null;
   product: string | null;
@@ -65,6 +69,13 @@ interface GPSDiscoveryDevice extends Record<string, unknown> {
   detection_reasons: string[];
 }
 
+export interface SerialConnection extends EventEmitter {
+  isOpen: boolean;
+  open(callback: (error: Error | null) => void): void;
+  close(callback: (error: Error | null) => void): void;
+  pipe(destination: ReadlineParser): ReadlineParser;
+}
+
 type ListedPort = Awaited<ReturnType<typeof SerialPort.list>>[number];
 
 interface GPSConfig {
@@ -73,6 +84,7 @@ interface GPSConfig {
   device_id?: string;
   integration_id?: string;
   path: string;
+  receiver_id?: string;
   container_id?: string | null;
   configName?: string;
   secret?: string;
@@ -99,6 +111,7 @@ interface GPSTestHooks {
   refreshGPSDevice?: (
     target: { path?: string },
   ) => Promise<GPSRefreshResult>;
+  createSerialConnection?: (path: string) => SerialConnection;
 }
 
 let gpsTestHooks: GPSTestHooks | null = null;
@@ -127,6 +140,17 @@ function getHwidString(port: ListedPort): string {
   return hwid;
 }
 
+function stableReceiverId(port: ListedPort): string {
+  const identity = [
+    sanitizeVidPid(port.vendorId),
+    sanitizeVidPid(port.productId),
+    safeString(port.serialNumber).trim(),
+    safeString(port.locationId).trim(),
+  ].filter(Boolean);
+  const source = identity.length >= 3 ? identity.join(":") : safeString(port.path);
+  return `gps-${crypto.createHash("sha256").update(source).digest("hex").slice(0, 20)}`;
+}
+
 function classifyDeviceConfidence(score: number): string {
   if (score >= 100) return "confirmed";
   if (score >= 50) return "likely";
@@ -134,7 +158,7 @@ function classifyDeviceConfidence(score: number): string {
   return "unknown";
 }
 
-function scoreGPSPort(port: ListedPort): GPSDiscoveryDevice {
+export function scoreGPSPort(port: ListedPort): GPSDiscoveryDevice {
   const path = safeString(port.path);
   const manufacturer = safeString(port.manufacturer);
   const product = safeString((port as ListedPort & { product?: unknown }).product);
@@ -188,7 +212,7 @@ function scoreGPSPort(port: ListedPort): GPSDiscoveryDevice {
       : path;
 
   return {
-    id: path,
+    id: stableReceiverId(port),
     path,
     name: displayName,
     manufacturer: manufacturer || null,
@@ -207,6 +231,60 @@ function scoreGPSPort(port: ListedPort): GPSDiscoveryDevice {
   };
 }
 
+function checksum(body: string): string {
+  const value = [...body].reduce((result, character) => result ^ character.charCodeAt(0), 0);
+  return `$${body}*${value.toString(16).toUpperCase().padStart(2, "0")}`;
+}
+
+class SimulationSerialConnection extends EventEmitter implements SerialConnection {
+  isOpen = false;
+  private parser: ReadlineParser | null = null;
+  private timer: NodeJS.Timeout | null = null;
+
+  pipe(destination: ReadlineParser): ReadlineParser {
+    this.parser = destination;
+    return destination;
+  }
+
+  open(callback: (error: Error | null) => void): void {
+    this.isOpen = true;
+    callback(null);
+    const emitFix = () => {
+      const now = new Date();
+      const time = [now.getUTCHours(), now.getUTCMinutes(), now.getUTCSeconds()]
+        .map((value) => String(value).padStart(2, "0"))
+        .join("");
+      const date = `${String(now.getUTCDate()).padStart(2, "0")}${String(now.getUTCMonth() + 1).padStart(2, "0")}${String(now.getUTCFullYear()).slice(-2)}`;
+      this.parser?.emit(
+        "data",
+        checksum(`GPRMC,${time},A,4807.038,N,01131.000,E,000.0,000.0,${date},,,A`),
+      );
+      this.parser?.emit(
+        "data",
+        checksum(`GPGGA,${time},4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,`),
+      );
+    };
+    emitFix();
+    this.timer = setInterval(emitFix, 1000);
+    this.timer.unref();
+  }
+
+  close(callback: (error: Error | null) => void): void {
+    if (this.timer) clearInterval(this.timer);
+    this.timer = null;
+    this.isOpen = false;
+    callback(null);
+  }
+}
+
+function createSerialConnection(path: string): SerialConnection {
+  if (gpsTestHooks?.createSerialConnection) return gpsTestHooks.createSerialConnection(path);
+  if (process.env.GPS_SIMULATION_MODE === "true" || path.startsWith("simulation://")) {
+    return new SimulationSerialConnection();
+  }
+  return new SerialPort({ path, baudRate: 57600, autoOpen: false }) as SerialConnection;
+}
+
 async function listCandidateGPSDevices(): Promise<GPSDiscoveryDevice[]> {
   const ports = await SerialPort.list();
   return ports
@@ -215,8 +293,32 @@ async function listCandidateGPSDevices(): Promise<GPSDiscoveryDevice[]> {
     .sort((left, right) => right.score - left.score || left.path.localeCompare(right.path));
 }
 
+function simulationDevice(path = "simulation://receiver-1"): GPSDiscoveryDevice {
+  return {
+    id: `gps-${crypto.createHash("sha256").update(path).digest("hex").slice(0, 20)}`,
+    path,
+    name: "Synthetic GPS receiver",
+    manufacturer: "PiPhi",
+    product: "Synthetic NMEA receiver",
+    vendorId: null,
+    productId: null,
+    serialNumber: null,
+    locationId: null,
+    hwid: "synthetic",
+    confidence: "confirmed",
+    score: 100,
+    likely_gps: true,
+    detected_as: "simulation",
+    driver_family: null,
+    detection_reasons: ["simulation_mode"],
+  };
+}
+
 async function getGPSDeviceInfo(path: string): Promise<GPSDiscoveryDevice | null> {
-  const devices = await listCandidateGPSDevices();
+  if (process.env.GPS_SIMULATION_MODE === "true" || path.startsWith("simulation://")) {
+    return simulationDevice(path);
+  }
+  const devices = await getGPSDevicePaths();
   return devices.find((device) => device.path === path) || null;
 }
 
@@ -236,6 +338,7 @@ export async function getGPSDevicePaths(): Promise<GPSDiscoveryDevice[]> {
   if (gpsTestHooks?.getGPSDevicePaths) {
     return gpsTestHooks.getGPSDevicePaths();
   }
+  if (process.env.GPS_SIMULATION_MODE === "true") return [simulationDevice()];
   return listCandidateGPSDevices();
 }
 
@@ -331,12 +434,16 @@ export class GPS {
   path: string;
   context: GPSContext;
   discoveryMetadata: GPSDiscoveryDevice | null;
-  serialPort: SerialPort;
+  serialPort: SerialConnection;
   parser: ReadlineParser;
   dataStream: unknown;
   onData: ((nmeaSentence: string) => Promise<void>) | null;
   fixState: FixState;
   lastTransitionState: string;
+  reconnectAttempts: number;
+  reconnectTimer: NodeJS.Timeout | null;
+  freshnessTimer: NodeJS.Timeout | null;
+  stopped: boolean;
 
   constructor(serialPort: string) {
     if (!serialPort) {
@@ -354,20 +461,20 @@ export class GPS {
         signature: null,
       };
       this.discoveryMetadata = null;
-      this.serialPort = new SerialPort({
-        path: serialPort,
-        baudRate: 57600,
-        autoOpen: false,
-      });
+      this.serialPort = createSerialConnection(serialPort);
       this.dataStream = null;
       GPS.gpsSerialPortMap[serialPort] = this;
       this.parser = this.serialPort.pipe(new ReadlineParser({ delimiter: "\n" }));
       this.onData = null;
       this.fixState = createInitialFixState();
       this.lastTransitionState = "idle";
+      this.reconnectAttempts = 0;
+      this.reconnectTimer = null;
+      this.freshnessTimer = null;
+      this.stopped = false;
 
       this.serialPort.on("error", async (error: Error) => {
-        handle_runtime_error(error);
+        handle_runtime_error(new Error("GPS serial transport failed"));
         updateDeviceRuntime(this.context.deviceId, {
           path: this.path,
           connected: false,
@@ -383,8 +490,12 @@ export class GPS {
           type: "gps_serial_error",
           severity: "error",
           device_id: this.context.deviceId,
-          data: { path: this.path, message: error.message },
+          data: { receiver_id: this.context.deviceId, error_type: error.name },
         });
+        this.scheduleReconnect();
+      });
+      this.serialPort.on("close", () => {
+        if (!this.stopped) this.scheduleReconnect();
       });
     } catch (error) {
       handle_runtime_error(error);
@@ -421,16 +532,58 @@ export class GPS {
           resolve();
         });
       });
+      this.reconnectAttempts = 0;
       await this.refreshRuntimeState();
       await emit_event({
         type: "gps_serial_connected",
         device_id: this.context.deviceId,
-        data: { path: this.path, discovery: this.discoveryMetadata },
+        data: { receiver_id: this.context.deviceId },
       });
     }
   }
 
+  async connectWithRecovery(): Promise<void> {
+    try {
+      await this.openSerialPort();
+    } catch (error) {
+      handle_runtime_error(new Error("GPS receiver is unavailable"));
+      updateDeviceRuntime(this.context.deviceId, {
+        connected: false,
+        fix_status: "unavailable",
+        fix_details: { signal_state: "unavailable", fix_quality: "unavailable" },
+      });
+      this.scheduleReconnect();
+    }
+  }
+
+  scheduleReconnect(): void {
+    if (this.stopped || this.reconnectTimer) return;
+    const baseDelay = Math.max(10, Number(process.env.GPS_RECONNECT_BASE_MS ?? 1000));
+    const maxDelay = Math.max(baseDelay, Number(process.env.GPS_RECONNECT_MAX_MS ?? 30000));
+    const delay = Math.min(maxDelay, baseDelay * 2 ** Math.min(this.reconnectAttempts, 8));
+    this.reconnectAttempts += 1;
+    this.reconnectTimer = setTimeout(async () => {
+      this.reconnectTimer = null;
+      await this.connectWithRecovery();
+    }, delay);
+    this.reconnectTimer.unref();
+  }
+
+  startFreshnessMonitor(): void {
+    if (this.freshnessTimer) return;
+    const interval = Math.max(50, Number(process.env.GPS_FRESHNESS_INTERVAL_MS ?? 5000));
+    this.freshnessTimer = setInterval(async () => {
+      await this.publishFixSnapshot(this.getMergedFixSnapshot());
+    }, interval);
+    this.freshnessTimer.unref();
+  }
+
   async closeSerialPort(): Promise<void> {
+    this.stopped = true;
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    if (this.freshnessTimer) clearInterval(this.freshnessTimer);
+    this.reconnectTimer = null;
+    this.freshnessTimer = null;
     if (this.onData) {
       this.parser.off("data", this.onData);
       this.onData = null;
@@ -462,9 +615,10 @@ export class GPS {
   async configure(config: GPSConfig): Promise<Record<string, unknown>> {
     const previousDeviceId = this.context.deviceId;
     this.discoveryMetadata = await getGPSDeviceInfo(config.path);
+    const stableDeviceId = config.receiver_id || this.discoveryMetadata?.id || config.path;
     this.context = {
       configId: config.config_id || config.id || config.path,
-      deviceId: config.device_id || config.path,
+      deviceId: config.device_id || stableDeviceId,
       containerId: config.container_id || null,
       integrationId: config.integration_id || null,
       configName: config.configName || config.path,
@@ -486,15 +640,17 @@ export class GPS {
       discovery: this.discoveryMetadata,
     });
     setRuntimeStatus("configured");
-    await this.openSerialPort();
     await this.getRealTimeData(this.context.signature);
+    this.stopped = false;
+    this.startFreshnessMonitor();
+    await this.connectWithRecovery();
+    await persistConfigs(getActiveConfigs());
     await emit_event({
       type: "gps_configured",
       device_id: this.context.deviceId,
       data: {
-        path: config.path,
+        receiver_id: this.context.deviceId,
         container_id: this.context.containerId,
-        discovery: this.discoveryMetadata,
       },
     });
     return {
@@ -509,11 +665,12 @@ export class GPS {
   async deconfigure(): Promise<void> {
     await this.closeSerialPort();
     removeActiveConfig(this.context.deviceId);
+    await persistConfigs(getActiveConfigs());
     delete GPS.gpsSerialPortMap[this.path];
     await emit_event({
       type: "gps_deconfigured",
       device_id: this.context.deviceId,
-      data: { path: this.path },
+      data: { receiver_id: this.context.deviceId },
     });
     if (Object.keys(GPS.gpsSerialPortMap).length === 0) {
       setRuntimeStatus("idle");
@@ -577,8 +734,6 @@ export class GPS {
         fix_status: snapshot.metrics.fix_status,
         fix_quality: snapshot.metrics.fix_quality,
         position_source: snapshot.metrics.position_source,
-        latitude: snapshot.metrics.latitude ?? null,
-        longitude: snapshot.metrics.longitude ?? null,
         satellites: snapshot.metrics.satellites ?? null,
         hdop: snapshot.metrics.hdop ?? null,
         fix_age_ms: snapshot.metrics.fix_age_ms ?? null,
@@ -592,7 +747,7 @@ export class GPS {
     await this.handleSignalTransition(snapshot);
     if (snapshot.signalState === "fixed") {
       logger.info(
-        `Coordinates found latitude: ${snapshot.metrics.latitude} longitude: ${snapshot.metrics.longitude} sending telemetry packet`,
+        `GPS fix acquired for receiver ${this.context.deviceId}; sending telemetry packet`,
       );
       await this.emitTelemetry(snapshot.metrics, snapshot.timestamp);
       return;

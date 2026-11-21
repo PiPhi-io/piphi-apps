@@ -114,7 +114,7 @@ test("setMqttStatus updates runtime health summary", () => {
 
 test("setRuntimeError updates the last error snapshot", () => {
   setRuntimeError(new Error("gps failed"));
-  assert.equal(getHealthSummary().lastError?.message, "gps failed");
+  assert.equal(getHealthSummary().lastError?.message, "Error");
 });
 
 test("clearRuntimeError removes the last error snapshot", () => {
@@ -165,11 +165,17 @@ test("health summary counts stale fixes", () => {
   assert.equal(getHealthSummary().devicesWithStaleFix, 1);
 });
 
-test("diagnostics summary sorts configured device ids", () => {
+test("diagnostics summary redacts configured device ids and paths", () => {
   upsertActiveConfig({ deviceId: "gps-b", path: "/dev/b" });
   upsertActiveConfig({ deviceId: "gps-a", path: "/dev/a" });
-  const diagnostics = getDiagnosticsSummary() as { configuredDeviceIds: string[] };
-  assert.deepEqual(diagnostics.configuredDeviceIds, ["gps-a", "gps-b"]);
+  const diagnostics = getDiagnosticsSummary() as {
+    configured_device_count: number;
+    devices: Array<Record<string, unknown>>;
+  };
+  assert.equal(diagnostics.configured_device_count, 2);
+  assert.equal(diagnostics.devices.length, 2);
+  assert.equal(JSON.stringify(diagnostics).includes("gps-a"), false);
+  assert.equal(JSON.stringify(diagnostics).includes("/dev/a"), false);
 });
 
 test("runtime snapshot includes active configs and devices", () => {

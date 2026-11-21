@@ -139,7 +139,7 @@ export function handle_runtime_error(error) {
         type: "runtime_error",
         severity: "error",
         data: {
-            message: error instanceof Error ? error.message : String(error),
+            error_type: error instanceof Error ? error.name : "RuntimeError",
         },
     });
 }

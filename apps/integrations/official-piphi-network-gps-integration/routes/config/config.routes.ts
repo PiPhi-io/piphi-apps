@@ -3,7 +3,6 @@ import { body, validationResult } from "express-validator";
 import {
   buildConfigApplyResponse,
   ConfigSyncCoordinator,
-  formatConfigApplyLog,
   type RuntimeConfig,
   type RuntimeConfigSnapshot,
 } from "piphi-runtime-kit-node";
@@ -53,12 +52,7 @@ router.post("/config", schema, async (req: Request, res: Response) => {
   syncRuntimeAuthFromRequest(req, payload);
 
   logger.info(
-    formatConfigApplyLog({
-      id: String(payload.id ?? payload.path ?? "gps-device"),
-      containerId: typeof payload.container_id === "string" ? payload.container_id : null,
-      integrationId: null,
-      ...payload,
-    }),
+    `gps_config_apply config_id=${String(payload.id ?? "gps-device")} managed=${typeof payload.container_id === "string"}`,
   );
 
   const result = await configureGPSDevice(payload);

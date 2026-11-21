@@ -78,8 +78,9 @@ export function setMqttStatus(connected) {
     runtimeMetadata.mqtt.connected = Boolean(connected);
 }
 export function setRuntimeError(error) {
+    const raw = error instanceof Error ? error.message : String(error);
     runtimeMetadata.lastError = {
-        message: error instanceof Error ? error.message : String(error),
+        message: /^HTTP \d{3}$/.test(raw) ? raw : error instanceof Error ? error.name : "RuntimeError",
         ts: new Date().toISOString(),
     };
 }
@@ -182,9 +183,24 @@ export function getHealthSummary() {
     };
 }
 export function getDiagnosticsSummary() {
+    const devices = Object.values(getDeviceMap()).map((device) => ({
+        receiver_id: crypto.createHash("sha256").update(device.deviceId).digest("hex").slice(0, 12),
+        connected: device.connected,
+        fix_status: device.fix_status,
+        signal_state: device.fix_details.signal_state,
+        stale: device.fix_details.stale,
+        updated_at: device.updatedAt,
+    }));
     return {
-        configuredDeviceIds: Object.keys(activeConfigs).sort(),
-        runtimeSnapshot: getRuntimeSnapshot(),
+        configured_device_count: Object.keys(activeConfigs).length,
+        devices,
+        telemetry: {
+            published_count: runtimeMetadata.telemetry.publishedCount,
+            last_published_at: runtimeMetadata.telemetry.lastPublishedAt,
+            last_delivery: runtimeMetadata.telemetry.lastDelivery,
+        },
+        mqtt_connected: runtimeMetadata.mqtt.connected,
+        last_error: runtimeMetadata.lastError,
     };
 }
 export function resetRuntimeForTests() {
