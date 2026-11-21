@@ -51,7 +51,7 @@ from .steam_client import (
 
 INTEGRATION_ID = "piphi-network-steam"
 INTEGRATION_NAME = "Steam"
-INTEGRATION_VERSION = "0.2.0"
+INTEGRATION_VERSION = "0.2.1"
 DEFAULT_POLL_INTERVAL_SECONDS = 300
 logger = logging.getLogger(__name__)
 

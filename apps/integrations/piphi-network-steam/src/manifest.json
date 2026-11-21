@@ -2,7 +2,7 @@
   "manifest_version": "1.0",
   "id": "piphi-network-steam",
   "name": "Steam",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Read-only Steam account presence, game activity, and playtime integration using the official Steam Web API.",
   "maintainer": {
     "name": "PiPhi Network",
@@ -18,7 +18,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "ghcr.io/piphi-io/piphi-network-steam:0.2.0",
+        "image": "ghcr.io/piphi-io/piphi-network-steam:0.2.1",
         "ports": [
           {
             "container": 8090,
@@ -198,7 +198,7 @@
       {
         "id": "io.piphi.steam.activity",
         "name": "Steam activity",
-        "version": "0.2.0",
+        "version": "0.2.1",
         "entry": "/widgets/steam-activity/dist/widget.js",
         "runtime": "prebuilt_bundle",
         "certification": {
