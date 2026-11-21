@@ -3,7 +3,7 @@
   "manifest_version": "1.0",
   "id": "piphi-network-sonoff-lan",
   "name": "Sonoff LAN",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Read the on/off state of one Sonoff DIY Mode switch on the local network.",
   "metadata": {
     "generator": "piphi-network-create",
@@ -17,7 +17,7 @@
     "website": "https://piphi.io"
   },
   "license": "Apache-2.0",
-  "image": "docker.io/piphinetwork/piphi-network-sonoff-lan:0.1.0",
+  "image": "ghcr.io/piphi-io/piphi-network-sonoff-lan:0.2.0",
   "platforms": [
     "linux"
   ],
@@ -25,7 +25,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "docker.io/piphinetwork/piphi-network-sonoff-lan:0.1.0",
+        "image": "ghcr.io/piphi-io/piphi-network-sonoff-lan:0.2.0",
         "ports": [
           {
             "container": 4202,
@@ -33,12 +33,20 @@
           }
         ],
         "environment": {
-          "LOG_LEVEL": "info"
+          "LOG_LEVEL": "info",
+          "PIPHI_AUTOMATION_LEDGER_PATH": "/app/data/automation-actions.sqlite3"
         },
         "restart_policy": {
           "name": "unless-stopped",
           "maximum_retry_count": 0
-        }
+        },
+        "volumes": [
+          {
+            "host": "/var/lib/piphi/sonoff-lan",
+            "container": "/app/data",
+            "mode": "rw"
+          }
+        ]
       },
       "discovery": {
         "method": "passive"
@@ -84,12 +92,14 @@
       "device_id"
     ],
     "identity_fields": [
-      "host"
+      "host",
+      "diy_device_id"
     ]
   },
   "identity": {
     "fields": [
-      "host"
+      "host",
+      "diy_device_id"
     ]
   },
   "capabilities": {
@@ -97,9 +107,28 @@
       "kind": "sensor",
       "unit": "bool"
     },
-    "switch_on": {"kind": "sensor", "unit": "bool"},
+    "switch_on": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
     "refresh": {
       "kind": "action"
+    },
+    "available": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "stale": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "last_success_at": {
+      "kind": "sensor",
+      "optional": true
+    },
+    "consecutive_failures": {
+      "kind": "sensor",
+      "unit": "count"
     }
   },
   "commands": {
@@ -116,6 +145,10 @@
       "entity_type": "switch",
       "capabilities": [
         "connected",
+        "available",
+        "stale",
+        "last_success_at",
+        "consecutive_failures",
         "switch_on",
         "refresh"
       ],
@@ -138,7 +171,11 @@
   ],
   "ui": {
     "experience_packages": [
-      {"registry_id": "io.piphi.sonoff-diy-switch", "version_range": ">=0.1,<1", "auto_install": true}
+      {
+        "registry_id": "io.piphi.sonoff-diy-switch",
+        "version_range": ">=0.1,<1",
+        "auto_install": true
+      }
     ]
   },
   "marketplace": {
@@ -186,9 +223,15 @@
         "status": "unverified"
       }
     },
-    "device_types": ["switch"],
-    "protocols": ["Sonoff DIY Mode HTTP"],
-    "discovery_methods": ["manual"],
+    "device_types": [
+      "switch"
+    ],
+    "protocols": [
+      "Sonoff DIY Mode HTTP"
+    ],
+    "discovery_methods": [
+      "manual"
+    ],
     "connectivity": "local",
     "offline_support": "full"
   },

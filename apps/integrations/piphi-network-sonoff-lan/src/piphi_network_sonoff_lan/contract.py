@@ -19,60 +19,41 @@ ENDPOINTS = {
 REQUIRED_ENDPOINTS = ["health", "entities", "command", "config", "ui_config"]
 
 CAPABILITIES: dict[str, dict[str, Any]] = {
-    "connected": {
-        "kind": "sensor",
-        "unit": "bool"
-    },
+    "connected": {"kind": "sensor", "unit": "bool"},
+    "available": {"kind": "sensor", "unit": "bool"},
+    "stale": {"kind": "sensor", "unit": "bool"},
+    "last_success_at": {"kind": "sensor", "optional": True},
+    "consecutive_failures": {"kind": "sensor", "unit": "count"},
     "switch_on": {"kind": "sensor", "unit": "bool"},
-    "refresh": {
-        "kind": "action"
-    }
+    "refresh": {"kind": "action"},
 }
 
 COMMANDS: dict[str, dict[str, Any]] = {
-    "refresh": {
-        "description": "Refresh the device state.",
-        "timeout_ms": 12000
-    }
+    "refresh": {"description": "Refresh the device state.", "timeout_ms": 12000}
 }
 
 CONFIG_SCHEMA: dict[str, Any] = {
     "schema": {
         "title": "Sonoff DIY Mode switch",
         "type": "object",
-        "required": [
-            "host",
-            "diy_device_id"
-        ],
+        "required": ["host", "diy_device_id"],
         "properties": {
-            "host": {
-                "type": "string",
-                "title": "Host"
-            },
-            "alias": {
-                "type": "string",
-                "title": "Alias"
-            },
+            "host": {"type": "string", "title": "Host"},
+            "alias": {"type": "string", "title": "Alias"},
             "diy_device_id": {"type": "string", "title": "DIY device ID"},
             "poll_interval_seconds": {
                 "type": "integer",
                 "title": "Poll Interval Seconds",
-                "minimum": 60
+                "minimum": 60,
             },
-        }
+        },
     },
     "uiSchema": {
-        "host": {
-            "placeholder": "192.168.1.50"
-        },
-        "alias": {
-            "placeholder": "Sonoff switch"
-        },
+        "host": {"placeholder": "192.168.1.50"},
+        "alias": {"placeholder": "Sonoff switch"},
         "diy_device_id": {"placeholder": "100000140e"},
-        "poll_interval_seconds": {
-            "placeholder": "300"
-        }
-    }
+        "poll_interval_seconds": {"placeholder": "300"},
+    },
 }
 
 FALLBACK_ENTITY: dict[str, Any] = {
@@ -82,22 +63,13 @@ FALLBACK_ENTITY: dict[str, Any] = {
     "entity_type": "switch",
     "capabilities": [
         "connected",
+        "available",
+        "stale",
+        "last_success_at",
+        "consecutive_failures",
         "switch_on",
-        "refresh"
+        "refresh",
     ],
-    "available_commands": [
-        {
-            "id": "refresh",
-            "label": "Refresh",
-            "kind": "action"
-        }
-    ],
-    "dashboard": {
-        "allowed_widgets": [
-            "tile",
-            "stat",
-            "button"
-        ],
-        "default_widget": "tile"
-    }
+    "available_commands": [{"id": "refresh", "label": "Refresh", "kind": "action"}],
+    "dashboard": {"allowed_widgets": ["tile", "stat", "button"], "default_widget": "tile"},
 }

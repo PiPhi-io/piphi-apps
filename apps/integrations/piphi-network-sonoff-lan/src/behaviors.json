@@ -125,6 +125,10 @@
       "entityType": "device",
       "capabilities": [
         "connected",
+        "available",
+        "stale",
+        "last_success_at",
+        "consecutive_failures",
         "switch_on",
         "refresh"
       ],
@@ -181,6 +185,40 @@
           "freshness": {
             "maxAgeSeconds": 300,
             "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "when"
+          }
+        },
+        {
+          "id": "device_unavailable",
+          "label": "Device unavailable",
+          "description": "Device unavailable.",
+          "capability": "telemetry.state",
+          "runtime": {
+            "event": "device.unavailable",
+            "source": "integration"
+          },
+          "freshness": {
+            "maxAgeSeconds": 300,
+            "staleDataMode": "allow"
+          },
+          "ui": {
+            "group": "when"
+          }
+        },
+        {
+          "id": "device_recovered",
+          "label": "Device recovered",
+          "description": "Device recovered.",
+          "capability": "telemetry.state",
+          "runtime": {
+            "event": "device.recovered",
+            "source": "integration"
+          },
+          "freshness": {
+            "maxAgeSeconds": 300,
+            "staleDataMode": "allow"
           },
           "ui": {
             "group": "when"

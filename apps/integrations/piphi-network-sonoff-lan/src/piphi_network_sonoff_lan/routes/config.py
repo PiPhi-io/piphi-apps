@@ -4,6 +4,7 @@ from typing import Any
 
 from fastapi import APIRouter, Request
 from piphi_runtime_kit_python import (
+    RuntimeConfig,
     RuntimeConfigSnapshot,
     build_config_apply_response,
     build_config_remove_response,
@@ -23,6 +24,10 @@ from ..state import (
 router = APIRouter(tags=["config"])
 
 
+async def _apply_typed_config(config: RuntimeConfig) -> None:
+    await apply_config(DeviceConfig.model_validate(config.model_dump()))
+
+
 @router.post("/config")
 async def configure(payload: DeviceConfig, request: Request):
     sync_runtime_auth_from_fastapi_payload(runtime, request, payload)
@@ -30,7 +35,7 @@ async def configure(payload: DeviceConfig, request: Request):
     return build_config_apply_response(
         config_id=payload.config_id or payload.id,
         container_id=payload.container_id,
-        metadata={"host": payload.host, "alias": payload.alias},
+        metadata={"alias": payload.alias},
     )
 
 
@@ -41,7 +46,7 @@ async def sync_config(snapshot: RuntimeConfigSnapshot, request: Request):
     return await config_sync.apply_snapshot(
         snapshot=snapshot.model_copy(update={"configs": typed_configs}),
         active_config_ids=registry.ids(),
-        apply_config=apply_config,
+        apply_config=_apply_typed_config,
         remove_config=remove_config,
         get_active_config_ids=registry.ids,
     )
