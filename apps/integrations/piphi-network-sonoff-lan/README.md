@@ -8,6 +8,10 @@ Mode; encrypted and multi-channel variants are not advertised as compatible.
 The bundled widget shows actual reported state and offers details/history,
 without implying that PiPhi can control the relay yet. An unreachable or
 unsupported device reports unavailable rather than a fabricated state.
+After a successful baseline, outages retain the last switch state as stale,
+use bounded exponential retry backoff, and emit one unavailable/recovered event
+per transition. Reads for each configured device are serialized. Hostnames are
+resolved before every request and every resolved address must remain local.
 
 ## Run locally
 
@@ -61,6 +65,6 @@ protocol and safety tests.
 ## Docker
 
 ```bash
-docker build -t docker.io/piphinetwork/piphi-network-sonoff-lan:0.1.0 .
-docker run --rm -p 4202:4202 docker.io/piphinetwork/piphi-network-sonoff-lan:0.1.0
+docker build -t ghcr.io/piphi-io/piphi-network-sonoff-lan:0.2.0 .
+docker run --rm -p 4202:4202 ghcr.io/piphi-io/piphi-network-sonoff-lan:0.2.0
 ```

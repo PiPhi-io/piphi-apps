@@ -1,11 +1,38 @@
 {
   "entities": [],
   "capabilities": {
-    "connected": {"kind": "sensor", "unit": "bool"},
-    "switch_on": {"kind": "sensor", "unit": "bool"},
-    "refresh": {"kind": "action"}
+    "connected": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "switch_on": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "refresh": {
+      "kind": "action"
+    },
+    "available": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "stale": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "last_success_at": {
+      "kind": "sensor",
+      "optional": true
+    },
+    "consecutive_failures": {
+      "kind": "sensor",
+      "unit": "count"
+    }
   },
   "commands": {
-    "refresh": {"description": "Refresh the device state.", "timeout_ms": 12000}
+    "refresh": {
+      "description": "Refresh the device state.",
+      "timeout_ms": 12000
+    }
   }
 }
