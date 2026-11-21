@@ -18,7 +18,7 @@ npm run validate:widgets
 npm test
 python -m pytest -q
 python scripts/validate.py
-python scripts/check_release.py v0.1.1
+python scripts/check_release.py v0.2.0
 ```
 
 Install the Python development dependencies first (`python -m pip install
@@ -32,7 +32,7 @@ rejects builds that change the committed release assets.
 1. Deploy a Core version containing the Plex media-provider gateway, widget
    artifact routes, and Widget SDK `host.queryMedia` support.
 2. Review and push the integration code and an existing version tag such as
-   `v0.1.1`, matching `manifest.version` and the Python package version.
+   `v0.2.0`, matching `manifest.version` and the Python package version.
 3. Configure the GitHub `release` environment, preferably with required
    reviewers. Configure Docker Hub OIDC as described below; no stored Docker
    access token is required.

@@ -1,0 +1,90 @@
+{
+  "catalog_version": "1.0",
+  "integration_id": "piphi-network-plex",
+  "reviewed_at": "2026-11-21",
+  "rows": [
+    {
+      "id": "runtime-health",
+      "status": "implemented",
+      "capabilities": [
+        "connected",
+        "available",
+        "stale",
+        "last_success_at",
+        "consecutive_failures"
+      ],
+      "reason": "Serialized polling preserves bounded last-good health without exposing provider errors.",
+      "events": [
+        "plex.server.unavailable",
+        "plex.server.recovered"
+      ]
+    },
+    {
+      "id": "server-inventory",
+      "status": "implemented",
+      "capabilities": [
+        "server_count"
+      ],
+      "reason": "Plex resources and direct-server discovery expose stable server identities."
+    },
+    {
+      "id": "session-summary",
+      "status": "implemented",
+      "capabilities": [
+        "active_sessions",
+        "transcode_sessions"
+      ],
+      "reason": "Session endpoints provide aggregate counts; usernames, players, and titles are discarded from public state.",
+      "events": [
+        "plex.sessions.changed"
+      ]
+    },
+    {
+      "id": "manual-refresh",
+      "status": "implemented",
+      "capabilities": [
+        "refresh"
+      ],
+      "actions": [
+        "refresh"
+      ],
+      "reason": "Read-only refresh is bounded and serialized per configuration."
+    },
+    {
+      "id": "media-browse",
+      "status": "implemented",
+      "provider_capabilities": [
+        "browse",
+        "search",
+        "collections",
+        "recently_added",
+        "on_deck",
+        "continue_watching"
+      ],
+      "reason": "Authenticated provider routes normalize libraries and media items."
+    },
+    {
+      "id": "library-mutations",
+      "status": "implemented",
+      "provider_actions": [
+        "mark_watched",
+        "mark_unwatched",
+        "rate",
+        "scan_library"
+      ],
+      "reason": "Narrowly allow-listed mutations require explicit per-configuration opt-in and validated identifiers."
+    },
+    {
+      "id": "playback-control",
+      "status": "planned",
+      "capabilities": [],
+      "reason": "Player selection, authorization, and idempotency need a separate bounded slice."
+    },
+    {
+      "id": "delete-media",
+      "status": "excluded",
+      "capabilities": [],
+      "reason": "Destructive media deletion is outside the monitoring-first integration boundary."
+    }
+  ]
+}

@@ -4,18 +4,21 @@ import os
 from typing import Any
 
 from fastapi import HTTPException
-
 from piphi_runtime_kit_python import (
     AutomationRegistry,
+    RuntimeConfig,
+    RuntimeConfigSnapshot,
+    RuntimeConfigSyncResponse,
     SQLiteAutomationIdempotencyStore,
     build_local_event_record,
     build_runtime_identity,
     create_runtime_starter,
+    validate_typed_configs,
 )
 
 from .contract import CAPABILITIES, COMMANDS
-from .service import PlexRuntimeService
 from .schemas import DeviceConfig
+from .service import PlexRuntimeService
 from .settings import INTEGRATION_ID, INTEGRATION_NAME, INTEGRATION_VERSION
 
 starter = create_runtime_starter(
@@ -26,8 +29,11 @@ starter = create_runtime_starter(
 runtime = starter.runtime
 registry = starter.registry
 telemetry = starter.telemetry_client
+events = starter.event_client
 config_sync = starter.config_sync
-plex_service = PlexRuntimeService(registry=registry, runtime=runtime, telemetry=telemetry)
+plex_service = PlexRuntimeService(
+    registry=registry, runtime=runtime, telemetry=telemetry, events=events
+)
 automations = AutomationRegistry(
     idempotency_store=SQLiteAutomationIdempotencyStore(
         os.getenv("PIPHI_AUTOMATION_LEDGER_PATH", "./data/automation-actions.sqlite3")
@@ -94,8 +100,28 @@ async def remove_config(config_id: str) -> bool:
     return True
 
 
+async def apply_runtime_config_snapshot(
+    snapshot: RuntimeConfigSnapshot,
+) -> RuntimeConfigSyncResponse:
+    typed = snapshot.model_copy(
+        update={"configs": validate_typed_configs(snapshot.configs, DeviceConfig)}
+    )
+    return await config_sync.apply_snapshot(
+        snapshot=typed,
+        active_config_ids=registry.ids(),
+        apply_config=_apply_typed_config,
+        remove_config=remove_config,
+        get_active_config_ids=registry.ids,
+    )
+
+
+async def _apply_typed_config(config: RuntimeConfig) -> None:
+    await apply_config(DeviceConfig.model_validate(config.model_dump()))
+
+
 def _register_automation_actions() -> None:
     for command_name, command_definition in commands.items():
+
         async def handler(request, *, _command_name=command_name):
             target = getattr(request, "target", None)
             target = target if isinstance(target, dict) else {}

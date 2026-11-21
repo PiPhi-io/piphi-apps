@@ -6,12 +6,16 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from piphi_runtime_kit_python import runtime_lifespan
 
-from .state import plex_service, runtime
+from .schemas import DeviceConfig
+from .state import apply_runtime_config_snapshot, plex_service, runtime, starter
 
 
-async def startup_sync(_runtime, _client) -> None:
-    # Real integrations can fetch an existing config snapshot from Core here.
-    return None
+async def startup_sync(_runtime, client) -> None:
+    await starter.rehydrate_configs(
+        client=client,
+        apply_snapshot=apply_runtime_config_snapshot,
+        config_model=DeviceConfig,
+    )
 
 
 @asynccontextmanager

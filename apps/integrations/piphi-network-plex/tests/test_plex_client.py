@@ -5,7 +5,6 @@ import pytest
 
 from piphi_network_plex.plex_client import PlexClient, PlexServer, normalize_item
 
-
 PLEX_RESOURCES = """<?xml version="1.0" encoding="UTF-8"?>
 <MediaContainer size="3">
   <Device name="Home" clientIdentifier="home-id" provides="server" owned="1" accessToken="home-token">
@@ -43,9 +42,7 @@ async def test_account_discovery_prefers_local_and_uses_device_tokens() -> None:
 
 @pytest.mark.anyio
 async def test_account_discovery_can_exclude_remote_servers() -> None:
-    transport = httpx.MockTransport(
-        lambda _request: httpx.Response(200, text=PLEX_RESOURCES)
-    )
+    transport = httpx.MockTransport(lambda _request: httpx.Response(200, text=PLEX_RESOURCES))
     servers = await PlexClient(transport=transport).discover(
         "account-token",
         include_remote=False,
@@ -84,7 +81,9 @@ async def test_manual_server_discovery_normalizes_identity() -> None:
 
 
 def test_nested_xml_continue_watching_hubs_are_flattened() -> None:
-    payload = PlexClient._xml_payload('<MediaContainer><Hub><Video ratingKey="42" title="Film" type="movie"><User title="Owner" /></Video></Hub></MediaContainer>')
+    payload = PlexClient._xml_payload(
+        '<MediaContainer><Hub><Video ratingKey="42" title="Film" type="movie"><User title="Owner" /></Video></Hub></MediaContainer>'
+    )
     items = PlexClient.metadata(payload)
     assert items[0]["ratingKey"] == "42"
     assert items[0]["User"][0]["title"] == "Owner"

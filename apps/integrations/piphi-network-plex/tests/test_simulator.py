@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import pytest
 import httpx
+import pytest
 
 from piphi_network_plex.main import app
 from piphi_network_plex.schemas import DeviceConfig
@@ -17,7 +17,9 @@ async def test_simulator_exposes_server_libraries_sessions_and_media() -> None:
     assert [item["title"] for item in libraries] == ["Movies", "TV Shows", "Music"]
     sessions = client.metadata(await client.request(SIMULATED_SERVER, "/status/sessions"))
     assert sessions[0]["Player"]["state"] == "playing"
-    results = client.metadata(await client.request(SIMULATED_SERVER, "/hubs/search", params={"query": "orbit"}))
+    results = client.metadata(
+        await client.request(SIMULATED_SERVER, "/hubs/search", params={"query": "orbit"})
+    )
     assert [item["ratingKey"] for item in results] == ["episode-1"]
     artwork, content_type = await client.bytes(SIMULATED_SERVER, "/simulator/art/quiet-orbit.svg")
     assert content_type == "image/svg+xml"
@@ -30,6 +32,7 @@ async def test_simulation_mode_drives_real_provider_routes() -> None:
         id="plex-simulator",
         config_id="plex-simulator",
         simulation_mode=True,
+        allow_mutating_actions=True,
     )
     try:
         await apply_config(config)
@@ -40,26 +43,34 @@ async def test_simulation_mode_drives_real_provider_routes() -> None:
             instances = (await client.get("/provider/instances")).json()["instances"]
             instance_id = instances[0]["id"]
             collections = (await client.get(f"/provider/{instance_id}/collections")).json()
-            watching = (await client.get(
-                f"/provider/{instance_id}/items",
-                params={"hub": "continue_watching"},
-            )).json()
-            searched = (await client.get(
-                f"/provider/{instance_id}/items",
-                params={"q": "orbit"},
-            )).json()
-            resolved = (await client.post(
-                f"/provider/{instance_id}/resolve",
-                json={"item_id": "episode-1"},
-            )).json()
+            watching = (
+                await client.get(
+                    f"/provider/{instance_id}/items",
+                    params={"hub": "continue_watching"},
+                )
+            ).json()
+            searched = (
+                await client.get(
+                    f"/provider/{instance_id}/items",
+                    params={"q": "orbit"},
+                )
+            ).json()
+            resolved = (
+                await client.post(
+                    f"/provider/{instance_id}/resolve",
+                    json={"item_id": "episode-1"},
+                )
+            ).json()
             artwork = await client.get(
                 f"/provider/{instance_id}/asset",
                 params={"path": "/simulator/art/quiet-orbit.svg"},
             )
-            watched = (await client.post(
-                f"/provider/{instance_id}/actions",
-                json={"action": "mark_watched", "item_id": "episode-1"},
-            )).json()
+            watched = (
+                await client.post(
+                    f"/provider/{instance_id}/actions",
+                    json={"action": "mark_watched", "item_id": "episode-1"},
+                )
+            ).json()
 
         assert collections["total"] == 3
         assert watching["items"][0]["provider"] == "plex"

@@ -151,6 +151,6 @@ For registry submission, release validation, and manual image publication, see
 with zero rollout; widgets are declared by the integration manifest.
 
 ```bash
-docker build -t docker.io/piphinetwork/piphi-network-plex:0.1.1 .
-docker run --rm -p 8091:8091 docker.io/piphinetwork/piphi-network-plex:0.1.1
+docker build -t ghcr.io/piphi-io/piphi-network-plex:0.2.0 .
+docker run --rm -p 8091:8091 ghcr.io/piphi-io/piphi-network-plex:0.2.0
 ```

@@ -16,8 +16,12 @@ class FakePlexClient:
     async def discover(self, token: str, **_kwargs):
         prefix = "home" if token == "home-token" else "shared"
         return [
-            PlexServer(f"{prefix}-primary", f"{prefix.title()} Primary", "http://plex:32400", token),
-            PlexServer(f"{prefix}-backup", f"{prefix.title()} Backup", "http://backup:32400", token),
+            PlexServer(
+                f"{prefix}-primary", f"{prefix.title()} Primary", "http://plex:32400", token
+            ),
+            PlexServer(
+                f"{prefix}-backup", f"{prefix.title()} Backup", "http://backup:32400", token
+            ),
         ]
 
     async def request(self, server, path: str, *, params=None, method="GET"):
@@ -25,8 +29,16 @@ class FakePlexClient:
         if path == "/status/sessions" and server.machine_id.endswith("backup"):
             raise httpx.ConnectError("offline")
         if path == "/library/sections":
-            return {"MediaContainer": {"Directory": [{"key": "1", "title": "Movies", "type": "movie"}]}}
-        return {"MediaContainer": {"Metadata": [{"ratingKey": "42", "title": "Example", "type": "movie", "duration": 120000}]}}
+            return {
+                "MediaContainer": {"Directory": [{"key": "1", "title": "Movies", "type": "movie"}]}
+            }
+        return {
+            "MediaContainer": {
+                "Metadata": [
+                    {"ratingKey": "42", "title": "Example", "type": "movie", "duration": 120000}
+                ]
+            }
+        }
 
     async def bytes(self, _server, _path):
         return b"image", "image/jpeg"
@@ -49,8 +61,12 @@ async def test_multiple_server_provider_contract():
     original = plex_service.client
     fake = FakePlexClient()
     plex_service.client = fake
-    home = DeviceConfig(id="config-1", config_id="config-1", token="home-token")
-    shared = DeviceConfig(id="config-2", config_id="config-2", token="shared-token")
+    home = DeviceConfig(
+        id="config-1", config_id="config-1", token="home-token", allow_mutating_actions=True
+    )
+    shared = DeviceConfig(
+        id="config-2", config_id="config-2", token="shared-token", allow_mutating_actions=True
+    )
     try:
         await apply_config(home)
         await apply_config(shared)
@@ -63,24 +79,39 @@ async def test_multiple_server_provider_contract():
                 "config-2:shared-primary",
                 "config-2:shared-backup",
             }
-            scoped = (await client.get("/provider/instances", params={"config_id": "config-1"})).json()
+            scoped = (
+                await client.get("/provider/instances", params={"config_id": "config-1"})
+            ).json()
             assert {item["config_id"] for item in scoped["instances"]} == {"config-1"}
             collections = (await client.get("/provider/config-1:home-primary/collections")).json()
             assert collections["collections"][0]["title"] == "Movies"
-            items = (await client.get("/provider/config-1:home-primary/items", params={"collection_id": "1"})).json()
+            items = (
+                await client.get(
+                    "/provider/config-1:home-primary/items", params={"collection_id": "1"}
+                )
+            ).json()
             assert items["items"][0]["provider_item_id"] == "42"
-            watching = await client.get("/provider/config-1:home-primary/items", params={"hub": "continue_watching", "limit": 8})
+            watching = await client.get(
+                "/provider/config-1:home-primary/items",
+                params={"hub": "continue_watching", "limit": 8},
+            )
             assert watching.status_code == 200
             assert ("home-primary", "/hubs/continueWatching", {"count": 8}) in fake.calls
-            action = (await client.post(
-                "/provider/config-1:home-primary/actions",
-                json={"action": "mark_watched", "item_id": "42"},
-            )).json()
+            action = (
+                await client.post(
+                    "/provider/config-1:home-primary/actions",
+                    json={"action": "mark_watched", "item_id": "42"},
+                )
+            ).json()
             assert action["ok"] is True
-            assert ("home-primary", "/:/scrobble", {
-                "key": "42",
-                "identifier": "com.plexapp.plugins.library",
-            }) in fake.calls
+            assert (
+                "home-primary",
+                "/:/scrobble",
+                {
+                    "key": "42",
+                    "identifier": "com.plexapp.plugins.library",
+                },
+            ) in fake.calls
     finally:
         await remove_config("config-1")
         await remove_config("config-2")
@@ -89,7 +120,9 @@ async def test_multiple_server_provider_contract():
 
 @pytest.mark.anyio
 async def test_live_widget_bundle_is_served_with_no_unresolved_sdk_import():
-    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
         response = await client.get("/widgets/recently-added/dist/widget.js")
     assert response.status_code == 200
     assert "getInjectedPiPhiWidgetHost" in response.text
@@ -100,7 +133,12 @@ async def test_live_widget_bundle_is_served_with_no_unresolved_sdk_import():
 async def test_provider_rejects_unknown_actions_and_unsafe_assets():
     original = plex_service.client
     plex_service.client = FakePlexClient()
-    config = DeviceConfig(id="config-safe", config_id="config-safe", token="home-token")
+    config = DeviceConfig(
+        id="config-safe",
+        config_id="config-safe",
+        token="home-token",
+        allow_mutating_actions=True,
+    )
     try:
         await apply_config(config)
         transport = httpx.ASGITransport(app=app)

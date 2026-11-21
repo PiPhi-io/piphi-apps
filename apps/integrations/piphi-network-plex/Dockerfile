@@ -1,20 +1,34 @@
-FROM python:3.12-slim
-
-RUN groupadd --system --gid 10001 piphi \
-    && useradd --system --uid 10001 --gid piphi --home-dir /nonexistent --shell /usr/sbin/nologin piphi \
-    && mkdir -p /var/lib/piphi \
-    && chown piphi:piphi /var/lib/piphi
-
+FROM python:3.12-slim@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b AS requirements
 WORKDIR /app
-COPY pyproject.toml ./
+RUN pip install --no-cache-dir "pdm==2.29.7"
+COPY pyproject.toml pdm.lock ./
+RUN pdm export --prod --output /requirements.txt
+
+FROM python:3.12-slim@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b
+ARG RELEASE_VERSION=0.2.0
+ARG SOURCE_REVISION=unknown
+ARG SOURCE_REPOSITORY=https://github.com/PiPhi-io/piphi-apps
+LABEL org.opencontainers.image.source="${SOURCE_REPOSITORY}" \
+      org.opencontainers.image.revision="${SOURCE_REVISION}" \
+      org.opencontainers.image.version="${RELEASE_VERSION}"
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIPHI_WIDGETS_PATH=/app/widgets \
+    PIPHI_AUTOMATION_LEDGER_PATH=/var/lib/piphi/automation-actions.sqlite3
+WORKDIR /app
+COPY --from=requirements /requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir --require-hashes -r /tmp/requirements.txt
+COPY pyproject.toml README.md ./
 COPY src ./src
-COPY widgets ./widgets
-ENV PIPHI_WIDGETS_PATH=/app/widgets
-ENV PIPHI_AUTOMATION_LEDGER_PATH=/var/lib/piphi/automation-actions.sqlite3
-RUN pip install --no-cache-dir .
+RUN pip install --no-cache-dir --no-deps . \
+    && groupadd --system --gid 10001 piphi \
+    && useradd --system --uid 10001 --gid piphi --home-dir /app piphi \
+    && mkdir -p /var/lib/piphi \
+    && chown -R piphi:piphi /app /var/lib/piphi
+COPY --chown=10001:10001 widgets ./widgets
 VOLUME ["/var/lib/piphi"]
 EXPOSE 8091
-USER piphi
+USER 10001:10001
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD python -c "import json, urllib.request; json.load(urllib.request.urlopen('http://127.0.0.1:8091/health', timeout=3))" || exit 1
+  CMD python -c "import json, urllib.request; json.load(urllib.request.urlopen('http://127.0.0.1:8091/health', timeout=3))"
 CMD ["uvicorn", "piphi_network_plex.main:app", "--host", "0.0.0.0", "--port", "8091"]
