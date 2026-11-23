@@ -29,15 +29,15 @@ class ZeroConfGlobalListener(ServiceListener):
         self.aiozc = aiozc
 
     def update_service(self, zc: Zeroconf, type_: str, name: str) -> None:
-        log_event("service_updated", name=name, type=type_)
+        log_event("service_updated", type=type_)
         asyncio.create_task(self._handle_service(type_, name))
 
     def remove_service(self, zc: Zeroconf, type_: str, name: str) -> None:
-        log_event("service_removed", name=name, type=type_)
+        log_event("service_removed", type=type_)
         config.pop(name, None)
 
     def add_service(self, zc: Zeroconf, type_: str, name: str) -> None:
-        log_event("service_discovered", name=name, type=type_)
+        log_event("service_discovered", type=type_)
         asyncio.create_task(self._handle_service(type_, name))
 
     async def _handle_service(self, type_: str, name: str) -> None:
@@ -74,7 +74,7 @@ async def query_specific_awair(
     )
 
     info = AsyncServiceInfo(service_type, full_name)
-    log_event("query_specific_device", name=full_name)
+    log_event("query_specific_device", type=service_type)
     success = await info.async_request(aiozc.zeroconf, 3000)
 
     result: dict[str, Any] | None = None
@@ -90,9 +90,9 @@ async def query_specific_awair(
                 for key, value in info.properties.items() if value is not None
             },
         }
-        log_event("query_specific_device_found", name=full_name)
+        log_event("query_specific_device_found", type=service_type)
     else:
-        log_event("query_specific_device_not_found", level="warning", name=full_name)
+        log_event("query_specific_device_not_found", level="warning", type=service_type)
 
     await aiozc.async_close()
     return result

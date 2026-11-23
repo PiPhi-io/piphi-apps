@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -23,7 +24,7 @@ from com_piphi_await_element.lib.awair_client import (
     normalize_payload,
     resolve_local_host,
 )
-from com_piphi_await_element.lib.logging import redact
+from com_piphi_await_element.lib.logging import configure_logging, redact
 from com_piphi_await_element.lib.schemas import AwairElement
 from com_piphi_await_element.lib.store import registry, runtime_context
 
@@ -54,6 +55,33 @@ class FakeClient:
 
     async def close(self) -> None:
         self.closed = True
+
+
+@pytest.mark.anyio
+async def test_private_device_identity_and_address_are_not_logged(caplog) -> None:
+    identity = "AWAIR-ELEM-PRIVATE123"
+    private_address = "192.168.50.23"
+    caplog.set_level(logging.INFO)
+    configure_logging("INFO")
+
+    listener = lifespan.ZeroConfGlobalListener(SimpleNamespace())
+    lifespan.config[f"{identity}._http._tcp.local."] = {"addresses": [private_address]}
+    listener.remove_service(None, "_http._tcp.local.", f"{identity}._http._tcp.local.")
+
+    client = AwairLocalClient(
+        configured_host=private_address,
+        resolved_host=private_address,
+        transport=fake_awair_transport(READING),
+    )
+    try:
+        await client.latest()
+    finally:
+        await client.close()
+
+    assert logging.getLogger("httpx").getEffectiveLevel() >= logging.WARNING
+    assert logging.getLogger("httpcore").getEffectiveLevel() >= logging.WARNING
+    assert identity not in caplog.text
+    assert private_address not in caplog.text
 
 
 @pytest.fixture(autouse=True)

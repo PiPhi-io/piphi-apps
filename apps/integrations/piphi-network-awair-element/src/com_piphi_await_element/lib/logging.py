@@ -25,6 +25,7 @@ DEFAULT_DATE_FORMAT = "%Y-%m-%dT%H:%M:%S%z"
 def configure_logging(level: str | None = None) -> None:
     """Configure a consistent logging format for the integration process."""
     log_level = (level or os.getenv("LOG_LEVEL") or "INFO").upper()
+    log_level_value = logging.getLevelNamesMapping().get(log_level, logging.INFO)
 
     root = logging.getLogger()
     if not root.handlers:
@@ -35,8 +36,13 @@ def configure_logging(level: str | None = None) -> None:
         for handler in root.handlers:
             handler.setFormatter(logging.Formatter(DEFAULT_LOG_FORMAT, datefmt=DEFAULT_DATE_FORMAT))
 
-    root.setLevel(log_level)
-    logger.setLevel(log_level)
+    root.setLevel(log_level_value)
+    logger.setLevel(log_level_value)
+    # httpx request-line logs include the full device URL. Keep them disabled even
+    # when integration logging is verbose so private device addresses stay private.
+    dependency_level = max(log_level_value, logging.WARNING)
+    logging.getLogger("httpx").setLevel(dependency_level)
+    logging.getLogger("httpcore").setLevel(dependency_level)
 
 
 def _format_log_value(value: Any) -> str:
