@@ -71,6 +71,43 @@ func TestReleaseAndCapabilityContractsStaySynchronized(t *testing.T) {
 	}
 }
 
+func TestLinuxBlueZDeploymentContract(t *testing.T) {
+	readme, err := os.ReadFile("README.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	readmeText := string(readme)
+	for _, required := range []string{
+		"dst=/var/run/dbus/system_bus_socket,readonly",
+		"--security-opt apparmor=piphi-atmotube-ble",
+		"--user \"$PIPHI_ATMOTUBE_UID:$PIPHI_ATMOTUBE_GID\"",
+		"/etc/apparmor.d/piphi-atmotube-ble",
+		"apparmor_parser -r -W /etc/apparmor.d/piphi-atmotube-ble",
+	} {
+		if !strings.Contains(readmeText, required) {
+			t.Fatalf("README missing qualified BlueZ deployment contract %q", required)
+		}
+	}
+	if strings.Contains(readmeText, "dst=/run/dbus/system_bus_socket,readonly") {
+		t.Fatal("README uses the wrong TinyGo D-Bus socket destination")
+	}
+
+	profile, err := os.ReadFile("deploy/apparmor/piphi-atmotube-ble")
+	if err != nil {
+		t.Fatal(err)
+	}
+	profileText := string(profile)
+	for _, required := range []string{
+		"profile piphi-atmotube-ble",
+		"member={Hello,AddMatch,RemoveMatch,GetNameOwner,NameHasOwner}",
+		"peer=(name=org.bluez)",
+	} {
+		if !strings.Contains(profileText, required) {
+			t.Fatalf("AppArmor profile missing BlueZ contract %q", required)
+		}
+	}
+}
+
 func object(t *testing.T, value any) map[string]any {
 	t.Helper()
 	result, ok := value.(map[string]any)
