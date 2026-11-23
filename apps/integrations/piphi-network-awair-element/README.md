@@ -1,80 +1,45 @@
-# com.piphi.awair_element
+# Awair Element (Local API)
 
-PiPhi integration for Awair Element devices over the local network.
+Read-only PiPhi integration for Awair Element devices with the local HTTP API enabled.
 
-This runtime uses the published Python runtime kit and exposes the standard
-PiPhi integration contract for discovery, config, state, telemetry, events, and
-UI config.
+## Supported contract
 
-## What this integration does
+- verified mDNS discovery for `AWAIR-ELEM-*` services
+- stable device identity derived from the discovered or explicitly configured Awair identity
+- latest air-quality readings from `GET /air-data/latest`
+- bounded polling, stale-last-good state, recovery, removal, and startup config restoration
+- an idempotent, read-only `refresh` command
+- telemetry for only validated fields returned by the device
 
-- discovers Awair Element devices on the local network
-- configures devices by host identity
-- exposes PiPhi contract routes for health, discovery, state, entities, commands, and events
-- publishes telemetry back to PiPhi Core through `piphi-runtime-kit-python`
-- supports config snapshot rehydrate through `/configs/sync`
+The runtime does **not** control the device, send notifications, infer missing readings, or claim that a device exists without mDNS plus a successful local API probe. Historical endpoints remain outside this release.
 
-## Runtime SDK and testkit
+## Security boundary
 
-- runtime SDK: `piphi-runtime-kit-python==0.8.1`
-- test helper: `piphi-runtime-testkit-python==0.1.4`
+- only `/health` is public
+- all other routes require `X-PiPhi-Integration-Token` matching `PIPHI_INTEGRATION_INTERNAL_TOKEN`
+- startup fails closed for protected routes when runtime authentication is not configured
+- device destinations must resolve exclusively to allowed local addresses
+- requests are pinned to the validated address, ignore proxy environment variables, and reject redirects
+- diagnostics omit configured addresses, mDNS names, payloads, and credentials
+- the container runs as UID/GID `10001`, uses a digest-pinned base, hash-locked dependencies, and a non-writable application tree
 
-Both the runtime SDK and the Python testkit are installed from PyPI, which
-keeps local development and GitHub release CI aligned on the same published
-dependency set.
+`PIPHI_ALLOW_UNAUTHENTICATED=true` exists only for isolated test/development harnesses and must not be set in production.
 
-## Local development
-
-Install dependencies:
+## Development
 
 ```bash
 pdm install -G dev
-```
-
-Run the runtime:
-
-```bash
-pdm run python -m com_piphi_await_element.app
-```
-
-Run tests:
-
-```bash
+pdm run ruff check src tests
+pdm run mypy src
 pdm run pytest -q
+pdm run bandit -q -r src
+pdm run pip-audit --ignore-vuln PYSEC-2026-1845
 ```
 
-The integration API defaults to `http://127.0.0.1:3665`.
+`PYSEC-2026-1845` affects the dev-only pytest runner. The current Runtime TestKit requires pytest 8; the runtime image contains neither package. The exception can be removed when a TestKit release permits pytest 9.
 
-## Important routes
+The fake HTTP transport in `lib/awair_client.py` is deterministic and socket-free. It is a test fixture, not hardware evidence or runtime discovery.
 
-- `GET /health`
-- `POST /discover`
-- `GET /entities`
-- `GET /state`
-- `POST /command`
-- `POST /config`
-- `POST /configs/sync`
-- `POST /deconfigure`
-- `GET /ui-config`
-- `GET /events`
+## Qualification boundary
 
-## Device model
-
-This integration is focused on Awair Element devices reachable through the
-local API / local network path. The configuration identity field in the
-manifest is `host`, which keeps config matching straightforward when the device
-is rediscovered later.
-
-## Project layout
-
-- `src/manifest.json` integration manifest
-- `src/com_piphi_await_element/app.py` FastAPI entrypoint
-- `src/com_piphi_await_element/contract/` PiPhi contract routes
-- `src/com_piphi_await_element/lib/` Awair-specific helpers and schemas
-- `tests/` integration tests using the Python testkit
-
-## Notes
-
-- The runtime follows the standard PiPhi Python integration contract.
-- Config, state, and event flows are covered by testkit-backed tests in this repo.
-- Example IDs, hosts, and tokens in development logs or tests should be treated as placeholders.
+Software tests cover the runtime contract and failure behavior. Physical Awair Element qualification remains separate and must verify mDNS naming, Local API enablement, representative firmware payloads, reconnect behavior, and sustained polling on real hardware before any governance promotion.

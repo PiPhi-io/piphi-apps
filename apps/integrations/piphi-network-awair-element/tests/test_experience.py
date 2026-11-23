@@ -66,12 +66,12 @@ def test_air_quality_experience_matches_runtime_manifest() -> None:
 
 
 def test_release_container_uses_current_sdk_and_non_root_persistence() -> None:
-    for name in ("Dockerfile", "dockerfile"):
-        source = (ROOT / name).read_text()
-        assert "PIPHI_RUNTIME_KIT_VERSION=0.8.1" in source
-        assert "USER piphi" in source
-        assert 'VOLUME ["/data/awair"]' in source
-        assert "PIPHI_AUTOMATION_LEDGER_PATH=/data/awair/automation-actions.sqlite3" in source
-        assert "HEALTHCHECK" in source
+    source = (ROOT / "Dockerfile").read_text()
+    assert "FROM python:3.12-slim@sha256:" in source
+    assert "pip install --no-cache-dir --require-hashes" in source
+    assert "USER 10001:10001" in source
+    assert 'VOLUME ["/var/lib/piphi"]' in source
+    assert "chmod -R a-w /app" in source
+    assert "HEALTHCHECK" in source
     ignored = set((ROOT / ".dockerignore").read_text().splitlines())
     assert {".git", ".venv", "__pycache__", "*.pyc", "tests"} <= ignored

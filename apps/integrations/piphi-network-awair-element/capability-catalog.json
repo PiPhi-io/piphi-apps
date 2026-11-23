@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "integration_id": "awair-element-local-api",
+  "entries": [
+    {
+      "id": "latest-air-data",
+      "status": "implemented",
+      "source": "Awair local HTTP GET /air-data/latest",
+      "scope": [
+        "Awair Element with Local API enabled"
+      ],
+      "transport": "unauthenticated read-only LAN HTTP",
+      "state": [
+        "score",
+        "temperature",
+        "dew_point",
+        "humidity",
+        "absolute_humidity",
+        "co2",
+        "co2_est",
+        "co2_est_baseline",
+        "voc",
+        "voc_baseline",
+        "voc_h2_raw",
+        "voc_ethanol_raw",
+        "pm25",
+        "pm10_est",
+        "available",
+        "stale",
+        "last_success_at",
+        "consecutive_failures"
+      ],
+      "actions": [
+        "refresh"
+      ],
+      "risk": "read-only"
+    },
+    {
+      "id": "historical-air-data",
+      "status": "planned",
+      "source": "Awair local HTTP history endpoints",
+      "reason": "Not needed for the bounded latest-reading runtime and not qualified against physical hardware."
+    },
+    {
+      "id": "device-controls",
+      "status": "excluded",
+      "source": "Awair Element local API",
+      "reason": "No supported local mutating contract is advertised; the integration remains read-only."
+    },
+    {
+      "id": "automatic-hardware-identity-from-http",
+      "status": "excluded",
+      "source": "Awair local HTTP latest reading",
+      "reason": "The latest-reading response does not provide verified hardware identity; identity comes from Awair mDNS discovery or explicit configuration."
+    }
+  ]
+}

@@ -1,1058 +1,401 @@
 from __future__ import annotations
 
-import importlib
 import asyncio
 import json
-import time
 from pathlib import Path
+from types import SimpleNamespace
 
 import httpx
 import pytest
-from fastapi.testclient import TestClient
-from piphi_runtime_testkit_python import (
-    assert_event_sent,
-    assert_telemetry_sent,
-    build_config_payload,
-    build_config_snapshot,
-    build_runtime_headers,
-)
+from fastapi import HTTPException
 
 from com_piphi_await_element.app import app
+from com_piphi_await_element.contract.command import router as command_module
+from com_piphi_await_element.contract.config import routes
+from com_piphi_await_element.contract.discovery import discovery
+from com_piphi_await_element.contract.health.router import diagnostics_report
+from com_piphi_await_element.lib import lifespan
+from com_piphi_await_element.lib.awair_client import (
+    AwairLocalClient,
+    AwairTransportError,
+    fake_awair_transport,
+    normalize_payload,
+    resolve_local_host,
+)
+from com_piphi_await_element.lib.logging import redact
+from com_piphi_await_element.lib.schemas import AwairElement
 from com_piphi_await_element.lib.store import registry, runtime_context
 
-PACKAGE_SRC = Path(__file__).resolve().parents[1] / "src"
-
-config_module = importlib.import_module("com_piphi_await_element.contract.config.routes")
-command_module = importlib.import_module("com_piphi_await_element.contract.command.router")
-discovery_module = importlib.import_module("com_piphi_await_element.contract.discovery.discovery")
-lifespan_module = importlib.import_module("com_piphi_await_element.lib.lifespan")
-
-
-class _FakeAwairResponse:
-    def raise_for_status(self) -> None:
-        return None
-
-    def json(self) -> dict[str, object]:
-        return {
-            "timestamp": "2026-05-13T14:55:28.665Z",
-            "score": 55,
-            "dew_point": 14.65,
-            "temp": 22.1,
-            "humid": 47.5,
-            "abs_humid": 12.13,
-            "co2": 612,
-            "co2_est": 584,
-            "co2_est_baseline": 36389,
-            "voc": 105,
-            "voc_baseline": 40607,
-            "voc_h2_raw": 25,
-            "voc_ethanol_raw": 37,
-            "pm25": 3,
-            "pm10_est": 3,
-        }
+ROOT = Path(__file__).resolve().parents[1]
+READING = {
+    "timestamp": "2026-05-13T14:55:28.665Z",
+    "score": 55,
+    "temp": 22.1,
+    "humid": 47.5,
+    "dew_point": 14.65,
+    "abs_humid": 12.13,
+    "co2": 612,
+    "voc": 105,
+    "pm25": 3,
+}
 
 
-class _OfflineCoreClient:
-    async def get(self, *_args, **_kwargs):
-        raise httpx.ConnectError("All connection attempts failed")
+class FakeClient:
+    def __init__(self, readings=None) -> None:
+        self.readings = list(readings or [READING, READING])
+        self.closed = False
+
+    async def latest(self):
+        value = self.readings.pop(0) if len(self.readings) > 1 else self.readings[0]
+        if isinstance(value, Exception):
+            raise value
+        return normalize_payload(value)
+
+    async def close(self) -> None:
+        self.closed = True
 
 
-class _CoreConfigResponse:
-    def __init__(self, payload):
-        self.payload = payload
-
-    def raise_for_status(self) -> None:
-        return None
-
-    def json(self):
-        return self.payload
-
-
-class _CoreConfigClient:
-    def __init__(self, payload):
-        self.payload = payload
-
-    async def get(self, *_args, **_kwargs):
-        return _CoreConfigResponse(self.payload)
-
-
-def reset_runtime_state() -> None:
+@pytest.fixture(autouse=True)
+async def reset_runtime(monkeypatch):
+    monkeypatch.setenv("PIPHI_ALLOW_UNAUTHENTICATED", "true")
+    yield
+    for task in list(routes.runtime_data.tasks.values()):
+        task.cancel()
+    await asyncio.gather(*routes.runtime_data.tasks.values(), return_exceptions=True)
+    for client in list(routes.runtime_data.clients.values()):
+        await client.close()
+    routes.runtime_data.configs.clear()
+    routes.runtime_data.clients.clear()
+    routes.runtime_data.tasks.clear()
+    routes.runtime_data.locks.clear()
+    routes.runtime_data.connector = AwairLocalClient.connect
     registry.entries.clear()
     registry.state_snapshots.clear()
     registry.recent_events.clear()
     runtime_context.auth.container_id = ""
     runtime_context.auth.internal_token = ""
-    runtime_context.process_state.current_generation = None
-    runtime_context.process_state.background_tasks.clear()
 
 
-def wait_for(condition, *, timeout: float = 2.0) -> None:
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        if condition():
-            return
-        time.sleep(0.05)
-    raise AssertionError("Timed out waiting for background delivery to complete.")
-
-
-def test_startup_sync_falls_back_to_mounted_snapshot_when_core_is_offline(
-    monkeypatch,
-    tmp_path,
-) -> None:
-    reset_runtime_state()
-
-    async def fake_poll_loop(*args, **kwargs) -> None:
-        return None
-
-    monkeypatch.setattr(config_module, "fetch_awair_data", fake_poll_loop)
-    snapshot_path = tmp_path / "runtime-123.json"
-    snapshot_path.write_text(
-        """
-        {
-          "schema_version": 1,
-          "container_id": "runtime-123",
-          "integration_id": "com.piphi.awair_element",
-          "reason": "startup_snapshot",
-          "generation": 42,
-          "configs": [
-            {
-              "id": "awair-1",
-              "config_id": "awair-1",
-              "container_id": "runtime-123",
-              "integration_id": "com.piphi.awair_element",
-              "device_ip": "10.0.0.40",
-              "device_mac": "aa:bb:cc:dd:ee:ff"
-            }
-          ],
-          "deleted_config_ids": [],
-          "config_hash": "sha256:abc"
-        }
-        """,
-        encoding="utf-8",
-    )
-    monkeypatch.setenv("PIPHI_CONFIG_SNAPSHOT_PATH", str(snapshot_path))
-    runtime_context.auth.update(
-        container_id="runtime-123",
-        internal_token="secret-token",
-    )
-
-    asyncio.run(lifespan_module.startup_sync(runtime_context, _OfflineCoreClient()))
-
-    assert registry.get("awair-1")["device_id"] == "awair-1"
-    assert runtime_context.process_state.current_generation == 42
-
-
-def test_startup_sync_applies_snapshot_then_live_core_config(
-    monkeypatch,
-    tmp_path,
-) -> None:
-    reset_runtime_state()
-
-    async def fake_poll_loop(*args, **kwargs) -> None:
-        return None
-
-    monkeypatch.setattr(config_module, "fetch_awair_data", fake_poll_loop)
-    snapshot_path = tmp_path / "runtime-123.json"
-    snapshot_path.write_text(
-        """
-        {
-          "schema_version": 1,
-          "container_id": "runtime-123",
-          "integration_id": "com.piphi.awair_element",
-          "reason": "startup_snapshot",
-          "generation": 10,
-          "configs": [
-            {
-              "id": "awair-snapshot",
-              "config_id": "awair-snapshot",
-              "container_id": "runtime-123",
-              "integration_id": "com.piphi.awair_element",
-              "device_ip": "10.0.0.40"
-            }
-          ]
-        }
-        """,
-        encoding="utf-8",
-    )
-    monkeypatch.setenv("PIPHI_CONFIG_SNAPSHOT_PATH", str(snapshot_path))
-    runtime_context.auth.update(
-        container_id="runtime-123",
-        internal_token="secret-token",
-    )
-    live_core_configs = [
-        {
-            "config_data": {
-                "id": "awair-core",
-                "config_id": "awair-core",
-                "integration_id": "com.piphi.awair_element",
-                "device_ip": "10.0.0.41",
-            }
-        }
-    ]
-
-    asyncio.run(lifespan_module.startup_sync(runtime_context, _CoreConfigClient(live_core_configs)))
-
-    assert registry.get("awair-core")["device_id"] == "awair-core"
-    assert registry.get("awair-snapshot") is None
-
-
-def test_config_apply_sends_awair_telemetry_and_event(
-    mock_core,
-    monkeypatch,
-) -> None:
-    reset_runtime_state()
-
-    async def fake_poll_loop(*args, **kwargs) -> None:
-        return None
-
-    async def fake_get(self, url: str):
-        return _FakeAwairResponse()
-
-    monkeypatch.setattr(config_module.telemetry_client, "core_base_url", mock_core.base_url)
-    monkeypatch.setattr(config_module.event_client, "core_base_url", mock_core.base_url)
-    monkeypatch.setattr(config_module, "fetch_awair_data", fake_poll_loop)
-    monkeypatch.setattr(config_module.httpx.AsyncClient, "get", fake_get)
-
-    payload = build_config_payload(
-        config_id="awair-1",
-        container_id="runtime-123",
-        integration_id="com.piphi.awair_element",
-        extra={
-            "device_ip": "10.0.0.40",
-            "device_mac": "aa:bb:cc:dd:ee:ff",
-        },
-    )
-    headers = build_runtime_headers(container_id="runtime-123", internal_token="secret-token")
-
-    with TestClient(app) as client:
-        response = client.post("/config", json=payload, headers=headers)
-        assert response.status_code == 200
-        assert response.json()["config_id"] == "awair-1"
-
-        wait_for(lambda: len(mock_core.telemetry_requests) >= 1)
-        wait_for(lambda: len(mock_core.event_requests) >= 1)
-
-        telemetry_request = assert_telemetry_sent(mock_core, device_id="awair-1")
-        event_request = assert_event_sent(
-            mock_core,
-            device_id="awair-1",
-            config_id="awair-1",
-            event_type="device.configured",
-        )
-
-        telemetry_headers = {key.lower(): value for key, value in telemetry_request.headers.items()}
-        event_headers = {key.lower(): value for key, value in event_request.headers.items()}
-
-        assert telemetry_headers["x-container-id"] == "runtime-123"
-        assert telemetry_headers["x-piphi-integration-token"] == "secret-token"
-        assert event_headers["x-container-id"] == "runtime-123"
-        assert event_headers["x-piphi-integration-token"] == "secret-token"
-        assert telemetry_request.json_body["metrics"]["temp"] == 22.1
-        assert telemetry_request.json_body["metrics"]["temperature"] == 22.1
-        assert telemetry_request.json_body["metrics"]["humidity"] == 47.5
-        assert telemetry_request.json_body["metrics"]["absolute_humidity"] == 12.13
-        assert telemetry_request.json_body["metrics"]["co2_est"] == 584
-        assert telemetry_request.json_body["metrics"]["voc_baseline"] == 40607
-        assert telemetry_request.json_body["metrics"]["pm10_est"] == 3
-        assert telemetry_request.json_body["units"]["temp"] == "°C"
-        assert telemetry_request.json_body["units"]["temperature"] == "°C"
-        assert telemetry_request.json_body["units"]["humidity"] == "%"
-        assert telemetry_request.json_body["units"]["pm10_est"] == "ug/m3"
-        assert (event_request.json_body.get("event_type") or event_request.json_body.get("type")) == "device.configured"
-
-
-def test_config_sync_replaces_awair_device_and_uses_testkit_snapshot(
-    mock_core,
-    monkeypatch,
-) -> None:
-    reset_runtime_state()
-
-    async def fake_poll_loop(*args, **kwargs) -> None:
-        return None
-
-    async def fake_get(self, url: str):
-        return _FakeAwairResponse()
-
-    monkeypatch.setattr(config_module.telemetry_client, "core_base_url", mock_core.base_url)
-    monkeypatch.setattr(config_module.event_client, "core_base_url", mock_core.base_url)
-    monkeypatch.setattr(config_module, "fetch_awair_data", fake_poll_loop)
-    monkeypatch.setattr(config_module.httpx.AsyncClient, "get", fake_get)
-
-    old_payload = build_config_payload(
-        config_id="awair-old",
-        container_id="runtime-123",
-        integration_id="com.piphi.awair_element",
-        extra={
-            "device_ip": "10.0.0.40",
-            "device_mac": "aa:bb:cc:dd:ee:01",
-        },
-    )
-    new_payload = build_config_payload(
-        config_id="awair-new",
-        container_id="runtime-123",
-        integration_id="com.piphi.awair_element",
-        extra={
-            "device_ip": "10.0.0.41",
-            "device_mac": "aa:bb:cc:dd:ee:02",
-        },
-    )
-    snapshot = build_config_snapshot(
-        configs=[new_payload],
-        container_id="runtime-123",
-        integration_id="com.piphi.awair_element",
-        generation=4,
-    )
-    headers = build_runtime_headers(container_id="runtime-123", internal_token="secret-token")
-
-    with TestClient(app) as client:
-        first_response = client.post("/config", json=old_payload, headers=headers)
-        assert first_response.status_code == 200
-        wait_for(lambda: len(mock_core.telemetry_requests) >= 1)
-        wait_for(lambda: len(mock_core.event_requests) >= 1)
-
-        mock_core.reset()
-
-        sync_response = client.post("/config/sync", json=snapshot, headers=headers)
-        assert sync_response.status_code == 200
-        wait_for(lambda: len(mock_core.telemetry_requests) >= 1)
-        wait_for(lambda: len(mock_core.event_requests) >= 2)
-
-        sync_json = sync_response.json()
-        assert sync_json["applied"] == ["awair-new"]
-        assert sync_json["removed"] == ["awair-old"]
-        assert sync_json["active_config_ids"] == ["awair-new"]
-        assert sync_json["generation"] == 4
-
-        telemetry_request = assert_telemetry_sent(mock_core, device_id="awair-new")
-        configured_event = assert_event_sent(
-            mock_core,
-            device_id="awair-new",
-            config_id="awair-new",
-            event_type="device.configured",
-        )
-        deconfigured_event = assert_event_sent(
-            mock_core,
-            device_id="awair-old",
-            config_id="awair-old",
-            event_type="device.deconfigured",
-        )
-
-        assert telemetry_request.json_body["metrics"]["temp"] == 22.1
-        assert (configured_event.json_body.get("event_type") or configured_event.json_body.get("type")) == "device.configured"
-        assert (deconfigured_event.json_body.get("event_type") or deconfigured_event.json_body.get("type")) == "device.deconfigured"
-
-
-def test_state_route_refreshes_missing_awair_snapshot_with_testkit(
-    mock_core,
-    monkeypatch,
-) -> None:
-    reset_runtime_state()
-
-    async def fake_poll_loop(*args, **kwargs) -> None:
-        return None
-
-    async def fake_get(self, url: str):
-        return _FakeAwairResponse()
-
-    monkeypatch.setattr(config_module.telemetry_client, "core_base_url", mock_core.base_url)
-    monkeypatch.setattr(config_module, "fetch_awair_data", fake_poll_loop)
-    monkeypatch.setattr(config_module.httpx.AsyncClient, "get", fake_get)
-
-    payload = build_config_payload(
-        config_id="awair-1",
-        container_id="runtime-123",
-        integration_id="com.piphi.awair_element",
-        extra={
-            "device_ip": "10.0.0.40",
-            "device_mac": "aa:bb:cc:dd:ee:ff",
-        },
-    )
-    headers = build_runtime_headers(container_id="runtime-123", internal_token="secret-token")
-
-    with TestClient(app) as client:
-        config_response = client.post("/config", json=payload, headers=headers)
-        assert config_response.status_code == 200
-        wait_for(lambda: len(mock_core.telemetry_requests) >= 1)
-
-        mock_core.reset()
-        registry.state_snapshots.clear()
-
-        state_response = client.get("/state")
-        assert state_response.status_code == 200
-        assert state_response.json()["device_id"] == "awair-1"
-        assert state_response.json()["state"]["temp"] == 22.1
-        assert state_response.json()["state"]["temperature"] == 22.1
-        assert state_response.json()["state"]["humid"] == 47.5
-        assert state_response.json()["state"]["humidity"] == 47.5
-        assert state_response.json()["state"]["dew_point"] == 14.65
-        assert state_response.json()["state"]["dew_pt"] == 14.65
-        assert state_response.json()["state"]["co2_est_baseline"] == 36389
-
-        wait_for(lambda: len(mock_core.telemetry_requests) >= 1)
-        telemetry_request = assert_telemetry_sent(mock_core, device_id="awair-1")
-        assert telemetry_request.json_body["metrics"]["temp"] == 22.1
-        assert telemetry_request.json_body["metrics"]["temperature"] == 22.1
-
-
-def test_deconfigure_sends_awair_event_and_removes_entry(
-    mock_core,
-    monkeypatch,
-) -> None:
-    reset_runtime_state()
-
-    async def fake_poll_loop(*args, **kwargs) -> None:
-        return None
-
-    async def fake_get(self, url: str):
-        return _FakeAwairResponse()
-
-    monkeypatch.setattr(config_module.telemetry_client, "core_base_url", mock_core.base_url)
-    monkeypatch.setattr(config_module.event_client, "core_base_url", mock_core.base_url)
-    monkeypatch.setattr(config_module, "fetch_awair_data", fake_poll_loop)
-    monkeypatch.setattr(config_module.httpx.AsyncClient, "get", fake_get)
-
-    payload = build_config_payload(
-        config_id="awair-1",
-        container_id="runtime-123",
-        integration_id="com.piphi.awair_element",
-        extra={
-            "device_ip": "10.0.0.40",
-            "device_mac": "aa:bb:cc:dd:ee:ff",
-        },
-    )
-    headers = build_runtime_headers(container_id="runtime-123", internal_token="secret-token")
-
-    with TestClient(app) as client:
-        config_response = client.post("/config", json=payload, headers=headers)
-        assert config_response.status_code == 200
-        wait_for(lambda: len(mock_core.event_requests) >= 1)
-
-        mock_core.reset()
-
-        deconfigure_response = client.post("/deconfigure", json={"config": {"id": "awair-1"}})
-        assert deconfigure_response.status_code == 200
-        assert deconfigure_response.json()["removed"] is True
-        assert registry.get("awair-1") is None
-
-        wait_for(lambda: len(mock_core.event_requests) >= 1)
-        event_request = assert_event_sent(
-            mock_core,
-            device_id="awair-1",
-            config_id="awair-1",
-            event_type="device.deconfigured",
-        )
-        assert (event_request.json_body.get("event_type") or event_request.json_body.get("type")) == "device.deconfigured"
-
-
-def test_state_returns_404_when_no_awair_device_is_configured() -> None:
-    reset_runtime_state()
-
-    with TestClient(app) as client:
-        response = client.get("/state")
-
-    assert response.status_code == 404
-    assert response.json()["detail"] == "No configured device found"
-
-
-def test_deconfigure_requires_config_id_for_awair() -> None:
-    reset_runtime_state()
-
-    with TestClient(app) as client:
-        response = client.post("/deconfigure", json={"config": {}})
-
-    assert response.status_code == 400
-    assert response.json()["detail"] == "Missing config id"
-
-
-def test_awair_events_route_round_trip() -> None:
-    reset_runtime_state()
-
-    event_payload = {
-        "event_type": "awair.manual.note",
-        "source": "test-suite",
-        "payload": {"message": "hello"},
-    }
-
-    with TestClient(app) as client:
-        ingest_response = client.post("/events", json=event_payload)
-        list_response = client.get("/events")
-
-    assert ingest_response.status_code == 200
-    assert ingest_response.json()["event"]["event_type"] == "awair.manual.note"
-    assert list_response.status_code == 200
-    assert list_response.json()["events"][-1]["event_type"] == "awair.manual.note"
-
-
-def test_awair_command_refresh_returns_404_without_primary_device(monkeypatch) -> None:
-    reset_runtime_state()
-    monkeypatch.setattr(command_module, "load_manifest", lambda: {"commands": {"refresh": {}}})
-
-    with TestClient(app) as client:
-        response = client.post("/command", json={"command": "refresh"})
-
-    assert response.status_code == 404
-    assert response.json()["detail"]["error"] == "missing_target"
-
-
-def test_awair_command_unknown_returns_404(monkeypatch) -> None:
-    reset_runtime_state()
-    monkeypatch.setattr(command_module, "load_manifest", lambda: {"commands": {"refresh": {}}})
-
-    with TestClient(app) as client:
-        response = client.post("/command", json={"command": "do_something_else"})
-
-    assert response.status_code == 400
-    assert response.json()["detail"]["error"] == "unsupported_command"
-
-
-def test_awair_config_apply_still_succeeds_when_initial_refresh_fails(
-    mock_core,
-    monkeypatch,
-) -> None:
-    reset_runtime_state()
-
-    async def fake_poll_loop(*args, **kwargs) -> None:
-        return None
-
-    async def fake_get(self, url: str):
-        raise httpx.RequestError("network down")
-
-    monkeypatch.setattr(config_module.event_client, "core_base_url", mock_core.base_url)
-    monkeypatch.setattr(config_module, "fetch_awair_data", fake_poll_loop)
-    monkeypatch.setattr(config_module.httpx.AsyncClient, "get", fake_get)
-
-    payload = build_config_payload(
-        config_id="awair-1",
-        container_id="runtime-123",
-        integration_id="com.piphi.awair_element",
-        extra={
-            "device_ip": "10.0.0.40",
-            "device_mac": "aa:bb:cc:dd:ee:ff",
-        },
-    )
-    headers = build_runtime_headers(container_id="runtime-123", internal_token="secret-token")
-
-    with TestClient(app) as client:
-        response = client.post("/config", json=payload, headers=headers)
-        assert response.status_code == 200
-        assert response.json()["config_id"] == "awair-1"
-        wait_for(lambda: len(mock_core.event_requests) >= 1)
-
-        configured_event = assert_event_sent(
-            mock_core,
-            device_id="awair-1",
-            config_id="awair-1",
-            event_type="device.configured",
-        )
-
-    assert registry.get("awair-1") is not None
-    assert (configured_event.json_body.get("event_type") or configured_event.json_body.get("type")) == "device.configured"
-
-
-@pytest.mark.parametrize("path", ["/ui", "/ui-config"])
-def test_awair_ui_aliases_return_schema(path: str) -> None:
-    reset_runtime_state()
-
-    with TestClient(app) as client:
-        response = client.get(path)
-
-    assert response.status_code == 200
-    payload = response.json()
-    assert payload["schema"]["title"] == "Awair Element API Configuration"
-    assert "device_ip" in payload["schema"]["properties"]
-    assert "device_mac" in payload["schema"]["properties"]
-
-
-@pytest.mark.parametrize("field_name", ["device_ip", "device_mac"])
-def test_awair_ui_schema_contains_expected_fields(field_name: str) -> None:
-    reset_runtime_state()
-
-    with TestClient(app) as client:
-        response = client.get("/ui-config")
-
-    assert response.status_code == 200
-    assert field_name in response.json()["schema"]["properties"]
-
-
-@pytest.mark.parametrize("path", ["/discover", "/discovery"])
-def test_awair_discovery_aliases_return_only_awair_devices(path: str, monkeypatch) -> None:
-    reset_runtime_state()
-    monkeypatch.setattr(
-        discovery_module,
-        "config",
-        {
-            "AWAIR-ELEM-1450C8._http._tcp.local.": {
-                "addresses": ["10.0.0.83"],
-                "meta": {"name": "Bedroom"},
-                "port": 80,
-            },
-            "PiPhi Network Core._http._tcp.local.": {
-                "addresses": ["10.0.0.2"],
-                "meta": {"name": "Core"},
-                "port": 31419,
-            },
-        },
-    )
-
-    with TestClient(app) as client:
-        response = client.get(path)
-
-    assert response.status_code == 200
-    devices = response.json()["devices"]
-    assert len(devices) == 1
-    assert devices[0]["make"] == "Awair"
-    assert devices[0]["device_ip"] == "10.0.0.83"
-
-
-@pytest.mark.parametrize("path", ["/discover", "/discovery"])
-def test_awair_discovery_aliases_return_empty_without_awair(path: str, monkeypatch) -> None:
-    reset_runtime_state()
-    monkeypatch.setattr(
-        discovery_module,
-        "config",
-        {
-            "PiPhi Network Core._http._tcp.local.": {
-                "addresses": ["10.0.0.2"],
-                "meta": {"name": "Core"},
-                "port": 31419,
-            },
-        },
-    )
-
-    with TestClient(app) as client:
-        response = client.get(path)
-
-    assert response.status_code == 200
-    assert response.json()["devices"] == []
-
-
-def test_awair_events_list_is_empty_by_default() -> None:
-    reset_runtime_state()
-
-    with TestClient(app) as client:
-        response = client.get("/events")
-
-    assert response.status_code == 200
-    assert response.json()["events"] == []
-
-
-@pytest.mark.parametrize(
-    ("event_type", "payload"),
-    [
-        ("awair.manual.note", {"message": "hello"}),
-        ("awair.score.warning", {"score": 42}),
-        ("awair.device.ping", {"ip": "10.0.0.40"}),
-    ],
-)
-def test_awair_events_route_round_trip_variants(event_type: str, payload: dict[str, object]) -> None:
-    reset_runtime_state()
-
-    with TestClient(app) as client:
-        ingest_response = client.post(
-            "/events",
-            json={
-                "event_type": event_type,
-                "source": "test-suite",
-                "payload": payload,
-            },
-        )
-        list_response = client.get("/events")
-
-    assert ingest_response.status_code == 200
-    assert ingest_response.json()["event"]["event_type"] == event_type
-    assert list_response.status_code == 200
-    assert list_response.json()["events"][-1]["payload"] == payload
-
-
-@pytest.mark.parametrize("path", ["/health", "/diagnostics"])
-def test_awair_health_routes_work_without_devices(path: str) -> None:
-    reset_runtime_state()
-
-    with TestClient(app) as client:
-        response = client.get(path)
-
-    assert response.status_code == 200
-
-
-def test_awair_health_reports_configured_and_state_counts() -> None:
-    reset_runtime_state()
-    registry.set("awair-1", {"config_id": "awair-1", "device_id": "awair-1"})
-    registry.update_state("awair-1", {"temp": 22.1})
-
-    with TestClient(app) as client:
-        response = client.get("/health")
-
-    assert response.status_code == 200
-    assert response.json()["metadata"]["devices_configured"] == 1
-    assert response.json()["metadata"]["devices_with_state"] == 1
-
-
-def test_awair_diagnostics_reports_device_ids() -> None:
-    reset_runtime_state()
-    registry.set("awair-1", {"config_id": "awair-1", "device_id": "awair-1"})
-    registry.update_state("awair-1", {"temp": 22.1})
-
-    with TestClient(app) as client:
-        response = client.get("/diagnostics")
-
-    assert response.status_code == 200
-    diagnostics = response.json()["diagnostics"]
-    assert diagnostics["configured_device_ids"] == ["awair-1"]
-    assert diagnostics["devices_with_state"] == ["awair-1"]
-
-
-def test_awair_entities_route_returns_manifest_sections() -> None:
-    reset_runtime_state()
-
-    with TestClient(app) as client:
-        response = client.get("/entities")
-
-    assert response.status_code == 200
-    assert "entities" in response.json()
-    assert "capabilities" in response.json()
-    assert "commands" in response.json()
-
-
-def test_awair_manifest_route_returns_identity_fields() -> None:
-    reset_runtime_state()
-
-    with TestClient(app) as client:
-        response = client.get("/manifest.json")
-
-    assert response.status_code == 200
-    assert response.json()["id"]
-    assert response.json()["name"]
-    assert response.json()["version"]
-
-
-def test_awair_manifest_exposes_all_latest_air_data_capabilities() -> None:
-    manifest = json.loads((PACKAGE_SRC / "manifest.json").read_text(encoding="utf-8"))
-    capabilities = set(manifest["capabilities"])
-    entity_capabilities = {
-        capability
-        for entity in manifest["entities"]
-        for capability in entity.get("capabilities", [])
-    }
-
-    expected = {
-        "temperature",
-        "dew_point",
-        "humidity",
-        "absolute_humidity",
-        "co2",
-        "co2_est",
-        "co2_est_baseline",
-        "voc",
-        "voc_baseline",
-        "voc_h2_raw",
-        "voc_ethanol_raw",
-        "pm25",
-        "pm10_est",
-        "score",
-    }
-
-    assert expected <= capabilities
-    assert expected <= entity_capabilities
-    assert all(
-        manifest["capabilities"][capability]["value_kind"] == "numeric"
-        and manifest["capabilities"][capability]["access"] == "read"
-        and manifest["capabilities"][capability]["semantic_type"]
-        and "allowed_widgets" not in manifest["capabilities"][capability]["dashboard"]
-        for capability in expected
-    )
-
-
-def test_awair_runtime_entities_emit_advisory_widget_recommendations() -> None:
-    reset_runtime_state()
-    registry.set("awair-1", {"config_id": "awair-1", "device_id": "awair-1"})
-
-    with TestClient(app) as client:
-        response = client.get("/entities")
-
-    assert response.status_code == 200
-    assert response.json()["entities"][0]["dashboard"]["recommended_widgets"] == [
-        "stat",
-        "gauge",
-        "line-chart",
-    ]
-    assert "allowed_widgets" not in response.json()["entities"][0]["dashboard"]
-
-
-def test_awair_behaviors_expose_all_numeric_metrics_as_conditions() -> None:
-    behaviors = json.loads((PACKAGE_SRC / "behaviors.json").read_text(encoding="utf-8"))
-    conditions = behaviors["devices"][0]["conditions"]
-    runtime_fields = {condition["runtime"]["field"] for condition in conditions}
-
-    assert {
-        "temperature",
-        "dew_point",
-        "humidity",
-        "absolute_humidity",
-        "co2",
-        "co2_est",
-        "co2_est_baseline",
-        "voc",
-        "voc_baseline",
-        "voc_h2_raw",
-        "voc_ethanol_raw",
-        "pm25",
-        "pm10_est",
-        "score",
-    } <= runtime_fields
-
-
-def test_awair_behaviors_expose_discord_webhook_action_and_templates() -> None:
-    behaviors = json.loads((PACKAGE_SRC / "behaviors.json").read_text(encoding="utf-8"))
-    device = behaviors["devices"][0]
-    actions = {action["id"]: action for action in device["actions"]}
-    template_ids = {template["id"] for template in behaviors["templates"]}
-
-    discord_action = actions["discord_webhook"]
-    assert discord_action["runtime"]["command"] == "discord_webhook"
-    assert discord_action["capability"] == "notification.discord_webhook"
-    assert discord_action["safety"]["riskLevel"] == "low"
-    assert [param["name"] for param in discord_action["params"]] == [
-        "webhook_url",
-        "message",
-        "username",
-    ]
-    assert {
-        "awair_co2_discord_alert",
-        "awair_particle_discord_alert",
-        "awair_sleep_humidity_alert",
-    } <= template_ids
-
-    discord_templates = [
-        template for template in behaviors["templates"]
-        if template["id"] in {"awair_co2_discord_alert", "awair_particle_discord_alert"}
-    ]
-    for template in discord_templates:
-        action = template["config"]["actions"][0]
-        assert action["action"] == "discord_webhook"
-        assert action["sourceRef"]["optionKey"] == "discord_webhook"
-        assert action["parameters"]["webhook_url"] == ""
-
-    pm25_template = next(
-        template for template in behaviors["templates"]
-        if template["id"] == "awair_particle_discord_alert"
-    )
-    assert pm25_template["config"]["conditions"]["integrationCondition"]["params"] == {
-        "ug_per_m3": 35,
-    }
-
-
-def test_awair_command_refresh_returns_state_for_explicit_device(monkeypatch) -> None:
-    reset_runtime_state()
-    monkeypatch.setattr(command_module, "load_manifest", lambda: {"commands": {"refresh": {}}})
-    refresh_calls: list[str] = []
-
-    async def fake_trigger_refresh(device_id: str):
-        refresh_calls.append(device_id)
-        return {"device_id": device_id, "state": {"temp": 22.1}}
-
-    monkeypatch.setattr(command_module, "trigger_refresh", fake_trigger_refresh)
-    headers = {"X-PiPhi-Idempotency-Key": "awair-refresh-idempotency-1"}
-
-    with TestClient(app) as client:
-        response = client.post(
-            "/command",
-            json={"command": "refresh", "device_id": "awair-1"},
-            headers=headers,
-        )
-        replay = client.post(
-            "/command",
-            json={"command": "refresh", "device_id": "awair-1"},
-            headers=headers,
-        )
-
-    assert response.status_code == 200
-    assert replay.status_code == 200
-    assert response.json()["replayed"] is False
-    assert replay.json()["replayed"] is True
-    assert refresh_calls == ["awair-1"]
-    assert response.json()["status"] == "ok"
-    assert response.json()["device_id"] == "awair-1"
-    assert response.json()["result"]["state"]["temp"] == 22.1
-
-
-def test_awair_command_accepts_automation_runtime_contract(monkeypatch) -> None:
-    reset_runtime_state()
-    monkeypatch.setattr(command_module, "load_manifest", lambda: {"commands": {"refresh": {}}})
-
-    async def fake_trigger_refresh(device_id: str):
-        return {"device_id": device_id, "state": {"temp": 22.1}}
-
-    monkeypatch.setattr(command_module, "trigger_refresh", fake_trigger_refresh)
-
-    with TestClient(app) as client:
-        response = client.post(
-            "/command",
-            json={
-                "contract_version": "automation.runtime.command.v1",
-                "command": "refresh_readings",
-                "target": {"device_id": "awair-1", "config_id": "awair-config"},
-                "params": {"force": True},
-                "capability": "device.refresh",
-                "capability_requirements": ["device.refresh"],
-            },
-        )
-
-    body = response.json()
-    assert response.status_code == 200
-    assert body["ok"] is True
-    assert body["command"] == "refresh"
-    assert body["contract_version"] == "automation.runtime.command.v1"
-    assert body["device_id"] == "awair-1"
-    assert body["params"] == {"force": True}
-
-
-def test_awair_command_sends_discord_webhook(monkeypatch) -> None:
-    reset_runtime_state()
-    monkeypatch.setattr(command_module, "load_manifest", lambda: {"commands": {}})
-
-    class FakeDiscordResponse:
-        status_code = 204
-
-    class FakeAsyncClient:
-        requests: list[dict[str, object]] = []
-
-        def __init__(self, *, timeout: float) -> None:
-            self.timeout = timeout
-
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, *_exc: object) -> None:
-            return None
-
-        async def post(self, url: str, *, json: dict[str, object]):
-            self.requests.append({"url": url, "json": json, "timeout": self.timeout})
-            return FakeDiscordResponse()
-
-    monkeypatch.setattr(command_module.httpx, "AsyncClient", FakeAsyncClient)
-    headers = {"X-PiPhi-Idempotency-Key": "awair-discord-idempotency-1"}
-
-    with TestClient(app) as client:
-        response = client.post(
-            "/command",
-            json={
-                "contract_version": "automation.runtime.command.v1",
-                "command": "discord_webhook",
-                "target": {"device_id": "awair-1"},
-                "capability": "notification.discord_webhook",
-                "capability_requirements": ["notification.discord_webhook"],
-                "params": {
-                    "webhook_url": "https://discord.com/api/webhooks/123/token",
-                    "message": "CO2 is high",
-                    "username": "PiPhi Air",
-                },
-            },
-            headers=headers,
-        )
-        replay = client.post(
-            "/command",
-            json={
-                "contract_version": "automation.runtime.command.v1",
-                "command": "discord_webhook",
-                "target": {"device_id": "awair-1"},
-                "capability": "notification.discord_webhook",
-                "capability_requirements": ["notification.discord_webhook"],
-                "params": {
-                    "webhook_url": "https://discord.com/api/webhooks/123/token",
-                    "message": "CO2 is high",
-                    "username": "PiPhi Air",
-                },
-            },
-            headers=headers,
-        )
-
-    body = response.json()
-    assert response.status_code == 200
-    assert replay.status_code == 200
-    assert response.json()["replayed"] is False
-    assert replay.json()["replayed"] is True
-    assert body["ok"] is True
-    assert body["command"] == "discord_webhook"
-    assert body["result"]["channel"] == "discord"
-    assert FakeAsyncClient.requests == [
-        {
-            "url": "https://discord.com/api/webhooks/123/token",
-            "json": {"content": "CO2 is high", "username": "PiPhi Air"},
-            "timeout": 10.0,
-        }
-    ]
-
-
-def test_awair_command_rejects_invalid_discord_webhook_url(monkeypatch) -> None:
-    reset_runtime_state()
-    monkeypatch.setattr(command_module, "load_manifest", lambda: {"commands": {}})
-
-    with TestClient(app) as client:
-        response = client.post(
-            "/command",
-            json={
-                "command": "discord_webhook",
-                "capability": "notification.discord_webhook",
-                "params": {
-                    "webhook_url": "https://example.com/webhook",
-                    "message": "CO2 is high",
-                },
-            },
-        )
-
-    assert response.status_code == 400
-    assert response.json()["detail"]["error"] == "invalid_webhook_url"
-
-
-def test_awair_command_rejects_unsupported_capability(monkeypatch) -> None:
-    reset_runtime_state()
-    monkeypatch.setattr(command_module, "load_manifest", lambda: {"commands": {"refresh": {}}})
-
-    with TestClient(app) as client:
-        response = client.post(
+@pytest.mark.anyio
+async def test_auth_fails_closed_and_only_health_is_public(monkeypatch) -> None:
+    monkeypatch.delenv("PIPHI_ALLOW_UNAUTHENTICATED", raising=False)
+    monkeypatch.delenv("PIPHI_INTEGRATION_INTERNAL_TOKEN", raising=False)
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        assert (await client.get("/health")).status_code == 200
+        for path in ("/entities", "/diagnostics", "/discover", "/manifest.json"):
+            assert (await client.get(path)).status_code == 503
+        monkeypatch.setenv("PIPHI_INTEGRATION_INTERNAL_TOKEN", "runtime-secret")
+        assert (await client.get("/entities")).status_code == 401
+        assert (
+            await client.get(
+                "/entities", headers={"X-PiPhi-Integration-Token": "runtime-secret"}
+            )
+        ).status_code == 200
+
+
+@pytest.mark.anyio
+async def test_refresh_command_requires_exact_configured_target(monkeypatch) -> None:
+    device_id = routes.stable_device_id("AWAIR-ELEM-COMMAND")
+    registry.set("command-config", {"config_id": "command-config", "device_id": device_id})
+
+    async def refresh(config_id: str):
+        return {"config_id": config_id, "device_id": device_id, "state": {"score": 55}}
+
+    monkeypatch.setattr(command_module, "trigger_refresh", refresh)
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+        missing = await client.post("/command", json={"command": "refresh"})
+        mismatch = await client.post(
             "/command",
             json={
                 "command": "refresh",
-                "target": {"device_id": "awair-1"},
-                "capability": "switch.power",
+                "target": {"config_id": "command-config", "device_id": "wrong"},
             },
         )
-
-    assert response.status_code == 400
-    assert response.json()["detail"]["error"] == "unsupported_capability"
-
-
-def test_awair_state_returns_404_for_unknown_explicit_device() -> None:
-    reset_runtime_state()
-
-    with TestClient(app) as client:
-        response = client.get("/state", params={"device_id": "missing-device"})
-
-    assert response.status_code == 404
-    assert "No state available" in response.json()["detail"]
-
-
-def test_awair_deconfigure_returns_false_when_device_missing() -> None:
-    reset_runtime_state()
-
-    with TestClient(app) as client:
-        response = client.post("/deconfigure", json={"config": {"id": "missing-device"}})
-
-    assert response.status_code == 200
-    assert response.json()["removed"] is False
+        accepted = await client.post(
+            "/command",
+            json={
+                "command": "refresh",
+                "target": {"config_id": "command-config", "device_id": device_id},
+            },
+            headers={"X-PiPhi-Idempotency-Key": "awair-read-only-refresh-1"},
+        )
+    assert missing.status_code == 400
+    assert mismatch.status_code == 409
+    assert accepted.status_code == 200
+    assert accepted.json()["state"]["score"] == 55
 
 
-def test_awair_refresh_route_returns_state(monkeypatch) -> None:
-    reset_runtime_state()
+@pytest.mark.anyio
+async def test_host_policy_rejects_public_loopback_mixed_dns_and_url_syntax(monkeypatch) -> None:
+    for host in ("8.8.8.8", "127.0.0.1", "http://192.168.1.2", "user@192.168.1.2"):
+        with pytest.raises(AwairTransportError):
+            await resolve_local_host(host)
 
-    async def fake_trigger_refresh(device_id: str):
-        return {"device_id": device_id, "state": {"temp": 22.1}}
+    async def mixed(*_args, **_kwargs):
+        return [(2, 1, 6, "", ("192.168.1.10", 80)), (2, 1, 6, "", ("8.8.4.4", 80))]
 
-    monkeypatch.setattr(config_module, "trigger_refresh", fake_trigger_refresh)
+    monkeypatch.setattr(asyncio.get_running_loop(), "getaddrinfo", mixed)
+    with pytest.raises(AwairTransportError, match="non_local_address"):
+        await resolve_local_host("awair.local")
 
-    with TestClient(app) as client:
-        response = client.post("/refresh", json={"config": {"id": "awair-1"}})
 
-    assert response.status_code == 200
-    assert response.json()["device_id"] == "awair-1"
-    assert response.json()["state"]["temp"] == 22.1
+@pytest.mark.anyio
+async def test_fake_transport_is_deterministic_redirect_free_and_socket_free(monkeypatch) -> None:
+    async def pinned(_host: str) -> str:
+        return "192.168.1.20"
+
+    monkeypatch.setattr(
+        "com_piphi_await_element.lib.awair_client.resolve_local_host", pinned
+    )
+    first = await AwairLocalClient.connect(
+        "awair.local", transport=fake_awair_transport(READING)
+    )
+    second = await AwairLocalClient.connect(
+        "awair.local", transport=fake_awair_transport(READING)
+    )
+    assert await first.latest() == await second.latest()
+    assert "power_on" not in await first.latest()
+    await first.close()
+    await second.close()
+
+    client = AwairLocalClient(
+        configured_host="awair.local",
+        resolved_host="192.168.1.20",
+        transport=fake_awair_transport({}, status_code=302),
+    )
+    with pytest.raises(AwairTransportError, match="redirect_rejected"):
+        await client.latest()
+    await client.close()
+
+
+@pytest.mark.anyio
+async def test_connect_before_save_stable_identity_and_failed_change_rollback() -> None:
+    original_client = FakeClient()
+
+    async def connect_ok(_host: str):
+        return original_client
+
+    routes.runtime_data.connector = connect_ok
+    config = AwairElement(
+        id="bedroom-config",
+        device_ip="192.168.1.20",
+        device_identity="AWAIR-ELEM-1450C8",
+    )
+    await routes.apply_device_config(config)
+    entry = registry.get("bedroom-config")
+    assert entry is not None
+    assert entry["device_id"] == routes.stable_device_id("awair-elem-1450c8")
+    assert "device_ip" not in entry
+
+    async def connect_failed(_host: str):
+        raise AwairTransportError("unreachable")
+
+    routes.runtime_data.connector = connect_failed
+    with pytest.raises(HTTPException) as raised:
+        await routes.apply_device_config(config.model_copy(update={"device_ip": "192.168.1.21"}))
+    assert raised.value.detail == {"error": "unreachable"}
+    assert routes.runtime_data.clients["bedroom-config"] is original_client
+    assert routes.runtime_data.configs["bedroom-config"].device_ip == "192.168.1.20"
+    assert original_client.closed is False
+
+
+@pytest.mark.anyio
+async def test_commit_failure_rolls_back_and_closes_candidate(monkeypatch) -> None:
+    original, candidate = FakeClient(), FakeClient()
+    clients = iter([original, candidate])
+
+    async def connect(_host: str):
+        return next(clients)
+
+    routes.runtime_data.connector = connect
+    config = AwairElement(id="rollback", device_ip="192.168.1.20", device_identity="AWAIR-ELEM-A")
+    await routes.apply_device_config(config)
+    original_entry = registry.get("rollback")
+
+    def fail_publish(*_args, **_kwargs):
+        raise RuntimeError("commit failed")
+
+    monkeypatch.setattr(routes, "schedule_telemetry_delivery", fail_publish)
+    with pytest.raises(RuntimeError, match="commit failed"):
+        await routes.apply_device_config(config.model_copy(update={"device_ip": "192.168.1.21"}))
+    assert registry.get("rollback") is original_entry
+    assert routes.runtime_data.clients["rollback"] is original
+    assert candidate.closed is True
+
+
+@pytest.mark.anyio
+async def test_stale_last_good_recovery_removal_and_bounded_retry(monkeypatch) -> None:
+    client = FakeClient([READING, AwairTransportError("unreachable"), READING])
+
+    async def connect(_host: str):
+        return client
+
+    routes.runtime_data.connector = connect
+    config = AwairElement(id="recovery", device_ip="192.168.1.20", device_identity="AWAIR-ELEM-B")
+    await routes.apply_device_config(config)
+    with pytest.raises(HTTPException):
+        await routes.trigger_refresh("recovery")
+    stale = registry.state_snapshots["recovery"]["state"]
+    assert stale["stale"] is True and stale["temperature"] == 22.1
+    restored = await routes.trigger_refresh("recovery")
+    assert restored["state"]["stale"] is False
+    assert await routes.remove_device_config("recovery") is True
+    assert client.closed is True and registry.get("recovery") is None
+
+    calls = 0
+    registry.set("bounded", {"config_id": "bounded"})
+    routes.runtime_data.configs["bounded"] = config.model_copy(update={"id": "bounded"})
+
+    async def no_wait(_delay):
+        return None
+
+    async def fail_three(_config_id):
+        nonlocal calls
+        calls += 1
+        if calls == 3:
+            registry.remove("bounded")
+        raise HTTPException(status_code=503)
+
+    monkeypatch.setattr(routes.asyncio, "sleep", no_wait)
+    monkeypatch.setattr(routes, "trigger_refresh", fail_three)
+    await routes._poll("bounded")
+    assert calls == 3
+
+
+@pytest.mark.anyio
+async def test_restart_rehydrates_snapshot(monkeypatch) -> None:
+    seen = {}
+
+    async def apply_snapshot(snapshot):
+        seen["snapshot"] = snapshot
+
+    async def rehydrate(**kwargs):
+        seen["model"] = kwargs["config_model"]
+        await kwargs["apply_snapshot"](SimpleNamespace(configs=[]))
+        return SimpleNamespace(
+            snapshot_applied=True,
+            snapshot_config_count=0,
+            snapshot_generation=1,
+            core_applied=False,
+            core_error=None,
+            missing_runtime_auth=True,
+            core_attempted=False,
+        )
+
+    monkeypatch.setattr(lifespan, "restore_runtime_config_snapshot", apply_snapshot)
+    monkeypatch.setattr(lifespan, "rehydrate_runtime_configs", rehydrate)
+    await lifespan.startup_sync(runtime_context, "core-client")
+    assert seen["model"] is AwairElement
+    assert seen["snapshot"].configs == []
+
+
+@pytest.mark.anyio
+async def test_offline_restart_restores_config_and_recovers(monkeypatch) -> None:
+    async def offline(_host: str):
+        raise AwairTransportError("unreachable")
+
+    routes.runtime_data.connector = offline
+    config = AwairElement(
+        id="restart-offline",
+        device_ip="192.168.1.20",
+        device_identity="AWAIR-ELEM-RESTORE",
+    )
+    response = await routes.restore_device_config(config)
+    assert response["metadata"]["restored_offline"] is True
+    assert registry.get("restart-offline")["availability"] == "unavailable"
+
+    recovered = FakeClient()
+
+    async def online(_host: str):
+        return recovered
+
+    routes.runtime_data.connector = online
+    state = await routes.trigger_refresh("restart-offline")
+    assert state["state"]["available"] is True
+    assert registry.get("restart-offline")["availability"] == "online"
+    assert any(event["event_type"] == "device.restored" for event in registry.recent_events)
+
+
+@pytest.mark.anyio
+async def test_discovery_identity_is_stable_and_truthful(monkeypatch) -> None:
+    async def verify(_host: str):
+        return FakeClient()
+
+    monkeypatch.setattr(discovery, "connector", verify)
+    async def connect(_host: str):
+        return FakeClient()
+
+    monkeypatch.setattr(discovery, "connector", connect)
+    monkeypatch.setattr(
+        discovery,
+        "config",
+        {
+            "AWAIR-ELEM-1450C8._http._tcp.local.": {"addresses": ["192.168.1.20"]},
+            "Awair Maybe._http._tcp.local.": {"addresses": ["192.168.1.21"]},
+            "AWAIR-ELEM-PUBLIC._http._tcp.local.": {"addresses": ["8.8.8.8"]},
+        },
+    )
+    devices = (await discovery.get_discovered_devices()).model_dump()["devices"]
+    assert devices == [{
+        "id": "AWAIR-ELEM-1450C8",
+        "device_id": "AWAIR-ELEM-1450C8",
+        "device_identity": "AWAIR-ELEM-1450C8",
+        "device_ip": "192.168.1.20",
+        "make": "Awair",
+        "model": "Element",
+        "name": "AWAIR-ELEM-1450C8",
+        "port": 80,
+    }]
+
+
+def test_recursive_redaction_and_privacy_safe_diagnostics() -> None:
+    value = {"nested": [{"api_token": "secret", "safe": "ok"}], "password_hint": "hidden"}
+    assert redact(value) == {
+        "nested": [{"api_token": "[REDACTED]", "safe": "ok"}],
+        "password_hint": "[REDACTED]",
+    }
+
+
+@pytest.mark.anyio
+async def test_diagnostics_are_aggregate_only() -> None:
+    registry.set(
+        "bedroom-192.168.1.20",
+        {
+            "config_id": "bedroom-192.168.1.20",
+            "device_id": "awair-element:private-identity",
+            "availability": "online",
+        },
+    )
+    serialized = (await diagnostics_report()).model_dump_json()
+    assert "192.168.1.20" not in serialized
+    assert "private-identity" not in serialized
+    assert '"online":1' in serialized
+
+
+def test_manifest_catalog_and_release_contracts_are_consistent() -> None:
+    manifest = json.loads((ROOT / "src/manifest.json").read_text())
+    app_meta = json.loads((ROOT / "piphi-app.json").read_text())
+    catalog = json.loads((ROOT / "capability-catalog.json").read_text())
+    behaviors = json.loads((ROOT / "src/behaviors.json").read_text())
+    assert manifest["version"] == app_meta["packages"][0]["version"] == "0.1.15"
+    assert manifest["identity"]["fields"] == ["device_identity"]
+    assert set(manifest["commands"]) == {"refresh"}
+    assert [action["id"] for action in behaviors["devices"][0]["actions"]] == ["refresh_readings"]
+    assert behaviors["templates"] == []
+    implemented = next(entry for entry in catalog["entries"] if entry["status"] == "implemented")
+    assert set(implemented["state"]) <= set(manifest["capabilities"])
+    assert implemented["actions"] == ["refresh"]
+
+
+def test_payload_validation_drops_unknowns_and_rejects_fabricated_values() -> None:
+    normalized = normalize_payload({**READING, "unknown_vendor_field": 123})
+    assert "unknown_vendor_field" not in normalized
+    assert normalized["temperature"] == 22.1 and "temp" not in normalized
+    with pytest.raises(AwairTransportError, match="invalid_response"):
+        normalize_payload({"temp": float("nan")})
+    with pytest.raises(AwairTransportError, match="invalid_response"):
+        normalize_payload({"score": 101})
+    with pytest.raises(AwairTransportError, match="invalid_response"):
+        normalize_payload({"timestamp": "only-a-timestamp"})

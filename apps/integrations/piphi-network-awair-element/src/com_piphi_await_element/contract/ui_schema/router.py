@@ -1,6 +1,5 @@
 from fastapi import APIRouter
 
-
 router = APIRouter(tags=['ui_schema'])
 
 @router.get('/ui-config')
@@ -11,7 +10,7 @@ async def get_ui_schema():
         "description":
             "Configuration for Awair Element Local  integration.",
         "type": "object",
-        "required": ["device_ip"],
+        "required": ["device_ip", "device_identity"],
         "properties": {
             "device_ip": {
                 "type": "string",
@@ -23,6 +22,13 @@ async def get_ui_schema():
                 "examples": ["192.168.1.100"],
                 "errorMessage": "Please provide a valid IPv4 address",
             },
+            "device_identity": {
+                "type": "string",
+                "title": "Awair hardware identity",
+                "description": "Stable identity reported by verified Awair mDNS discovery (for example AWAIR-ELEM-1450C8).",
+                "minLength": 3,
+                "maxLength": 128,
+            },
             "device_mac": {
                 "type": "string",
                 "title": "Device MAC Address (Optional)",
@@ -33,7 +39,14 @@ async def get_ui_schema():
                 "examples": ["70:88:6B:00:00:00"],
                 "errorMessage": "Please enter a valid mac address",
             },
+            "poll_interval_seconds": {
+                "type": "integer",
+                "title": "Poll interval (seconds)",
+                "minimum": 10,
+                "maximum": 3600,
+                "default": 30,
+            },
         },
     }
 
-    return dict(schema=schema)
+    return {"schema": schema}

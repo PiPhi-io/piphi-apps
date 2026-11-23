@@ -1,11 +1,11 @@
-from typing import Any, Dict
+from typing import Any
 
 from piphi_runtime_kit_python import RuntimeContext, RuntimeRegistry
 
-DeviceStore = Dict[str, Dict[str, Any]]
+DeviceStore = dict[str, dict[str, Any]]
 
 # In-memory runtime state only (integration is intentionally stateless on disk).
-registry = RuntimeRegistry[Dict[str, Any], Dict[str, Any], Dict[str, Any]]()
+registry = RuntimeRegistry[dict[str, Any], dict[str, Any], dict[str, Any]]()
 runtime_context = RuntimeContext()
 
 
@@ -20,7 +20,7 @@ def set_runtime_auth_context(
     )
 
 
-def get_runtime_auth_context() -> Dict[str, str]:
+def get_runtime_auth_context() -> dict[str, str]:
     return {
         "container_id": runtime_context.auth.container_id,
         "internal_token": runtime_context.auth.internal_token,
@@ -51,13 +51,13 @@ def set_current_generation(generation: int | None) -> None:
     runtime_context.set_current_generation(generation)
 
 
-def update_device_state(device_id: str, state: Dict[str, Any]) -> Dict[str, Any]:
+def update_device_state(device_id: str, state: dict[str, Any]) -> dict[str, Any]:
     return registry.update_state(device_id, state)
 
 
-def append_event(event: Dict[str, Any]) -> Dict[str, Any]:
+def append_event(event: dict[str, Any]) -> dict[str, Any]:
     return registry.append_event(event)
 
 
-def get_primary_device() -> Dict[str, Any] | None:
+def get_primary_device() -> dict[str, Any] | None:
     return registry.primary_entry()
