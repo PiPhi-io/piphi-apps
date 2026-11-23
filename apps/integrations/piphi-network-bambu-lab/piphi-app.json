@@ -22,8 +22,8 @@
       "pdm run pytest",
       "pdm run python scripts/validate.py",
       "npm --prefix widgets/print-status ci",
-      "npm --prefix widgets/print-status test",
       "npm --prefix widgets/print-status run build",
+      "npm --prefix widgets/print-status test",
       "npm --prefix widgets/print-status run validate",
       "npm --prefix widgets/print-status run conformance"
     ],
