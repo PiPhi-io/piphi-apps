@@ -447,6 +447,14 @@ def test_manifest_catalog_and_release_contracts_are_consistent() -> None:
     assert manifest["version"] == app_meta["packages"][0]["version"] == "0.1.15"
     assert manifest["identity"]["fields"] == ["device_identity"]
     assert set(manifest["commands"]) == {"refresh"}
+    runtime = manifest["runtime"]["linux"]["container"]
+    assert runtime["environment"]["PIPHI_RUNTIME_CONFIG_SNAPSHOT_PATH"] == (
+        "/var/lib/piphi/configs.json"
+    )
+    assert any(
+        volume["container"] == "/var/lib/piphi" and volume["mode"] == "rw"
+        for volume in runtime["volumes"]
+    )
     assert [action["id"] for action in behaviors["devices"][0]["actions"]] == ["refresh_readings"]
     assert behaviors["templates"] == []
     implemented = next(entry for entry in catalog["entries"] if entry["status"] == "implemented")

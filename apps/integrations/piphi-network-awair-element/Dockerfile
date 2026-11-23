@@ -13,7 +13,8 @@ LABEL org.opencontainers.image.source="${SOURCE_REPOSITORY}" \
       org.opencontainers.image.version="${RELEASE_VERSION}"
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIPHI_AUTOMATION_LEDGER_PATH=/var/lib/piphi/automation-actions.sqlite3
+    PIPHI_AUTOMATION_LEDGER_PATH=/var/lib/piphi/automation-actions.sqlite3 \
+    PIPHI_RUNTIME_CONFIG_SNAPSHOT_PATH=/var/lib/piphi/configs.json
 WORKDIR /app
 COPY --from=requirements /requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir --require-hashes -r /tmp/requirements.txt

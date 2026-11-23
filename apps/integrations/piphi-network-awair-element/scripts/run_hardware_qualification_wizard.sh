@@ -292,8 +292,8 @@ record_result "mDNS identity and local-only resolution"
 stage "Run the exact constrained image"
 say "Resolve and inspect the image before launch; the digest in the record must match the image actually run."
 step "Export a fresh local-only PIPHI_INTEGRATION_INTERNAL_TOKEN in your shell. Do not paste it into this wizard or the record."
-step "Run the image with host networking for mDNS, UID/GID 10001, a read-only root filesystem, writable tmpfs mounts at /tmp and /var/lib/piphi, all capabilities dropped, and no-new-privileges."
-note 'Example flags: --network host --user 10001:10001 --read-only --tmpfs /tmp --tmpfs /var/lib/piphi --cap-drop ALL --security-opt no-new-privileges'
+step "Run the image with host networking for mDNS, UID/GID 10001, a read-only root filesystem, a writable tmpfs at /tmp, a dedicated persistent volume at /var/lib/piphi, all capabilities dropped, and no-new-privileges."
+note 'Example flags: --network host --user 10001:10001 --read-only --tmpfs /tmp --mount type=volume,source=<dedicated-state-volume>,target=/var/lib/piphi --cap-drop ALL --security-opt no-new-privileges'
 step "Verify GET http://127.0.0.1:3665/health succeeds, protected routes reject a missing token, and the container reports the expected version."
 step "Keep the container name and exact launch command in the private lab record; do not reuse an existing container name."
 record_result "Constrained container launch and authentication"
@@ -322,7 +322,8 @@ record_result "Privacy, network egress, and read-only behavior"
 
 stage "Record the qualification decision"
 say "A PASS applies only to the exact image digest, source revision, firmware, hardware, and network conditions in this record."
-step "After retaining required private evidence, stop and remove only the dedicated qualification container, clear the token from your shell, and leave shared images/volumes untouched."
+step "After retaining required private evidence, stop and remove only the dedicated qualification container, clear the token from your shell, and leave shared assets untouched."
+step "Remove the dedicated qualification state volume only after confirming that all required private evidence has been retained."
 local decision blockers follow_up ended_at
 prompt_value decision "Final decision (PASS, FAIL, or BLOCKED):"
 decision="${decision^^}"
