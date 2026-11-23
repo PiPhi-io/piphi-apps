@@ -2,10 +2,25 @@ package app
 
 import (
 	"errors"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"os"
 	"testing"
 
 	"github.com/KelvinSan/piphi-network-atmotube/atmotube"
 )
+
+func TestMain(m *testing.M) {
+	_ = os.Setenv("PIPHI_INTEGRATION_INTERNAL_TOKEN", "test-token")
+	os.Exit(m.Run())
+}
+
+func authenticatedRequest(method, target string, body io.Reader) *http.Request {
+	request := httptest.NewRequest(method, target, body)
+	request.Header.Set(runtimeTokenHeader, "test-token")
+	return request
+}
 
 func TestIsAtmotubeDiscoveryMatchUsesServiceFlag(t *testing.T) {
 	device := atmotube.DiscoveredDevice{
@@ -100,14 +115,16 @@ func TestPollOnceAppendsErrorEventOnReadFailure(t *testing.T) {
 		DeviceID: "device-1",
 		Address:  "11:22:33:AA:BB:CC",
 	}
+	app.registry.Set(entry.ConfigID, entry)
 
+	app.pollOnce(entry)
 	app.pollOnce(entry)
 
 	events := app.registry.RecentEvents()
 	if len(events) != 1 {
 		t.Fatalf("expected one error event, got %d", len(events))
 	}
-	if events[0]["event_type"] != "atmotube.poll.error" {
-		t.Fatalf("expected poll error event, got %#v", events[0]["event_type"])
+	if events[0]["event_type"] != "atmotube.connection.stale" {
+		t.Fatalf("expected bounded stale transition event, got %#v", events[0]["event_type"])
 	}
 }

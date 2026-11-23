@@ -2,33 +2,57 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"log"
+	"net"
 	"net/http"
+	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	runtimekit "github.com/PiPhi-io/piphi-runtime-kit-go"
 	"github.com/PiPhi-io/piphi-runtime-kit-go/adapters"
+	"github.com/gin-gonic/gin"
 
 	"github.com/KelvinSan/piphi-network-atmotube/atmotube"
 )
 
 const integrationID = "piphi-network-atmotube-pro"
+const version = "0.1.7"
+
+type runtimeStatus struct {
+	LastSuccess         time.Time
+	ConsecutiveFailures int
+	Stale               bool
+	LastError           string
+}
+
+type Options struct {
+	EnablePolling bool
+	StatePath     string
+	ExpectedToken string
+	IdentityKey   []byte
+}
 
 type App struct {
 	runtime       *runtimekit.RuntimeContext
 	registry      *runtimekit.RuntimeRegistry[atmotube.DeviceEntry, atmotube.Reading, map[string]any]
 	state         *runtimekit.RuntimeStateService[atmotube.DeviceEntry, atmotube.Reading, map[string]any]
 	telemetry     *runtimekit.TelemetryClient
-	coordinator   *runtimekit.ConfigSyncCoordinator[atmotube.DeviceConfig]
 	ble           BLEClient
 	enablePolling bool
+	store         StateStore
+	identityKey   []byte
+	expectedToken string
+	restoreError  string
 
-	mu      sync.Mutex
-	pollers map[string]context.CancelFunc
+	mu       sync.Mutex
+	configMu sync.Mutex
+	pollers  map[string]context.CancelFunc
+	status   map[string]runtimeStatus
 }
 
 type BLEClient interface {
@@ -37,30 +61,98 @@ type BLEClient interface {
 }
 
 func New() *App {
-	return NewWithOptions(atmotube.NewClient(), true)
+	var ble BLEClient = atmotube.NewClient()
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("PIPHI_ATMOTUBE_SIMULATION")), "true") || os.Getenv("PIPHI_ATMOTUBE_SIMULATION") == "1" {
+		ble = atmotube.NewFakeClient(nil)
+	}
+	statePath := strings.TrimSpace(os.Getenv("PIPHI_ATMOTUBE_STATE_PATH"))
+	if statePath == "" {
+		statePath = "/var/lib/piphi-atmotube/state.json"
+	}
+	application, err := NewWithSettings(ble, Options{
+		EnablePolling: true,
+		StatePath:     statePath,
+		ExpectedToken: strings.TrimSpace(os.Getenv("PIPHI_INTEGRATION_INTERNAL_TOKEN")),
+	})
+	if err != nil {
+		log.Printf("runtime_restore_failed error=%s", publicError(err))
+	}
+	return application
 }
 
 func NewWithOptions(ble BLEClient, enablePolling bool) *App {
+	application, _ := NewWithSettings(ble, Options{
+		EnablePolling: enablePolling,
+		ExpectedToken: strings.TrimSpace(os.Getenv("PIPHI_INTEGRATION_INTERNAL_TOKEN")),
+		IdentityKey:   []byte("0123456789abcdef0123456789abcdef"),
+	})
+	return application
+}
+
+func NewWithSettings(ble BLEClient, options Options) (*App, error) {
 	runtime := runtimekit.NewRuntimeContext()
 	registry := runtimekit.NewRuntimeRegistry[atmotube.DeviceEntry, atmotube.Reading, map[string]any](100)
+	store := newFileStateStore(options.StatePath)
+	identityKey := append([]byte(nil), options.IdentityKey...)
+	var restored persistedState
+	var restoreErr error
+	if store != nil {
+		restored, restoreErr = store.Load()
+		if restoreErr == nil && restored.IdentityKey != "" {
+			identityKey, restoreErr = decodeIdentityKey(restored.IdentityKey)
+		}
+	}
+	if len(identityKey) == 0 && restoreErr == nil {
+		identityKey, restoreErr = generateIdentityKey()
+	}
 	application := &App{
 		runtime:       runtime,
 		registry:      registry,
 		state:         runtimekit.NewRuntimeStateService(registry),
 		telemetry:     runtimekit.NewTelemetryClient(runtime.ProcessState, "", 0),
-		coordinator:   runtimekit.NewConfigSyncCoordinator[atmotube.DeviceConfig](runtime.ProcessState),
 		ble:           ble,
-		enablePolling: enablePolling,
+		enablePolling: options.EnablePolling,
+		store:         store,
+		identityKey:   identityKey,
+		expectedToken: strings.TrimSpace(options.ExpectedToken),
 		pollers:       map[string]context.CancelFunc{},
+		status:        map[string]runtimeStatus{},
+	}
+	if restoreErr != nil {
+		application.restoreError = publicError(restoreErr)
 	}
 	if err := application.state.Provide(application.refreshAllState, integrationID); err != nil {
 		panic(err)
 	}
-	return application
+	if restoreErr == nil {
+		for _, persisted := range restored.Configs {
+			config, err := application.normalizeConfig(configFromPersisted(persisted))
+			if err != nil {
+				restoreErr = err
+				application.restoreError = publicError(err)
+				break
+			}
+			entry := application.entryFor(config, atmotube.Reading{})
+			entry.Metadata["restored"] = true
+			entry.Metadata["stale"] = true
+			application.runtime.Auth.Update(config.ContainerID, application.expectedToken)
+			application.registry.Set(config.ID, entry)
+			application.status[config.ID] = runtimeStatus{Stale: true, LastError: "awaiting first post-restart sample"}
+			if application.enablePolling {
+				application.startPoller(entry)
+			}
+		}
+	}
+	return application, restoreErr
 }
 
 func (a *App) Router() *gin.Engine {
-	router := gin.Default()
+	router := gin.New()
+	router.Use(gin.Logger(), gin.Recovery())
+	if err := router.SetTrustedProxies(nil); err != nil {
+		panic(err)
+	}
+	router.Use(a.requireRuntimeAuth)
 	router.GET("/health", a.handleHealth)
 	router.GET("/diagnostics", a.handleDiagnostics)
 	router.GET("/ui", a.handleUISchema)
@@ -83,10 +175,11 @@ func (a *App) handleHealth(c *gin.Context) {
 		map[string]any{
 			"id":      integrationID,
 			"name":    "Atmotube Pro (BLE)",
-			"version": "0.1.0",
+			"version": version,
 		},
 		map[string]any{
 			"active_configs": len(a.registry.IDs()),
+			"restore_error":  a.restoreError != "",
 		},
 	))
 }
@@ -97,12 +190,13 @@ func (a *App) handleDiagnostics(c *gin.Context) {
 		map[string]any{
 			"id":      integrationID,
 			"name":    "Atmotube Pro (BLE)",
-			"version": "0.1.0",
+			"version": version,
 		},
 		map[string]any{
 			"active_config_ids":  a.registry.IDs(),
 			"recent_event_count": len(a.registry.RecentEvents()),
 			"bluetooth_enabled":  true,
+			"restore_error":      a.restoreError,
 		},
 	))
 }
@@ -124,6 +218,7 @@ func (a *App) handleUISchema(c *gin.Context) {
 					"title":       "Bluetooth Address",
 					"description": "Atmotube Pro Bluetooth MAC address, for example 11:22:33:AA:BB:CC.",
 					"examples":    []string{"11:22:33:AA:BB:CC"},
+					"writeOnly":   true,
 				},
 				"alias": map[string]any{
 					"type":        "string",
@@ -177,12 +272,15 @@ func (a *App) handleDiscover(c *gin.Context) {
 
 	devices, err := a.ble.Scan(ctx, timeout, addressFilter)
 	if err != nil {
-		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadGateway, gin.H{"error": publicError(err)})
 		return
 	}
 	filtered := make([]atmotube.DiscoveredDevice, 0, len(devices))
 	for _, device := range devices {
 		if isAtmotubeDiscoveryMatch(device) {
+			identity := opaqueDeviceID(a.identityKey, device.Address)
+			device.ID = identity
+			device.DeviceID = identity
 			filtered = append(filtered, device)
 		}
 	}
@@ -202,27 +300,27 @@ func (a *App) handleConfig(c *gin.Context) {
 	}
 
 	payload = payload.Normalize()
+	payload.ContainerID = firstNonEmpty(payload.ContainerID, runtimekit.ExtractRuntimeAuthHeaders(c.Request.Header).ContainerID)
 	payload.IntegrationID = firstNonEmpty(payload.IntegrationID, integrationID)
+	payload.ContainerID = firstNonEmpty(payload.ContainerID, runtimekit.ExtractRuntimeAuthHeaders(c.Request.Header).ContainerID)
 	a.syncRuntimeAuth(c, payload.ContainerID)
 	log.Println(runtimekit.FormatConfigApplyLog(map[string]any{
 		"id":             payload.ID,
 		"container_id":   payload.ContainerID,
 		"integration_id": payload.IntegrationID,
-		"address":        payload.Address,
 		"alias":          payload.Alias,
 	}))
 
 	entry, err := a.applyConfig(payload)
 	if err != nil {
 		log.Printf(
-			"config_apply_failed config_id=%s container_id=%s integration_id=%s address=%s error=%v",
+			"config_apply_failed config_id=%s container_id=%s integration_id=%s error=%s",
 			payload.ID,
 			payload.ContainerID,
 			payload.IntegrationID,
-			payload.Address,
-			err,
+			publicError(err),
 		)
-		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadGateway, gin.H{"error": publicError(err)})
 		return
 	}
 
@@ -230,8 +328,7 @@ func (a *App) handleConfig(c *gin.Context) {
 		entry.ConfigID,
 		entry.ContainerID,
 		map[string]any{
-			"address": entry.Address,
-			"alias":   entry.Alias,
+			"alias": entry.Alias,
 		},
 	))
 }
@@ -245,24 +342,7 @@ func (a *App) handleConfigSync(c *gin.Context) {
 
 	a.syncRuntimeAuth(c, payload.ContainerID)
 
-	for index := range payload.Configs {
-		payload.Configs[index] = payload.Configs[index].Normalize()
-	}
-
-	response, err := a.coordinator.ApplySnapshot(
-		payload,
-		a.registry.IDs(),
-		func(config atmotube.DeviceConfig) error {
-			_, applyErr := a.applyConfig(config)
-			return applyErr
-		},
-		func(configID string) (bool, error) {
-			return a.removeConfig(configID), nil
-		},
-		func() []string {
-			return a.registry.IDs()
-		},
-	)
+	response, err := a.applyConfigSnapshot(payload)
 	if err != nil {
 		log.Printf(
 			"config_sync_failed container_id=%s generation=%d config_count=%d error=%v",
@@ -271,7 +351,7 @@ func (a *App) handleConfigSync(c *gin.Context) {
 			len(payload.Configs),
 			err,
 		)
-		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadGateway, gin.H{"error": publicError(err)})
 		return
 	}
 	c.JSON(http.StatusOK, response)
@@ -321,10 +401,15 @@ func (a *App) refreshAllState(_ context.Context) error {
 		if !ok {
 			continue
 		}
-		reading, err := a.ble.ReadSnapshot(entry.Address)
+		reading, err := a.readWithRetry(entry.Address.Reveal())
 		if err != nil {
 			return err
 		}
+		current, stillConfigured := a.registry.Get(configID)
+		if !stillConfigured || current.DeviceID != entry.DeviceID {
+			continue
+		}
+		entry = current
 		entry.LatestState = reading
 		a.registry.Set(entry.ConfigID, entry)
 		a.state.Publish(entry.ConfigID, reading, entry.DeviceID)
@@ -355,21 +440,22 @@ func (a *App) handleEntities(c *gin.Context) {
 			continue
 		}
 		entities = append(entities, map[string]any{
-			"id":           entry.DeviceID,
-			"name":         firstNonEmpty(entry.Alias, entry.DeviceID),
-			"config_id":    entry.ConfigID,
-			"device_id":    entry.DeviceID,
-			"device_class": "air-quality-sensor",
-			"entity_type":  "sensor",
-			"capabilities": []string{"voc_ppb", "temperature_c", "humidity_percent", "pressure_mbar", "battery_percent", "pm25_ugm3", "telemetry"},
+			"id":                 entry.DeviceID,
+			"name":               firstNonEmpty(entry.Alias, entry.DeviceID),
+			"config_id":          entry.ConfigID,
+			"device_id":          entry.DeviceID,
+			"device_class":       "air-quality-sensor",
+			"entity_type":        "sensor",
+			"capabilities":       []string{"voc_ppb", "voc_ppm", "temperature_c", "humidity_percent", "pressure_mbar", "battery_percent", "pm1_ugm3", "pm25_ugm3", "pm4_ugm3", "pm10_ugm3", "telemetry", "refresh"},
+			"available_commands": []string{"refresh"},
 			"dashboard": map[string]any{
 				"allowed_widgets":     []string{"stat", "line-chart", "gauge"},
 				"default_widget":      "stat",
 				"recommended_widgets": []string{"stat", "gauge"},
 			},
-			"address":      entry.Address,
 			"alias":        entry.Alias,
 			"latest_state": entry.LatestState,
+			"operational":  a.publicStatus(entry.ConfigID),
 		})
 	}
 	c.JSON(http.StatusOK, runtimekit.BuildEntitiesResponse(entities, nil, nil))
@@ -418,11 +504,17 @@ func (a *App) handleCommand(c *gin.Context) {
 	}
 
 	a.syncRuntimeAuth(c, entry.ContainerID)
-	reading, err := a.ble.ReadSnapshot(entry.Address)
+	reading, err := a.readWithRetry(entry.Address.Reveal())
 	if err != nil {
-		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadGateway, gin.H{"error": publicError(err)})
 		return
 	}
+	current, stillConfigured := a.registry.Get(entry.ConfigID)
+	if !stillConfigured || current.DeviceID != entry.DeviceID {
+		c.JSON(http.StatusConflict, gin.H{"error": "configured Atmotube changed during refresh"})
+		return
+	}
+	entry = current
 	entry.LatestState = reading
 	a.registry.Set(entry.ConfigID, entry)
 	a.registry.UpdateState(entry.ConfigID, reading)
@@ -446,31 +538,30 @@ func (a *App) syncRuntimeAuth(c *gin.Context, payloadContainerID string) {
 }
 
 func (a *App) applyConfig(config atmotube.DeviceConfig) (atmotube.DeviceEntry, error) {
-	config = config.Normalize()
-	reading, err := a.ble.ReadSnapshot(config.Address)
+	var err error
+	config, err = a.normalizeConfig(config)
 	if err != nil {
 		return atmotube.DeviceEntry{}, err
 	}
+	reading, err := a.readWithRetry(config.Address.Reveal())
+	if err != nil {
+		return atmotube.DeviceEntry{}, err
+	}
+	entry := a.entryFor(config, reading)
 
-	entry := atmotube.DeviceEntry{
-		ConfigID:      config.ID,
-		DeviceID:      config.DeviceID,
-		ContainerID:   config.ContainerID,
-		IntegrationID: firstNonEmpty(config.IntegrationID, integrationID),
-		Address:       config.Address,
-		Alias:         config.Alias,
-		Config:        config,
-		LatestState:   reading,
-		Metadata: map[string]any{
-			"poll_interval_seconds": config.PollIntervalSeconds,
-		},
+	a.configMu.Lock()
+	defer a.configMu.Unlock()
+	configs := a.currentConfigs()
+	configs[config.ID] = config
+	if err := a.persistConfigs(configs); err != nil {
+		return atmotube.DeviceEntry{}, err
 	}
 	a.registry.Set(config.ID, entry)
 	a.registry.UpdateState(config.ID, reading)
 	a.appendLocalEvent("atmotube.config.applied", entry, map[string]any{
-		"address": config.Address,
-		"alias":   config.Alias,
+		"alias": config.Alias,
 	})
+	a.recordSuccess(entry, reading)
 	if a.enablePolling {
 		a.startPoller(entry)
 	}
@@ -478,6 +569,21 @@ func (a *App) applyConfig(config atmotube.DeviceConfig) (atmotube.DeviceEntry, e
 }
 
 func (a *App) removeConfig(configID string) bool {
+	a.configMu.Lock()
+	defer a.configMu.Unlock()
+	if _, exists := a.registry.Get(configID); !exists {
+		return false
+	}
+	configs := a.currentConfigs()
+	delete(configs, configID)
+	if err := a.persistConfigs(configs); err != nil {
+		log.Printf("config_remove_persist_failed config_id=%s error=%s", configID, publicError(err))
+		return false
+	}
+	return a.removeConfigCommitted(configID)
+}
+
+func (a *App) removeConfigCommitted(configID string) bool {
 	a.mu.Lock()
 	cancel, ok := a.pollers[configID]
 	if ok {
@@ -490,6 +596,9 @@ func (a *App) removeConfig(configID string) bool {
 
 	entry, removed := a.registry.Remove(configID)
 	if removed {
+		a.mu.Lock()
+		delete(a.status, configID)
+		a.mu.Unlock()
 		a.appendLocalEvent("atmotube.config.removed", entry, nil)
 	}
 	return removed
@@ -521,18 +630,26 @@ func (a *App) startPoller(entry atmotube.DeviceEntry) {
 }
 
 func (a *App) pollOnce(entry atmotube.DeviceEntry) {
-	reading, err := a.ble.ReadSnapshot(entry.Address)
+	reading, err := a.readWithRetry(entry.Address.Reveal())
 	if err != nil {
-		a.appendLocalEvent("atmotube.poll.error", entry, map[string]any{
-			"error": err.Error(),
-		})
+		current, stillConfigured := a.registry.Get(entry.ConfigID)
+		if !stillConfigured || current.DeviceID != entry.DeviceID {
+			return
+		}
+		entry = current
+		a.recordFailure(entry, err)
 		return
 	}
+	current, stillConfigured := a.registry.Get(entry.ConfigID)
+	if !stillConfigured || current.DeviceID != entry.DeviceID {
+		return
+	}
+	entry = current
 
 	entry.LatestState = reading
 	a.registry.Set(entry.ConfigID, entry)
 	a.registry.UpdateState(entry.ConfigID, reading)
-
+	a.recordSuccess(entry, reading)
 	a.queueTelemetry(entry, reading)
 }
 
@@ -591,7 +708,7 @@ func (a *App) queueTelemetry(entry atmotube.DeviceEntry, reading atmotube.Readin
 				err,
 			)
 			a.appendLocalEvent("atmotube.telemetry.error", entry, map[string]any{
-				"error":        err.Error(),
+				"error":        publicError(err),
 				"metric_count": len(payload.Metrics),
 			})
 			return
@@ -617,9 +734,190 @@ func (a *App) appendLocalEvent(eventType string, entry atmotube.DeviceEntry, pay
 		"config_id":      entry.ConfigID,
 		"container_id":   entry.ContainerID,
 		"integration_id": entry.IntegrationID,
-		"payload":        payload,
+		"payload":        redactRecursive(payload),
 	})
 	a.registry.AppendEvent(event)
+}
+
+func (a *App) normalizeConfig(config atmotube.DeviceConfig) (atmotube.DeviceConfig, error) {
+	config = config.Normalize()
+	address := config.Address.Reveal()
+	parsed, err := net.ParseMAC(address)
+	if err != nil || len(parsed) != 6 {
+		return atmotube.DeviceConfig{}, fmt.Errorf("invalid Bluetooth address")
+	}
+	if config.PollIntervalSeconds < 5 || config.PollIntervalSeconds > 3600 {
+		return atmotube.DeviceConfig{}, fmt.Errorf("poll_interval_seconds must be between 5 and 3600")
+	}
+	identity := opaqueDeviceID(a.identityKey, address)
+	if strings.TrimSpace(config.ID) == "" || strings.EqualFold(strings.TrimSpace(config.ID), address) || macPattern.MatchString(config.ID) {
+		config.ID = identity
+	}
+	config.ConfigID = config.ID
+	config.DeviceID = identity
+	config.IntegrationID = firstNonEmpty(config.IntegrationID, integrationID)
+	return config, nil
+}
+
+func (a *App) entryFor(config atmotube.DeviceConfig, reading atmotube.Reading) atmotube.DeviceEntry {
+	return atmotube.DeviceEntry{
+		ConfigID: config.ID, DeviceID: config.DeviceID, ContainerID: config.ContainerID,
+		IntegrationID: config.IntegrationID, Address: config.Address, Alias: config.Alias,
+		Config: config, LatestState: reading,
+		Metadata: map[string]any{"poll_interval_seconds": config.PollIntervalSeconds},
+	}
+}
+
+func (a *App) readWithRetry(address string) (atmotube.Reading, error) {
+	var lastErr error
+	for attempt := 1; attempt <= 3; attempt++ {
+		reading, err := a.ble.ReadSnapshot(address)
+		if err == nil {
+			return reading, nil
+		}
+		lastErr = err
+		if attempt < 3 {
+			time.Sleep(time.Duration(attempt) * 50 * time.Millisecond)
+		}
+	}
+	return atmotube.Reading{}, fmt.Errorf("BLE snapshot unavailable after 3 attempts: %s", publicError(lastErr))
+}
+
+func (a *App) currentConfigs() map[string]atmotube.DeviceConfig {
+	configs := make(map[string]atmotube.DeviceConfig, len(a.registry.IDs()))
+	for _, id := range a.registry.IDs() {
+		if entry, ok := a.registry.Get(id); ok {
+			configs[id] = entry.Config
+		}
+	}
+	return configs
+}
+
+func (a *App) persistConfigs(configs map[string]atmotube.DeviceConfig) error {
+	if a.store == nil {
+		return nil
+	}
+	ids := make([]string, 0, len(configs))
+	for id := range configs {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	state := persistedState{SchemaVersion: 1, IdentityKey: encodeIdentityKey(a.identityKey)}
+	for _, id := range ids {
+		state.Configs = append(state.Configs, persistedFromConfig(configs[id]))
+	}
+	return a.store.Save(state)
+}
+
+func (a *App) applyConfigSnapshot(payload runtimekit.RuntimeConfigSnapshot[atmotube.DeviceConfig]) (runtimekit.RuntimeConfigSyncResponse, error) {
+	prepared := make(map[string]atmotube.DeviceEntry, len(payload.Configs))
+	configs := make(map[string]atmotube.DeviceConfig, len(payload.Configs))
+	for _, candidate := range payload.Configs {
+		if candidate.ContainerID == "" {
+			candidate.ContainerID = payload.ContainerID
+		}
+		if candidate.IntegrationID == "" {
+			candidate.IntegrationID = payload.IntegrationID
+		}
+		config, err := a.normalizeConfig(candidate)
+		if err != nil {
+			return runtimekit.RuntimeConfigSyncResponse{}, err
+		}
+		if _, duplicate := prepared[config.ID]; duplicate {
+			return runtimekit.RuntimeConfigSyncResponse{}, fmt.Errorf("duplicate config_id %q", config.ID)
+		}
+		reading, err := a.readWithRetry(config.Address.Reveal())
+		if err != nil {
+			return runtimekit.RuntimeConfigSyncResponse{}, err
+		}
+		prepared[config.ID] = a.entryFor(config, reading)
+		configs[config.ID] = config
+	}
+
+	a.configMu.Lock()
+	defer a.configMu.Unlock()
+	oldIDs := a.registry.IDs()
+	if err := a.persistConfigs(configs); err != nil {
+		return runtimekit.RuntimeConfigSyncResponse{}, err
+	}
+	oldSet := make(map[string]bool, len(oldIDs))
+	for _, id := range oldIDs {
+		oldSet[id] = true
+	}
+	response := runtimekit.RuntimeConfigSyncResponse{OK: true, Generation: payload.Generation, AppliedConfigIDs: []string{}, RemovedConfigIDs: []string{}, SkippedConfigIDs: []string{}}
+	for _, id := range oldIDs {
+		if _, retained := prepared[id]; !retained {
+			a.removeConfigCommitted(id)
+			response.RemovedConfigIDs = append(response.RemovedConfigIDs, id)
+		}
+	}
+	ids := make([]string, 0, len(prepared))
+	for id := range prepared {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	for _, id := range ids {
+		entry := prepared[id]
+		a.registry.Set(id, entry)
+		a.registry.UpdateState(id, entry.LatestState)
+		a.recordSuccess(entry, entry.LatestState)
+		if a.enablePolling {
+			a.startPoller(entry)
+		}
+		if oldSet[id] {
+			response.SkippedConfigIDs = append(response.SkippedConfigIDs, id)
+		} else {
+			response.AppliedConfigIDs = append(response.AppliedConfigIDs, id)
+		}
+	}
+	return response, nil
+}
+
+func (a *App) recordFailure(entry atmotube.DeviceEntry, err error) {
+	a.mu.Lock()
+	status := a.status[entry.ConfigID]
+	wasStale := status.Stale
+	status.ConsecutiveFailures++
+	status.LastError = publicError(err)
+	if status.ConsecutiveFailures >= 2 || (!status.LastSuccess.IsZero() && time.Since(status.LastSuccess) > 3*entry.Config.PollInterval()) {
+		status.Stale = true
+	}
+	a.status[entry.ConfigID] = status
+	a.mu.Unlock()
+	if status.Stale && !wasStale {
+		a.appendLocalEvent("atmotube.connection.stale", entry, map[string]any{"failures": status.ConsecutiveFailures, "error": status.LastError})
+	}
+}
+
+func (a *App) recordSuccess(entry atmotube.DeviceEntry, reading atmotube.Reading) {
+	a.mu.Lock()
+	status := a.status[entry.ConfigID]
+	wasStale := status.Stale
+	status.LastSuccess = time.Now().UTC()
+	status.ConsecutiveFailures = 0
+	status.Stale = false
+	status.LastError = ""
+	a.status[entry.ConfigID] = status
+	a.mu.Unlock()
+	if wasStale {
+		a.appendLocalEvent("atmotube.connection.recovered", entry, map[string]any{"sampled_at": reading.SampledAt})
+	}
+}
+
+func (a *App) publicStatus(configID string) map[string]any {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	status := a.status[configID]
+	result := map[string]any{
+		"stale": status.Stale, "consecutive_failures": status.ConsecutiveFailures,
+	}
+	if !status.LastSuccess.IsZero() {
+		result["last_success_at"] = status.LastSuccess.Format(time.RFC3339)
+	}
+	if status.LastError != "" {
+		result["last_error"] = status.LastError
+	}
+	return result
 }
 
 func firstNonEmpty(values ...string) string {

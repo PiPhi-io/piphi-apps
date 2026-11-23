@@ -2,6 +2,7 @@ package atmotube
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"log"
 	"strings"
@@ -50,7 +51,11 @@ func (c *Client) scanUnlocked(ctx context.Context, timeout time.Duration, addres
 	}
 
 	filter := strings.ToUpper(strings.TrimSpace(addressFilter))
-	log.Printf("bluetooth_scan_started timeout=%s address_filter=%s", timeout, firstNonEmpty(filter, "<none>"))
+	filterRef := "<none>"
+	if filter != "" {
+		filterRef = privateAddressRef(filter)
+	}
+	log.Printf("bluetooth_scan_started timeout=%s device_filter=%s", timeout, filterRef)
 	results := map[string]DiscoveredDevice{}
 	var mu sync.Mutex
 
@@ -98,7 +103,7 @@ func (c *Client) scanUnlocked(ctx context.Context, timeout time.Duration, addres
 		}
 	})
 	if err != nil && !strings.Contains(strings.ToLower(err.Error()), "not scanning") {
-		log.Printf("bluetooth_scan_failed address_filter=%s error=%v", firstNonEmpty(filter, "<none>"), err)
+		log.Printf("bluetooth_scan_failed device_filter=%s error=%v", filterRef, err)
 		return nil, err
 	}
 
@@ -108,7 +113,7 @@ func (c *Client) scanUnlocked(ctx context.Context, timeout time.Duration, addres
 	for _, device := range results {
 		devices = append(devices, device)
 	}
-	log.Printf("bluetooth_scan_completed address_filter=%s discovered=%d", firstNonEmpty(filter, "<none>"), len(devices))
+	log.Printf("bluetooth_scan_completed device_filter=%s discovered=%d", filterRef, len(devices))
 	return devices, nil
 }
 
@@ -129,46 +134,47 @@ func (c *Client) readSnapshotLocked(address string) (Reading, error) {
 	}
 
 	normalizedAddress := strings.ToUpper(strings.TrimSpace(address))
+	addressRef := privateAddressRef(normalizedAddress)
 	if err := c.ensureDeviceVisibleLocked(normalizedAddress); err != nil {
 		if isScanAlreadyInProgressError(err) {
-			log.Printf("bluetooth_preconnect_scan_skipped address=%s reason=%v", normalizedAddress, err)
+			log.Printf("bluetooth_preconnect_scan_skipped device_ref=%s reason=%v", addressRef, err)
 		} else {
-			log.Printf("bluetooth_preconnect_scan_failed address=%s error=%v", normalizedAddress, err)
+			log.Printf("bluetooth_preconnect_scan_failed device_ref=%s error=%v", addressRef, err)
 			return Reading{}, err
 		}
 	}
-	log.Printf("bluetooth_connect_attempt address=%s", normalizedAddress)
+	log.Printf("bluetooth_connect_attempt device_ref=%s", addressRef)
 
 	targetAddress, err := parseAddress(address)
 	if err != nil {
-		log.Printf("bluetooth_connect_address_parse_failed address=%s error=%v", normalizedAddress, err)
+		log.Printf("bluetooth_connect_address_parse_failed device_ref=%s error=%v", addressRef, err)
 		return Reading{}, err
 	}
 
 	device, err := c.adapter.Connect(targetAddress, bluetooth.ConnectionParams{})
 	if err != nil {
-		log.Printf("bluetooth_connect_failed address=%s error=%v", normalizedAddress, err)
-		return Reading{}, fmt.Errorf("connect %s: %w", address, err)
+		log.Printf("bluetooth_connect_failed device_ref=%s error=%v", addressRef, err)
+		return Reading{}, fmt.Errorf("connect %s: %w", addressRef, err)
 	}
-	log.Printf("bluetooth_connect_succeeded address=%s", normalizedAddress)
+	log.Printf("bluetooth_connect_succeeded device_ref=%s", addressRef)
 	defer func() {
 		if err := device.Disconnect(); err != nil {
-			log.Printf("bluetooth_disconnect_failed address=%s error=%v", normalizedAddress, err)
+			log.Printf("bluetooth_disconnect_failed device_ref=%s error=%v", addressRef, err)
 			return
 		}
-		log.Printf("bluetooth_disconnect_succeeded address=%s", normalizedAddress)
+		log.Printf("bluetooth_disconnect_succeeded device_ref=%s", addressRef)
 	}()
 
 	services, err := device.DiscoverServices([]bluetooth.UUID{ServiceUUID})
 	if err != nil {
-		log.Printf("bluetooth_service_discovery_failed address=%s error=%v", normalizedAddress, err)
+		log.Printf("bluetooth_service_discovery_failed device_ref=%s error=%v", addressRef, err)
 		return Reading{}, fmt.Errorf("discover Atmotube service: %w", err)
 	}
 	if len(services) == 0 {
-		log.Printf("bluetooth_service_missing address=%s service_uuid=%s", normalizedAddress, ServiceUUIDString)
-		return Reading{}, fmt.Errorf("atmotube service not found on %s", address)
+		log.Printf("bluetooth_service_missing device_ref=%s service_uuid=%s", addressRef, ServiceUUIDString)
+		return Reading{}, fmt.Errorf("atmotube service not found on %s", addressRef)
 	}
-	log.Printf("bluetooth_service_discovery_succeeded address=%s service_count=%d", normalizedAddress, len(services))
+	log.Printf("bluetooth_service_discovery_succeeded device_ref=%s service_count=%d", addressRef, len(services))
 
 	characteristics, err := services[0].DiscoverCharacteristics([]bluetooth.UUID{
 		VOCUUID,
@@ -177,54 +183,54 @@ func (c *Client) readSnapshotLocked(address string) (Reading, error) {
 		PMUUID,
 	})
 	if err != nil {
-		log.Printf("bluetooth_characteristic_discovery_failed address=%s error=%v", normalizedAddress, err)
+		log.Printf("bluetooth_characteristic_discovery_failed device_ref=%s error=%v", addressRef, err)
 		return Reading{}, fmt.Errorf("discover Atmotube characteristics: %w", err)
 	}
 	if len(characteristics) < 4 {
-		log.Printf("bluetooth_characteristic_count_unexpected address=%s discovered=%d expected=4", normalizedAddress, len(characteristics))
+		log.Printf("bluetooth_characteristic_count_unexpected device_ref=%s discovered=%d expected=4", addressRef, len(characteristics))
 		return Reading{}, fmt.Errorf("expected 4 Atmotube characteristics, got %d", len(characteristics))
 	}
-	log.Printf("bluetooth_characteristic_discovery_succeeded address=%s characteristic_count=%d", normalizedAddress, len(characteristics))
+	log.Printf("bluetooth_characteristic_discovery_succeeded device_ref=%s characteristic_count=%d", addressRef, len(characteristics))
 
 	vocPayload, err := readCharacteristic(characteristics[0], 4)
 	if err != nil {
-		log.Printf("bluetooth_voc_read_failed address=%s error=%v", normalizedAddress, err)
+		log.Printf("bluetooth_voc_read_failed device_ref=%s error=%v", addressRef, err)
 		return Reading{}, fmt.Errorf("read VOC characteristic: %w", err)
 	}
 	bmePayload, err := readCharacteristic(characteristics[1], 8)
 	if err != nil {
-		log.Printf("bluetooth_bme_read_failed address=%s error=%v", normalizedAddress, err)
+		log.Printf("bluetooth_bme_read_failed device_ref=%s error=%v", addressRef, err)
 		return Reading{}, fmt.Errorf("read BME characteristic: %w", err)
 	}
 	statusPayload, err := readCharacteristic(characteristics[2], 2)
 	if err != nil {
-		log.Printf("bluetooth_status_read_failed address=%s error=%v", normalizedAddress, err)
+		log.Printf("bluetooth_status_read_failed device_ref=%s error=%v", addressRef, err)
 		return Reading{}, fmt.Errorf("read status characteristic: %w", err)
 	}
 	pmPayload, err := readCharacteristic(characteristics[3], 12)
 	if err != nil {
-		log.Printf("bluetooth_pm_read_failed address=%s error=%v", normalizedAddress, err)
+		log.Printf("bluetooth_pm_read_failed device_ref=%s error=%v", addressRef, err)
 		return Reading{}, fmt.Errorf("read PM characteristic: %w", err)
 	}
 
 	vocPPB, err := parseVOC(vocPayload)
 	if err != nil {
-		log.Printf("bluetooth_voc_parse_failed address=%s error=%v", normalizedAddress, err)
+		log.Printf("bluetooth_voc_parse_failed device_ref=%s error=%v", addressRef, err)
 		return Reading{}, err
 	}
 	humidity, temperatureC, pressureMbar, err := parseBME(bmePayload)
 	if err != nil {
-		log.Printf("bluetooth_bme_parse_failed address=%s error=%v", normalizedAddress, err)
+		log.Printf("bluetooth_bme_parse_failed device_ref=%s error=%v", addressRef, err)
 		return Reading{}, err
 	}
 	infoByte, batteryPercent, err := parseStatus(statusPayload)
 	if err != nil {
-		log.Printf("bluetooth_status_parse_failed address=%s error=%v", normalizedAddress, err)
+		log.Printf("bluetooth_status_parse_failed device_ref=%s error=%v", addressRef, err)
 		return Reading{}, err
 	}
 	pm1, pm25, pm4, pm10, err := parsePM(pmPayload)
 	if err != nil {
-		log.Printf("bluetooth_pm_parse_failed address=%s error=%v", normalizedAddress, err)
+		log.Printf("bluetooth_pm_parse_failed device_ref=%s error=%v", addressRef, err)
 		return Reading{}, err
 	}
 
@@ -244,8 +250,8 @@ func (c *Client) readSnapshotLocked(address string) (Reading, error) {
 		PM10UGM3:        pm10,
 	}
 	log.Printf(
-		"bluetooth_snapshot_read_succeeded address=%s sampled_at=%s voc_ppb=%d temperature_c=%.2f humidity_percent=%.2f battery_percent=%d",
-		normalizedAddress,
+		"bluetooth_snapshot_read_succeeded device_ref=%s sampled_at=%s voc_ppb=%d temperature_c=%.2f humidity_percent=%.2f battery_percent=%d",
+		addressRef,
 		reading.SampledAt,
 		reading.VOCPPB,
 		reading.TemperatureC,
@@ -259,15 +265,16 @@ func (c *Client) ensureDeviceVisibleLocked(address string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), preConnectScanTimeout)
 	defer cancel()
 
-	log.Printf("bluetooth_preconnect_scan_started address=%s timeout=%s", address, preConnectScanTimeout)
+	addressRef := privateAddressRef(address)
+	log.Printf("bluetooth_preconnect_scan_started device_ref=%s timeout=%s", addressRef, preConnectScanTimeout)
 	devices, err := c.scanUnlocked(ctx, preConnectScanTimeout, address)
 	if err != nil {
-		return fmt.Errorf("pre-connect scan %s: %w", address, err)
+		return fmt.Errorf("pre-connect scan %s: %w", addressRef, err)
 	}
 	if len(devices) == 0 {
-		return fmt.Errorf("device %s not found during pre-connect scan", address)
+		return fmt.Errorf("device %s not found during pre-connect scan", addressRef)
 	}
-	log.Printf("bluetooth_preconnect_scan_succeeded address=%s matches=%d", address, len(devices))
+	log.Printf("bluetooth_preconnect_scan_succeeded device_ref=%s matches=%d", addressRef, len(devices))
 	return nil
 }
 
@@ -285,19 +292,15 @@ func isScanAlreadyInProgressError(err error) bool {
 	return strings.Contains(message, "already in progress")
 }
 
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if strings.TrimSpace(value) != "" {
-			return value
-		}
-	}
-	return ""
+func privateAddressRef(address string) string {
+	digest := sha256.Sum256([]byte(strings.ToUpper(strings.TrimSpace(address))))
+	return fmt.Sprintf("ble-%x", digest[:6])
 }
 
 func parseAddress(value string) (bluetooth.Address, error) {
 	mac, err := bluetooth.ParseMAC(strings.TrimSpace(value))
 	if err != nil {
-		return bluetooth.Address{}, fmt.Errorf("parse bluetooth address %q: %w", value, err)
+		return bluetooth.Address{}, fmt.Errorf("parse bluetooth address: %w", err)
 	}
 	return bluetooth.Address{
 		MACAddress: bluetooth.MACAddress{

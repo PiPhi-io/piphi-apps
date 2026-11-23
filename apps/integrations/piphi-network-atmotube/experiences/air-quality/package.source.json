@@ -1,6 +1,6 @@
 {
   "schema_version": "1",
-  "identity": {"publisher_id": "io.piphi", "package_id": "atmotube-air-quality", "version": "0.1.1"},
+  "identity": {"publisher_id": "io.piphi", "package_id": "atmotube-air-quality", "version": "0.1.7"},
   "name": "Atmotube Air Quality",
   "description": "Particulate matter, VOC, room conditions, and sensor battery at a glance.",
   "origin": "integration",

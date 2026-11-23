@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -17,6 +18,57 @@ func readJSON(t *testing.T, path string) map[string]any {
 		t.Fatal(err)
 	}
 	return value
+}
+
+func TestReleaseAndCapabilityContractsStaySynchronized(t *testing.T) {
+	manifest := readJSON(t, "src/manifest.json")
+	appMetadata := readJSON(t, "piphi-app.json")
+	packages := array(t, appMetadata["packages"])
+	if len(packages) != 1 || object(t, packages[0])["version"] != manifest["version"] {
+		t.Fatal("manifest and release metadata versions differ")
+	}
+	if object(t, object(t, packages[0])["artifact"])["kind"] != "oci" || appMetadata["ci"].(map[string]any)["enforcement"] != "full" {
+		t.Fatal("Atmotube must use the full OCI release path")
+	}
+
+	catalog := readJSON(t, "capability-catalog.json")
+	manifestCapabilities := object(t, manifest["capabilities"])
+	behaviors := readJSON(t, "src/behaviors.json")
+	mapped := map[string]bool{}
+	for _, raw := range array(t, object(t, behaviors["telemetry"])["capabilityMappings"]) {
+		mapped[object(t, raw)["nativeMetric"].(string)] = true
+	}
+	seen := map[string]bool{}
+	for _, raw := range array(t, catalog["capabilities"]) {
+		capability := object(t, raw)
+		id := capability["id"].(string)
+		if seen[id] {
+			t.Fatalf("duplicate catalog capability %s", id)
+		}
+		seen[id] = true
+		if capability["status"] != "implemented" {
+			if _, advertised := manifestCapabilities[id]; advertised {
+				t.Fatalf("excluded capability %s is advertised", id)
+			}
+			continue
+		}
+		if capability["kind"] == "telemetry" {
+			if _, advertised := manifestCapabilities[id]; !advertised || !mapped[id] {
+				t.Fatalf("implemented telemetry %s is not synchronized", id)
+			}
+		}
+	}
+
+	dockerfile, err := os.ReadFile("Dockerfile")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dockerText := string(dockerfile)
+	for _, required := range []string{"@sha256:", "USER 65532:65532", "CGO_ENABLED=0", "-mod=readonly"} {
+		if !strings.Contains(dockerText, required) {
+			t.Fatalf("Dockerfile missing reproducibility/security contract %q", required)
+		}
+	}
 }
 
 func object(t *testing.T, value any) map[string]any {

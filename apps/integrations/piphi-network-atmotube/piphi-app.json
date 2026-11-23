@@ -12,26 +12,39 @@
     "go": "1.25"
   },
   "ci": {
-    "enforcement": "legacy-static",
+    "enforcement": "full",
     "commands": [
-      "go test ./...",
-      "go vet ./..."
+      "go mod verify",
+      "go test -race ./...",
+      "go vet ./...",
+      "mkdir -p dist && CGO_ENABLED=0 go build -trimpath -o dist/piphi-network-atmotube ."
     ],
-    "build_container": false
+    "build_container": true
   },
   "packages": [
     {
       "id": "atmotube-pro-ble",
       "type": "integration",
-      "version": "0.1.1",
+      "version": "0.1.7",
       "manifest": "src/manifest.json",
       "release": {
         "tag": "apps/{package_id}/v{version}",
         "commands": []
       },
       "artifact": {
-        "kind": "binary",
-        "output": "dist"
+        "kind": "oci",
+        "context": ".",
+        "dockerfile": "Dockerfile",
+        "platforms": ["linux/amd64", "linux/arm64"]
+      },
+      "publishing": {
+        "mode": "piphi_managed",
+        "environment": "release-ghcr-io",
+        "primary": {
+          "registry": "ghcr.io",
+          "repository": "piphi-io/piphi-network-atmotube"
+        },
+        "mirrors": []
       }
     }
   ]

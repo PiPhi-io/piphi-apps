@@ -6,22 +6,23 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	runtimekit "github.com/PiPhi-io/piphi-runtime-kit-go"
+	"github.com/gin-gonic/gin"
 
 	"github.com/KelvinSan/piphi-network-atmotube/atmotube"
 )
 
 type fakeBLEClient struct {
-	discovered []atmotube.DiscoveredDevice
-	reading    atmotube.Reading
-	scanErr    error
-	readErr    error
-	scanCalls  int
-	lastFilter string
+	discovered  []atmotube.DiscoveredDevice
+	reading     atmotube.Reading
+	scanErr     error
+	readErr     error
+	scanCalls   int
+	lastFilter  string
 	lastTimeout time.Duration
 }
 
@@ -76,7 +77,7 @@ func TestDiscoverReturnsBLEDevices(t *testing.T) {
 	app := NewWithOptions(fakeBLE, false)
 	router := app.Router()
 
-	request := httptest.NewRequest(http.MethodPost, "/discover", bytes.NewReader([]byte(`{"inputs":{"address":"11:22:33:AA:BB:CC"}}`)))
+	request := authenticatedRequest(http.MethodPost, "/discover", bytes.NewReader([]byte(`{"inputs":{"address":"11:22:33:AA:BB:CC"}}`)))
 	request.Header.Set("Content-Type", "application/json")
 	recorder := httptest.NewRecorder()
 
@@ -98,6 +99,9 @@ func TestDiscoverReturnsBLEDevices(t *testing.T) {
 	}
 	if response.Devices[0].Address != "11:22:33:AA:BB:CC" {
 		t.Fatalf("unexpected discovered address: %s", response.Devices[0].Address)
+	}
+	if !strings.HasPrefix(response.Devices[0].ID, "atm_") || response.Devices[0].ID == response.Devices[0].Address {
+		t.Fatalf("discovery identity must be opaque, got %q", response.Devices[0].ID)
 	}
 	if !response.Devices[0].HasAtmotubeService {
 		t.Fatalf("expected discovered device to advertise the Atmotube service")
@@ -131,7 +135,7 @@ func TestDiscoverFiltersOutNonAtmotubeDevices(t *testing.T) {
 	app := NewWithOptions(fakeBLE, false)
 	router := app.Router()
 
-	request := httptest.NewRequest(http.MethodGet, "/discover", nil)
+	request := authenticatedRequest(http.MethodGet, "/discover", nil)
 	recorder := httptest.NewRecorder()
 
 	router.ServeHTTP(recorder, request)
@@ -174,7 +178,7 @@ func TestDiscoverKeepsServiceMatchWithoutAtmotubeName(t *testing.T) {
 	app := NewWithOptions(fakeBLE, false)
 	router := app.Router()
 
-	request := httptest.NewRequest(http.MethodGet, "/discover", nil)
+	request := authenticatedRequest(http.MethodGet, "/discover", nil)
 	recorder := httptest.NewRecorder()
 
 	router.ServeHTTP(recorder, request)
@@ -237,7 +241,12 @@ func TestConfigSyncAppliesAndRemovesConfigs(t *testing.T) {
 		"container_id":   "container-1",
 		"integration_id": "integration-1",
 		"generation":     generation,
-		"configs":        []atmotube.DeviceConfig{secondConfig},
+		"configs": []map[string]any{{
+			"id": secondConfig.ID, "device_id": secondConfig.DeviceID,
+			"container_id": secondConfig.ContainerID, "integration_id": secondConfig.IntegrationID,
+			"address": secondConfig.Address.Reveal(), "alias": secondConfig.Alias,
+			"poll_interval_seconds": secondConfig.PollIntervalSeconds,
+		}},
 	}
 
 	body, err := json.Marshal(payload)
@@ -245,7 +254,7 @@ func TestConfigSyncAppliesAndRemovesConfigs(t *testing.T) {
 		t.Fatalf("marshal payload: %v", err)
 	}
 
-	request := httptest.NewRequest(http.MethodPost, "/config/sync", bytes.NewReader(body))
+	request := authenticatedRequest(http.MethodPost, "/config/sync", bytes.NewReader(body))
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("X-Container-Id", "container-1")
 	request.Header.Set("X-PiPhi-Integration-Token", "test-token")
@@ -318,7 +327,7 @@ func TestDiscoverReturnsEmptyWhenNoAtmotubeMatches(t *testing.T) {
 	app := NewWithOptions(fakeBLE, false)
 	router := app.Router()
 
-	request := httptest.NewRequest(http.MethodGet, "/discover", nil)
+	request := authenticatedRequest(http.MethodGet, "/discover", nil)
 	recorder := httptest.NewRecorder()
 
 	router.ServeHTTP(recorder, request)
@@ -397,7 +406,7 @@ func TestDiagnosticsReportsRecentEventCountAndConfigIDs(t *testing.T) {
 	}
 	app.appendLocalEvent("atmotube.manual.note", entry, map[string]any{"message": "hello"})
 
-	request := httptest.NewRequest(http.MethodGet, "/diagnostics", nil)
+	request := authenticatedRequest(http.MethodGet, "/diagnostics", nil)
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, request)
 
@@ -425,7 +434,7 @@ func TestUISchemaContainsAddressAndPollInterval(t *testing.T) {
 	app := NewWithOptions(&fakeBLEClient{}, false)
 	router := app.Router()
 
-	request := httptest.NewRequest(http.MethodGet, "/ui", nil)
+	request := authenticatedRequest(http.MethodGet, "/ui", nil)
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, request)
 
@@ -466,7 +475,7 @@ func TestEntitiesReturnsConfiguredEntries(t *testing.T) {
 		t.Fatalf("applyConfig failed: %v", err)
 	}
 
-	request := httptest.NewRequest(http.MethodGet, "/entities", nil)
+	request := authenticatedRequest(http.MethodGet, "/entities", nil)
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, request)
 
@@ -507,7 +516,7 @@ func TestStateReturnsEntriesAndSnapshots(t *testing.T) {
 		t.Fatalf("applyConfig failed: %v", err)
 	}
 
-	request := httptest.NewRequest(http.MethodGet, "/state", nil)
+	request := authenticatedRequest(http.MethodGet, "/state", nil)
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, request)
 
@@ -544,7 +553,7 @@ func TestEventsLimitReturnsMostRecentEvents(t *testing.T) {
 	app.appendLocalEvent("event.two", entry, nil)
 	app.appendLocalEvent("event.three", entry, nil)
 
-	request := httptest.NewRequest(http.MethodGet, "/events?limit=2", nil)
+	request := authenticatedRequest(http.MethodGet, "/events?limit=2", nil)
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, request)
 
@@ -572,7 +581,7 @@ func TestDeconfigureReturnsFalseForMissingConfig(t *testing.T) {
 	app := NewWithOptions(&fakeBLEClient{}, false)
 	router := app.Router()
 
-	request := httptest.NewRequest(http.MethodPost, "/deconfigure", bytes.NewReader([]byte(`{"config_id":"missing"}`)))
+	request := authenticatedRequest(http.MethodPost, "/deconfigure", bytes.NewReader([]byte(`{"config_id":"missing"}`)))
 	request.Header.Set("Content-Type", "application/json")
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, request)
@@ -596,7 +605,7 @@ func TestConfigReturnsBadRequestForInvalidPayload(t *testing.T) {
 	app := NewWithOptions(&fakeBLEClient{}, false)
 	router := app.Router()
 
-	request := httptest.NewRequest(http.MethodPost, "/config", bytes.NewReader([]byte(`{"address":123}`)))
+	request := authenticatedRequest(http.MethodPost, "/config", bytes.NewReader([]byte(`{"address":123}`)))
 	request.Header.Set("Content-Type", "application/json")
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, request)
@@ -612,7 +621,7 @@ func TestConfigSyncReturnsBadRequestForInvalidPayload(t *testing.T) {
 	app := NewWithOptions(&fakeBLEClient{}, false)
 	router := app.Router()
 
-	request := httptest.NewRequest(http.MethodPost, "/config/sync", bytes.NewReader([]byte(`{"configs":"not-an-array"}`)))
+	request := authenticatedRequest(http.MethodPost, "/config/sync", bytes.NewReader([]byte(`{"configs":"not-an-array"}`)))
 	request.Header.Set("Content-Type", "application/json")
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, request)

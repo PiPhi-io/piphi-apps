@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gin-gonic/gin"
 	runtimekit "github.com/PiPhi-io/piphi-runtime-kit-go"
+	"github.com/gin-gonic/gin"
 
 	"github.com/KelvinSan/piphi-network-atmotube/atmotube"
 )
@@ -33,7 +33,7 @@ func TestDiagnosticsReportsBluetoothEnabled(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := NewWithOptions(&fakeBLEClient{}, false).Router()
 
-	request := httptest.NewRequest(http.MethodGet, "/diagnostics", nil)
+	request := authenticatedRequest(http.MethodGet, "/diagnostics", nil)
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, request)
 
@@ -49,7 +49,7 @@ func TestUISchemaDescriptionMentionsBluetooth(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := NewWithOptions(&fakeBLEClient{}, false).Router()
 
-	request := httptest.NewRequest(http.MethodGet, "/ui", nil)
+	request := authenticatedRequest(http.MethodGet, "/ui", nil)
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, request)
 
@@ -66,7 +66,7 @@ func TestUISchemaRequiresAddress(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := NewWithOptions(&fakeBLEClient{}, false).Router()
 
-	request := httptest.NewRequest(http.MethodGet, "/ui", nil)
+	request := authenticatedRequest(http.MethodGet, "/ui", nil)
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, request)
 
@@ -82,7 +82,7 @@ func TestUISchemaDefaultPollIntervalMatchesConstant(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := NewWithOptions(&fakeBLEClient{}, false).Router()
 
-	request := httptest.NewRequest(http.MethodGet, "/ui", nil)
+	request := authenticatedRequest(http.MethodGet, "/ui", nil)
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, request)
 
@@ -99,7 +99,7 @@ func TestEntitiesReturnsEmptyWhenNoConfigs(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := NewWithOptions(&fakeBLEClient{}, false).Router()
 
-	request := httptest.NewRequest(http.MethodGet, "/entities", nil)
+	request := authenticatedRequest(http.MethodGet, "/entities", nil)
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, request)
 
@@ -116,7 +116,7 @@ func TestStateReturnsEmptyMapsWhenNoConfigs(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := NewWithOptions(&fakeBLEClient{}, false).Router()
 
-	request := httptest.NewRequest(http.MethodGet, "/state", nil)
+	request := authenticatedRequest(http.MethodGet, "/state", nil)
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, request)
 
@@ -134,7 +134,7 @@ func TestEventsReturnsEmptyListByDefault(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := NewWithOptions(&fakeBLEClient{}, false).Router()
 
-	request := httptest.NewRequest(http.MethodGet, "/events", nil)
+	request := authenticatedRequest(http.MethodGet, "/events", nil)
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, request)
 
@@ -157,7 +157,7 @@ func TestEventsInvalidLimitFallsBackToDefault(t *testing.T) {
 		app.appendLocalEvent(name, entry, nil)
 	}
 
-	request := httptest.NewRequest(http.MethodGet, "/events?limit=bad", nil)
+	request := authenticatedRequest(http.MethodGet, "/events?limit=bad", nil)
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, request)
 
@@ -180,7 +180,7 @@ func TestEventsZeroLimitFallsBackToDefault(t *testing.T) {
 		app.appendLocalEvent(name, entry, nil)
 	}
 
-	request := httptest.NewRequest(http.MethodGet, "/events?limit=0", nil)
+	request := authenticatedRequest(http.MethodGet, "/events?limit=0", nil)
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, request)
 
@@ -206,7 +206,7 @@ func TestEntitiesLatestStateMirrorsReading(t *testing.T) {
 		t.Fatalf("applyConfig failed: %v", err)
 	}
 
-	request := httptest.NewRequest(http.MethodGet, "/entities", nil)
+	request := authenticatedRequest(http.MethodGet, "/entities", nil)
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, request)
 
@@ -233,7 +233,7 @@ func TestRefreshCommandReadsAndReturnsFreshState(t *testing.T) {
 		t.Fatalf("applyConfig failed: %v", err)
 	}
 
-	request := httptest.NewRequest(
+	request := authenticatedRequest(
 		http.MethodPost,
 		"/command",
 		strings.NewReader(`{"command":"refresh","args":{"config_id":"bedroom"}}`),
@@ -261,7 +261,7 @@ func TestRefreshCommandReadsAndReturnsFreshState(t *testing.T) {
 func TestRefreshCommandRejectsUnknownDevice(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := NewWithOptions(&fakeBLEClient{}, false).Router()
-	request := httptest.NewRequest(
+	request := authenticatedRequest(
 		http.MethodPost,
 		"/command",
 		strings.NewReader(`{"command":"refresh","device_id":"missing"}`),

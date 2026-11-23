@@ -2,7 +2,11 @@ package atmotube
 
 import (
 	"encoding/binary"
+	"encoding/json"
+	"strings"
 	"testing"
+
+	runtimekit "github.com/PiPhi-io/piphi-runtime-kit-go"
 )
 
 func TestDeviceConfigNormalizeTrimsAndDefaultsFields(t *testing.T) {
@@ -19,11 +23,11 @@ func TestDeviceConfigNormalizeTrimsAndDefaultsFields(t *testing.T) {
 	if normalized.Alias != "Bedroom" {
 		t.Fatalf("expected trimmed alias, got %q", normalized.Alias)
 	}
-	if normalized.ID != "11:22:33:AA:BB:CC" {
-		t.Fatalf("expected default config ID from address, got %q", normalized.ID)
+	if normalized.ID != "" {
+		t.Fatalf("normalization must not use a private address as config ID, got %q", normalized.ID)
 	}
-	if normalized.DeviceID != normalized.ID {
-		t.Fatalf("expected default device ID to match ID, got %q", normalized.DeviceID)
+	if normalized.DeviceID != "" {
+		t.Fatalf("normalization must not use a private address as device ID, got %q", normalized.DeviceID)
 	}
 	if normalized.PollIntervalSeconds != DefaultPollIntervalSeconds {
 		t.Fatalf("expected default poll interval %d, got %d", DefaultPollIntervalSeconds, normalized.PollIntervalSeconds)
@@ -38,9 +42,19 @@ func TestDeviceConfigPollIntervalUsesNormalizedDefaults(t *testing.T) {
 }
 
 func TestDeviceConfigGetRuntimeConfigIDUsesNormalizedID(t *testing.T) {
-	config := DeviceConfig{Address: "11:22:33:aa:bb:cc"}
-	if got := config.GetRuntimeConfigID(); got != "11:22:33:AA:BB:CC" {
-		t.Fatalf("expected normalized runtime config ID, got %q", got)
+	config := DeviceConfig{RuntimeConfig: runtimekit.RuntimeConfig{ID: "bedroom"}, Address: "11:22:33:aa:bb:cc"}
+	if got := config.GetRuntimeConfigID(); got != "bedroom" {
+		t.Fatalf("expected explicit runtime config ID, got %q", got)
+	}
+}
+
+func TestSecretStringNeverSerializesPlaintext(t *testing.T) {
+	data, err := json.Marshal(DeviceConfig{Address: "11:22:33:AA:BB:CC"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "11:22:33") || !strings.Contains(string(data), "[redacted]") {
+		t.Fatalf("secret address was not redacted: %s", data)
 	}
 }
 
