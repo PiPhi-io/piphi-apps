@@ -8,6 +8,7 @@ from types import SimpleNamespace
 import httpx
 import pytest
 from fastapi import HTTPException
+from piphi_runtime_testkit_python import assert_telemetry_sent
 
 from com_piphi_await_element.app import app
 from com_piphi_await_element.contract.command import router as command_module
@@ -199,6 +200,42 @@ async def test_connect_before_save_stable_identity_and_failed_change_rollback() 
     assert routes.runtime_data.clients["bedroom-config"] is original_client
     assert routes.runtime_data.configs["bedroom-config"].device_ip == "192.168.1.20"
     assert original_client.closed is False
+
+
+@pytest.mark.anyio
+async def test_runtime_testkit_receives_only_validated_awair_telemetry(
+    mock_core, monkeypatch
+) -> None:
+    client = FakeClient()
+
+    async def connect(_host: str):
+        return client
+
+    routes.runtime_data.connector = connect
+    monkeypatch.setattr(routes.telemetry_client, "core_base_url", mock_core.base_url)
+    runtime_context.auth.update(container_id="runtime-awair", internal_token="runtime-secret")
+    config = AwairElement(
+        id="telemetry-config",
+        config_id="telemetry-config",
+        container_id="runtime-awair",
+        device_ip="192.168.1.20",
+        device_identity="AWAIR-ELEM-TELEMETRY",
+    )
+    await routes.apply_device_config(config)
+    for _attempt in range(100):
+        if mock_core.telemetry_requests:
+            break
+        await asyncio.sleep(0.01)
+    request = assert_telemetry_sent(
+        mock_core,
+        device_id=routes.stable_device_id("AWAIR-ELEM-TELEMETRY"),
+    )
+    assert request.json_body["metrics"]["temperature"] == 22.1
+    assert request.json_body["metrics"]["score"] == 55
+    assert "power_on" not in request.json_body["metrics"]
+    headers = {key.lower(): value for key, value in request.headers.items()}
+    assert headers["x-container-id"] == "runtime-awair"
+    assert headers["x-piphi-integration-token"] == "runtime-secret"
 
 
 @pytest.mark.anyio
