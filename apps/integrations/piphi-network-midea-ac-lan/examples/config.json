@@ -1,8 +1,9 @@
 {
-  "id": "demo-device",
-  "host": "127.0.0.1",
-  "alias": "Demo Device",
+  "id": "bedroom-ac",
+  "host": "192.168.1.50",
+  "alias": "Bedroom AC",
+  "midea_device_id": 123456789,
   "port": 6444,
-  "poll_interval_seconds": 5,
+  "poll_interval_seconds": 30,
   "controls_enabled": false
 }

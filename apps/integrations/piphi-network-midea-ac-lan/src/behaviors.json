@@ -125,6 +125,10 @@
       "entityType": "climate",
       "capabilities": [
         "connected",
+        "available",
+        "stale",
+        "last_success_at",
+        "consecutive_failures",
         "power",
         "hvac_mode",
         "hvac_action",

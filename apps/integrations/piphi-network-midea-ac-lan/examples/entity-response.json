@@ -1,12 +1,16 @@
 {
   "entities": [
     {
-      "id": "demo-device",
-      "name": "Demo Device",
-      "device_id": "demo-device",
+      "id": "configured-midea-ac",
+      "name": "Configured Midea air conditioner",
+      "device_id": "configured-midea-ac",
       "entity_type": "climate",
       "capabilities": [
         "connected",
+        "available",
+        "stale",
+        "last_success_at",
+        "consecutive_failures",
         "power",
         "hvac_mode",
         "hvac_action",
@@ -79,6 +83,22 @@
     "connected": {
       "kind": "sensor",
       "unit": "bool"
+    },
+    "available": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "stale": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "last_success_at": {
+      "kind": "sensor",
+      "value_kind": "timestamp"
+    },
+    "consecutive_failures": {
+      "kind": "sensor",
+      "value_kind": "numeric"
     },
     "refresh": {
       "kind": "action"

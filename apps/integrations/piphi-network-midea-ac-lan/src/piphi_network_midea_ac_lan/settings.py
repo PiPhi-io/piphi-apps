@@ -4,7 +4,7 @@ import os
 
 INTEGRATION_ID = "piphi-network-midea-ac-lan"
 INTEGRATION_NAME = "Piphi Network Midea Ac Lan"
-INTEGRATION_VERSION = "0.3.0"
+INTEGRATION_VERSION = "0.3.1"
 PROJECT_KIND = "integration"
 PROJECT_PRESET = "actuator-device"
 PROJECT_DOMAIN = "actuator"

@@ -8,7 +8,6 @@ import pytest
 
 from piphi_network_midea_ac_lan.main import app
 
-
 ROOT = Path(__file__).parents[1]
 CATALOG = json.loads((ROOT / "capability-catalog.json").read_text())
 MANIFEST = json.loads((ROOT / "manifest.json").read_text())
@@ -20,10 +19,7 @@ STATUSES = {"implemented", "planned", "excluded"}
 
 def _by_status(status: str, role: str) -> set[str]:
     return {
-        item
-        for group in CATALOG["groups"]
-        if group["status"] == status
-        for item in group[role]
+        item for group in CATALOG["groups"] if group["status"] == status for item in group[role]
     }
 
 
@@ -43,16 +39,14 @@ def test_catalog_is_reviewable_and_has_no_duplicate_role_entries() -> None:
             assert len(group[role]) == len(set(group[role]))
 
     for role in ROLES:
-        all_items = [
-            item
-            for group in CATALOG["groups"]
-            for item in group[role]
-        ]
+        all_items = [item for group in CATALOG["groups"] for item in group[role]]
         assert len(all_items) == len(set(all_items)), f"duplicate {role} catalog entries"
 
 
 def test_only_implemented_capabilities_are_advertised() -> None:
-    implemented_capabilities = _by_status("implemented", "state") | _by_status("implemented", "actions")
+    implemented_capabilities = _by_status("implemented", "state") | _by_status(
+        "implemented", "actions"
+    )
     implemented_actions = _by_status("implemented", "actions")
     planned_or_excluded = {
         item
@@ -64,24 +58,16 @@ def test_only_implemented_capabilities_are_advertised() -> None:
     manifest_capabilities = set(MANIFEST["capabilities"])
     manifest_commands = set(MANIFEST["commands"])
     entity_capabilities = {
-        capability
-        for entity in MANIFEST["entities"]
-        for capability in entity["capabilities"]
+        capability for entity in MANIFEST["entities"] for capability in entity["capabilities"]
     }
     entity_commands = {
-        command["id"]
-        for entity in MANIFEST["entities"]
-        for command in entity["available_commands"]
+        command["id"] for entity in MANIFEST["entities"] for command in entity["available_commands"]
     }
     behavior_capabilities = {
-        capability
-        for device in BEHAVIORS["devices"]
-        for capability in device["capabilities"]
+        capability for device in BEHAVIORS["devices"] for capability in device["capabilities"]
     }
     behavior_actions = {
-        action["id"]
-        for device in BEHAVIORS["devices"]
-        for action in device["actions"]
+        action["id"] for device in BEHAVIORS["devices"] for action in device["actions"]
     }
 
     assert manifest_capabilities == implemented_capabilities
@@ -93,7 +79,11 @@ def test_only_implemented_capabilities_are_advertised() -> None:
     assert set(ENTITY_EXAMPLE["capabilities"]) == implemented_capabilities
     assert set(ENTITY_EXAMPLE["commands"]) == implemented_actions
     assert not planned_or_excluded & (
-        manifest_capabilities | manifest_commands | entity_capabilities | entity_commands | behavior_actions
+        manifest_capabilities
+        | manifest_commands
+        | entity_capabilities
+        | entity_commands
+        | behavior_actions
     )
 
 
@@ -104,9 +94,7 @@ def test_implemented_behavior_events_and_conditions_are_declared() -> None:
         for trigger in device["triggers"]
     }
     behavior_conditions = {
-        condition["id"]
-        for device in BEHAVIORS["devices"]
-        for condition in device["conditions"]
+        condition["id"] for device in BEHAVIORS["devices"] for condition in device["conditions"]
     }
     assert behavior_events == _by_status("implemented", "events")
     assert behavior_conditions == _by_status("implemented", "conditions")
@@ -125,8 +113,7 @@ async def test_config_apply_emits_the_implemented_behavior_event() -> None:
             assert response.status_code == 200
             events = (await client.get("/events")).json()["events"]
             assert any(
-                event["event_type"] == "runtime.config.applied"
-                and event["config_id"] == config_id
+                event["event_type"] == "runtime.config.applied" and event["config_id"] == config_id
                 for event in events
             )
         finally:
@@ -143,7 +130,7 @@ async def test_unimplemented_and_unsafe_commands_fail_closed(command: str) -> No
             json={
                 "contract_version": "automation.runtime.command.v1",
                 "command": command,
-                "target": {"device_id": "demo-device", "config_id": "demo-device"},
+                "target": {"device_id": "unknown-device", "config_id": "unknown-config"},
                 "params": {},
             },
         )

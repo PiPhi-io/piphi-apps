@@ -7,6 +7,8 @@ from piphi_network_midea_ac_lan.schemas import DeviceConfig
 
 
 class FakeClient:
+    hardware_id = "midea-pipeline"
+
     def __init__(self) -> None:
         self.snapshot = {
             "connected": True,
@@ -43,6 +45,9 @@ class FakeClient:
             self.snapshot["preset_mode"] = args["preset_mode"]
         return dict(self.snapshot)
 
+    async def close(self) -> None:
+        return None
+
 
 @pytest.mark.anyio
 async def test_runtime_publishes_real_state_and_keeps_credentials_private(monkeypatch) -> None:
@@ -53,7 +58,7 @@ async def test_runtime_publishes_real_state_and_keeps_credentials_private(monkey
         connector_calls.append(kwargs)
         return fake
 
-    monkeypatch.setattr(state, "_client_connector", connect)
+    state.runtime_data.connector = connect
     monkeypatch.setattr(state, "schedule_telemetry_delivery", lambda **kwargs: None)
     config = DeviceConfig(
         id="midea-pipeline-test",
@@ -76,9 +81,7 @@ async def test_runtime_publishes_real_state_and_keeps_credentials_private(monkey
         )
         await state.execute_command(entry, "set_fan_mode", {"fan_mode": "high"})
         await state.execute_command(entry, "set_swing_mode", {"swing_mode": "both"})
-        changed = await state.execute_command(
-            entry, "set_preset_mode", {"preset_mode": "sleep"}
-        )
+        changed = await state.execute_command(entry, "set_preset_mode", {"preset_mode": "sleep"})
 
         assert refreshed["indoor_temperature_c"] == 24.5
         assert changed["target_temperature_c"] == 23.5
@@ -86,13 +89,15 @@ async def test_runtime_publishes_real_state_and_keeps_credentials_private(monkey
         assert changed["swing_mode"] == "both"
         assert changed["preset_mode"] == "sleep"
         assert state.registry.state_snapshots[config.id]["state"] == changed
-        assert connector_calls == [{
-            "host": "192.0.2.10",
-            "port": 6444,
-            "device_id": 12345,
-            "token": "private-token",
-            "key": "private-key",
-        }]
+        assert connector_calls == [
+            {
+                "host": "192.0.2.10",
+                "port": 6444,
+                "device_id": 12345,
+                "token": "private-token",
+                "key": "private-key",
+            }
+        ]
     finally:
         await state.remove_config(config.id)
 

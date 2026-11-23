@@ -1,6 +1,7 @@
 {
   "inputs": {
-    "host": "127.0.0.1",
-    "alias": "Demo Device"
+    "host": "192.168.1.50",
+    "port": 6444,
+    "midea_device_id": 123456789
   }
 }

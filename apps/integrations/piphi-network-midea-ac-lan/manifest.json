@@ -3,7 +3,7 @@
   "manifest_version": "1.0",
   "id": "piphi-network-midea-ac-lan",
   "name": "Midea AC LAN",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Monitor and control supported Midea air conditioners over the local network.",
   "metadata": {
     "generator": "piphi-network-create",
@@ -17,7 +17,7 @@
     "website": "https://piphi.io"
   },
   "license": "Apache-2.0",
-  "image": "docker.io/piphinetwork/piphi-network-midea-ac-lan:0.3.0",
+  "image": "ghcr.io/piphi-io/piphi-network-midea-ac-lan:0.3.1",
   "platforms": [
     "linux"
   ],
@@ -25,7 +25,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "docker.io/piphinetwork/piphi-network-midea-ac-lan:0.3.0",
+        "image": "ghcr.io/piphi-io/piphi-network-midea-ac-lan:0.3.1",
         "ports": [
           {
             "container": 4208,
@@ -33,12 +33,21 @@
           }
         ],
         "environment": {
-          "LOG_LEVEL": "info"
+          "LOG_LEVEL": "info",
+          "PIPHI_AUTOMATION_LEDGER_PATH": "/var/lib/piphi/automation-actions.sqlite3"
         },
+        "volumes": [
+          {
+            "host": "/var/lib/piphi/midea-ac-lan",
+            "container": "/var/lib/piphi",
+            "mode": "rw"
+          }
+        ],
         "restart_policy": {
           "name": "unless-stopped",
           "maximum_retry_count": 0
-        }
+        },
+        "privileged": false
       },
       "discovery": {
         "method": "passive"
@@ -88,18 +97,34 @@
       "device_id"
     ],
     "identity_fields": [
-      "host"
+      "midea_device_id"
     ]
   },
   "identity": {
     "fields": [
-      "host"
+      "midea_device_id"
     ]
   },
   "capabilities": {
     "connected": {
       "kind": "sensor",
       "unit": "bool"
+    },
+    "available": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "stale": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "last_success_at": {
+      "kind": "sensor",
+      "value_kind": "timestamp"
+    },
+    "consecutive_failures": {
+      "kind": "sensor",
+      "value_kind": "numeric"
     },
     "refresh": {
       "kind": "action"
@@ -207,12 +232,16 @@
   },
   "entities": [
     {
-      "id": "demo-device",
-      "name": "Demo Device",
-      "device_id": "demo-device",
+      "id": "configured-midea-ac",
+      "name": "Configured Midea air conditioner",
+      "device_id": "configured-midea-ac",
       "entity_type": "climate",
       "capabilities": [
         "connected",
+        "available",
+        "stale",
+        "last_success_at",
+        "consecutive_failures",
         "power",
         "hvac_mode",
         "hvac_action",
