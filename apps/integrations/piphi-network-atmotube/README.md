@@ -77,26 +77,50 @@ single PiPhi BLE gateway/sidecar that explicitly supports multiplexing instead
 of starting competing Atmotube replicas. That gateway migration is not part of
 this monitoring-only package.
 
-On Linux, grant the non-root container identity narrowly scoped BlueZ D-Bus
-permission and mount the system bus socket read-only. Do not use `--privileged`
-as a substitute. Host policy and group IDs vary, so these permissions must be
-qualified on the deployment host.
+On Linux, D-Bus `EXTERNAL` authentication uses the process UID reported by the
+host kernel. Run the image as a dedicated, host-resolvable unprivileged account;
+the image's default UID `65532` only works when that UID also resolves on the
+host. Grant that identity narrowly scoped BlueZ D-Bus permission and mount the
+system bus socket read-only. Do not use `--privileged` or
+`apparmor=unconfined` as a substitute.
 
 ## Container operation
 
 The release artifact is a digest-pinned, multi-stage, static, non-root OCI image.
-Its root filesystem can be read-only; only the state volume is writable:
+Its root filesystem can be read-only; only the state directory is writable.
+Create a dedicated host account and state directory, then load the reviewed
+AppArmor profile (the exact account-management command is distribution-specific):
 
 ```bash
-docker run --read-only --tmpfs /tmp:rw,nosuid,nodev,noexec \
-  --mount type=volume,src=piphi-atmotube-state,dst=/var/lib/piphi-atmotube \
-  --mount type=bind,src=/run/dbus/system_bus_socket,dst=/run/dbus/system_bus_socket,readonly \
+PIPHI_ATMOTUBE_UID="$(id -u piphi-atmotube)"
+PIPHI_ATMOTUBE_GID="$(id -g piphi-atmotube)"
+sudo install -d -o "$PIPHI_ATMOTUBE_UID" -g "$PIPHI_ATMOTUBE_GID" \
+  -m 0700 /var/lib/piphi-atmotube
+sudo install -m 0644 deploy/apparmor/piphi-atmotube-ble \
+  /etc/apparmor.d/piphi-atmotube-ble
+sudo apparmor_parser -r -W /etc/apparmor.d/piphi-atmotube-ble
+```
+
+Run the container with that same UID and GID:
+
+```bash
+docker run --read-only --cap-drop ALL --security-opt no-new-privileges:true \
+  --security-opt apparmor=piphi-atmotube-ble \
+  --user "$PIPHI_ATMOTUBE_UID:$PIPHI_ATMOTUBE_GID" \
+  --tmpfs /tmp:rw,nosuid,nodev,noexec \
+  --mount type=bind,src=/var/lib/piphi-atmotube,dst=/var/lib/piphi-atmotube \
+  --mount type=bind,src=/run/dbus/system_bus_socket,dst=/var/run/dbus/system_bus_socket,readonly \
   -e PIPHI_INTEGRATION_INTERNAL_TOKEN \
   -p 2026:2026 ghcr.io/piphi-io/piphi-network-atmotube:0.1.7
 ```
 
-The exact host D-Bus authorization remains deployment-specific; the image does
-not request privileged mode, host networking, or a writable root filesystem.
+TinyGo's Linux backend opens `/var/run/dbus/system_bus_socket`, even when the
+host exposes the same socket at `/run/dbus/system_bus_socket`. Docker's default
+AppArmor profile blocks D-Bus messages, so select the supplied profile rather
+than disabling AppArmor. Installing the profile under `/etc/apparmor.d` lets the
+host AppArmor service reload it after reboot. The host's D-Bus authorization
+remains deployment-specific; the image does not request privileged mode, host
+networking, or a writable root filesystem.
 
 ## Local development
 
@@ -149,9 +173,19 @@ runtime still needs a discovery pass before a connection can succeed.
 - The integration accepts both `/config/sync` and `/configs/sync` for snapshot rehydrate compatibility.
 - Discovery now intentionally filters out unrelated BLE devices.
 - Example IDs, MAC addresses, and tokens in tests are placeholders.
-- Hardware qualification remains outstanding for real Atmotube Pro firmware
-  variants, host Bluetooth adapters, D-Bus policy, radio contention, reconnect
-  soak behavior, and physical measurement accuracy.
+- A production-shaped Linux container was physically qualified with one
+  Atmotube Pro and one BlueZ adapter on 2026-11-23. With simulation disabled,
+  the run verified filtered discovery, current-value GATT reads, repeated
+  ten-metric polling, bounded recovery from a transient connection abort,
+  private-address redaction, persisted configuration restoration, and polling
+  after a confined container restart. The container ran non-root with a
+  read-only root filesystem, all capabilities dropped, `no-new-privileges`, and
+  the supplied AppArmor profile.
+- Qualification remains outstanding for additional device firmware and host
+  adapter variants, a forced stale-to-recovered physical outage, extended
+  reconnect/radio-contention soak behavior, delivery to a live PiPhi Core, and
+  physical measurement accuracy. The single tested setup is not evidence for
+  those variants or gaps.
 
 ## Device contract references
 
