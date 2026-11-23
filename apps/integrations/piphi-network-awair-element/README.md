@@ -43,3 +43,11 @@ The fake HTTP transport in `lib/awair_client.py` is deterministic and socket-fre
 ## Qualification boundary
 
 Software tests cover the runtime contract and failure behavior. Physical Awair Element qualification remains separate and must verify mDNS naming, Local API enablement, representative firmware payloads, reconnect behavior, and sustained polling on real hardware before any governance promotion.
+
+Use the [physical qualification record template](docs/hardware-qualification-template.md) with a real Awair Element. The companion wizard creates a private record and walks the operator through the required observations without fabricating or publishing evidence:
+
+```bash
+./scripts/run_hardware_qualification_wizard.sh
+```
+
+The wizard does not merge, publish, synchronize a registry, or authorize governance promotion. Review and redact the generated record before sharing it.
