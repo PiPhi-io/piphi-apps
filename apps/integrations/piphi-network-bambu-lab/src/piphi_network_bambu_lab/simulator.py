@@ -13,9 +13,11 @@ class SimulatedPrinterSession:
         *,
         on_report: Callable[[dict[str, Any]], None],
         on_offline: Callable[[], None],
+        on_failure: Callable[[str], None] | None = None,
     ) -> None:
         self._on_report = on_report
         self._on_offline = on_offline
+        self._on_failure = on_failure
         self._task: asyncio.Task[None] | None = None
         self.connected = False
         self.progress = 32
@@ -30,11 +32,20 @@ class SimulatedPrinterSession:
             self._task.cancel()
             self._task = None
 
+    async def wait_ready(self, timeout: float = 10.0) -> None:
+        if not self.connected:
+            raise ConnectionError("simulated transport is stopped")
+
     def request_full_status(self) -> bool:
         if not self.connected:
             return False
         self._on_report(self._sample())
         return True
+
+    def emit_once(self) -> None:
+        """Deterministic transport hook for tests; no wall-clock or random input."""
+        if self.connected:
+            self._on_report(self._sample())
 
     def _sample(self) -> dict[str, Any]:
         return {"print": {

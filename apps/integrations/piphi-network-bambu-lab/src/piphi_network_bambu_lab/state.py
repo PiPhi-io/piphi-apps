@@ -2,6 +2,10 @@ from __future__ import annotations
 
 import asyncio
 import os
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from hashlib import sha256
+from pathlib import Path
 from typing import Any
 
 from fastapi import HTTPException
@@ -32,14 +36,36 @@ telemetry = starter.telemetry_client
 config_sync = starter.config_sync
 automations = AutomationRegistry(
     idempotency_store=SQLiteAutomationIdempotencyStore(
-        os.getenv("PIPHI_AUTOMATION_LEDGER_PATH", "./data/automation-actions.sqlite3")
+        Path(os.getenv("PIPHI_AUTOMATION_LEDGER_PATH", "./data/automation-actions.sqlite3"))
     )
 )
 
 capabilities = CAPABILITIES
 commands = COMMANDS
+MASKED_SECRETS = {"********", "••••••••"}
 _sessions: dict[str, PrinterMqttSession | SimulatedPrinterSession] = {}
 _reports: dict[str, dict[str, Any]] = {}
+
+
+@dataclass(slots=True)
+class BambuRuntimeData:
+    configs: dict[str, DeviceConfig] = field(default_factory=dict)
+    failures: dict[str, str] = field(default_factory=dict)
+    locks: dict[str, asyncio.Lock] = field(default_factory=dict)
+    config_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+
+
+runtime_data = BambuRuntimeData()
+
+
+def _now() -> str:
+    return datetime.now(UTC).isoformat()
+
+
+def _device_id(config: DeviceConfig) -> str:
+    identity = "simulation" if config.simulation_mode else str(config.serial)
+    digest = sha256(f"{INTEGRATION_ID}:{identity}".encode()).hexdigest()[:20]
+    return f"{INTEGRATION_ID}:{digest}"
 
 
 def make_entry(config: DeviceConfig) -> dict[str, Any]:
@@ -48,10 +74,15 @@ def make_entry(config: DeviceConfig) -> dict[str, Any]:
     # the public registry; /state returns registry entries verbatim.
     return {
         **identity,
-        "host": config.host,
+        "device_id": _device_id(config),
         "serial_suffix": config.serial[-4:] if config.serial else None,
+        "model": config.model or "Simulator",
         "alias": config.alias or ("Simulated Bambu printer" if config.simulation_mode else None),
         "simulation_mode": config.simulation_mode,
+        "availability": "connecting",
+        "consecutive_failures": 0,
+        "last_error_category": None,
+        "last_success_at": None,
     }
 
 
@@ -90,6 +121,19 @@ async def record_report(config_id: str, payload: dict[str, Any]) -> None:
     if result is None:
         return
     result["simulation_mode"] = bool(entry["simulation_mode"])
+    was_unavailable = entry.get("availability") in {"unavailable", "reauth_required"}
+    entry.update(
+        availability="online",
+        consecutive_failures=0,
+        last_error_category=None,
+        last_success_at=_now(),
+    )
+    result.update(
+        available=True,
+        stale=False,
+        last_report_at=entry["last_success_at"],
+        consecutive_failures=0,
+    )
     _reports[config_id] = result
     registry.update_state(config_id, result, device_id=entry["device_id"])
     units = {
@@ -110,70 +154,170 @@ async def record_report(config_id: str, payload: dict[str, Any]) -> None:
         metrics=result,
         units={key: unit for key, unit in units.items() if key in result},
     )
+    if was_unavailable:
+        append_runtime_event("device.restored", entry)
 
 
-async def mark_offline(config_id: str) -> None:
+async def mark_offline(config_id: str, category: str | None = None) -> None:
     entry = registry.get(config_id)
     if entry is None:
         return
-    _reports.pop(config_id, None)
+    was_online = entry.get("availability") == "online"
+    category = category or runtime_data.failures.pop(config_id, "transport_lost")
+    failures = int(entry.get("consecutive_failures", 0)) + 1
+    entry.update(
+        availability="reauth_required" if category == "invalid_auth" else "unavailable",
+        consecutive_failures=failures,
+        last_error_category=category,
+    )
     registry.update_state(
         config_id,
-        {**current_state(config_id), "connected": False},
+        {
+            **current_state(config_id),
+            "connected": False,
+            "available": False,
+            "stale": True,
+            "error_category": category,
+            "consecutive_failures": failures,
+        },
         device_id=entry["device_id"],
     )
+    if was_online:
+        append_runtime_event("device.unavailable", entry, {"category": category})
+
+
+def _remember_failure(config_id: str, category: str) -> None:
+    runtime_data.failures[config_id] = category
 
 
 async def apply_config(config: DeviceConfig) -> None:
+    config_id_hint = str(config.config_id or config.id)
+    if config.access_code is not None and config.access_code.get_secret_value() in MASKED_SECRETS:
+        previous = runtime_data.configs.get(config_id_hint)
+        if previous is None or previous.access_code is None:
+            raise HTTPException(status_code=422, detail={"error": "credentials_required"})
+        config = config.model_copy(update={"access_code": previous.access_code})
     entry = make_entry(config)
     config_id = entry["config_id"]
     loop = asyncio.get_running_loop()
-    callbacks = dict(
-        on_report=lambda payload: loop.call_soon_threadsafe(
+
+    session: PrinterMqttSession | SimulatedPrinterSession
+
+    def on_report(payload: dict[str, Any]) -> None:
+        loop.call_soon_threadsafe(
             lambda: asyncio.create_task(record_report(config_id, payload))
             if _sessions.get(config_id) is session else None
-        ),
-        on_offline=lambda: loop.call_soon_threadsafe(
+        )
+
+    def on_offline() -> None:
+        loop.call_soon_threadsafe(
             lambda: asyncio.create_task(mark_offline(config_id))
             if _sessions.get(config_id) is session else None
-        ),
-    )
+        )
+
+    def on_failure(category: str) -> None:
+        loop.call_soon_threadsafe(_remember_failure, config_id, category)
+
     if config.simulation_mode:
-        session = SimulatedPrinterSession(**callbacks)
+        session = SimulatedPrinterSession(
+            on_report=on_report, on_offline=on_offline, on_failure=on_failure
+        )
     else:
-        assert config.host is not None and config.serial is not None and config.access_code is not None
+        if config.host is None or config.serial is None or config.access_code is None:
+            raise ValueError("validated real printer configuration is incomplete")
         session = PrinterMqttSession(
             host=config.host,
             serial=config.serial,
             access_code=config.access_code.get_secret_value(),
-            **callbacks,
+            on_report=on_report,
+            on_offline=on_offline,
+            on_failure=on_failure,
         )
-    # Construct TLS and open the nonblocking MQTT session before replacing a
-    # previous config. Failed setup must not claim a connection.
-    session.start()
-    old_session = _sessions.pop(config_id, None)
-    _reports.pop(config_id, None)
-    _sessions[config_id] = session
-    registry.set(config_id, entry)
-    registry.update_state(
-        config_id,
-        {"connected": False, "simulation_mode": config.simulation_mode},
-        device_id=entry["device_id"],
+    try:
+        session.start()
+        await session.wait_ready()
+    except Exception:
+        session.stop()
+        raise
+    old_session = None
+    async with runtime_data.config_lock:
+        lock = runtime_data.locks.setdefault(config_id, asyncio.Lock())
+        async with lock:
+            duplicate = next(
+                (
+                    item
+                    for other_id, item in registry.entries.items()
+                    if other_id != config_id and item.get("device_id") == entry["device_id"]
+                ),
+                None,
+            )
+            previous_entry = registry.get(config_id)
+            if duplicate is not None:
+                session.stop()
+                raise HTTPException(status_code=409, detail={"error": "device_already_configured"})
+            if previous_entry is not None and previous_entry.get("device_id") != entry["device_id"]:
+                session.stop()
+                raise HTTPException(status_code=409, detail={"error": "device_identity_mismatch"})
+            previous_config = runtime_data.configs.get(config_id)
+            previous_state = registry.state_snapshots.get(config_id)
+            old_session = _sessions.get(config_id)
+            try:
+                runtime_data.configs[config_id] = config
+                _sessions[config_id] = session
+                _reports.pop(config_id, None)
+                registry.set(config_id, entry)
+                registry.update_state(
+                    config_id,
+                    {
+                        "connected": False,
+                        "available": False,
+                        "stale": True,
+                        "simulation_mode": config.simulation_mode,
+                        "consecutive_failures": 0,
+                    },
+                    device_id=entry["device_id"],
+                )
+            except Exception:
+                if previous_config is None:
+                    runtime_data.configs.pop(config_id, None)
+                else:
+                    runtime_data.configs[config_id] = previous_config
+                if old_session is None:
+                    _sessions.pop(config_id, None)
+                else:
+                    _sessions[config_id] = old_session
+                if previous_entry is None:
+                    registry.entries.pop(config_id, None)
+                else:
+                    registry.entries[config_id] = previous_entry
+                if previous_state is None:
+                    registry.state_snapshots.pop(config_id, None)
+                else:
+                    registry.state_snapshots[config_id] = previous_state
+                session.stop()
+                raise
+    append_runtime_event(
+        "runtime.config.applied", entry, {"reconfigured": old_session is not None}
     )
-    append_runtime_event("runtime.config.applied", entry, {"host": config.host})
     if old_session is not None:
         old_session.stop()
 
 
 async def remove_config(config_id: str) -> bool:
-    _reports.pop(config_id, None)
-    session = _sessions.pop(config_id, None)
-    if session is not None:
-        session.stop()
-    entry = registry.remove(config_id)
+    async with runtime_data.config_lock:
+        lock = runtime_data.locks.setdefault(config_id, asyncio.Lock())
+        async with lock:
+            _reports.pop(config_id, None)
+            runtime_data.configs.pop(config_id, None)
+            runtime_data.failures.pop(config_id, None)
+            session = _sessions.pop(config_id, None)
+            if session is not None:
+                session.stop()
+            entry = registry.remove(config_id)
+        runtime_data.locks.pop(config_id, None)
     if entry is None:
         return False
-    append_runtime_event("runtime.config.removed", entry, {"host": entry.get("host")})
+    append_runtime_event("runtime.config.removed", entry)
     return True
 
 
@@ -181,6 +325,7 @@ async def close_sessions() -> None:
     _reports.clear()
     sessions = list(_sessions.values())
     _sessions.clear()
+    runtime_data.failures.clear()
     for session in sessions:
         session.stop()
 
@@ -197,6 +342,11 @@ def _register_automation_actions() -> None:
             target = target if isinstance(target, dict) else {}
             config_id = str(request.config_id or target.get("config_id") or "")
             entry = get_entry_or_404(config_id)
+            requested_device_id = str(
+                getattr(request, "device_id", None) or target.get("device_id") or ""
+            ).strip()
+            if requested_device_id and requested_device_id != str(entry["device_id"]):
+                raise ValueError("Printer target does not match the configured device")
             requested = request_refresh(config_id)
             return {
                 "command": _command_name,

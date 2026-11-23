@@ -1,20 +1,23 @@
 from __future__ import annotations
 
 from ipaddress import IPv4Address, IPv4Network
-from pydantic import SecretStr, field_validator, model_validator
+
 from piphi_runtime_kit_python import RuntimeConfig
+from pydantic import SecretStr, field_validator, model_validator
 
 PRIVATE_LAN_RANGES = (
     IPv4Network("10.0.0.0/8"),
     IPv4Network("172.16.0.0/12"),
     IPv4Network("192.168.0.0/16"),
 )
+SUPPORTED_MODELS = ("A1", "A1 mini", "P1P", "P1S", "X1", "X1 Carbon", "X1E")
 
 
 class DeviceConfig(RuntimeConfig):
     host: str | None = None
     alias: str | None = None
     serial: str | None = None
+    model: str | None = None
     access_code: SecretStr | None = None
     developer_mode_acknowledged: bool = False
     simulation_mode: bool = False
@@ -42,14 +45,24 @@ class DeviceConfig(RuntimeConfig):
             raise ValueError("invalid printer serial")
         return serial
 
+    @field_validator("model")
+    @classmethod
+    def validate_model(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        model = value.strip()
+        if model not in SUPPORTED_MODELS:
+            raise ValueError("unsupported printer model")
+        return model
+
     @model_validator(mode="after")
     def validate_real_or_simulated(self) -> DeviceConfig:
         if self.simulation_mode:
-            if any((self.host, self.serial, self.access_code)):
+            if any((self.host, self.serial, self.model, self.access_code)):
                 raise ValueError("simulated printer must not include real host or credentials")
             return self
-        if not self.host or not self.serial or self.access_code is None:
-            raise ValueError("real printer requires host, serial, and LAN access code")
+        if not self.host or not self.serial or not self.model or self.access_code is None:
+            raise ValueError("real printer requires host, serial, model, and LAN access code")
         if not 8 <= len(self.access_code.get_secret_value()) <= 64:
             raise ValueError("LAN access code must be 8-64 characters")
         if not self.developer_mode_acknowledged:

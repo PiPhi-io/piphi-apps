@@ -7,10 +7,12 @@ This integration has automated contract and parser tests, but has **not** been v
 ## Before configuring
 
 1. Review [Bambu's third-party integration and Developer Mode notice](https://forum.bambulab.com/t/updates-and-third-party-integration-with-bambu-connect/137408/). Enable Developer Mode yourself on a supported printer; PiPhi will never enable it remotely.
-2. Obtain the printer's private-LAN IPv4 address, serial number, and LAN access code from the printer. The UI requires an explicit acknowledgement of Developer Mode.
+2. Obtain the printer's private-LAN IPv4 address, serial number, model, and LAN access code from the printer. The UI requires an explicit acknowledgement of Developer Mode. The software-supported matrix is A1, A1 mini, P1P, P1S, X1, X1 Carbon, and X1E; every model/firmware combination remains physically unqualified until separate hardware evidence exists.
 3. Configure only a trusted local network. The runtime rejects public IP addresses, verifies the TLS chain against Bambu's CA, and checks that the certificate identifies the configured printer serial **before** MQTT sends the access code. The bundled CA comes from [OpenBambuAPI's published Bambu CA bundle](https://github.com/Doridian/OpenBambuAPI/blob/main/examples/ca_cert.pem), SHA-256 `168852cde67cd9c7648de5f95b46f7b950d1627966d2da6a968fd9ef9d034910`.
 
-The access code is held in the active MQTT session only; registry entries, /state, events, and telemetry never include it. Job names, filenames, and other private report fields are not retained. On disconnect, the state marks the printer offline; a new partial report does not inherit pre-disconnect values.
+The access code is represented as a secret and held only in the active configuration/session; recursive redaction protects diagnostic-shaped values, while registry entries, `/state`, events, and telemetry never include it. Job names, filenames, and other private report fields are not retained. On disconnect, the state keeps the last good monitoring values with `stale=true`, classifies the connection failure, and deduplicates unavailable/restored transitions.
+
+Only `/health` is public. Set `PIPHI_INTEGRATION_INTERNAL_TOKEN` and send it as `X-PiPhi-Integration-Token` for every operational route. `PIPHI_ALLOW_UNAUTHENTICATED=true` is a deliberate local-test escape hatch and must not be used in production.
 
 ## Run and verify
 
@@ -24,6 +26,7 @@ npm --prefix widgets/print-status test
 npm --prefix widgets/print-status run validate
 npm --prefix widgets/print-status run conformance
 docker build -t piphi-network-bambu-lab:local .
+docker run --read-only --tmpfs /tmp:rw,noexec,nosuid --mount type=volume,dst=/var/lib/piphi -e PIPHI_INTEGRATION_INTERNAL_TOKEN=replace-me -p 4203:4203 piphi-network-bambu-lab:local
 ```
 
 Start the runtime with `pdm run uvicorn piphi_network_bambu_lab.main:app --port 4203`. Edit `examples/config.json` with real local values before posting it to `/config`. `/discover` deliberately returns no fabricated devices. The refresh command requests a full report at most once every five minutes, in line with the [OpenBambuAPI MQTT reference](https://github.com/Doridian/OpenBambuAPI/blob/main/mqtt.md); delta reports arrive through the subscription.

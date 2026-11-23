@@ -12,18 +12,28 @@
     "python": "3.12"
   },
   "ci": {
-    "enforcement": "legacy-static",
+    "enforcement": "full",
     "commands": [
-      "pdm install --check",
-      "pdm run pytest"
+      "pdm install --check -G dev",
+      "pdm run ruff check src tests",
+      "pdm run mypy src",
+      "pdm run bandit -q -r src",
+      "pdm run pip-audit",
+      "pdm run pytest",
+      "pdm run python scripts/validate.py",
+      "npm --prefix widgets/print-status ci",
+      "npm --prefix widgets/print-status run build",
+      "npm --prefix widgets/print-status test",
+      "npm --prefix widgets/print-status run validate",
+      "npm --prefix widgets/print-status run conformance"
     ],
-    "build_container": false
+    "build_container": true
   },
   "packages": [
     {
       "id": "piphi-network-bambu-lab",
       "type": "integration",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "manifest": "manifest.json",
       "release": {
         "tag": "apps/{package_id}/v{version}",

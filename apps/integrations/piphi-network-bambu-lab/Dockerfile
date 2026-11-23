@@ -1,16 +1,46 @@
-FROM node:22-slim AS widgets
-WORKDIR /widgets/print-status
-COPY widgets/print-status/package.json widgets/print-status/package-lock.json ./
+FROM node:22-alpine@sha256:1314fb30ec37592d5845e5a160d522c0e680972aa534549940b8d73bde88481a AS widget-build
+WORKDIR /widget
+COPY widgets/print-status/package*.json ./
 RUN npm ci --ignore-scripts
 COPY widgets/print-status ./
-RUN npm run build
+COPY manifest.json /manifest.json
+RUN npm run build && npm test && npm run validate && npm run conformance
 
-FROM python:3.12-slim
+FROM python:3.12-slim@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b AS requirements
 WORKDIR /app
-COPY pyproject.toml ./
+RUN pip install --no-cache-dir "pdm==2.29.7"
+COPY pyproject.toml pdm.lock ./
+RUN pdm export --prod --output /requirements.txt
+
+FROM python:3.12-slim@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b
+ARG RELEASE_VERSION=0.1.1
+ARG SOURCE_REVISION=unknown
+ARG SOURCE_REPOSITORY=https://github.com/PiPhi-io/piphi-apps
+LABEL org.opencontainers.image.source="${SOURCE_REPOSITORY}" \
+      org.opencontainers.image.revision="${SOURCE_REVISION}" \
+      org.opencontainers.image.version="${RELEASE_VERSION}"
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PORT=4203 \
+    PIPHI_WIDGET_DIR=/app/widgets \
+    PIPHI_AUTOMATION_LEDGER_PATH=/var/lib/piphi/automation-actions.sqlite3
+WORKDIR /app
+COPY --from=requirements /requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir --require-hashes -r /tmp/requirements.txt
+COPY pyproject.toml README.md ./
 COPY src ./src
-RUN pip install --no-cache-dir .
-COPY --from=widgets /widgets/print-status/dist ./widgets/print-status/dist
-ENV PIPHI_WIDGET_DIR=/app/widgets
+RUN pip install --no-cache-dir --no-deps . \
+    && groupadd --system --gid 10001 piphi \
+    && useradd --system --uid 10001 --gid piphi --home-dir /app piphi \
+    && mkdir -p /var/lib/piphi \
+    && chown -R 10001:10001 /var/lib/piphi \
+    && chmod -R a-w /app
+COPY --from=widget-build --chown=10001:10001 /widget/dist ./widgets/print-status/dist
+COPY --from=widget-build --chown=10001:10001 /widget/widget.manifest.json ./widgets/print-status/widget.manifest.json
+RUN chmod -R a-w /app/widgets
+VOLUME ["/var/lib/piphi"]
+USER 10001:10001
 EXPOSE 4203
-CMD ["uvicorn", "piphi_network_bambu_lab.main:app", "--host", "0.0.0.0", "--port", "4203"]
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:4203/health', timeout=2)"
+CMD ["python", "-m", "piphi_network_bambu_lab.main"]

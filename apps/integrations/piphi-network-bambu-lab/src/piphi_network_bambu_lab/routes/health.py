@@ -16,9 +16,14 @@ async def health():
 
 @router.get("/diagnostics")
 async def diagnostics():
+    entries = list(registry.entries.values())
     return starter.diagnostics_response(
         diagnostics={
-            "active_config_ids": registry.ids(),
+            "active_config_count": len(entries),
+            "availability_counts": {
+                status: sum(entry.get("availability") == status for entry in entries)
+                for status in ("connecting", "online", "unavailable", "reauth_required")
+            },
             "recent_event_count": len(registry.recent_events),
             "kind": PROJECT_KIND,
             "contract": {

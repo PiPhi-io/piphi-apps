@@ -126,6 +126,9 @@
       "capabilities": [
         "connected",
         "simulation_mode",
+        "available",
+        "stale",
+        "last_report_at",
         "print_status",
         "print_progress_percent",
         "remaining_time_minutes",
@@ -185,6 +188,40 @@
           "capability": "runtime.configuration",
           "runtime": {
             "event": "runtime.config.applied",
+            "source": "integration"
+          },
+          "freshness": {
+            "maxAgeSeconds": 300,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "when"
+          }
+        },
+        {
+          "id": "device_unavailable",
+          "label": "Printer unavailable",
+          "description": "Start when printer unavailable.",
+          "capability": "telemetry.availability",
+          "runtime": {
+            "event": "device.unavailable",
+            "source": "integration"
+          },
+          "freshness": {
+            "maxAgeSeconds": 300,
+            "staleDataMode": "block"
+          },
+          "ui": {
+            "group": "when"
+          }
+        },
+        {
+          "id": "device_restored",
+          "label": "Printer restored",
+          "description": "Start when printer restored.",
+          "capability": "telemetry.availability",
+          "runtime": {
+            "event": "device.restored",
             "source": "integration"
           },
           "freshness": {

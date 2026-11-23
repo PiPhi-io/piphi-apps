@@ -7,7 +7,8 @@ import httpx
 import pytest
 
 from piphi_network_bambu_lab.main import app
-
+from piphi_network_bambu_lab.schemas import SUPPORTED_MODELS
+from piphi_network_bambu_lab.settings import INTEGRATION_VERSION
 
 ROOT = Path(__file__).parents[1]
 CATALOG = json.loads((ROOT / "capability-catalog.json").read_text())
@@ -48,6 +49,14 @@ def test_catalog_is_reviewable_and_has_no_duplicate_role_entries() -> None:
             for item in group[role]
         ]
         assert len(all_items) == len(set(all_items)), f"duplicate {role} catalog entries"
+
+
+def test_supported_models_and_versions_are_synchronized() -> None:
+    catalog_models = {row["model"] for row in CATALOG["model_matrix"]}
+    manifest_models = {row["model"] for row in MANIFEST["marketplace"]["compatibility"]}
+    assert catalog_models == manifest_models == set(SUPPORTED_MODELS)
+    assert all(row["physical_qualification"] == "unverified" for row in CATALOG["model_matrix"])
+    assert MANIFEST["version"] == INTEGRATION_VERSION == "0.1.1"
 
 
 def test_only_implemented_capabilities_are_advertised() -> None:
@@ -117,7 +126,7 @@ async def test_config_apply_emits_the_implemented_behavior_event(mock_mqtt) -> N
         try:
             response = await client.post(
                 "/config",
-                json={"id": config_id, "host": "192.168.1.50", "alias": "Coverage Test", "serial": "ABC123456", "access_code": "secretcode", "developer_mode_acknowledged": True},
+                json={"id": config_id, "host": "192.168.1.50", "alias": "Coverage Test", "serial": "ABC123456", "model": "P1S", "access_code": "secretcode", "developer_mode_acknowledged": True},
             )
             assert response.status_code == 200
             events = (await client.get("/events")).json()["events"]
