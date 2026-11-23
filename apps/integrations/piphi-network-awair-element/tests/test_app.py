@@ -9,6 +9,7 @@ from types import SimpleNamespace
 import httpx
 import pytest
 from fastapi import HTTPException
+from piphi_runtime_kit_python import RUNTIME_CONFIG_SNAPSHOT_PATH_ENV_NAME
 from piphi_runtime_testkit_python import assert_telemetry_sent
 
 from com_piphi_await_element.app import app
@@ -448,7 +449,8 @@ def test_manifest_catalog_and_release_contracts_are_consistent() -> None:
     assert manifest["identity"]["fields"] == ["device_identity"]
     assert set(manifest["commands"]) == {"refresh"}
     runtime = manifest["runtime"]["linux"]["container"]
-    assert runtime["environment"]["PIPHI_RUNTIME_CONFIG_SNAPSHOT_PATH"] == (
+    assert RUNTIME_CONFIG_SNAPSHOT_PATH_ENV_NAME == "PIPHI_CONFIG_SNAPSHOT_PATH"
+    assert runtime["environment"][RUNTIME_CONFIG_SNAPSHOT_PATH_ENV_NAME] == (
         "/var/lib/piphi/configs.json"
     )
     assert any(
