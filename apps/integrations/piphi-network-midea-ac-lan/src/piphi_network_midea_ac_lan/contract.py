@@ -20,6 +20,10 @@ REQUIRED_ENDPOINTS = ["health", "entities", "command", "config", "ui_config"]
 
 CAPABILITIES: dict[str, dict[str, Any]] = {
     "connected": {"kind": "sensor", "unit": "bool"},
+    "available": {"kind": "sensor", "unit": "bool"},
+    "stale": {"kind": "sensor", "unit": "bool"},
+    "last_success_at": {"kind": "sensor", "value_kind": "timestamp"},
+    "consecutive_failures": {"kind": "sensor", "value_kind": "numeric"},
     "power": {"kind": "actuator", "unit": "bool"},
     "hvac_mode": {"kind": "actuator", "value_kind": "enum"},
     "hvac_action": {"kind": "sensor", "value_kind": "enum"},
@@ -43,10 +47,7 @@ CAPABILITIES: dict[str, dict[str, Any]] = {
 }
 
 COMMANDS: dict[str, dict[str, Any]] = {
-    "refresh": {
-        "description": "Refresh the device state.",
-        "timeout_ms": 5000
-    },
+    "refresh": {"description": "Refresh the device state.", "timeout_ms": 5000},
     "set_power": {
         "description": "Turn the configured air conditioner on or off.",
         "args_schema": {
@@ -133,78 +134,77 @@ CONFIG_SCHEMA: dict[str, Any] = {
     "schema": {
         "title": "Piphi Network Midea Ac Lan Setup",
         "type": "object",
-        "required": [
-            "host"
-        ],
+        "required": ["host"],
         "properties": {
             "host": {
                 "type": "string",
                 "title": "Host",
-                "description": "IP address or hostname of the Midea air conditioner"
+                "description": "IP address or hostname of the Midea air conditioner",
             },
-            "alias": {
-                "type": "string",
-                "title": "Alias"
-            },
+            "alias": {"type": "string", "title": "Alias"},
             "port": {
                 "type": "integer",
                 "title": "Port",
                 "minimum": 1,
                 "maximum": 65535,
-                "default": 6444
+                "default": 6444,
             },
             "midea_device_id": {
                 "type": "integer",
                 "title": "Device ID",
-                "description": "Optional device ID from msmart-ng discovery"
+                "description": "Optional device ID from msmart-ng discovery",
             },
             "token": {
                 "type": "string",
                 "title": "Local token",
-                "description": "Optional V3 token; configure together with the local key"
+                "description": "Optional V3 token; configure together with the local key",
+                "writeOnly": True,
+                "format": "password",
             },
             "key": {
                 "type": "string",
                 "title": "Local key",
-                "description": "Optional V3 key; configure together with the local token"
+                "description": "Optional V3 key; configure together with the local token",
+                "writeOnly": True,
+                "format": "password",
             },
             "poll_interval_seconds": {
                 "type": "integer",
                 "title": "Poll Interval Seconds",
                 "minimum": 5,
                 "maximum": 3600,
-                "default": 30
+                "default": 30,
             },
             "controls_enabled": {
                 "type": "boolean",
                 "title": "Enable controls",
                 "description": "Allow PiPhi dashboards and automations to change this device",
-                "default": False
-            }
-        }
+                "default": False,
+            },
+        },
     },
     "uiSchema": {
-        "host": {
-            "placeholder": "192.168.1.50"
-        },
-        "alias": {
-            "placeholder": "Office Device"
-        },
+        "host": {"placeholder": "192.168.1.50"},
+        "alias": {"placeholder": "Office Device"},
         "port": {"placeholder": "6444"},
         "midea_device_id": {"placeholder": "Device ID from discovery"},
         "token": {"ui:widget": "password"},
         "key": {"ui:widget": "password"},
-        "poll_interval_seconds": {"placeholder": "30"}
-    }
+        "poll_interval_seconds": {"placeholder": "30"},
+    },
 }
 
 FALLBACK_ENTITY: dict[str, Any] = {
-    "id": "demo-device",
-    "name": "Demo Device",
-    "device_id": "demo-device",
+    "id": "configured-midea-ac",
+    "name": "Configured Midea air conditioner",
+    "device_id": "configured-midea-ac",
     "entity_type": "climate",
     "capabilities": [
         "connected",
+        "available",
+        "stale",
+        "last_success_at",
+        "consecutive_failures",
         "power",
         "hvac_mode",
         "hvac_action",
@@ -224,51 +224,16 @@ FALLBACK_ENTITY: dict[str, Any] = {
         "set_fan_mode",
         "set_swing_mode",
         "set_preset_mode",
-        "refresh"
+        "refresh",
     ],
     "available_commands": [
-        {
-            "id": "refresh",
-            "label": "Refresh",
-            "kind": "action"
-        },
-        {
-            "id": "set_power",
-            "label": "Set power",
-            "kind": "action"
-        },
-        {
-            "id": "set_hvac_mode",
-            "label": "Set HVAC mode",
-            "kind": "action"
-        },
-        {
-            "id": "set_target_temperature",
-            "label": "Set target temperature",
-            "kind": "action"
-        },
-        {
-            "id": "set_fan_mode",
-            "label": "Set fan mode",
-            "kind": "action"
-        },
-        {
-            "id": "set_swing_mode",
-            "label": "Set swing mode",
-            "kind": "action"
-        },
-        {
-            "id": "set_preset_mode",
-            "label": "Set preset mode",
-            "kind": "action"
-        }
+        {"id": "refresh", "label": "Refresh", "kind": "action"},
+        {"id": "set_power", "label": "Set power", "kind": "action"},
+        {"id": "set_hvac_mode", "label": "Set HVAC mode", "kind": "action"},
+        {"id": "set_target_temperature", "label": "Set target temperature", "kind": "action"},
+        {"id": "set_fan_mode", "label": "Set fan mode", "kind": "action"},
+        {"id": "set_swing_mode", "label": "Set swing mode", "kind": "action"},
+        {"id": "set_preset_mode", "label": "Set preset mode", "kind": "action"},
     ],
-    "dashboard": {
-        "allowed_widgets": [
-            "tile",
-            "stat",
-            "button"
-        ],
-        "default_widget": "tile"
-    }
+    "dashboard": {"allowed_widgets": ["tile", "stat", "button"], "default_widget": "tile"},
 }

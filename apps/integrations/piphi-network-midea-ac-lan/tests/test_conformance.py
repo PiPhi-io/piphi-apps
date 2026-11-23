@@ -7,16 +7,19 @@ from typing import Any
 import httpx
 import pytest
 
-from piphi_network_midea_ac_lan.main import app
 from piphi_network_midea_ac_lan import state
+from piphi_network_midea_ac_lan.main import app
 
-
-FIXTURES = json.loads((Path(__file__).parent / "fixtures" / "contract-conformance.json").read_text())
+FIXTURES = json.loads(
+    (Path(__file__).parent / "fixtures" / "contract-conformance.json").read_text()
+)
 
 
 @pytest.fixture(autouse=True)
 def fake_midea_client(monkeypatch):
     class Client:
+        hardware_id = "midea-test"
+
         async def refresh(self):
             return {
                 "connected": True,
@@ -26,10 +29,13 @@ def fake_midea_client(monkeypatch):
                 "indoor_temperature_c": 24.0,
             }
 
+        async def close(self):
+            return None
+
     async def connect(**kwargs):
         return Client()
 
-    monkeypatch.setattr(state, "_client_connector", connect)
+    monkeypatch.setattr(state.runtime_data, "connector", connect)
 
 
 @pytest.mark.anyio
@@ -53,6 +59,8 @@ def _assert_required_keys(body: dict[str, Any], keys: list[str], fixture_id: str
         assert key in body, f"{fixture_id} missing {key}"
 
 
-def _assert_required_any_keys(body: dict[str, Any], groups: list[list[str]], fixture_id: str) -> None:
+def _assert_required_any_keys(
+    body: dict[str, Any], groups: list[list[str]], fixture_id: str
+) -> None:
     for group in groups:
         assert any(key in body for key in group), f"{fixture_id} missing one of {', '.join(group)}"

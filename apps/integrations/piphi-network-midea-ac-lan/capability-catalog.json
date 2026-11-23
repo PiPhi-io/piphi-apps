@@ -2,7 +2,7 @@
   "catalog_version": "1.0",
   "integration_id": "piphi-network-midea-ac-lan",
   "coverage_mode": "device_type_model_and_attribute_negotiation",
-  "reviewed_at": "2026-09-07",
+  "reviewed_at": "2026-11-23",
   "sources": {
     "midea_ac_lan": "https://github.com/wuwentao/midea_ac_lan",
     "midea_entity_matrix": "https://github.com/wuwentao/midea_ac_lan/blob/master/custom_components/midea_ac_lan/midea_devices.py",
@@ -16,8 +16,8 @@
       "status": "implemented",
       "scope": ["all-configurations"],
       "source_refs": ["core_vocabulary"],
-      "reason": "The runtime implements configuration presence, connectivity state, refresh dispatch, and its configuration event.",
-      "state": ["connected"],
+      "reason": "The runtime implements authenticated configuration, stable device identity, current and stale availability state, bounded reconnect, refresh dispatch, and its configuration event.",
+      "state": ["connected", "available", "stale", "last_success_at", "consecutive_failures"],
       "events": ["runtime.config.applied"],
       "conditions": ["state_matches"],
       "actions": ["refresh"]

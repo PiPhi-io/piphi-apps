@@ -4,7 +4,8 @@ from enum import Enum
 
 import pytest
 
-from piphi_network_midea_ac_lan.midea_client import MideaLanClient
+from piphi_network_midea_ac_lan import midea_client
+from piphi_network_midea_ac_lan.midea_client import MideaLanClient, MideaSetupError
 
 
 class OperationalMode(Enum):
@@ -37,6 +38,7 @@ class FakeDevice:
     SwingMode = SwingMode
 
     def __init__(self) -> None:
+        self.id = 123456789
         self.online = True
         self.power_state = True
         self.operational_mode = OperationalMode.COOL
@@ -60,12 +62,20 @@ class FakeDevice:
         self.beep = True
         self.apply_calls = 0
         self.refresh_calls = 0
+        self.capability_calls = 0
+        self.auth: tuple[str, str] | None = None
 
     async def apply(self) -> None:
         self.apply_calls += 1
 
     async def refresh(self) -> None:
         self.refresh_calls += 1
+
+    async def get_capabilities(self) -> None:
+        self.capability_calls += 1
+
+    async def authenticate(self, token: str, key: str) -> None:
+        self.auth = (token, key)
 
 
 def test_snapshot_normalizes_common_climate_state() -> None:
@@ -154,3 +164,93 @@ def test_hvac_action_is_derived_and_never_presented_as_direct_device_state() -> 
     assert client.snapshot()["hvac_action"] == "heating"
     device.power_state = False
     assert client.snapshot()["hvac_action"] == "off"
+
+
+@pytest.mark.anyio
+async def test_connect_discovers_authenticates_and_hashes_identity(monkeypatch) -> None:
+    device = FakeDevice()
+
+    class Discover:
+        @staticmethod
+        async def discover_single(host: str):
+            assert host == "192.168.1.40"
+            return device
+
+    monkeypatch.setattr(
+        midea_client, "import_module", lambda _name: type("M", (), {"Discover": Discover})
+    )
+    client = await MideaLanClient.connect(
+        host="192.168.1.40",
+        token="token",
+        key="key",
+    )
+    assert client.hardware_id.startswith("midea-")
+    assert device.auth == ("token", "key")
+    assert device.capability_calls == 1
+    assert device.refresh_calls == 1
+
+
+@pytest.mark.anyio
+async def test_connect_rejects_incomplete_credentials_and_missing_device(monkeypatch) -> None:
+    with pytest.raises(MideaSetupError, match="incomplete_credentials"):
+        await MideaLanClient.connect(host="192.168.1.41", token="token")
+
+    class Discover:
+        @staticmethod
+        async def discover_single(_host: str):
+            return None
+
+    monkeypatch.setattr(
+        midea_client, "import_module", lambda _name: type("M", (), {"Discover": Discover})
+    )
+    with pytest.raises(MideaSetupError, match="not_found"):
+        await MideaLanClient.connect(host="192.168.1.41")
+
+
+@pytest.mark.anyio
+async def test_connect_rejects_unsupported_device_and_maps_auth_errors(monkeypatch) -> None:
+    unsupported = FakeDevice()
+    unsupported.supported = False
+
+    class DiscoverUnsupported:
+        @staticmethod
+        async def discover_single(_host: str):
+            return unsupported
+
+    monkeypatch.setattr(
+        midea_client,
+        "import_module",
+        lambda _name: type("M", (), {"Discover": DiscoverUnsupported}),
+    )
+    with pytest.raises(MideaSetupError, match="unsupported_device"):
+        await MideaLanClient.connect(host="192.168.1.42")
+
+    class AuthenticationError(Exception):
+        pass
+
+    class DiscoverAuth:
+        @staticmethod
+        async def discover_single(_host: str):
+            raise AuthenticationError
+
+    monkeypatch.setattr(
+        midea_client,
+        "import_module",
+        lambda _name: type("M", (), {"Discover": DiscoverAuth}),
+    )
+    with pytest.raises(MideaSetupError, match="invalid_auth"):
+        await MideaLanClient.connect(host="192.168.1.42")
+
+
+@pytest.mark.anyio
+async def test_close_supports_async_vendor_cleanup() -> None:
+    device = FakeDevice()
+    closed = False
+
+    async def disconnect() -> None:
+        nonlocal closed
+        closed = True
+
+    device.disconnect = disconnect
+    await MideaLanClient(device).close()
+    assert closed is True

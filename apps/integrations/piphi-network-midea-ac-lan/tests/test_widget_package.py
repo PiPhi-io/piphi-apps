@@ -26,9 +26,20 @@ def test_climate_widget_package_exposes_complete_control_surface() -> None:
         "set_preset_mode",
     }
     assert set(slots) == {
-        "connected", "power", "target", "indoor", "mode", "action",
-        "fan-mode", "fan-options", "swing", "swing-options",
-        "preset", "preset-options", "outdoor", "fan",
+        "connected",
+        "power",
+        "target",
+        "indoor",
+        "mode",
+        "action",
+        "fan-mode",
+        "fan-options",
+        "swing",
+        "swing-options",
+        "preset",
+        "preset-options",
+        "outdoor",
+        "fan",
     }
     assert slots["power"]["binding_modes"] == ["read-write"]
     assert slots["target"]["binding_modes"] == ["read-write"]
@@ -57,8 +68,16 @@ def test_climate_widget_meets_certification_contract() -> None:
     widget = package["widgets"][0]
     certification = widget["certification"]
     gates = {
-        "runtime", "persistence", "binding", "states", "commands",
-        "responsive", "themes", "accessibility", "save-reload", "performance",
+        "runtime",
+        "persistence",
+        "binding",
+        "states",
+        "commands",
+        "responsive",
+        "themes",
+        "accessibility",
+        "save-reload",
+        "performance",
     }
     assert set(certification["verified_gates"]) == gates
     assert set(certification["evidence"]) == gates

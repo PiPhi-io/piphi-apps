@@ -1,5 +1,12 @@
 from __future__ import annotations
 
+import asyncio
+import hashlib
+import inspect
+import ipaddress
+import os
+import socket
+from enum import Enum
 from importlib import import_module
 from math import isfinite
 from typing import Any
@@ -11,6 +18,119 @@ ALLOWED_PRESET_MODES = {"none", "sleep", "eco", "boost", "away"}
 FAN_MODE_ORDER = ("auto", "silent", "low", "medium", "high", "max")
 SWING_MODE_ORDER = ("off", "vertical", "horizontal", "both")
 PRESET_MODE_ORDER = ("none", "sleep", "eco", "boost", "away")
+DEFAULT_CONNECT_TIMEOUT_SECONDS = 10.0
+
+
+class MideaSetupError(Exception):
+    def __init__(self, code: str) -> None:
+        super().__init__(code)
+        self.code = code
+
+
+def _stable_hardware_id(value: Any) -> str:
+    raw = str(value or "").strip()
+    if not raw:
+        raise MideaSetupError("device_identity_unavailable")
+    digest = hashlib.sha256(f"midea:{raw}".encode()).hexdigest()[:20]
+    return f"midea-{digest}"
+
+
+def _allowed_local_address(value: str) -> bool:
+    address = ipaddress.ip_address(value)
+    return bool(address.is_private or address.is_link_local)
+
+
+async def resolve_local_host(host: str) -> str:
+    candidate = host.strip().strip("[]")
+    try:
+        address = ipaddress.ip_address(candidate)
+    except ValueError:
+        loop = asyncio.get_running_loop()
+        try:
+            records = await asyncio.wait_for(
+                loop.getaddrinfo(
+                    candidate,
+                    None,
+                    family=socket.AF_UNSPEC,
+                    type=socket.SOCK_STREAM,
+                ),
+                timeout=3.0,
+            )
+        except (OSError, TimeoutError) as exc:
+            raise MideaSetupError("host_resolution_failed") from exc
+        addresses = sorted({str(record[4][0]) for record in records})
+        if not addresses or any(not _allowed_local_address(item) for item in addresses):
+            raise MideaSetupError("non_local_address")
+        return addresses[0]
+    if not _allowed_local_address(str(address)):
+        raise MideaSetupError("non_local_address")
+    return str(address)
+
+
+class _SimulationOperationalMode(Enum):
+    AUTO = 1
+    COOL = 2
+    HEAT = 3
+    DRY = 4
+    FAN_ONLY = 5
+
+
+class _SimulationFanSpeed(Enum):
+    SILENT = 20
+    LOW = 40
+    MEDIUM = 60
+    HIGH = 80
+    MAX = 100
+    AUTO = 102
+
+
+class _SimulationSwingMode(Enum):
+    OFF = 0
+    HORIZONTAL = 3
+    VERTICAL = 12
+    BOTH = 15
+
+
+class _SimulationDevice:
+    OperationalMode = _SimulationOperationalMode
+    FanSpeed = _SimulationFanSpeed
+    SwingMode = _SimulationSwingMode
+
+    def __init__(self, identity: str) -> None:
+        self.id = identity
+        self.online = True
+        self.power_state = True
+        self.operational_mode = _SimulationOperationalMode.COOL
+        self.supported_operation_modes = list(_SimulationOperationalMode)
+        self.target_temperature = 22.0
+        self.indoor_temperature = 24.0
+        self.outdoor_temperature = 30.0
+        self.fan_speed = _SimulationFanSpeed.MEDIUM
+        self.supported_fan_speeds = list(_SimulationFanSpeed)
+        self.swing_mode = _SimulationSwingMode.OFF
+        self.supported_swing_modes = list(_SimulationSwingMode)
+        self.supports_eco = True
+        self.supports_turbo = True
+        self.supports_freeze_protection = True
+        self.eco = False
+        self.turbo = False
+        self.freeze_protection = False
+        self.sleep = False
+        self.min_target_temperature = 16
+        self.max_target_temperature = 30
+        self.beep = False
+
+    async def get_capabilities(self) -> None:
+        return None
+
+    async def authenticate(self, _token: str, _key: str) -> None:
+        return None
+
+    async def apply(self) -> None:
+        return None
+
+    async def refresh(self) -> None:
+        return None
 
 
 def _enum_name(value: Any) -> str | None:
@@ -76,6 +196,9 @@ class MideaLanClient:
 
     def __init__(self, device: Any) -> None:
         self._device = device
+        self.hardware_id = _stable_hardware_id(
+            getattr(device, "id", None) or getattr(device, "device_id", None)
+        )
 
     @classmethod
     async def connect(
@@ -88,23 +211,55 @@ class MideaLanClient:
         key: str | None = None,
     ) -> MideaLanClient:
         if bool(token) != bool(key):
-            raise ValueError("token and key must be configured together")
-        if device_id is None:
-            discover = import_module("msmart.discover").Discover
-            device = await discover.discover_single(host)
-            if device is None:
-                raise ConnectionError("No supported Midea AC responded at the configured host")
-        else:
-            air_conditioner = import_module("msmart.device").AirConditioner
-            device = air_conditioner(ip=host, port=port, device_id=device_id)
-        if token and key:
-            await device.authenticate(token, key)
+            raise MideaSetupError("incomplete_credentials")
+        if os.getenv("MIDEA_SIMULATION_MODE", "").strip().lower() == "true" or host.startswith(
+            "simulation://"
+        ):
+            identity = str(device_id or host.removeprefix("simulation://") or "simulated-ac")
+            return cls(_SimulationDevice(identity))
 
-        if not bool(getattr(device, "supported", True)):
-            raise ValueError("The discovered device is not a supported Midea air conditioner")
-        await device.get_capabilities()
-        await device.refresh()
-        return cls(device)
+        resolved_host = await resolve_local_host(host)
+        timeout = max(
+            1.0,
+            float(os.getenv("MIDEA_CONNECT_TIMEOUT_SECONDS", DEFAULT_CONNECT_TIMEOUT_SECONDS)),
+        )
+        try:
+            async with asyncio.timeout(timeout):
+                if device_id is None:
+                    discover = import_module("msmart.discover").Discover
+                    device = await discover.discover_single(resolved_host)
+                    if device is None:
+                        raise MideaSetupError("not_found")
+                else:
+                    air_conditioner = import_module("msmart.device").AirConditioner
+                    device = air_conditioner(
+                        ip=resolved_host,
+                        port=port,
+                        device_id=device_id,
+                    )
+                if token and key:
+                    await device.authenticate(token, key)
+                if not bool(getattr(device, "supported", True)):
+                    raise MideaSetupError("unsupported_device")
+                await device.get_capabilities()
+                await device.refresh()
+                return cls(device)
+        except MideaSetupError:
+            raise
+        except TimeoutError as exc:
+            raise MideaSetupError("timeout") from exc
+        except Exception as exc:
+            name = type(exc).__name__.lower()
+            code = "invalid_auth" if "auth" in name else "unreachable"
+            raise MideaSetupError(code) from exc
+
+    async def close(self) -> None:
+        closer = getattr(self._device, "disconnect", None) or getattr(self._device, "close", None)
+        if closer is None:
+            return
+        result = closer()
+        if inspect.isawaitable(result):
+            await result
 
     async def refresh(self) -> dict[str, Any]:
         await self._device.refresh()
@@ -128,32 +283,23 @@ class MideaLanClient:
                 state[capability] = value
         fan_speed = getattr(self._device, "fan_speed", None)
         fan_mode = _enum_name(fan_speed)
-        supported_fan_modes = _supported_names(
-            self._device, "supported_fan_speeds"
-        )
+        supported_fan_modes = _supported_names(self._device, "supported_fan_speeds")
         if supported_fan_modes:
             state["fan_modes_supported"] = ",".join(
                 mode for mode in FAN_MODE_ORDER if mode in supported_fan_modes
             )
         if fan_mode and supported_fan_modes:
-            state["fan_mode"] = (
-                fan_mode if fan_mode in ALLOWED_FAN_MODES else "custom"
-            )
+            state["fan_mode"] = fan_mode if fan_mode in ALLOWED_FAN_MODES else "custom"
         fan_value = _finite_number(getattr(fan_speed, "value", fan_speed))
         if fan_value is not None:
             state["fan_speed_percent"] = fan_value
         swing_mode = _enum_name(getattr(self._device, "swing_mode", None))
-        supported_swing_modes = _supported_names(
-            self._device, "supported_swing_modes"
-        )
+        supported_swing_modes = _supported_names(self._device, "supported_swing_modes")
         if supported_swing_modes:
             state["swing_modes_supported"] = ",".join(
                 mode for mode in SWING_MODE_ORDER if mode in supported_swing_modes
             )
-        if (
-            swing_mode in ALLOWED_SWING_MODES
-            and supported_swing_modes - {"off"}
-        ):
+        if swing_mode in ALLOWED_SWING_MODES and supported_swing_modes - {"off"}:
             state["swing_mode"] = swing_mode
         supported_presets = {"none", "sleep"}
         if bool(getattr(self._device, "supports_eco", False)):
@@ -238,7 +384,7 @@ class MideaLanClient:
             support_attribute = support_attributes.get(preset)
             if support_attribute and not bool(getattr(self._device, support_attribute, False)):
                 raise ValueError(f"Preset is not supported by this device: {preset}")
-            mode = _enum_name(getattr(self._device, "operational_mode", None))
+            current_mode = _enum_name(getattr(self._device, "operational_mode", None))
             allowed_for_mode = {
                 "auto": {"none", "sleep", "eco", "boost"},
                 "cool": {"none", "sleep", "eco", "boost"},
@@ -246,9 +392,9 @@ class MideaLanClient:
                 "dry": {"none", "eco"},
                 "fan_only": {"none"},
             }
-            if preset not in allowed_for_mode.get(mode or "", {"none"}):
+            if preset not in allowed_for_mode.get(current_mode or "", {"none"}):
                 raise ValueError(
-                    f"Preset {preset} is not available in {mode or 'unknown'} mode"
+                    f"Preset {preset} is not available in {current_mode or 'unknown'} mode"
                 )
             self._device.eco = preset == "eco"
             self._device.turbo = preset == "boost"

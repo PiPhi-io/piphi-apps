@@ -1,13 +1,14 @@
-# Piphi Network Midea Ac Lan
+# PiPhi Network Midea AC LAN
 
-Generated PiPhi integration runtime.
+Production runtime for monitoring and optionally controlling supported Midea air
+conditioners over the local network.
 
 ## Run locally
 
 ```bash
 pdm install -G dev
-pdm run uvicorn piphi_network_midea_ac_lan.main:app --reload --port 4208
-pdm run pytest
+PIPHI_INTEGRATION_INTERNAL_TOKEN=development-token pdm run uvicorn piphi_network_midea_ac_lan.main:app --reload --port 4208
+pdm run pytest --cov=piphi_network_midea_ac_lan --cov-branch
 pdm run python scripts/validate.py
 ```
 
@@ -24,10 +25,12 @@ The runtime listens on port `4208` by default and exposes the common PiPhi runti
 - `GET /contract`
 - `GET /entities`
 - `GET /events`
-- `POST /events/device/{config_id}/example`
-- `POST /telemetry/example`
-- `POST /telemetry/device/{config_id}/example`
 - `POST /command`
+
+Only `/health` is public. All other routes require the token from
+`PIPHI_INTEGRATION_INTERNAL_TOKEN` in the `X-PiPhi-Integration-Token` header.
+Set `MIDEA_SIMULATION_MODE=true` only for deterministic testing without a
+physical appliance.
 
 ## Capability coverage
 
@@ -45,19 +48,12 @@ room temperature, target temperature, and a 0.5 °C deadband; it is not direct
 compressor telemetry. Tokens, keys, arbitrary attributes, and raw protocol
 commands are never exposed through the runtime contract.
 
-## Manifest
-
-`manifest.json` is a starter manifest. Before publishing, update:
-
-- `image`
-- `version`
-- capabilities and commands
-- config fields and identity fields
-- entity metadata
-
 ## Docker
 
 ```bash
-docker build -t docker.io/piphinetwork/piphi-network-midea-ac-lan:0.3.0 .
-docker run --rm -p 4208:4208 docker.io/piphinetwork/piphi-network-midea-ac-lan:0.3.0
+docker build -t piphi-network-midea-ac-lan:0.3.1 .
+docker run --rm --read-only --user 10001:10001 \
+  --tmpfs /tmp --tmpfs /var/lib/piphi:uid=10001,gid=10001 \
+  -e PIPHI_INTEGRATION_INTERNAL_TOKEN=replace-me \
+  -p 4208:4208 piphi-network-midea-ac-lan:0.3.1
 ```

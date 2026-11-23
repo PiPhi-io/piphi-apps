@@ -45,9 +45,9 @@
       "path": "/config",
       "status": 200,
       "body": {
-        "id": "demo-device",
+        "id": "conformance-ac",
         "host": "127.0.0.1",
-        "alias": "Demo Device"
+        "alias": "Conformance AC"
       },
       "required_any_keys": [
         [
@@ -80,8 +80,8 @@
         "contract_version": "automation.runtime.command.v1",
         "command": "refresh",
         "target": {
-          "device_id": "demo-device",
-          "config_id": "demo-device"
+          "device_id": "piphi-network-midea-ac-lan:midea-test",
+          "config_id": "conformance-ac"
         },
         "params": {},
         "capability": "device.refresh",
