@@ -4,7 +4,7 @@ import os
 
 INTEGRATION_ID = "piphi-network-bambu-lab"
 INTEGRATION_NAME = "Piphi Network Bambu Lab"
-INTEGRATION_VERSION = "0.1.0"
+INTEGRATION_VERSION = "0.1.1"
 PROJECT_KIND = "integration"
 PROJECT_PRESET = "actuator-device"
 PROJECT_DOMAIN = "local-device"

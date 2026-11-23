@@ -10,10 +10,11 @@ import pytest
 from piphi_network_bambu_lab import state
 from piphi_network_bambu_lab.mqtt_client import MAX_REPORT_BYTES, PrinterMqttSession
 from piphi_network_bambu_lab.schemas import DeviceConfig
+from piphi_network_bambu_lab.simulator import SimulatedPrinterSession
 
 
 def test_config_requires_private_lan_and_explicit_developer_mode() -> None:
-    base = {"id": "printer-test", "host": "192.168.1.50", "serial": "abc123456", "access_code": "secretcode", "developer_mode_acknowledged": True}
+    base = {"id": "printer-test", "host": "192.168.1.50", "serial": "abc123456", "model": "P1S", "access_code": "secretcode", "developer_mode_acknowledged": True}
     config = DeviceConfig.model_validate(base)
     assert config.serial == "ABC123456"
     assert "secretcode" not in repr(config)
@@ -62,6 +63,8 @@ def test_paho_session_sets_tls_and_serial_check_before_connect(monkeypatch) -> N
     assert session._client._ssl_context.verify_mode == ssl.CERT_REQUIRED
     assert session._client._ssl_context.check_hostname is False
     assert session._client.suppress_exceptions is False
+    assert session._client._reconnect_min_delay == 5
+    assert session._client._reconnect_max_delay == 60
     assert callable(session._client.on_socket_open)
     bad_peer = SimpleNamespace(getpeercert=lambda: {"subject": ((('commonName', 'OTHER'),),)})
     with pytest.raises(ssl.CertificateError):
@@ -69,11 +72,22 @@ def test_paho_session_sets_tls_and_serial_check_before_connect(monkeypatch) -> N
     assert calls == [("connect", ("192.168.1.50", 8883)), ("loop",)]
 
 
+def test_simulated_transport_is_deterministic_and_explicit() -> None:
+    first: list[dict] = []
+    second: list[dict] = []
+    one = SimulatedPrinterSession(on_report=first.append, on_offline=lambda: None)
+    two = SimulatedPrinterSession(on_report=second.append, on_offline=lambda: None)
+    one.connected = two.connected = True
+    one.emit_once()
+    two.emit_once()
+    assert first == second
+
+
 @pytest.mark.anyio
 async def test_real_report_and_disconnect_update_state_without_secrets(mock_mqtt, monkeypatch) -> None:
     sent = []
     monkeypatch.setattr(state, "schedule_telemetry_delivery", lambda **kwargs: sent.append(kwargs))
-    config = DeviceConfig.model_validate({"id": "report-test", "host": "192.168.1.50", "serial": "ABC123456", "access_code": "secretcode", "developer_mode_acknowledged": True})
+    config = DeviceConfig.model_validate({"id": "report-test", "host": "192.168.1.50", "serial": "ABC123456", "model": "P1S", "access_code": "secretcode", "developer_mode_acknowledged": True})
     try:
         await state.apply_config(config)
         assert state.current_state(config.id)["connected"] is False
@@ -86,7 +100,8 @@ async def test_real_report_and_disconnect_update_state_without_secrets(mock_mqtt
         assert sent[-1]["metrics"]["print_progress_percent"] == 62
         await state.mark_offline(config.id)
         assert state.current_state(config.id)["connected"] is False
-        assert config.id not in state._reports
+        assert state.current_state(config.id)["stale"] is True
+        assert state._reports[config.id]["print_progress_percent"] == 62
     finally:
         await state.remove_config(config.id)
 

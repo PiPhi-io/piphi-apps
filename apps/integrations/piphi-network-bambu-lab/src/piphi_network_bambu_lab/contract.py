@@ -23,6 +23,9 @@ CAPABILITIES: dict[str, dict[str, Any]] = {
         "kind": "sensor",
         "unit": "bool"
     },
+    "available": {"kind": "sensor", "unit": "bool"},
+    "stale": {"kind": "sensor", "unit": "bool"},
+    "last_report_at": {"kind": "sensor"},
     "simulation_mode": {"kind": "sensor", "unit": "bool"},
     "print_status": {"kind": "sensor"},
     "print_progress_percent": {"kind": "sensor", "unit": "%"},
@@ -70,6 +73,11 @@ CONFIG_SCHEMA: dict[str, Any] = {
                 "type": "string",
                 "title": "Printer serial number"
             },
+            "model": {
+                "type": "string",
+                "title": "Printer model",
+                "enum": ["A1", "A1 mini", "P1P", "P1S", "X1", "X1 Carbon", "X1E"]
+            },
             "access_code": {
                 "type": "string",
                 "title": "LAN access code",
@@ -104,6 +112,9 @@ FALLBACK_ENTITY: dict[str, Any] = {
     "entity_type": "sensor",
     "capabilities": [
         "connected",
+        "available",
+        "stale",
+        "last_report_at",
         "simulation_mode",
         "print_status",
         "print_progress_percent",

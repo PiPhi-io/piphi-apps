@@ -9,7 +9,6 @@ import pytest
 
 from piphi_network_bambu_lab.main import app
 
-
 FIXTURES = json.loads((Path(__file__).parent / "fixtures" / "contract-conformance.json").read_text())
 
 

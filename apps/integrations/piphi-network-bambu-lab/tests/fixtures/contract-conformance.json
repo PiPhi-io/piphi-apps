@@ -49,6 +49,7 @@
         "host": "192.168.1.50",
         "alias": "Test printer",
         "serial": "ABC123456",
+        "model": "P1S",
         "access_code": "secretcode",
         "developer_mode_acknowledged": true
       },
@@ -83,7 +84,7 @@
         "contract_version": "automation.runtime.command.v1",
         "command": "refresh",
         "target": {
-          "device_id": "demo-device",
+          "device_id": "piphi-network-bambu-lab:ced0bc7ce1d0bba40ed3",
           "config_id": "demo-device"
         },
         "params": {},

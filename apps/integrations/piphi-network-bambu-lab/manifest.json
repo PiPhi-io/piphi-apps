@@ -3,11 +3,11 @@
   "manifest_version": "1.0",
   "id": "piphi-network-bambu-lab",
   "name": "Bambu Lab",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Read-only monitoring of Bambu printers through explicitly enabled LAN Developer Mode.",
   "metadata": {
     "generator": "piphi-network-create",
-    "scaffold_version": "0.3.0",
+    "scaffold_version": "0.4.0",
     "preset": "actuator-device",
     "domain": "local-device",
     "preset_summary": "Local actuator starter with command and safety-oriented controls."
@@ -17,7 +17,7 @@
     "website": "https://piphi.io"
   },
   "license": "Apache-2.0",
-  "image": "docker.io/piphinetwork/piphi-network-bambu-lab:0.1.0",
+  "image": "ghcr.io/piphi-io/piphi-network-bambu-lab:0.1.1",
   "platforms": [
     "linux"
   ],
@@ -25,7 +25,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "docker.io/piphinetwork/piphi-network-bambu-lab:0.1.0",
+        "image": "ghcr.io/piphi-io/piphi-network-bambu-lab:0.1.1",
         "ports": [
           {
             "container": 4203,
@@ -76,6 +76,7 @@
       "host",
       "alias",
       "serial",
+      "model",
       "access_code",
       "developer_mode_acknowledged"
     ],
@@ -86,13 +87,11 @@
       "device_id"
     ],
     "identity_fields": [
-      "host",
       "serial"
     ]
   },
   "identity": {
     "fields": [
-      "host",
       "serial"
     ]
   },
@@ -140,6 +139,17 @@
     },
     "refresh": {
       "kind": "action"
+    },
+    "available": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "stale": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "last_report_at": {
+      "kind": "sensor"
     }
   },
   "commands": {
@@ -157,6 +167,9 @@
       "capabilities": [
         "connected",
         "simulation_mode",
+        "available",
+        "stale",
+        "last_report_at",
         "print_status",
         "print_progress_percent",
         "remaining_time_minutes",
@@ -219,7 +232,31 @@
     "compatibility": [
       {
         "brand": "Bambu Lab",
-        "model": "Supported A, P, and X series printers in LAN mode"
+        "model": "A1"
+      },
+      {
+        "brand": "Bambu Lab",
+        "model": "A1 mini"
+      },
+      {
+        "brand": "Bambu Lab",
+        "model": "P1P"
+      },
+      {
+        "brand": "Bambu Lab",
+        "model": "P1S"
+      },
+      {
+        "brand": "Bambu Lab",
+        "model": "X1"
+      },
+      {
+        "brand": "Bambu Lab",
+        "model": "X1 Carbon"
+      },
+      {
+        "brand": "Bambu Lab",
+        "model": "X1E"
       }
     ],
     "documentation_url": "https://github.com/PiPhi-io/piphi-network-bambu-lab",
@@ -246,28 +283,56 @@
       "manual"
     ],
     "connectivity": "local",
-    "offline_support": "none"
+    "offline_support": "stale_last_good"
   },
   "ui": {
     "widget_packages": [
       {
         "id": "io.piphi.bambu.print-status",
         "name": "Bambu print status",
-        "version": "0.1.0",
+        "version": "0.1.1",
         "entry": "/widgets/print-status/dist/widget.js",
         "runtime": "prebuilt_bundle",
         "certification": {
-          "verified_gates": ["runtime", "persistence", "binding", "states", "responsive", "themes", "accessibility", "save-reload", "performance"],
+          "verified_gates": [
+            "runtime",
+            "persistence",
+            "binding",
+            "states",
+            "responsive",
+            "themes",
+            "accessibility",
+            "save-reload",
+            "performance"
+          ],
           "evidence": {
-            "runtime": ["core-profile:sandbox-host-v1/runtime"],
-            "persistence": ["core-profile:sandbox-host-v1/persistence"],
-            "binding": ["widgets/print-status/test/widget.test.mjs"],
-            "states": ["widgets/print-status/test/widget.test.mjs"],
-            "responsive": ["widgets/print-status/test/widget.test.mjs"],
-            "themes": ["widgets/print-status/test/widget.test.mjs"],
-            "accessibility": ["widgets/print-status/test/widget.test.mjs"],
-            "save-reload": ["core-profile:sandbox-host-v1/save-reload"],
-            "performance": ["core-profile:sandbox-host-v1/performance"]
+            "runtime": [
+              "core-profile:sandbox-host-v1/runtime"
+            ],
+            "persistence": [
+              "core-profile:sandbox-host-v1/persistence"
+            ],
+            "binding": [
+              "widgets/print-status/test/widget.test.mjs"
+            ],
+            "states": [
+              "widgets/print-status/test/widget.test.mjs"
+            ],
+            "responsive": [
+              "widgets/print-status/test/widget.test.mjs"
+            ],
+            "themes": [
+              "widgets/print-status/test/widget.test.mjs"
+            ],
+            "accessibility": [
+              "widgets/print-status/test/widget.test.mjs"
+            ],
+            "save-reload": [
+              "core-profile:sandbox-host-v1/save-reload"
+            ],
+            "performance": [
+              "core-profile:sandbox-host-v1/performance"
+            ]
           }
         },
         "host_bridge": {
@@ -334,5 +399,10 @@
   },
   "onboarding": {
     "mode": "discovery"
+  },
+  "runtime_contract": {
+    "version": 1,
+    "port_binding": "core_allocated",
+    "port_env": "PORT"
   }
 }
