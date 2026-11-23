@@ -10,6 +10,7 @@ The companion wizard is `scripts/run_hardware_qualification_wizard.sh`. It creat
 - Do not include credentials, tokens, account data, exact private addresses, full mDNS names, serial numbers, customer topology, unredacted logs, raw payloads, or packet captures in a public issue or pull request.
 - Record redacted summaries below and retain raw evidence under the lab's access and retention policy.
 - Completing this record does not authorize a merge, package or image publication, registry synchronization, or governance promotion.
+- Long-duration polling stability is outside this qualification. Do not present this record as soak-test evidence.
 
 ## Identity and test conditions
 
@@ -37,7 +38,7 @@ The companion wizard is `scripts/run_hardware_qualification_wizard.sh`. It creat
 - [ ] No public ingress, transparent HTTP proxy, or cloud relay is used for device access.
 - [ ] The exact image digest and source revision are recorded before testing.
 - [ ] A fresh local-only runtime token is used and excluded from evidence.
-- [ ] The expected polling interval, soak duration, and acceptance authority are defined.
+- [ ] The polling interval and acceptance authority are defined.
 
 Precondition result: **PASS / FAIL / BLOCKED**
 
@@ -118,31 +119,7 @@ Result: **PASS / FAIL / BLOCKED**
 
 Evidence summary:
 
-## 5. Sustained polling soak
-
-Recommended minimum: 24 continuous hours unless the governing qualification policy requires longer. A shortened or interrupted run must be reported as such, not rounded up.
-
-- Start/end UTC:
-- Actual duration:
-- Poll interval:
-- Expected samples:
-- Observed successful samples:
-- Failed polls by category:
-- Unavailability/restoration events:
-- Integration restarts or test interruptions:
-- CPU and memory start/peak/end:
-- Device/API stability observations:
-
-- [ ] The run uses only the physical device, not a fake transport or replayed payload.
-- [ ] Polling remains bounded and does not accelerate during failure.
-- [ ] No unbounded memory, task, connection, descriptor, log, or storage growth is observed.
-- [ ] Successful recovery follows any incidental outage without operator fabrication of state.
-
-Result: **PASS / FAIL / BLOCKED**
-
-Evidence summary:
-
-## 6. Privacy, egress, and read-only review
+## 5. Privacy, egress, and read-only review
 
 - [ ] Device-bound traffic remains local and consists only of `GET /air-data/latest`.
 - [ ] No write/control HTTP method, historical endpoint, redirect target, proxy, or cloud device API is contacted.
@@ -171,5 +148,6 @@ Evidence summary:
 - Blockers or deviations:
 - Required follow-up:
 - Retest scope:
+- Long-duration polling stability: **NOT ASSESSED — soak testing excluded**
 
 A `PASS` is limited to the exact identity and test conditions recorded above. Any image, source, hardware, firmware, security-boundary, or material network change requires review and may require requalification.

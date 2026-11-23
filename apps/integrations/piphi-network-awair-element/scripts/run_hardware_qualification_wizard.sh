@@ -232,7 +232,7 @@ record_result() {
 
 run_wizard() {
 
-TOTAL_STAGES=9
+TOTAL_STAGES=8
 
 banner "Awair Element physical qualification"
 
@@ -313,19 +313,6 @@ step "In the lab DHCP controls, change the device address without changing its A
 step "Restore the original network state and verify normal polling resumes. Record timings and any manual reconfiguration required."
 record_result "Restart, outage, recovery, and DHCP address change"
 
-stage "Run a sustained polling soak"
-step "Run continuous polling for the duration required by your governance policy; 24 hours is the recommended minimum for this record."
-step "Record start/end UTC, configured interval, expected and observed sample counts, failures, recoveries, CPU/memory trend, and device/API stability."
-step "Do not mark PASS if the run was shortened, interrupted, or observed only through synthetic traffic; use BLOCKED with the actual duration."
-local soak_duration poll_interval sample_summary
-prompt_value soak_duration "Observed soak duration:"
-prompt_value poll_interval "Configured poll interval:"
-prompt_value sample_summary "Expected/observed samples and failure summary:"
-record_value "Observed soak duration" "$soak_duration"
-record_value "Configured poll interval" "$poll_interval"
-record_value "Soak sample/failure summary" "$sample_summary"
-record_result "Sustained polling soak"
-
 stage "Review privacy and read-only behavior"
 step "Review container logs, runtime diagnostics, and any private packet capture for leaked tokens, exact device addresses/names, raw payloads, or customer topology."
 step "Verify device traffic is local and consists only of GET /air-data/latest; reject redirects, proxy use, cloud requests, and all write/control methods."
@@ -352,6 +339,7 @@ ended_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
   printf -- '- **Completed (UTC):** %s\n' "$ended_at"
   printf -- '- **Blockers/deviations:** %s\n' "${blockers:-Not recorded}"
   printf -- '- **Required follow-up:** %s\n' "${follow_up:-Not recorded}"
+  printf -- '- **Long-duration polling stability:** Not assessed; soak testing was excluded from this qualification\n'
   printf -- '- **Publication/governance:** Not performed by this wizard\n'
 } >> "$RECORD_PATH"
 say "Record written to: $RECORD_PATH"
