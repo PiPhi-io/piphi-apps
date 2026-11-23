@@ -1,11 +1,34 @@
 package atmotube
 
 import (
+	"encoding/json"
 	"strings"
 	"time"
 
 	runtimekit "github.com/PiPhi-io/piphi-runtime-kit-go"
 )
+
+const redactedValue = "[redacted]"
+
+// SecretString is an in-memory secret value that never serializes or formats as
+// plaintext. Bluetooth addresses identify a household device and are treated as
+// private configuration even though they are not authentication credentials.
+type SecretString string
+
+func NewSecretString(value string) SecretString { return SecretString(strings.TrimSpace(value)) }
+func (s SecretString) Reveal() string           { return string(s) }
+func (s SecretString) String() string           { return redactedValue }
+func (s SecretString) MarshalJSON() ([]byte, error) {
+	return json.Marshal(redactedValue)
+}
+func (s *SecretString) UnmarshalJSON(data []byte) error {
+	var value string
+	if err := json.Unmarshal(data, &value); err != nil {
+		return err
+	}
+	*s = NewSecretString(value)
+	return nil
+}
 
 const (
 	DefaultPollIntervalSeconds = 30
@@ -18,21 +41,15 @@ const (
 
 type DeviceConfig struct {
 	runtimekit.RuntimeConfig
-	Address             string `json:"address"`
-	Alias               string `json:"alias,omitempty"`
-	PollIntervalSeconds int    `json:"poll_interval_seconds,omitempty"`
+	Address             SecretString `json:"address"`
+	Alias               string       `json:"alias,omitempty"`
+	PollIntervalSeconds int          `json:"poll_interval_seconds,omitempty"`
 }
 
 func (c DeviceConfig) Normalize() DeviceConfig {
 	normalized := c
-	normalized.Address = strings.ToUpper(strings.TrimSpace(c.Address))
+	normalized.Address = NewSecretString(strings.ToUpper(strings.TrimSpace(c.Address.Reveal())))
 	normalized.Alias = strings.TrimSpace(c.Alias)
-	if normalized.ID == "" {
-		normalized.ID = normalized.Address
-	}
-	if normalized.DeviceID == "" {
-		normalized.DeviceID = normalized.ID
-	}
 	if normalized.PollIntervalSeconds <= 0 {
 		normalized.PollIntervalSeconds = DefaultPollIntervalSeconds
 	}
@@ -79,7 +96,7 @@ type DeviceEntry struct {
 	DeviceID      string         `json:"device_id"`
 	ContainerID   string         `json:"container_id,omitempty"`
 	IntegrationID string         `json:"integration_id,omitempty"`
-	Address       string         `json:"address"`
+	Address       SecretString   `json:"-"`
 	Alias         string         `json:"alias,omitempty"`
 	Config        DeviceConfig   `json:"config"`
 	LatestState   Reading        `json:"latest_state,omitempty"`

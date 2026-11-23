@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "scope": "Atmotube Pro direct BLE monitoring",
+  "source": "https://support.atmotube.com/en/articles/10449987-bluetooth-api-specification",
+  "capabilities": [
+    {"id": "voc_ppb", "kind": "telemetry", "status": "implemented", "source": "VOC characteristic", "unit": "ppb"},
+    {"id": "voc_ppm", "kind": "telemetry", "status": "implemented", "source": "locally converted from voc_ppb", "unit": "ppm"},
+    {"id": "temperature_c", "kind": "telemetry", "status": "implemented", "source": "BME characteristic", "unit": "C"},
+    {"id": "humidity_percent", "kind": "telemetry", "status": "implemented", "source": "BME characteristic", "unit": "%"},
+    {"id": "pressure_mbar", "kind": "telemetry", "status": "implemented", "source": "BME characteristic", "unit": "mbar"},
+    {"id": "battery_percent", "kind": "telemetry", "status": "implemented", "source": "status characteristic", "unit": "%"},
+    {"id": "pm1_ugm3", "kind": "telemetry", "status": "implemented", "source": "PM characteristic", "unit": "ug/m3"},
+    {"id": "pm25_ugm3", "kind": "telemetry", "status": "implemented", "source": "PM characteristic", "unit": "ug/m3"},
+    {"id": "pm4_ugm3", "kind": "telemetry", "status": "implemented", "source": "PM characteristic", "unit": "ug/m3"},
+    {"id": "pm10_ugm3", "kind": "telemetry", "status": "implemented", "source": "PM characteristic", "unit": "ug/m3"},
+    {"id": "refresh", "kind": "read_only_action", "status": "implemented", "source": "bounded reconnect and GATT read", "idempotent": true},
+    {"id": "device_discovery", "kind": "setup", "status": "implemented", "source": "BLE advertisement name or Atmotube service UUID"},
+    {"id": "device_control", "kind": "action", "status": "excluded", "reason": "monitoring-first scope; no writes are implemented or advertised"},
+    {"id": "historical_backfill", "kind": "telemetry", "status": "excluded", "reason": "the direct GATT snapshot contract used here exposes current readings only"},
+    {"id": "model_autodetection", "kind": "discovery", "status": "excluded", "reason": "automated tests do not establish physical model qualification"}
+  ]
+}

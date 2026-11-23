@@ -21,7 +21,7 @@ func TestDiscoverGetUsesDefaultTimeout(t *testing.T) {
 	app := NewWithOptions(fakeBLE, false)
 	router := app.Router()
 
-	request := httptest.NewRequest(http.MethodGet, "/discover", nil)
+	request := authenticatedRequest(http.MethodGet, "/discover", nil)
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, request)
 
@@ -43,7 +43,7 @@ func TestDiscoverPostUsesCustomScanSeconds(t *testing.T) {
 	app := NewWithOptions(fakeBLE, false)
 	router := app.Router()
 
-	request := httptest.NewRequest(http.MethodPost, "/discover", bytes.NewReader([]byte(`{"inputs":{"scan_seconds":12}}`)))
+	request := authenticatedRequest(http.MethodPost, "/discover", bytes.NewReader([]byte(`{"inputs":{"scan_seconds":12}}`)))
 	request.Header.Set("Content-Type", "application/json")
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, request)
@@ -63,7 +63,7 @@ func TestDiscoverPostPassesAddressFilterToBLEClient(t *testing.T) {
 	app := NewWithOptions(fakeBLE, false)
 	router := app.Router()
 
-	request := httptest.NewRequest(http.MethodPost, "/discover", bytes.NewReader([]byte(`{"inputs":{"address":"11:22:33:AA:BB:CC"}}`)))
+	request := authenticatedRequest(http.MethodPost, "/discover", bytes.NewReader([]byte(`{"inputs":{"address":"11:22:33:AA:BB:CC"}}`)))
 	request.Header.Set("Content-Type", "application/json")
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, request)
@@ -83,7 +83,7 @@ func TestDiscoverPostIgnoresInvalidJSONAndStillScans(t *testing.T) {
 	app := NewWithOptions(fakeBLE, false)
 	router := app.Router()
 
-	request := httptest.NewRequest(http.MethodPost, "/discover", bytes.NewReader([]byte(`{"inputs":`)))
+	request := authenticatedRequest(http.MethodPost, "/discover", bytes.NewReader([]byte(`{"inputs":`)))
 	request.Header.Set("Content-Type", "application/json")
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, request)
@@ -103,7 +103,7 @@ func TestDiscoverReturnsBadGatewayOnBLEScanError(t *testing.T) {
 	app := NewWithOptions(fakeBLE, false)
 	router := app.Router()
 
-	request := httptest.NewRequest(http.MethodGet, "/discover", nil)
+	request := authenticatedRequest(http.MethodGet, "/discover", nil)
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, request)
 
@@ -133,7 +133,7 @@ func TestDiscoverResponseIncludesBroadcastMetadata(t *testing.T) {
 	app := NewWithOptions(fakeBLE, false)
 	router := app.Router()
 
-	request := httptest.NewRequest(http.MethodGet, "/discover", nil)
+	request := authenticatedRequest(http.MethodGet, "/discover", nil)
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, request)
 
@@ -154,7 +154,7 @@ func TestDiscoverReturnsEmptyDeviceListWhenScannerFindsNothing(t *testing.T) {
 	app := NewWithOptions(&fakeBLEClient{discovered: nil}, false)
 	router := app.Router()
 
-	request := httptest.NewRequest(http.MethodGet, "/discover", nil)
+	request := authenticatedRequest(http.MethodGet, "/discover", nil)
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, request)
 
@@ -187,7 +187,7 @@ func TestDiscoverFiltersCaseInsensitiveAtmotubeName(t *testing.T) {
 	app := NewWithOptions(fakeBLE, false)
 	router := app.Router()
 
-	request := httptest.NewRequest(http.MethodGet, "/discover", nil)
+	request := authenticatedRequest(http.MethodGet, "/discover", nil)
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, request)
 

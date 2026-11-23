@@ -2,43 +2,27 @@
   "manifest_version": "1.0",
   "id": "atmotube-pro-ble",
   "name": "Atmotube Pro (BLE)",
-  "version": "0.1.1",
+  "version": "0.1.7",
   "description": "Integration for the Atmotube Pro over Bluetooth Low Energy using tinygo.org/x/bluetooth.",
   "maintainer": {
     "name": "PiPhi Network",
     "website": "https://piphi.io",
     "support_email": "support@piphi.io"
   },
-  "platforms": [
-    "linux",
-    "windows",
-    "macos"
+  "platforms": ["linux"],
+  "runtime_requirements": [
+    "direct_hardware_access",
+    "host_dbus_socket",
+    "persistent_state"
   ],
   "runtime": {
     "linux": {
-      "type": "proxy",
-      "proxy": {
-        "port": 2026
-      },
-      "discovery": {
-        "method": "proxy",
-        "inputs": []
-      }
-    },
-    "windows": {
-      "type": "proxy",
-      "proxy": {
-        "port": 2026
-      },
-      "discovery": {
-        "method": "proxy",
-        "inputs": []
-      }
-    },
-    "macos": {
-      "type": "proxy",
-      "proxy": {
-        "port": 2026
+      "type": "container",
+      "container": {
+        "image": "ghcr.io/piphi-io/piphi-network-atmotube:0.1.7",
+        "ports": [{"container": 2026, "host": 2026}],
+        "environment": {"PIPHI_ATMOTUBE_STATE_PATH": "/var/lib/piphi-atmotube/state.json"},
+        "restart_policy": {"name": "unless-stopped", "maximum_retry_count": 0}
       },
       "discovery": {
         "method": "proxy",
@@ -68,7 +52,7 @@
   },
   "identity": {
     "fields": [
-      "address"
+      "device_id"
     ]
   },
   "capabilities": {
@@ -83,6 +67,11 @@
         ],
         "default_widget": "stat"
       }
+    },
+    "voc_ppm": {
+      "kind": "sensor",
+      "unit": "ppm",
+      "dashboard": {"allowed_widgets": ["stat", "line_chart"], "default_widget": "stat"}
     },
     "temperature_c": {
       "kind": "sensor",
@@ -142,6 +131,21 @@
         "default_widget": "stat"
       }
     },
+    "pm1_ugm3": {
+      "kind": "sensor",
+      "unit": "ug/m3",
+      "dashboard": {"allowed_widgets": ["stat", "line_chart"], "default_widget": "stat"}
+    },
+    "pm4_ugm3": {
+      "kind": "sensor",
+      "unit": "ug/m3",
+      "dashboard": {"allowed_widgets": ["stat", "line_chart"], "default_widget": "stat"}
+    },
+    "pm10_ugm3": {
+      "kind": "sensor",
+      "unit": "ug/m3",
+      "dashboard": {"allowed_widgets": ["stat", "line_chart", "gauge"], "default_widget": "stat"}
+    },
     "telemetry": {
       "kind": "sensor",
       "dashboard": {
@@ -176,11 +180,15 @@
       "entity_type": "sensor",
       "capabilities": [
         "voc_ppb",
+        "voc_ppm",
         "temperature_c",
         "humidity_percent",
         "pressure_mbar",
         "battery_percent",
+        "pm1_ugm3",
         "pm25_ugm3",
+        "pm4_ugm3",
+        "pm10_ugm3",
         "telemetry",
         "refresh"
       ]

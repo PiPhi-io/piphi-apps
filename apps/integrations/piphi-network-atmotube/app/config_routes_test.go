@@ -8,8 +8,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gin-gonic/gin"
 	runtimekit "github.com/PiPhi-io/piphi-runtime-kit-go"
+	"github.com/gin-gonic/gin"
 
 	"github.com/KelvinSan/piphi-network-atmotube/atmotube"
 )
@@ -21,7 +21,7 @@ func TestConfigAppliesDeviceAndReturnsMetadata(t *testing.T) {
 	router := app.Router()
 
 	body := []byte(`{"id":"bedroom","address":"11:22:33:aa:bb:cc","alias":"Bedroom","poll_interval_seconds":45}`)
-	request := httptest.NewRequest(http.MethodPost, "/config", bytes.NewReader(body))
+	request := authenticatedRequest(http.MethodPost, "/config", bytes.NewReader(body))
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("X-Container-Id", "container-1")
 	request.Header.Set("X-PiPhi-Integration-Token", "test-token")
@@ -41,8 +41,8 @@ func TestConfigAppliesDeviceAndReturnsMetadata(t *testing.T) {
 		t.Fatalf("unexpected config_id: %#v", response["config_id"])
 	}
 	metadata := response["metadata"].(map[string]any)
-	if metadata["address"].(string) != "11:22:33:AA:BB:CC" {
-		t.Fatalf("expected normalized address, got %#v", metadata["address"])
+	if _, exposed := metadata["address"]; exposed {
+		t.Fatalf("Bluetooth address must not be returned in config metadata")
 	}
 }
 
@@ -52,7 +52,7 @@ func TestConfigStoresLatestStateSnapshot(t *testing.T) {
 	app := NewWithOptions(&fakeBLEClient{reading: sampleReading()}, false)
 	router := app.Router()
 
-	request := httptest.NewRequest(http.MethodPost, "/config", bytes.NewReader([]byte(`{"id":"bedroom","address":"11:22:33:AA:BB:CC"}`)))
+	request := authenticatedRequest(http.MethodPost, "/config", bytes.NewReader([]byte(`{"id":"bedroom","address":"11:22:33:AA:BB:CC"}`)))
 	request.Header.Set("Content-Type", "application/json")
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, request)
@@ -71,7 +71,7 @@ func TestConfigReturnsBadGatewayWhenReadSnapshotFails(t *testing.T) {
 	app := NewWithOptions(&fakeBLEClient{readErr: errors.New("connect failed")}, false)
 	router := app.Router()
 
-	request := httptest.NewRequest(http.MethodPost, "/config", bytes.NewReader([]byte(`{"id":"bedroom","address":"11:22:33:AA:BB:CC"}`)))
+	request := authenticatedRequest(http.MethodPost, "/config", bytes.NewReader([]byte(`{"id":"bedroom","address":"11:22:33:AA:BB:CC"}`)))
 	request.Header.Set("Content-Type", "application/json")
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, request)
@@ -87,8 +87,8 @@ func TestConfigNormalizesDefaultDeviceID(t *testing.T) {
 		Address:       "11:22:33:aa:bb:cc",
 	}.Normalize()
 
-	if normalized.DeviceID != "bedroom" {
-		t.Fatalf("expected normalized device_id=bedroom, got %q", normalized.DeviceID)
+	if normalized.DeviceID != "" {
+		t.Fatalf("raw config normalization must not invent a device identity, got %q", normalized.DeviceID)
 	}
 }
 
@@ -117,7 +117,7 @@ func TestConfigSyncRemovesAllConfigsWhenSnapshotIsEmpty(t *testing.T) {
 		t.Fatalf("applyConfig failed: %v", err)
 	}
 
-	request := httptest.NewRequest(http.MethodPost, "/config/sync", bytes.NewReader([]byte(`{"container_id":"container-1","configs":[]}`)))
+	request := authenticatedRequest(http.MethodPost, "/config/sync", bytes.NewReader([]byte(`{"container_id":"container-1","configs":[]}`)))
 	request.Header.Set("Content-Type", "application/json")
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, request)
@@ -136,7 +136,7 @@ func TestConfigsSyncAliasUsesSameHandler(t *testing.T) {
 	app := NewWithOptions(&fakeBLEClient{reading: sampleReading()}, false)
 	router := app.Router()
 
-	request := httptest.NewRequest(http.MethodPost, "/configs/sync", bytes.NewReader([]byte(`{"container_id":"container-1","configs":[{"id":"bedroom","address":"11:22:33:AA:BB:CC"}]}`)))
+	request := authenticatedRequest(http.MethodPost, "/configs/sync", bytes.NewReader([]byte(`{"container_id":"container-1","configs":[{"id":"bedroom","address":"11:22:33:AA:BB:CC"}]}`)))
 	request.Header.Set("Content-Type", "application/json")
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, request)
@@ -155,7 +155,7 @@ func TestConfigSyncReturnsBadGatewayWhenApplyFails(t *testing.T) {
 	app := NewWithOptions(&fakeBLEClient{readErr: errors.New("connect failed")}, false)
 	router := app.Router()
 
-	request := httptest.NewRequest(http.MethodPost, "/config/sync", bytes.NewReader([]byte(`{"container_id":"container-1","configs":[{"id":"bedroom","address":"11:22:33:AA:BB:CC"}]}`)))
+	request := authenticatedRequest(http.MethodPost, "/config/sync", bytes.NewReader([]byte(`{"container_id":"container-1","configs":[{"id":"bedroom","address":"11:22:33:AA:BB:CC"}]}`)))
 	request.Header.Set("Content-Type", "application/json")
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, request)
@@ -179,7 +179,7 @@ func TestDeconfigureRemovesExistingConfig(t *testing.T) {
 		t.Fatalf("applyConfig failed: %v", err)
 	}
 
-	request := httptest.NewRequest(http.MethodPost, "/deconfigure", bytes.NewReader([]byte(`{"config_id":"bedroom"}`)))
+	request := authenticatedRequest(http.MethodPost, "/deconfigure", bytes.NewReader([]byte(`{"config_id":"bedroom"}`)))
 	request.Header.Set("Content-Type", "application/json")
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, request)
@@ -207,7 +207,7 @@ func TestDeconfigureReturnsRemainingConfigCount(t *testing.T) {
 		t.Fatalf("applyConfig failed: %v", err)
 	}
 
-	request := httptest.NewRequest(http.MethodPost, "/deconfigure", bytes.NewReader([]byte(`{"config_id":"bedroom"}`)))
+	request := authenticatedRequest(http.MethodPost, "/deconfigure", bytes.NewReader([]byte(`{"config_id":"bedroom"}`)))
 	request.Header.Set("Content-Type", "application/json")
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, request)
