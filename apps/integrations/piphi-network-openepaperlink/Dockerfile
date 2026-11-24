@@ -19,7 +19,8 @@ COPY src ./src
 RUN pip install --no-cache-dir --no-deps . \
     && groupadd --system --gid 10001 piphi \
     && useradd --system --uid 10001 --gid piphi --home-dir /nonexistent --no-create-home piphi \
-    && chown -R piphi:piphi /app
+    && mkdir -p /var/lib/piphi \
+    && chown -R piphi:piphi /app /var/lib/piphi
 USER 10001:10001
 EXPOSE 4219
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \

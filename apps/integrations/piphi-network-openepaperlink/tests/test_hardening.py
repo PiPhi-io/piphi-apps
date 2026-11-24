@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import asyncio
 import json
+import os
+from pathlib import Path
 
 import httpx
 import pytest
+from piphi_runtime_kit_python import RuntimeConfigSnapshot
 from pydantic import ValidationError
 
 from piphi_network_openepaperlink import lifecycle, state
@@ -50,7 +54,7 @@ async def test_configuration_is_connect_before_save_and_rolls_back(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     async def online(_host: str) -> AccessPointSnapshot:
-        return snapshot("aabbccdd")
+        return snapshot("0011223344556677")
 
     monkeypatch.setattr(state, "snapshot_fetcher", online)
     monkeypatch.setattr(state, "schedule_telemetry_delivery", lambda **_kwargs: None)
@@ -76,11 +80,11 @@ async def test_last_good_recovery_tag_removal_and_transition_dedupe(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     results: list[AccessPointSnapshot | Exception] = [
-        snapshot("aabbccdd", "11223344", pending=1),
+        snapshot("0011223344556677", "8899AABBCCDDEEFF", pending=1),
         httpx.ConnectError("offline"),
         httpx.ConnectError("still offline"),
-        snapshot("aabbccdd"),
-        snapshot("aabbccdd"),
+        snapshot("0011223344556677"),
+        snapshot("0011223344556677"),
     ]
 
     async def sequence(_host: str) -> AccessPointSnapshot:
@@ -111,11 +115,144 @@ async def test_last_good_recovery_tag_removal_and_transition_dedupe(
 async def test_core_restart_rehydrates_even_while_ap_is_offline(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    applied: list[object] = []
+    async def online(_host: str) -> AccessPointSnapshot:
+        return snapshot("0011223344556677", pending=2)
+
+    monkeypatch.setattr(state, "snapshot_fetcher", online)
+    monkeypatch.setattr(state, "schedule_telemetry_delivery", lambda **_kwargs: None)
+    config = DeviceConfig(id="restart-test", host="192.168.1.2")
+    await state.apply_config(config)
+    original_tag_ids = list(state.registry.get("restart-test")["tag_ids"])
+    persisted_json = Path(os.environ["PIPHI_STATE_SNAPSHOT_PATH"]).read_text()
+    assert "0011223344556677" not in persisted_json
+    assert original_tag_ids[0] in persisted_json
+    state.registry.entries.clear()
+    state.registry.state_snapshots.clear()
+    state.persisted_state.clear()
+
+    async def offline(_host: str) -> AccessPointSnapshot:
+        raise httpx.ConnectError("offline during restart")
+
+    monkeypatch.setattr(state, "snapshot_fetcher", offline)
 
     async def fake_rehydrate(**kwargs) -> None:
-        applied.append(kwargs["config_model"])
+        core_snapshot = RuntimeConfigSnapshot(
+            container_id="restart-container", generation=7
+        ).model_copy(update={"configs": [config]})
+        await kwargs["apply_snapshot"](core_snapshot)
 
     monkeypatch.setattr(lifecycle, "rehydrate_runtime_configs", fake_rehydrate)
     await lifecycle.startup_sync("runtime", "client")
-    assert applied == [DeviceConfig]
+    entry = state.registry.get("restart-test")
+    restored = state.registry.state_snapshots["restart-test"]["state"]
+    assert entry["tag_ids"] == original_tag_ids
+    assert restored["stale"] is True
+    assert restored["ap_tag_count"] == 1
+    assert restored["ap_pending_transfer_count"] == 2
+    assert state.config_sync.get_current_generation() == 7
+
+
+@pytest.mark.anyio
+async def test_config_sync_is_atomic_across_all_configs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def initial(_host: str) -> AccessPointSnapshot:
+        return snapshot("0011223344556677")
+
+    monkeypatch.setattr(state, "snapshot_fetcher", initial)
+    monkeypatch.setattr(state, "schedule_telemetry_delivery", lambda **_kwargs: None)
+    await state.apply_config(DeviceConfig(id="old", host="192.168.1.2"))
+    state.config_sync.mark_generation(10)
+    before = json.dumps(state.registry.entries, sort_keys=True)
+    first = DeviceConfig(id="first", host="192.168.1.3")
+    second = DeviceConfig(id="second", host="192.168.1.4")
+    incoming = RuntimeConfigSnapshot(container_id="sync", generation=11).model_copy(
+        update={"configs": [first, second]}
+    )
+
+    async def partially_offline(host: str) -> AccessPointSnapshot:
+        if host.endswith(".4"):
+            raise httpx.ConnectError("second AP unavailable")
+        return snapshot("8899AABBCCDDEEFF")
+
+    monkeypatch.setattr(state, "snapshot_fetcher", partially_offline)
+    with pytest.raises(ConnectionError, match="unavailable"):
+        await state.apply_config_snapshot(incoming)
+    assert json.dumps(state.registry.entries, sort_keys=True) == before
+    assert state.registry.ids() == ["old"]
+    assert state.config_sync.get_current_generation() == 10
+
+    monkeypatch.setattr(state, "snapshot_fetcher", initial)
+    response = await state.apply_config_snapshot(incoming)
+    assert response.metadata["atomic"] is True
+    assert set(state.registry.ids()) == {"first", "second"}
+    assert response.removed == ["old"]
+    assert state.config_sync.get_current_generation() == 11
+
+
+@pytest.mark.anyio
+async def test_persistence_failure_rolls_back_reconfiguration(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def online(_host: str) -> AccessPointSnapshot:
+        return snapshot("0011223344556677")
+
+    monkeypatch.setattr(state, "snapshot_fetcher", online)
+    monkeypatch.setattr(state, "schedule_telemetry_delivery", lambda **_kwargs: None)
+    await state.apply_config(DeviceConfig(id="persist-rollback", host="192.168.1.2", alias="old"))
+    event_count = len(state.registry.recent_events)
+
+    def fail_save(_entries) -> None:
+        raise OSError("disk unavailable")
+
+    monkeypatch.setattr(state, "state_saver", fail_save)
+    with pytest.raises(OSError, match="disk unavailable"):
+        await state.apply_config(
+            DeviceConfig(id="persist-rollback", host="192.168.1.2", alias="new")
+        )
+    assert state.registry.get("persist-rollback")["alias"] == "old"
+    assert len(state.registry.recent_events) == event_count
+
+
+@pytest.mark.anyio
+async def test_concurrent_older_snapshot_cannot_overwrite_newer_generation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    newer_started = asyncio.Event()
+    release_newer = asyncio.Event()
+
+    async def controlled_fetch(host: str) -> AccessPointSnapshot:
+        if host.endswith(".11"):
+            newer_started.set()
+            await release_newer.wait()
+        return snapshot("0011223344556677")
+
+    monkeypatch.setattr(state, "snapshot_fetcher", controlled_fetch)
+    monkeypatch.setattr(state, "schedule_telemetry_delivery", lambda **_kwargs: None)
+    newer = RuntimeConfigSnapshot(container_id="sync", generation=11).model_copy(
+        update={"configs": [DeviceConfig(id="newer", host="192.168.1.11")]}
+    )
+    older = RuntimeConfigSnapshot(container_id="sync", generation=10).model_copy(
+        update={"configs": [DeviceConfig(id="older", host="192.168.1.10")]}
+    )
+
+    newer_task = asyncio.create_task(state.apply_config_snapshot(newer))
+    await newer_started.wait()
+    older_task = asyncio.create_task(state.apply_config_snapshot(older))
+    release_newer.set()
+    newer_response, older_response = await asyncio.gather(newer_task, older_task)
+
+    assert newer_response.status == "synced"
+    assert older_response.status == "stale_ignored"
+    assert state.registry.ids() == ["newer"]
+    assert state.config_sync.get_current_generation() == 11
+
+
+@pytest.mark.anyio
+async def test_corrupt_persisted_state_does_not_block_core_rehydration(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    Path(os.environ["PIPHI_STATE_SNAPSHOT_PATH"]).write_text("not-json")
+    await state.restore_runtime_state()
+    assert state.persisted_state == {}
+    assert "openepaperlink_state_restore_failed" in caplog.text

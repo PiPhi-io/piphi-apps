@@ -9,9 +9,16 @@ Read-only PiPhi monitoring for a manually configured local OpenEPaperLink access
 - Lists tags using stable config-scoped hashes; raw MAC addresses are not retained or sent to Core.
 - Emits deduplicated AP unavailable/recovered and tag discovered/removed transitions.
 - Preserves last-good counts as stale during failures and restores Core-owned configuration after restart.
+- Persists only hashed tag identities and aggregate last-good state in `/var/lib/piphi/openepaperlink-state.json` so offline process restarts retain stale state without retaining raw tag identifiers.
 - Supports one read-only, single-AP `refresh` action.
 
 Rendering, content transfer, tag radio/power details, maintenance, and all per-tag controls are deliberately not implemented. Physical AP/tag/model/firmware qualification is also outside this source-only package.
+
+## Testing without hardware
+
+The official Home Assistant integration does not contain AP `/get_db` fixtures; its automated tests mock Home Assistant/tag objects and compare rendering output. Because rendering is deliberately out of scope here, this package follows the same hardware-free principle with deterministic transports, but derives its AP pages from the first-party firmware serializer and pagination client. See [`docs/upstream-test-evidence.md`](docs/upstream-test-evidence.md) for immutable source citations and the qualification boundary.
+
+Tests include empty, complete, paginated, malformed, redirected, oversized, retry, DNS-rebinding, stale/recovery, restart, atomic-sync, persistence-failure, and Runtime TestKit scenarios. These prove the source contract and runtime behavior; they do not claim physical radio/display qualification.
 
 ## Security and configuration
 
@@ -19,6 +26,8 @@ Only `GET /health` is public. Every other route requires the exact value of
 `PIPHI_INTEGRATION_INTERNAL_TOKEN` in `X-PiPhi-Integration-Token`; a missing server token fails closed.
 
 Configure an RFC1918, IPv6 ULA, or link-local AP address, or a `.local`/`.lan` hostname that resolves only to those ranges. The client pins the approved address, disables environment proxies and redirects, bounds responses/pages/tags, and retries transient transport failures at most three times. Configuration is committed only after a successful AP read; failed reconfiguration leaves the previous configuration active.
+
+The read-only container requires its declared writable `/var/lib/piphi` state volume. Complete Core snapshots are staged and connectivity-checked before any add, replacement, or removal is committed; a failed member leaves the prior snapshot and generation intact.
 
 ```bash
 pdm install --check

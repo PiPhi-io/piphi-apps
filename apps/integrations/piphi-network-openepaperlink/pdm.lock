@@ -5,7 +5,7 @@
 groups = ["default", "dev"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:1d471f56849a2a45aedf0b434a60c0b152382f456d7d1e68fc471d64c0fb8917"
+content_hash = "sha256:5a472eccdeee79b0eb26b5b1b3f67302da74dcf278907bf85003a66af4cdc0db"
 
 [[metadata.targets]]
 requires_python = ">=3.11"
@@ -159,7 +159,7 @@ version = "0.4.6"
 requires_python = "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,!=3.5.*,!=3.6.*,>=2.7"
 summary = "Cross-platform colored terminal text."
 groups = ["dev"]
-marker = "platform_system == \"Windows\" or sys_platform == \"win32\""
+marker = "sys_platform == \"win32\" or platform_system == \"Windows\""
 files = [
     {file = "colorama-0.4.6-py2.py3-none-any.whl", hash = "sha256:4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6"},
     {file = "colorama-0.4.6.tar.gz", hash = "sha256:08695f5cb7ed6e0531a20572697297273c47b8cae5a63ffc6d6ed5c201be6e44"},
@@ -886,6 +886,20 @@ files = [
 ]
 
 [[package]]
+name = "piphi-runtime-testkit-python"
+version = "0.2.0"
+requires_python = ">=3.11"
+summary = "Pytest-first helpers for testing PiPhi runtime integrations"
+groups = ["dev"]
+dependencies = [
+    "pytest<9.0,>=8.3",
+]
+files = [
+    {file = "piphi_runtime_testkit_python-0.2.0-py3-none-any.whl", hash = "sha256:0b23081b7f1974651dbf653cb5ffcd57c0eb165ddcd430c7424d762f59e519e1"},
+    {file = "piphi_runtime_testkit_python-0.2.0.tar.gz", hash = "sha256:bea88738ed2e7b2281f0cda120fee6f42d9504a5bfd84d733680169f3b08dd97"},
+]
+
+[[package]]
 name = "pluggy"
 version = "1.7.0"
 requires_python = ">=3.10"
@@ -1022,22 +1036,22 @@ files = [
 
 [[package]]
 name = "pytest"
-version = "9.2.0"
-requires_python = ">=3.10"
+version = "8.4.2"
+requires_python = ">=3.9"
 summary = "pytest: simple powerful testing with Python"
 groups = ["dev"]
 dependencies = [
     "colorama>=0.4; sys_platform == \"win32\"",
     "exceptiongroup>=1; python_version < \"3.11\"",
-    "iniconfig>=2",
-    "packaging>=24",
-    "pluggy<2,>=1.6",
-    "pygments>=2.15",
-    "tomli>=2; python_version < \"3.11\"",
+    "iniconfig>=1",
+    "packaging>=20",
+    "pluggy<2,>=1.5",
+    "pygments>=2.7.2",
+    "tomli>=1; python_version < \"3.11\"",
 ]
 files = [
-    {file = "pytest-9.2.0-py3-none-any.whl", hash = "sha256:07acdcf88ec174f907dc01af70bf52d49b014bbab03faeeade31c96b18c2e588"},
-    {file = "pytest-9.2.0.tar.gz", hash = "sha256:97c4f3b1f3c7414aa36465e09b8220f1d03627993bd51b1282e193753c80557b"},
+    {file = "pytest-8.4.2-py3-none-any.whl", hash = "sha256:872f880de3fc3a5bdc88a11b39c9710c3497a547cfa9320bc3c5e62fbf272e79"},
+    {file = "pytest-8.4.2.tar.gz", hash = "sha256:86c0d0b93306b961d58d62a4db4879f27fe25513d4b969df351abdddb3c30e01"},
 ]
 
 [[package]]

@@ -110,8 +110,10 @@ async def _resolve(name: str, port: int) -> set[str]:
 def _source_id(tag: dict[str, object]) -> str:
     for key in ("mac", "MAC", "id"):
         value = tag.get(key)
-        if isinstance(value, str) and re.fullmatch(r"[0-9A-Fa-f:-]{8,32}", value):
-            return re.sub(r"[:-]", "", value).lower()
+        if isinstance(value, str):
+            normalized = re.sub(r"[:-]", "", value).lower()
+            if re.fullmatch(r"(?:[0-9a-f]{12}|[0-9a-f]{16})", normalized):
+                return normalized
     raise ValueError("Access point returned a tag without a stable identifier")
 
 

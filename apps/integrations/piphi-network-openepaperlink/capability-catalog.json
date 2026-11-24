@@ -4,8 +4,8 @@
   "coverage_mode": "read_only_ap_summary_and_privacy_preserving_tag_inventory",
   "reviewed_at": "2026-11-24",
   "sources": {
-    "oepl_core": "https://github.com/OpenEPaperLink/OpenEPaperLink",
-    "oepl_ha": "https://github.com/OpenEPaperLink/Home_Assistant_Integration",
+    "oepl_core": "https://github.com/OpenEPaperLink/OpenEPaperLink/tree/96bfd389b71451a289a172dd4298876f04709fb2",
+    "oepl_ha": "https://github.com/OpenEPaperLink/Home_Assistant_Integration/tree/f28c21761365181cfaf203030678f1c29433baf3",
     "oepl_wiki": "https://github.com/OpenEPaperLink/OpenEPaperLink/wiki",
     "core_vocabulary": "PiPhi Network Core and maintained PiPhi integrations"
   },

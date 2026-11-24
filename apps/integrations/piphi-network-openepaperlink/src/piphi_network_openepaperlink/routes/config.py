@@ -4,7 +4,6 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 from piphi_runtime_kit_python import (
-    RuntimeConfig,
     RuntimeConfigSnapshot,
     build_config_apply_response,
     build_config_remove_response,
@@ -15,17 +14,13 @@ from piphi_runtime_kit_python.fastapi import sync_runtime_auth_from_fastapi_payl
 from ..schemas import DeviceConfig
 from ..state import (
     apply_config,
-    config_sync,
+    apply_config_snapshot,
     registry,
     remove_config,
     runtime,
 )
 
 router = APIRouter(tags=["config"])
-
-
-async def _apply_synced_config(config: RuntimeConfig) -> None:
-    await apply_config(DeviceConfig.model_validate(config.model_dump()))
 
 
 @router.post("/config")
@@ -46,13 +41,10 @@ async def configure(payload: DeviceConfig, request: Request) -> Any:
 async def sync_config(snapshot: RuntimeConfigSnapshot, request: Request) -> Any:
     runtime.auth.sync_from_headers(request.headers, payload_container_id=snapshot.container_id)
     typed_configs = validate_typed_configs(snapshot.configs, DeviceConfig)
-    return await config_sync.apply_snapshot(
-        snapshot=snapshot.model_copy(update={"configs": typed_configs}),
-        active_config_ids=registry.ids(),
-        apply_config=_apply_synced_config,
-        remove_config=remove_config,
-        get_active_config_ids=registry.ids,
-    )
+    try:
+        return await apply_config_snapshot(snapshot.model_copy(update={"configs": typed_configs}))
+    except ConnectionError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from None
 
 
 @router.post("/deconfigure")

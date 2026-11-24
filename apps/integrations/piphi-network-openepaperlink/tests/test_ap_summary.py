@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import httpx
 import pytest
 
@@ -8,6 +11,10 @@ from piphi_network_openepaperlink.ap import (
     TagObservation,
     _ap_origin,
     fetch_snapshot,
+)
+
+FIXTURE = json.loads(
+    (Path(__file__).parent / "fixtures" / "upstream-get-db-pages.json").read_text()
 )
 
 
@@ -19,9 +26,13 @@ async def test_paginated_inventory_is_pinned_bounded_and_read_only() -> None:
         requests.append(request)
         if request.url.params["pos"] == "0":
             return httpx.Response(
-                200, json={"tags": [{"mac": "AA:BB:CC:DD", "pending": 2}], "continu": 1}
+                200,
+                json={
+                    "tags": [{"mac": "00:11:22:33:44:55:66:77", "pending": 2}],
+                    "continu": 1,
+                },
             )
-        return httpx.Response(200, json={"tags": [{"mac": "11:22:33:44", "pending": 1}]})
+        return httpx.Response(200, json={"tags": [{"mac": "8899AABBCCDDEEFF", "pending": 1}]})
 
     snapshot = await fetch_snapshot(
         "openepaperlink.local:8080",
@@ -38,6 +49,24 @@ async def test_paginated_inventory_is_pinned_bounded_and_read_only() -> None:
 
 async def _resolved(values: set[str]) -> set[str]:
     return values
+
+
+@pytest.mark.anyio
+async def test_first_party_source_derived_get_db_fixture() -> None:
+    pages = {str(page["pos"]): page["body"] for page in FIXTURE["pages"]}
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=pages[request.url.params["pos"]])
+
+    result = await fetch_snapshot(
+        "192.168.1.25", transport=httpx.MockTransport(respond), attempts=1
+    )
+    assert result.tag_count == 2
+    assert result.pending_transfer_count == 2
+    assert [tag.source_id for tag in result.tags] == [
+        "0011223344556677",
+        "8899aabbccddeeff",
+    ]
 
 
 @pytest.mark.anyio
@@ -82,13 +111,13 @@ async def test_retry_schedule_and_malformed_payload_are_deterministic() -> None:
         calls += 1
         if calls < 3:
             raise httpx.ConnectError("offline")
-        return httpx.Response(200, json={"tags": [{"mac": "AABBCCDD", "pending": 0}]})
+        return httpx.Response(200, json={"tags": [{"mac": "0011223344556677", "pending": 0}]})
 
     async def sleep(delay: float) -> None:
         delays.append(delay)
 
     result = await fetch_snapshot("192.168.1.25", transport=httpx.MockTransport(flaky), sleep=sleep)
-    assert result == AccessPointSnapshot((TagObservation("aabbccdd", 0),))
+    assert result == AccessPointSnapshot((TagObservation("0011223344556677", 0),))
     assert calls == 3
     assert delays == [0.2, 0.4]
 

@@ -44,6 +44,22 @@ if f"ARG RELEASE_VERSION={version}" not in dockerfile:
 if "FROM python:3.12-slim@sha256:" not in dockerfile or "USER 10001:10001" not in dockerfile:
     errors.append("Dockerfile must use a pinned base and non-root runtime user")
 
+container = manifest.get("runtime", {}).get("linux", {}).get("container", {})
+if container.get("read_only") is not True or container.get("run_as_user") != 10001:
+    errors.append("runtime container must declare a read-only root and UID 10001")
+state_path = container.get("environment", {}).get("PIPHI_STATE_SNAPSHOT_PATH")
+if state_path != "/var/lib/piphi/openepaperlink-state.json":
+    errors.append("runtime state path must use the declared persistent volume")
+volumes = container.get("volumes", [])
+if not any(
+    volume.get("container") == "/var/lib/piphi" and volume.get("mode") == "rw"
+    for volume in volumes
+    if isinstance(volume, dict)
+):
+    errors.append("runtime must declare the privacy-safe state volume")
+if "persistent_state" not in manifest.get("runtime_requirements", []):
+    errors.append("manifest must disclose its persistent-state requirement")
+
 if manifest.get("$schema") != "./schema/piphi-manifest.schema.json":
     errors.append("manifest must reference ./schema/piphi-manifest.schema.json")
 if not (ROOT / "schema" / "piphi-manifest.schema.json").exists():

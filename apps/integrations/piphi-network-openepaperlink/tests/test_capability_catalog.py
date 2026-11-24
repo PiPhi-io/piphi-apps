@@ -95,6 +95,9 @@ def test_implemented_behavior_events_and_conditions_are_declared() -> None:
     }
     assert behavior_events == _by_status("implemented", "events")
     assert behavior_conditions == _by_status("implemented", "conditions")
+    assert {
+        definition.event_type for definition in state.automations.event_definitions
+    } == behavior_events
 
 
 @pytest.mark.anyio

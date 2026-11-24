@@ -13,7 +13,7 @@ async def test_authenticated_runtime_contract(monkeypatch: pytest.MonkeyPatch) -
     monkeypatch.setenv("PIPHI_INTEGRATION_INTERNAL_TOKEN", "runtime-secret")
 
     async def fake_fetch(_host: str) -> AccessPointSnapshot:
-        return AccessPointSnapshot((TagObservation("aabbccdd", 1),))
+        return AccessPointSnapshot((TagObservation("0011223344556677", 1),))
 
     monkeypatch.setattr(state, "snapshot_fetcher", fake_fetch)
     monkeypatch.setattr(state, "schedule_telemetry_delivery", lambda **_kwargs: None)
@@ -33,7 +33,7 @@ async def test_authenticated_runtime_contract(monkeypatch: pytest.MonkeyPatch) -
         ap_entity = next(entity for entity in entities if entity["entity_type"] == "access_point")
         tag_entity = next(entity for entity in entities if entity["entity_type"] == "display_tag")
         assert tag_entity["parent_device_id"] == ap_entity["device_id"]
-        assert "aabbccdd" not in str(entities)
+        assert "0011223344556677" not in str(entities)
         command = await client.post(
             "/command",
             headers=headers,

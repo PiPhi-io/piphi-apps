@@ -18,6 +18,9 @@
   },
   "license": "Apache-2.0",
   "image": "ghcr.io/piphi-io/piphi-network-openepaperlink:0.1.1",
+  "runtime_requirements": [
+    "persistent_state"
+  ],
   "platforms": [
     "linux"
   ],
@@ -26,7 +29,7 @@
       "type": "container",
       "container": {
         "image": "ghcr.io/piphi-io/piphi-network-openepaperlink:0.1.1",
-        "read_only_root_filesystem": true,
+        "read_only": true,
         "run_as_user": 10001,
         "ports": [
           {
@@ -35,12 +38,20 @@
           }
         ],
         "environment": {
-          "LOG_LEVEL": "info"
+          "LOG_LEVEL": "info",
+          "PIPHI_STATE_SNAPSHOT_PATH": "/var/lib/piphi/openepaperlink-state.json"
         },
         "restart_policy": {
           "name": "unless-stopped",
           "maximum_retry_count": 0
-        }
+        },
+        "volumes": [
+          {
+            "host": "/var/lib/piphi/openepaperlink",
+            "container": "/var/lib/piphi",
+            "mode": "rw"
+          }
+        ]
       },
       "discovery": {"method": "manual"}
     }
@@ -137,6 +148,12 @@
         "id": "local_network",
         "label": "Local network access",
         "reason": "Connects to the manually configured OpenEPaperLink access point on the homeowner's local network.",
+        "required": true
+      },
+      {
+        "id": "persistent_storage",
+        "label": "Private runtime state storage",
+        "reason": "Stores only hashed tag identities and aggregate last-good AP counts for restart recovery.",
         "required": true
       }
     ],
