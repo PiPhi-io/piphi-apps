@@ -15,7 +15,7 @@
     "enforcement": "full",
     "commands": [
       "pdm install -G dev --check",
-      "pdm run pytest -q",
+      "pdm run pytest -q -m 'not hardware'",
       "pdm run python scripts/build_experience.py --check"
     ],
     "build_container": true

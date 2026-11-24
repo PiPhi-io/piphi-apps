@@ -32,3 +32,8 @@ dev = [
     "cryptography>=43.0.0",
     "piphi-runtime-testkit-python==0.1.4",
 ]
+
+[tool.pytest.ini_options]
+markers = [
+    "hardware: opt-in read-only tests against a physical device",
+]
