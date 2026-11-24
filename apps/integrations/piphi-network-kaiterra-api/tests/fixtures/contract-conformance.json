@@ -48,7 +48,7 @@
         "id": "kaiterra-sensedge",
         "device_udid": "00000000-0031-0101-0000-00007e57c0de",
         "alias": "Office Kaiterra",
-        "api_key": "change-me"
+        "api_key": "fixture-secret"
       },
       "required_any_keys": [
         [

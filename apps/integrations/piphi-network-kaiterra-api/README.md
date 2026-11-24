@@ -1,106 +1,67 @@
 # PiPhi Network Kaiterra API
 
-Python PiPhi integration runtime for Kaiterra air-quality devices using the
-Kaiterra public API.
+Privacy-hardened, read-only PiPhi integration for the official
+[Kaiterra public API](https://dev.kaiterra.com/). It polls the latest reading and
+minimal metadata for one explicitly selected device per configuration.
 
-Kaiterra API docs: https://dev.kaiterra.com/
+## Supported boundary
 
-## Run Locally
+- Requires a revocable Kaiterra API key and an explicit device UDID.
+- Never lists an account or silently selects a first device: the documented API
+  exposes no account/device-list endpoint.
+- Reads `GET /devices/{id}/top` and `GET /devices/{id}` only.
+- Supports air-quality/comfort metrics listed in `capability-catalog.json`.
+- Excludes motion, sound, raw metadata, history, batch calls, and all mutations.
+- Preserves stale last-good state during typed auth, rate-limit, provider-contract,
+  and transient-outage failures.
 
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -e .[dev]
-uvicorn piphi_network_kaiterra_api.main:app --reload --port 8090
-```
+See [privacy and diagnostics](docs/privacy.md) for data minimization details.
 
 ## Configuration
 
-The PiPhi UI config endpoint asks for:
-
-- `device_udid`: Kaiterra device UDID
-- `api_key`: Kaiterra API key
-- `alias`: optional display name
-- `poll_interval_seconds`: optional polling cadence
-
-Example:
+PiPhi Core sends runtime-authenticated configuration containing:
 
 ```json
 {
-  "id": "kaiterra-sensedge",
-  "device_udid": "00000000-0031-0101-0000-00007e57c0de",
-  "alias": "Office Kaiterra",
-  "api_key": "change-me",
-  "poll_interval_seconds": 60
+  "id": "office-air-monitor",
+  "device_udid": "<device-uuid>",
+  "api_key": "<api-key>",
+  "alias": "Office air monitor",
+  "poll_interval_seconds": 300
 }
 ```
 
-The generated examples use Kaiterra's documented public test UDIDs. A real
-deployment needs a Kaiterra API key for the target device.
+Both `device_udid` and `api_key` are secret fields. Reconfigure/reauth accepts the
+masked placeholders `********`, `••••••••`, or `***` only for the same existing
+configuration and device identity. A replacement is validated before the working
+session is swapped.
 
-Production requests are pinned to `https://api.kaiterra.com/v1`; the setup UI
-does not accept endpoint overrides. Isolated tests may set
-`PIPHI_ALLOW_TEST_BASE_URL=1` and use a loopback-only URL.
+Production requests are fixed to `https://api.kaiterra.com/v1`. Isolated tests may
+set `PIPHI_ALLOW_TEST_BASE_URL=1` for loopback HTTP(S) only.
 
-## Capabilities
+## Runtime security and recovery
 
-The integration maps Kaiterra parameters into PiPhi capabilities:
+Only `GET /health` is public. Every other route requires matching
+`X-Container-Id` and `X-PiPhi-Integration-Token` headers. The runtime uses bounded
+jittered retries, honors bounded `Retry-After`, consumes quota-remaining headers
+when supplied, removes all sessions/tasks on deconfigure, and rehydrates Core's
+mounted/runtime snapshot after restart.
 
-- `rtemp` -> `temperature_c`
-- `rhumid` -> `humidity_percent`
-- `rco2` -> `co2_ppm`
-- `rpm1c` -> `pm1_ug_m3`
-- `rpm25c` -> `pm25_ug_m3`
-- `rpm10c` -> `pm10_ug_m3`
-- `tvoc` / `rtvoc` -> `tvoc_ppb`
-- `ro3` -> `ozone_ppb`
+The OCI image is pinned, dependency-locked, non-root, multi-architecture, and
+declares a read-only root filesystem with `/var/lib/piphi` as its sole persistent
+runtime data volume.
 
-It also exposes `connected`, `api_latency_ms`, `refresh`, and `sync_cloud`.
-
-## Runtime Contract
-
-The integration exposes the standard PiPhi runtime contract:
-
-- `GET /health`
-- `GET /diagnostics`
-- `POST /discover`
-- `POST /config`
-- `POST /config/sync`
-- `POST /deconfigure`
-- `GET /state`
-- `GET /contract`
-- `GET /entities`
-- `GET /events`
-- `POST /telemetry/example`
-- `POST /command`
-
-`refresh` refreshes one configured Kaiterra device. `sync_cloud` refreshes all
-configured devices when no specific config is provided.
-
-## Docker
+## Development gates
 
 ```bash
-docker build -t docker.io/piphi/piphi-network-kaiterra-api:0.1.0 .
-docker run --rm -p 8090:8090 docker.io/piphi/piphi-network-kaiterra-api:0.1.0
+pdm install --check
+pdm run pytest
+pdm run python scripts/validate.py
+python ../../../scripts/validate_apps.py
+python ../../../scripts/run_app_ci.py apps/integrations/piphi-network-kaiterra-api
+docker build -t kaiterra-api:local .
 ```
 
-## Release
-
-This project includes `.github/workflows/release.yml`. For Docker Hub releases,
-set these GitHub repository secrets:
-
-- `DOCKERHUB_USERNAME`
-- `DOCKERHUB_TOKEN`
-
-The manifest image is currently:
-
-```text
-docker.io/piphi/piphi-network-kaiterra-api:0.1.0
-```
-
-Before publishing, update `src/manifest.json.version` and the Docker image tag, then
-run:
-
-```bash
-piphi-network-create publish-check -C .
-```
+Tests use a deterministic in-process HTTP transport and synthetic contract fixtures.
+They do not use credentials or contact Kaiterra accounts/devices. Live account and
+physical-device interoperability remain separate qualification work.

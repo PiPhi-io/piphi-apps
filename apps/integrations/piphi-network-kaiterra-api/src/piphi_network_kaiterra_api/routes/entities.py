@@ -21,15 +21,14 @@ async def entities() -> dict[str, Any]:
             "device_id": entry["device_id"],
             "entity_type": FALLBACK_ENTITY["entity_type"],
             "manufacturer": "Kaiterra",
-            "model": entry.get("device_metadata", {}).get("model"),
+            "model": entry.get("model"),
             "metadata": {
-                "device_udid": entry.get("device_udid"),
-                "base_url": entry.get("base_url"),
+                "device_ref": entry.get("device_ref"),
             },
             "capabilities": FALLBACK_ENTITY["capabilities"],
             "available_commands": FALLBACK_ENTITY["available_commands"],
             "dashboard": FALLBACK_ENTITY["dashboard"],
         }
         for entry in entries
-    ] or [FALLBACK_ENTITY]
+    ]
     return {"entities": runtime_entities, "capabilities": capabilities, "commands": commands}
