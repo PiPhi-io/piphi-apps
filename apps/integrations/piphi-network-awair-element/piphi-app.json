@@ -12,18 +12,23 @@
     "python": "3.12"
   },
   "ci": {
-    "enforcement": "legacy-static",
+    "enforcement": "full",
     "commands": [
-      "pdm install --check",
-      "pdm run pytest"
+      "pdm install --check -G dev",
+      "pdm run ruff check src tests",
+      "pdm run mypy src",
+      "pdm run pytest -q",
+      "pdm run bandit -q -r src",
+      "pdm run pip-audit --ignore-vuln PYSEC-2026-1845",
+      "pdm build --no-sdist"
     ],
-    "build_container": false
+    "build_container": true
   },
   "packages": [
     {
       "id": "awair-element-local-api",
       "type": "integration",
-      "version": "0.1.14",
+      "version": "0.1.15",
       "manifest": "src/manifest.json",
       "release": {
         "tag": "apps/{package_id}/v{version}",

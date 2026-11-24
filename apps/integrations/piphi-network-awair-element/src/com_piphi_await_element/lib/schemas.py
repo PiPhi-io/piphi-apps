@@ -1,28 +1,47 @@
-from pydantic import BaseModel, ConfigDict, Field
-from piphi_runtime_kit_python import RuntimeConfig
 from typing import Any
+
+from piphi_runtime_kit_python import RuntimeConfig
+from piphi_runtime_kit_python import RuntimeConfigSnapshot as KitRuntimeConfigSnapshot
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class AwairElement(RuntimeConfig):
     config_id: str | None = None
-    device_ip: str
+    device_ip: str = Field(min_length=1, max_length=255)
+    device_identity: str = Field(min_length=3, max_length=128)
     container_id: str | None = None
     integration_id: str | None = None
     device_mac: str | None = None
-    model_config = ConfigDict(extra="allow")
+    poll_interval_seconds: int = Field(default=30, ge=10, le=3600)
+    model_config = ConfigDict(extra="forbid")
+
+    @field_validator("device_ip", "device_identity")
+    @classmethod
+    def normalize_text(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("value must not be empty")
+        return value
+
+    @field_validator("device_identity")
+    @classmethod
+    def validate_awair_identity(cls, value: str) -> str:
+        normalized = value.upper()
+        prefix = "AWAIR-ELEM-"
+        suffix = normalized.removeprefix(prefix)
+        if not normalized.startswith(prefix) or not suffix or not all(
+            character.isalnum() or character in "-_" for character in suffix
+        ):
+            raise ValueError("device_identity must be a discovered AWAIR-ELEM-* identity")
+        return normalized
 
 
 class DeconfigureConfig(BaseModel):
     config: dict
 
 
-class RuntimeConfigSnapshot(BaseModel):
-    container_id: str
-    integration_id: str | None = None
-    driver_pid: int | None = None
-    reason: str | None = None
-    generation: int | None = None
-    configs: list[AwairElement] = Field(default_factory=list)
+class RuntimeConfigSnapshot(KitRuntimeConfigSnapshot):
+    configs: list[RuntimeConfig] = Field(default_factory=list)
 
 
 class RuntimeConfigSyncResponse(BaseModel):
