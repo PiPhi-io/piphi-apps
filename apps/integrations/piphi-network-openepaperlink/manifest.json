@@ -3,7 +3,7 @@
   "manifest_version": "1.0",
   "id": "piphi-network-openepaperlink",
   "name": "OpenEPaperLink",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Monitor tag and pending-transfer counts on a local OpenEPaperLink access point.",
   "metadata": {
     "generator": "piphi-network-create",
@@ -17,7 +17,7 @@
     "website": "https://piphi.io"
   },
   "license": "Apache-2.0",
-  "image": "ghcr.io/piphi-io/piphi-network-openepaperlink:0.1.1",
+  "image": "ghcr.io/piphi-io/piphi-network-openepaperlink:0.1.2",
   "runtime_requirements": [
     "persistent_state"
   ],
@@ -28,7 +28,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "ghcr.io/piphi-io/piphi-network-openepaperlink:0.1.1",
+        "image": "ghcr.io/piphi-io/piphi-network-openepaperlink:0.1.2",
         "read_only": true,
         "run_as_user": 10001,
         "ports": [
@@ -139,7 +139,7 @@
     "publisher": {
       "name": "PiPhi Network",
       "website_url": "https://piphi.io",
-      "support_url": "https://github.com/PiPhi-io/piphi-network-openepaperlink/issues",
+      "support_url": "https://github.com/PiPhi-io/piphi-apps/issues",
       "security_contact": "support@piphi.io"
     },
     "access_declared": true,
@@ -163,9 +163,9 @@
         "model": "Local access points exposing the tag database API"
       }
     ],
-    "documentation_url": "https://github.com/PiPhi-io/piphi-network-openepaperlink",
-    "support_url": "https://github.com/PiPhi-io/piphi-network-openepaperlink/issues",
-    "changelog_url": "https://github.com/PiPhi-io/piphi-network-openepaperlink/releases",
+    "documentation_url": "https://github.com/PiPhi-io/piphi-apps/tree/main/apps/integrations/piphi-network-openepaperlink",
+    "support_url": "https://github.com/PiPhi-io/piphi-apps/issues",
+    "changelog_url": "https://github.com/PiPhi-io/piphi-apps/releases",
     "quality_tier": "unrated",
     "governance": {
       "schema_version": 1,

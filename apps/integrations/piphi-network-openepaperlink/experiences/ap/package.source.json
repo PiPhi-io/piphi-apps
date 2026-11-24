@@ -1,6 +1,6 @@
 {
   "schema_version": "1",
-  "identity": {"publisher_id": "io.piphi", "package_id": "openepaperlink-ap", "version": "0.1.1"},
+  "identity": {"publisher_id": "io.piphi", "package_id": "openepaperlink-ap", "version": "0.1.2"},
   "name": "OpenEPaperLink Access Point",
   "description": "Configured-tag and queued-transfer counts from a local OpenEPaperLink access point.",
   "origin": "integration",
