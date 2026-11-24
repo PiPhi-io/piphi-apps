@@ -45,5 +45,5 @@ The locked multi-stage image runs as UID/GID `10001`, contains no mutable applic
 
 ```bash
 docker buildx build --platform linux/amd64,linux/arm64 \
-  -t ghcr.io/piphi-io/piphi-network-openepaperlink:0.1.1 .
+  -t ghcr.io/piphi-io/piphi-network-openepaperlink:0.1.2 .
 ```
