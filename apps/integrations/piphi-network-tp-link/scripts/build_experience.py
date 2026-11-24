@@ -40,8 +40,6 @@ def _archive(source: dict) -> bytes:
         for widget in source["widgets"]
         for theme in widget.get("themes", [])
     )
-    # The sandboxed entry imports the vendored, self-contained SDK helper.
-    assets.add("assets/optimistic-control.mjs")
     output = io.BytesIO()
     with ZipFile(output, "w") as package:
         _write_member(

@@ -36,6 +36,25 @@ async def get_ui_schema() -> dict:
                 "description": "Required only for devices that require authenticated local access.",
                 "default": "",
             },
+            "controls_enabled": {
+                "type": "boolean",
+                "title": "Enable qualified controls",
+                "description": "Off by default. Requires an externally certified profile and command allow-list.",
+                "default": False,
+            },
+            "certified_profile": {
+                "type": "string",
+                "title": "Certified profile ID",
+                "description": "Profile supplied by a separate model/firmware qualification process.",
+                "default": "",
+            },
+            "allowed_commands": {
+                "type": "array",
+                "title": "Allowed commands",
+                "items": {"type": "string", "enum": ["turn_on", "turn_off", "set_brightness", "set_color_temperature", "set_hue_saturation"]},
+                "maxItems": 8,
+                "default": [],
+            },
         },
     }
     ui_schema = {

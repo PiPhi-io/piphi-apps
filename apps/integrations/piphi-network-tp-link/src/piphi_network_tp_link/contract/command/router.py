@@ -21,18 +21,8 @@ router = APIRouter(tags=["command"])
 
 AUTOMATION_COMMANDS = frozenset(
     {
-        "feature_action",
         "read_energy",
-        "reboot",
         "refresh",
-        "set_alias",
-        "set_brightness",
-        "set_color_temperature",
-        "set_feature",
-        "set_hue_saturation",
-        "toggle",
-        "turn_off",
-        "turn_on",
     }
 )
 _ledger_path = Path(

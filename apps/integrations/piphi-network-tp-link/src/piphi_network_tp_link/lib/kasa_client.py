@@ -10,11 +10,30 @@ from typing import Any
 
 from kasa import Credentials, Device, Discover
 
+from piphi_network_tp_link.lib.security import redact, resolve_local_host
+
 _DIRECT_CONNECT_TIMEOUT = 10
 _DISCOVERY_TIMEOUT = 8
 _DISCOVERY_PACKETS = 5
 _DISCOVERY_TARGETS_ENV = "PIPHI_TP_LINK_DISCOVERY_TARGETS"
 _DEVICE_CONFIG_CACHE: dict[str, Any] = {}
+_MAX_ATTEMPTS = 3
+_RETRY_BASE_SECONDS = 0.25
+
+
+async def _bounded(operation, *, attempts: int = _MAX_ATTEMPTS):
+    last_error: Exception | None = None
+    for attempt in range(attempts):
+        try:
+            return await asyncio.wait_for(operation(), timeout=_DIRECT_CONNECT_TIMEOUT)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            last_error = exc
+            if attempt + 1 < attempts:
+                await asyncio.sleep(_RETRY_BASE_SECONDS * (2**attempt))
+    assert last_error is not None
+    raise last_error
 
 
 def _linux_interface_networks() -> list[ipaddress.IPv4Network]:
@@ -292,104 +311,10 @@ def _build_supported_commands(
 ) -> list[dict[str, Any]]:
     has_children = bool(getattr(device, "children", []))
     common_args = _command_args_for_child(has_children, [])
-
-    commands: list[dict[str, Any]] = [
+    return [
         {"id": "refresh", "label": "Refresh", "args": common_args},
         {"id": "read_energy", "label": "Read Energy", "args": common_args},
     ]
-
-    if hasattr(device, "turn_on"):
-        commands.append(
-            {
-                "id": "turn_on",
-                "label": "Turn On",
-                "args": _command_args_for_child(has_children, []),
-            }
-        )
-    if hasattr(device, "turn_off"):
-        commands.append(
-            {
-                "id": "turn_off",
-                "label": "Turn Off",
-                "args": _command_args_for_child(has_children, []),
-            }
-        )
-    if hasattr(device, "turn_on") and hasattr(device, "turn_off"):
-        commands.append(
-            {
-                "id": "toggle",
-                "label": "Toggle Power",
-                "args": _command_args_for_child(has_children, []),
-            }
-        )
-
-    if hasattr(device, "set_alias"):
-        commands.append(
-            {
-                "id": "set_alias",
-                "label": "Set Alias",
-                "args": _command_args_for_child(has_children, ["alias"]),
-            }
-        )
-
-    if hasattr(device, "reboot"):
-        commands.append(
-            {
-                "id": "reboot",
-                "label": "Reboot Device",
-                "args": _command_args_for_child(has_children, ["delay"]),
-            }
-        )
-
-    writable_features = [
-        feature for feature in features.values() if feature.get("writable")
-    ]
-    if writable_features:
-        commands.append(
-            {
-                "id": "set_feature",
-                "label": "Set Feature",
-                "args": _command_args_for_child(has_children, ["feature_id", "value"]),
-                "writable_features": [feature["id"] for feature in writable_features],
-            }
-        )
-        commands.append(
-            {
-                "id": "feature_action",
-                "label": "Feature Action",
-                "args": _command_args_for_child(has_children, ["feature_id", "value"]),
-                "writable_features": [feature["id"] for feature in writable_features],
-            }
-        )
-
-    if _has_writable_feature(features, ["brightness", "dimming_level"]):
-        commands.append(
-            {
-                "id": "set_brightness",
-                "label": "Set Brightness",
-                "args": _command_args_for_child(has_children, ["brightness"]),
-            }
-        )
-
-    if _has_writable_feature(features, ["color_temperature", "color_temp"]):
-        commands.append(
-            {
-                "id": "set_color_temperature",
-                "label": "Set Color Temperature",
-                "args": _command_args_for_child(has_children, ["kelvin"]),
-            }
-        )
-
-    if _has_writable_feature(features, ["hue", "saturation"]):
-        commands.append(
-            {
-                "id": "set_hue_saturation",
-                "label": "Set Hue/Saturation",
-                "args": _command_args_for_child(has_children, ["hue", "saturation"]),
-            }
-        )
-
-    return commands
 
 
 def _build_credentials(
@@ -409,33 +334,40 @@ def _cache_device_config(host: str, device: Any) -> None:
 async def _resolve_device(
     host: str, username: str | None = None, password: str | None = None
 ) -> Any:
+    host, resolved_addresses = resolve_local_host(host)
     credentials = _build_credentials(username=username, password=password)
     cached_config = _DEVICE_CONFIG_CACHE.get(host)
 
+    async def ensure_resolution_stable(device: Any) -> Any:
+        _, current_addresses = resolve_local_host(host)
+        if current_addresses != resolved_addresses:
+            await _disconnect_device(device)
+            raise RuntimeError("host resolution changed during connection")
+        return device
+
     if cached_config is not None:
         try:
-            return await Device.connect(config=cached_config)
+            device = await _bounded(lambda: Device.connect(config=cached_config), attempts=1)
+            return await ensure_resolution_stable(device)
         except Exception:
             _DEVICE_CONFIG_CACHE.pop(host, None)
 
-    device = await Discover.try_connect_all(
-        host,
-        timeout=_DIRECT_CONNECT_TIMEOUT,
-        credentials=credentials,
-    )
+    device = await _bounded(lambda: Discover.try_connect_all(
+        host, timeout=_DIRECT_CONNECT_TIMEOUT, credentials=credentials
+    ))
     if device is not None:
+        await ensure_resolution_stable(device)
         _cache_device_config(host, device)
         return device
 
-    device = await Discover.discover_single(
-        host,
-        discovery_timeout=_DIRECT_CONNECT_TIMEOUT,
-        credentials=credentials,
-    )
+    device = await _bounded(lambda: Discover.discover_single(
+        host, discovery_timeout=_DIRECT_CONNECT_TIMEOUT, credentials=credentials
+    ))
     if device is None:
         raise RuntimeError(f"Unable to connect to Kasa device at host '{host}'")
     try:
         await device.update()
+        await ensure_resolution_stable(device)
         _cache_device_config(host, device)
     except Exception:
         await _disconnect_device(device)
@@ -525,7 +457,7 @@ def _serialize_device(device: Any) -> dict[str, Any]:
         "device_type": str(device.device_type),
         "mac": device.mac,
         "signal_strength": signal,
-        "sys_info": device.sys_info,
+        "sys_info": redact(device.sys_info),
         "features": features,
         "energy": energy,
         "capabilities": _derive_capabilities_from_features(features),
@@ -551,6 +483,7 @@ async def discover_devices(
 ) -> list[dict[str, Any]]:
     host = str(host or "").strip()
     if host:
+        resolve_local_host(host)
         return [
             await fetch_device_state(host=host, username=username, password=password)
         ]
@@ -653,76 +586,8 @@ async def execute_device_command(
         await device.update()
         target = _resolve_command_target(device, args)
 
-        if command == "turn_on":
-            if not hasattr(target, "turn_on"):
-                raise RuntimeError("This device does not support turn_on")
-            await target.turn_on()
-        elif command == "turn_off":
-            if not hasattr(target, "turn_off"):
-                raise RuntimeError("This device does not support turn_off")
-            await target.turn_off()
-        elif command == "toggle":
-            if not hasattr(target, "turn_on") or not hasattr(target, "turn_off"):
-                raise RuntimeError("This device does not support toggle")
-            if bool(getattr(target, "is_on", False)):
-                await target.turn_off()
-            else:
-                await target.turn_on()
-        elif command == "set_alias":
-            alias = str(args.get("alias") or "").strip()
-            if not alias:
-                raise RuntimeError("Missing required arg 'alias'")
-            if not hasattr(target, "set_alias"):
-                raise RuntimeError("This device does not support set_alias")
-            await target.set_alias(alias)
-        elif command == "reboot":
-            delay = _to_int(args.get("delay", 1), "delay")
-            if not hasattr(target, "reboot"):
-                raise RuntimeError("This device does not support reboot")
-            await target.reboot(delay=delay)
-        elif command in {"refresh", "read_energy"}:
+        if command in {"refresh", "read_energy"}:
             pass
-        elif command == "set_feature":
-            feature_id = str(args.get("feature_id") or "").strip()
-            if not feature_id:
-                raise RuntimeError("Missing required arg 'feature_id'")
-            if "value" not in args:
-                raise RuntimeError("Missing required arg 'value' for set_feature")
-
-            feature = _resolve_writable_feature(target, feature_id=feature_id)
-            await feature.set_value(args.get("value"))
-        elif command in {"dynamic_feature", "feature_action"}:
-            feature_id = str(args.get("feature_id") or "").strip()
-            if not feature_id:
-                raise RuntimeError("Missing required arg 'feature_id'")
-
-            feature = _resolve_writable_feature(target, feature_id=feature_id)
-            await feature.set_value(args.get("value", None))
-        elif command == "set_brightness":
-            feature = _resolve_writable_feature(
-                target,
-                feature_id="",
-                candidates=["brightness", "dimming_level"],
-            )
-            brightness = args.get("brightness", args.get("value"))
-            await feature.set_value(_to_int(brightness, "brightness"))
-        elif command == "set_color_temperature":
-            feature = _resolve_writable_feature(
-                target,
-                feature_id="",
-                candidates=["color_temperature", "color_temp"],
-            )
-            kelvin = args.get("kelvin", args.get("value"))
-            await feature.set_value(_to_int(kelvin, "kelvin"))
-        elif command == "set_hue_saturation":
-            hue_feature = _resolve_writable_feature(
-                target, feature_id="", candidates=["hue"]
-            )
-            sat_feature = _resolve_writable_feature(
-                target, feature_id="", candidates=["saturation"]
-            )
-            await hue_feature.set_value(_to_int(args.get("hue"), "hue"))
-            await sat_feature.set_value(_to_int(args.get("saturation"), "saturation"))
         else:
             raise RuntimeError(f"Unsupported command '{command}'")
 

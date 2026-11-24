@@ -25,6 +25,7 @@ from piphi_runtime_kit_python.fastapi import (
 
 from piphi_network_tp_link.lib.kasa_client import execute_device_command, fetch_device_state
 from piphi_network_tp_link.lib.logging import logger
+from piphi_network_tp_link.lib.security import certified_profile, redact, resolve_local_host
 from piphi_network_tp_link.lib.schemas import (
     DeconfigureConfig,
     RuntimeConfigSnapshot,
@@ -42,6 +43,7 @@ config_router = APIRouter(tags=["config"])
 
 CORE_BASE_URL = resolve_core_base_url("http://127.0.0.1:31419")
 POLL_INTERVAL_SECONDS = 30
+MAX_CONSECUTIVE_FAILURES = 3
 TELEMETRY_REQUEST_TIMEOUT_SECONDS = 3.0
 EVENT_REQUEST_TIMEOUT_SECONDS = 3.0
 runtime_context = get_runtime_context()
@@ -209,7 +211,13 @@ async def fetch_and_store_state(
 ) -> dict[str, Any]:
     device_entry = registry.get(device_id) or {}
     previous_state = device_entry.get("latest_state") or {}
-    payload = await fetch_device_state(host=host, username=username, password=password)
+    payload = redact(await fetch_device_state(host=host, username=username, password=password))
+    stable_id = str(payload.get("mac") or payload.get("device_id") or "").strip()
+    if stable_id and device_entry:
+        device_entry["physical_device_id"] = stable_id
+        device_entry["observed_model"] = payload.get("model")
+        device_entry["last_success_at"] = asyncio.get_running_loop().time()
+        device_entry["consecutive_failures"] = 0
     latest_state = update_device_state(device_id=device_id, state=payload)
     if container_id:
         schedule_telemetry_delivery(
@@ -253,7 +261,6 @@ async def fetch_and_store_state(
                     device=device_entry,
                     payload={
                         "alias": device_entry.get("alias"),
-                        "host": host,
                         "is_on": current_is_on,
                     },
                 )
@@ -290,6 +297,15 @@ async def run_command_for_device(
     if device is None:
         raise HTTPException(status_code=404, detail=f"Device '{device_id}' is not configured")
 
+    read_only_commands = {"refresh", "read_energy"}
+    if command not in read_only_commands:
+        profile = certified_profile(device.get("certified_profile"), device.get("observed_model"))
+        allowed = set(device.get("allowed_commands") or [])
+        if not device.get("controls_enabled") or profile is None:
+            raise HTTPException(status_code=403, detail="Device controls are not qualified and enabled")
+        if command not in allowed or command not in set(profile["commands"]):
+            raise HTTPException(status_code=403, detail="Command is not in the certified allow-list")
+
     try:
         result = await execute_device_command(
             host=device["host"],
@@ -298,13 +314,21 @@ async def run_command_for_device(
             username=device.get("username"),
             password=device.get("password"),
         )
+        if command not in read_only_commands:
+            verified = await fetch_device_state(
+                host=device["host"], username=device.get("username"), password=device.get("password")
+            )
+            if command == "turn_on" and not verified.get("is_on"):
+                raise RuntimeError("post-write verification failed")
+            if command == "turn_off" and verified.get("is_on"):
+                raise RuntimeError("post-write verification failed")
+            result = verified
         schedule_event_send(
             event_type="device.command.executed",
             device=device,
             payload={
                 "command": command,
-                "args": args or {},
-                "host": device.get("host"),
+                "args": redact(args or {}),
             },
         )
         return result
@@ -314,13 +338,12 @@ async def run_command_for_device(
             device=device,
             payload={
                 "command": command,
-                "args": args or {},
-                "host": device.get("host"),
-                "error": str(exc),
+                "args": redact(args or {}),
+                "error": type(exc).__name__,
             },
             severity="error",
         )
-        raise HTTPException(status_code=400, detail=f"Command failed: {exc}") from exc
+        raise HTTPException(status_code=400, detail="Command failed") from exc
 
 
 async def trigger_refresh(device_id: str) -> dict[str, Any]:
@@ -348,6 +371,8 @@ async def poll_device_state(
     username: str | None = None,
     password: str | None = None,
 ) -> None:
+    failures = 0
+    was_stale = False
     while True:
         try:
             await fetch_and_store_state(
@@ -357,13 +382,35 @@ async def poll_device_state(
                 username=username,
                 password=password,
             )
-            logger.info(f"state_poll_success device_id={device_id} host={host}")
+            if was_stale:
+                schedule_event_send(
+                    event_type="device.recovered",
+                    device=registry.get(device_id) or {},
+                    payload={"device_id": device_id},
+                )
+            failures = 0
+            was_stale = False
+            logger.info("state_poll_success device_id=%s", device_id)
         except asyncio.CancelledError:
             raise
         except Exception as exc:
-            logger.warning(f"state_poll_error device_id={device_id} host={host} error={exc}")
+            failures += 1
+            entry = registry.get(device_id) or {}
+            entry["consecutive_failures"] = failures
+            entry["stale"] = failures >= MAX_CONSECUTIVE_FAILURES
+            if entry["stale"] and not was_stale:
+                schedule_event_send(
+                    event_type="device.stale",
+                    device=entry,
+                    payload={"device_id": device_id},
+                    severity="warning",
+                )
+                was_stale = True
+            logger.warning(
+                "state_poll_error device_id=%s error=%s", device_id, type(exc).__name__
+            )
 
-        await asyncio.sleep(POLL_INTERVAL_SECONDS)
+        await asyncio.sleep(min(POLL_INTERVAL_SECONDS * (2 ** min(failures, 3)), 300))
 
 
 async def remove_device_config(device_id: str) -> bool:
@@ -382,7 +429,6 @@ async def remove_device_config(device_id: str) -> bool:
             device=existing_poll,
             payload={
                 "alias": existing_poll.get("alias"),
-                "host": existing_poll.get("host"),
             },
         )
     registry.remove(device_id)
@@ -395,31 +441,46 @@ async def apply_device_config(payload: TPLinkDeviceConfig) -> dict[str, Any]:
     entry_id = _entry_id_for_config(payload)
     physical_device_id = _physical_device_id_for_config(payload, entry_id)
 
-    await remove_device_config(entry_id)
+    resolve_local_host(payload.host)
+    previous = registry.get(entry_id)
+    username = payload.secret("username") or (previous or {}).get("username")
+    password = payload.secret("password") or (previous or {}).get("password")
+    initial_state = redact(
+        await fetch_device_state(host=payload.host, username=username, password=password)
+    )
     task = start_device_poll_task(
         host=payload.host,
         device_id=entry_id,
         container_id=resolved_container_id,
-        username=payload.username,
-        password=payload.password,
+        username=username,
+        password=password,
     )
     registry.set(entry_id, {
         "task": task,
         "config_id": entry_id,
         "container_id": resolved_container_id,
         "device_id": entry_id,
-        "physical_device_id": physical_device_id,
+        "physical_device_id": str(initial_state.get("mac") or physical_device_id),
         "host": payload.host,
         "alias": payload.alias,
         "integration_id": payload.integration_id,
-        "username": payload.username,
-        "password": payload.password,
+        "username": username,
+        "password": password,
+        "controls_enabled": payload.controls_enabled,
+        "certified_profile": payload.certified_profile,
+        "allowed_commands": list(payload.allowed_commands),
+        "observed_model": initial_state.get("model"),
     })
-
     try:
         await trigger_refresh(entry_id)
-    except HTTPException as exc:
-        logger.warning(f"kasa_initial_refresh_failed device_id={entry_id} detail={exc.detail}")
+    except Exception:
+        task.cancel()
+        registry.remove(entry_id)
+        if previous is not None:
+            registry.set(entry_id, previous)
+        raise
+    if previous and previous.get("task") and not previous["task"].done():
+        previous["task"].cancel()
 
     device_entry = registry.get(entry_id) or {}
     schedule_event_send(
@@ -427,7 +488,6 @@ async def apply_device_config(payload: TPLinkDeviceConfig) -> dict[str, Any]:
         device=device_entry,
         payload={
             "alias": payload.alias,
-            "host": payload.host,
             "physical_device_id": physical_device_id,
             "model": device_entry.get("latest_state", {}).get("model"),
         },
@@ -436,7 +496,7 @@ async def apply_device_config(payload: TPLinkDeviceConfig) -> dict[str, Any]:
     return build_config_apply_response(
         config_id=entry_id,
         container_id=resolved_container_id,
-        metadata={"host": payload.host},
+        metadata={"connected": True},
     ).model_dump()
 
 

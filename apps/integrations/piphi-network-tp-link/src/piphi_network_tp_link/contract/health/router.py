@@ -8,6 +8,7 @@ from piphi_runtime_kit_python import (
 
 from piphi_network_tp_link.lib.manifest import load_manifest
 from piphi_network_tp_link.lib.store import get_runtime_context, registry
+from piphi_network_tp_link.lib.security import diagnostic_id
 
 router = APIRouter(tags=["health"])
 runtime_context = get_runtime_context()
@@ -41,7 +42,7 @@ async def diagnostics_report() -> RuntimeDiagnosticsResponse:
             "version": manifest["version"],
         },
         diagnostics={
-            "configured_device_ids": sorted(registry.entries.keys()),
-            "devices_with_state": sorted(registry.state_snapshots.keys()),
+            "configured_devices": sorted(diagnostic_id(value) for value in registry.entries),
+            "devices_with_state": sorted(diagnostic_id(value) for value in registry.state_snapshots),
         },
     )

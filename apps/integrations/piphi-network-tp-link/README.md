@@ -14,16 +14,16 @@ PyPI.
 - polls device state on a background loop
 - exposes entities, state, events, commands, and UI config endpoints
 - delivers telemetry and events to PiPhi Core through `piphi-runtime-kit-python`
-- pairs four integration-owned dashboard experiences: Device Control, Energy Monitor, Smart Plug, and Environment Monitor
+- pairs read-only Energy Monitor and Environment Monitor experiences
 
-The declared local-device scope is implementation-complete and enforced by
-`capabilities/device_matrix.json`. The automated runtime, simulator, command,
-and widget-package checks pass; validation across representative physical
-devices remains an explicit pre-GA gate.
+The monitoring contract and deliberately excluded/planned surface are recorded in
+`capabilities/device_matrix.json`. No physical model or firmware is certified by
+this source package. Consequential controls remain unavailable until a separate
+qualification process supplies an explicit profile and evidence.
 
 ## Runtime SDK and testkit
 
-- runtime SDK: `piphi-runtime-kit-python==0.8.1`
+- runtime SDK: `piphi-runtime-kit-python>=0.8.1,<1.0.0`
 - test helper during development: `piphi-runtime-testkit-python==0.1.4`
 
 The runtime kit and testkit are installed from PyPI, so CI and release installs
@@ -55,11 +55,10 @@ Validate the deterministic signed experience package without a release key:
 pdm run python scripts/build_experience.py --check
 ```
 
-The package source lives in `experiences/kasa-smart-home/`. Control widgets run
-inside the Widget SDK sandbox and can only execute the explicitly allow-listed
-Kasa commands after Core grants `host.executeCommand`. Energy and environment
-widgets use Core's declarative renderer. All four keep Core-owned typography, shell,
-layout, themes, source binding, and more-info/history interactions.
+The package source lives in `experiences/kasa-smart-home/`. Energy and environment
+widgets use Core's declarative renderer with read-only bindings and no command
+permission. Core retains typography, shell, layout, themes, source binding, and
+more-info/history interactions.
 
 The integration API defaults to `http://127.0.0.1:3666`.
 
