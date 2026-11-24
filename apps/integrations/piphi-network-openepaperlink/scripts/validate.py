@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import re
+import tomllib
 from pathlib import Path
 
 from piphi_network_openepaperlink.contract import COMMANDS, ENDPOINTS, REQUIRED_ENDPOINTS
@@ -12,9 +14,51 @@ if not behavior_path.exists():
     behavior_path = ROOT / "behaviors.json"
 behavior = json.loads(behavior_path.read_text()) if behavior_path.exists() else None
 dockerfile = (ROOT / "Dockerfile").read_text() if (ROOT / "Dockerfile").exists() else ""
+pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text())
+app_metadata = json.loads((ROOT / "piphi-app.json").read_text())
+settings = (ROOT / "src" / "piphi_network_openepaperlink" / "settings.py").read_text()
+experience = json.loads((ROOT / "experiences" / "ap" / "package.source.json").read_text())
 errors: list[str] = []
 risk_levels = {"low", "medium", "high", "critical"}
 automation_schema_versions = {"automation.behavior.v1", "automation.behavior.v2"}
+
+version = manifest.get("version")
+version_values = {
+    "manifest": version,
+    "pyproject": pyproject.get("project", {}).get("version"),
+    "piphi-app": app_metadata.get("packages", [{}])[0].get("version"),
+    "experience": experience.get("identity", {}).get("version"),
+}
+settings_version = re.search(r'^INTEGRATION_VERSION = "([^"]+)"$', settings, re.MULTILINE)
+version_values["runtime"] = settings_version.group(1) if settings_version else None
+if len(set(version_values.values())) != 1:
+    errors.append(f"version metadata is inconsistent: {version_values}")
+
+expected_image = f"ghcr.io/piphi-io/piphi-network-openepaperlink:{version}"
+if manifest.get("image") != expected_image:
+    errors.append("top-level image must use the synchronized GHCR version")
+if manifest.get("runtime", {}).get("linux", {}).get("container", {}).get("image") != expected_image:
+    errors.append("runtime image must use the synchronized GHCR version")
+if f"ARG RELEASE_VERSION={version}" not in dockerfile:
+    errors.append("Dockerfile RELEASE_VERSION must match the package version")
+if "FROM python:3.12-slim@sha256:" not in dockerfile or "USER 10001:10001" not in dockerfile:
+    errors.append("Dockerfile must use a pinned base and non-root runtime user")
+
+container = manifest.get("runtime", {}).get("linux", {}).get("container", {})
+if container.get("read_only") is not True or container.get("run_as_user") != 10001:
+    errors.append("runtime container must declare a read-only root and UID 10001")
+state_path = container.get("environment", {}).get("PIPHI_STATE_SNAPSHOT_PATH")
+if state_path != "/var/lib/piphi/openepaperlink-state.json":
+    errors.append("runtime state path must use the declared persistent volume")
+volumes = container.get("volumes", [])
+if not any(
+    volume.get("container") == "/var/lib/piphi" and volume.get("mode") == "rw"
+    for volume in volumes
+    if isinstance(volume, dict)
+):
+    errors.append("runtime must declare the privacy-safe state volume")
+if "persistent_state" not in manifest.get("runtime_requirements", []):
+    errors.append("manifest must disclose its persistent-state requirement")
 
 if manifest.get("$schema") != "./schema/piphi-manifest.schema.json":
     errors.append("manifest must reference ./schema/piphi-manifest.schema.json")

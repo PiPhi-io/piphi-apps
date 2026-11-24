@@ -1,68 +1,49 @@
-# Piphi Network Openepaperlink
+# OpenEPaperLink
 
-Generated PiPhi integration runtime.
+Read-only PiPhi monitoring for a manually configured local OpenEPaperLink access point.
 
-## Run locally
+## Supported scope
+
+- Polls the bounded, paginated `GET /get_db` endpoint.
+- Reports AP connectivity, configured-tag count, and pending-transfer count.
+- Lists tags using stable config-scoped hashes; raw MAC addresses are not retained or sent to Core.
+- Emits deduplicated AP unavailable/recovered and tag discovered/removed transitions.
+- Preserves last-good counts as stale during failures and restores Core-owned configuration after restart.
+- Persists only hashed tag identities and aggregate last-good state in `/var/lib/piphi/openepaperlink-state.json` so offline process restarts retain stale state without retaining raw tag identifiers.
+- Supports one read-only, single-AP `refresh` action.
+
+Rendering, content transfer, tag radio/power details, maintenance, and all per-tag controls are deliberately not implemented. Physical AP/tag/model/firmware qualification is also outside this source-only package.
+
+## Testing without hardware
+
+The official Home Assistant integration does not contain AP `/get_db` fixtures; its automated tests mock Home Assistant/tag objects and compare rendering output. Because rendering is deliberately out of scope here, this package follows the same hardware-free principle with deterministic transports, but derives its AP pages from the first-party firmware serializer and pagination client. See [`docs/upstream-test-evidence.md`](docs/upstream-test-evidence.md) for immutable source citations and the qualification boundary.
+
+Tests include empty, complete, paginated, malformed, redirected, oversized, retry, DNS-rebinding, stale/recovery, restart, atomic-sync, persistence-failure, and Runtime TestKit scenarios. These prove the source contract and runtime behavior; they do not claim physical radio/display qualification.
+
+## Security and configuration
+
+Only `GET /health` is public. Every other route requires the exact value of
+`PIPHI_INTEGRATION_INTERNAL_TOKEN` in `X-PiPhi-Integration-Token`; a missing server token fails closed.
+
+Configure an RFC1918, IPv6 ULA, or link-local AP address, or a `.local`/`.lan` hostname that resolves only to those ranges. The client pins the approved address, disables environment proxies and redirects, bounds responses/pages/tags, and retries transient transport failures at most three times. Configuration is committed only after a successful AP read; failed reconfiguration leaves the previous configuration active.
+
+The read-only container requires its declared writable `/var/lib/piphi` state volume. Complete Core snapshots are staged and connectivity-checked before any add, replacement, or removal is committed; a failed member leaves the prior snapshot and generation intact.
 
 ```bash
-pdm install -G dev
-pdm run uvicorn piphi_network_openepaperlink.main:app --reload --port 4219
-pdm run pytest
+pdm install --check
+pdm run pytest --cov=piphi_network_openepaperlink --cov-branch --cov-fail-under=80
+pdm run ruff check src tests
+pdm run ruff format --check src tests
+pdm run mypy src/piphi_network_openepaperlink
+pdm run bandit -q -r src
 pdm run python scripts/validate.py
 ```
 
-The runtime listens on port `4219` by default and exposes the common PiPhi runtime route contract:
+## Container
 
-- `GET /health`
-- `GET /diagnostics`
-- `POST /discover`
-- `POST /config`
-- `POST /config/sync`
-- `POST /deconfigure`
-- `POST /deconfigure/{config_id}`
-- `GET /state`
-- `GET /contract`
-- `GET /entities`
-- `GET /events`
-- `POST /events/device/{config_id}/example`
-- `POST /telemetry/example`
-- `POST /telemetry/device/{config_id}/example`
-- `POST /command`
-
-## Capability coverage
-
-The first live widget shows configured-tag and pending-transfer counts from a
-local OpenEPaperLink access point. Configure a private IP address or a `.local`
-or `.lan` hostname. The runtime reads the paginated `GET /get_db` endpoint,
-polls at a bounded interval, and reports disconnected when that read fails.
-No tag MAC addresses or content are sent to Core. The AP uses local HTTP, so
-this read-only integration should run on a trusted home network. The source
-for that endpoint is the upstream [tag database implementation](https://github.com/OpenEPaperLink/OpenEPaperLink/blob/master/ESP32_AP-Flasher/src/tag_db.cpp).
-
-`capability-catalog.json` inventories OpenEPaperLink access-point health,
-per-tag radio and battery state, display transfers, rendering, optional LEDs,
-buzzers, NFC and GPIO, scheduling, maintenance, and safety boundaries. Each
-candidate is classified as implemented, planned, or excluded, and contract
-tests prevent unimplemented features from being advertised.
-
-Tag features remain planned until AP transport, firmware and tag-type
-negotiation, rendering fixtures, bounded transfer queues, and representative
-hardware tests exist. Tag-specific controls are not advertised by this AP
-summary widget.
-
-## Manifest
-
-`manifest.json` is a starter manifest. Before publishing, update:
-
-- `image`
-- `version`
-- capabilities and commands
-- config fields and identity fields
-- entity metadata
-
-## Docker
+The locked multi-stage image runs as UID/GID `10001`, contains no mutable application data requirement, and is declared for a read-only root filesystem. Build for the two catalogued platforms with BuildKit/buildx:
 
 ```bash
-docker build -t docker.io/piphinetwork/piphi-network-openepaperlink:0.1.0 .
-docker run --rm -p 4219:4219 docker.io/piphinetwork/piphi-network-openepaperlink:0.1.0
+docker buildx build --platform linux/amd64,linux/arm64 \
+  -t ghcr.io/piphi-io/piphi-network-openepaperlink:0.1.1 .
 ```

@@ -3,16 +3,35 @@ from __future__ import annotations
 import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from typing import Any
 
 from fastapi import FastAPI
-from piphi_runtime_kit_python import runtime_lifespan
+from piphi_runtime_kit_python import rehydrate_runtime_configs, runtime_lifespan
 
-from .state import poll_access_points, runtime
+from .schemas import DeviceConfig
+from .state import (
+    apply_config_snapshot,
+    poll_access_points,
+    restore_runtime_state,
+    runtime,
+)
 
 
-async def startup_sync(_runtime, _client) -> None:
-    # Real integrations can fetch an existing config snapshot from Core here.
-    return None
+async def startup_sync(runtime_context: Any, client: Any) -> None:
+    async def apply_snapshot(snapshot: Any) -> None:
+        await apply_config_snapshot(
+            snapshot,
+            restored=True,
+            allow_unavailable=True,
+        )
+
+    await restore_runtime_state()
+    await rehydrate_runtime_configs(
+        runtime_context=runtime_context,
+        client=client,
+        apply_snapshot=apply_snapshot,
+        config_model=DeviceConfig,
+    )
 
 
 @asynccontextmanager
