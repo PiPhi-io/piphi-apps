@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import logging
+import random
+from collections.abc import Callable
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import HTTPException
-
 from piphi_runtime_kit_python import (
     build_local_event_record,
     build_runtime_identity,
@@ -16,13 +20,21 @@ from piphi_runtime_kit_python import (
 from .contract import CAPABILITIES, COMMANDS
 from .kaiterra import (
     DEFAULT_BASE_URL,
+    KaiterraAuthError,
     KaiterraClient,
+    KaiterraDeviceMetadata,
     KaiterraError,
-    is_placeholder_api_key,
-    resolve_device_udid,
+    KaiterraRateLimitError,
+    KaiterraReading,
+    KaiterraSelectionError,
 )
 from .schemas import DeviceConfig
+from .security import redact
 from .settings import INTEGRATION_ID, INTEGRATION_NAME, INTEGRATION_VERSION
+
+logger = logging.getLogger(__name__)
+MASKED_SECRETS = {"********", "••••••••", "***"}
+MAX_BACKOFF_SECONDS = 3600
 
 starter = create_runtime_starter(
     integration_id=INTEGRATION_ID,
@@ -33,28 +45,67 @@ runtime = starter.runtime
 registry = starter.registry
 telemetry = starter.telemetry_client
 config_sync = starter.config_sync
-
 capabilities = CAPABILITIES
 commands = COMMANDS
-_clients: dict[str, KaiterraClient] = {}
-_poll_tasks: dict[str, asyncio.Task[None]] = {}
 
 
-def _secret(config: DeviceConfig) -> str | None:
-    return config.api_key.get_secret_value() if config.api_key else None
+@dataclass(slots=True)
+class RuntimeData:
+    configs: dict[str, DeviceConfig] = field(default_factory=dict)
+    clients: dict[str, KaiterraClient] = field(default_factory=dict)
+    poll_tasks: dict[str, asyncio.Task[None]] = field(default_factory=dict)
+    lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    client_factory: Callable[..., KaiterraClient] = KaiterraClient
+    jitter: Callable[[float, float], float] = random.uniform
 
 
-def make_entry(config: DeviceConfig) -> dict[str, Any]:
+runtime_data = RuntimeData()
+# Compatibility aliases used by existing diagnostics and downstream tests.
+_clients = runtime_data.clients
+_poll_tasks = runtime_data.poll_tasks
+
+
+def _config_id(config: DeviceConfig) -> str:
+    return str(config.config_id or config.id)
+
+
+def _udid(config: DeviceConfig) -> str:
+    return config.device_udid.get_secret_value()
+
+
+def _api_key(config: DeviceConfig) -> str:
+    return config.api_key.get_secret_value()
+
+
+def device_ref(device_udid: str) -> str:
+    return hashlib.sha256(f"kaiterra-device-v1\0{device_udid.lower()}".encode()).hexdigest()[:32]
+
+
+def _resolved_config(config: DeviceConfig) -> DeviceConfig:
+    api_key = _api_key(config)
+    if api_key not in MASKED_SECRETS:
+        return config
+    previous = runtime_data.configs.get(_config_id(config))
+    if previous is None or device_ref(_udid(previous)) != device_ref(_udid(config)):
+        raise HTTPException(status_code=422, detail={"error": "api_key_required"})
+    return config.model_copy(update={"api_key": previous.api_key})
+
+
+def make_entry(config: DeviceConfig, metadata: KaiterraDeviceMetadata) -> dict[str, Any]:
     identity = build_runtime_identity(config, integration_id=INTEGRATION_ID)
-    device_udid = resolve_device_udid(config)
+    ref = device_ref(_udid(config))
     return {
         **identity,
-        "host": device_udid,
-        "device_udid": device_udid,
-        "alias": config.alias or device_udid,
+        "device_id": f"{INTEGRATION_ID}:{ref}",
+        "device_ref": ref,
+        "alias": config.alias or metadata.name or "Kaiterra air monitor",
+        "model": metadata.model,
+        "firmware_version": metadata.firmware_version,
         "base_url": config.base_url or DEFAULT_BASE_URL,
-        "config": config.model_dump(exclude={"api_key"}),
         "poll_interval_seconds": config.poll_interval_seconds,
+        "consecutive_failures": 0,
+        "availability": "online",
+        "retry_after_seconds": None,
     }
 
 
@@ -62,13 +113,15 @@ def append_runtime_event(
     event_type: str,
     device: dict[str, Any],
     payload: dict[str, Any] | None = None,
+    *,
+    severity: str = "info",
 ) -> dict[str, Any]:
     event = build_local_event_record(
         event_type=event_type,
         device=device,
-        payload=payload or {},
+        payload=redact(payload or {}),
         source=INTEGRATION_ID,
-        severity="info",
+        severity=severity,
     )
     registry.append_event(event)
     return event
@@ -77,146 +130,151 @@ def append_runtime_event(
 def get_entry_or_404(config_id: str) -> dict[str, Any]:
     entry = registry.get(config_id)
     if entry is None:
-        raise HTTPException(status_code=404, detail=f"unknown config_id={config_id}")
+        raise HTTPException(status_code=404, detail={"error": "unknown_configuration"})
     return entry
 
 
 async def apply_config(config: DeviceConfig) -> None:
-    entry = make_entry(config)
-    current = registry.get(config.id)
-    if current and current.get("device_udid") != entry["device_udid"]:
-        raise HTTPException(status_code=409, detail="device_udid is immutable; create a new configuration")
-    if any(
-        other.get("device_udid") == entry["device_udid"] and other.get("config_id") != config.id
-        for other in registry.entries.values()
-    ):
-        raise HTTPException(status_code=409, detail="device_udid is already configured")
-    state = {
-        "connected": False,
-        "host": entry["device_udid"],
-        "device_udid": entry["device_udid"],
-        "alias": entry["alias"],
-        "base_url": entry["base_url"],
-        "config_id": entry["config_id"],
-    }
-    api_key = _secret(config)
-    if not is_placeholder_api_key(api_key):
-        candidate = KaiterraClient(api_key=api_key or "", base_url=config.base_url)
-        try:
-            reading, metadata = await _read_provider(candidate, entry)
-        except Exception as exc:
-            await _close_client_safely(candidate)
-            raise _setup_error(exc) from None
-        await _activate_config(config.id, entry, candidate)
-        state.update(_publish_success(entry, reading, metadata))
-    else:
-        if current and config.id in _clients:
-            raise HTTPException(status_code=400, detail="credentials are required to replace an active configuration")
-        await _activate_config(config.id, entry, None)
-        registry.update_state(config.id, state, device_id=entry["device_id"])
+    """Validate a complete candidate before atomically replacing live state."""
+    config = _resolved_config(config)
+    config_id = _config_id(config)
+    ref = device_ref(_udid(config))
+    duplicate = next(
+        (
+            item_id for item_id, item in registry.entries.items()
+            if item_id != config_id and item.get("device_ref") == ref
+        ),
+        None,
+    )
+    if duplicate is not None:
+        raise HTTPException(status_code=409, detail={"error": "device_already_configured"})
+    current = registry.get(config_id)
+    if current is not None and current.get("device_ref") != ref:
+        raise HTTPException(
+            status_code=409,
+            detail={"error": "immutable_device_identity", "message": "Create a new configuration for another device."},
+        )
+
+    candidate = runtime_data.client_factory(
+        api_key=_api_key(config),
+        base_url=config.base_url,
+    )
+    try:
+        reading, metadata = await _read_provider(candidate, config)
+        entry = make_entry(config, metadata)
+        initial_state = _success_state(entry, reading)
+    except Exception as exc:
+        await _close_client_safely(candidate)
+        raise _setup_error(exc) from None
+
+    async with runtime_data.lock:
+        old_task = runtime_data.poll_tasks.pop(config_id, None)
+        old_client = runtime_data.clients.get(config_id)
+        registry.set(config_id, entry)
+        runtime_data.configs[config_id] = config
+        runtime_data.clients[config_id] = candidate
+        _publish_success(entry, reading, state=initial_state)
+        runtime_data.poll_tasks[config_id] = asyncio.create_task(
+            _poll_entry(config_id), name=f"kaiterra-poll-{config_id}"
+        )
+    if old_task:
+        old_task.cancel()
+        await asyncio.gather(old_task, return_exceptions=True)
+    if old_client and old_client is not candidate:
+        await _close_client_safely(old_client)
     append_runtime_event(
         "runtime.config.applied",
         entry,
-        {
-            "device_udid": entry["device_udid"],
-            "alias": entry["alias"],
-            "base_url": entry["base_url"],
-            "live_api_skipped": is_placeholder_api_key(api_key),
-        },
+        {"device_ref": ref, "model": metadata.model},
     )
 
 
 async def remove_config(config_id: str) -> bool:
-    await _stop_config(config_id)
-    entry = registry.remove(config_id)
+    async with runtime_data.lock:
+        task = runtime_data.poll_tasks.pop(config_id, None)
+        client = runtime_data.clients.pop(config_id, None)
+        runtime_data.configs.pop(config_id, None)
+        entry = registry.remove(config_id)
+    if task:
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+    if client:
+        await _close_client_safely(client)
     if entry is None:
         return False
-    append_runtime_event(
-        "runtime.config.removed",
-        entry,
-        {"host": entry.get("host"), "alias": entry.get("alias")},
-    )
+    append_runtime_event("runtime.config.removed", entry, {"device_ref": entry.get("device_ref")})
     return True
 
 
 async def refresh_entry(entry: dict[str, Any]) -> dict[str, Any]:
-    client = _clients.get(entry["config_id"])
-    if client is None:
-        state = {
-            "connected": False,
-            "device_udid": entry["device_udid"],
-            "reason": "missing_api_key",
-        }
-        registry.update_state(entry["config_id"], state, device_id=entry["device_id"])
-        return state
-
-    fetched_at = datetime.now(UTC)
+    config_id = str(entry["config_id"])
+    client = runtime_data.clients.get(config_id)
+    config = runtime_data.configs.get(config_id)
+    if client is None or config is None:
+        return _record_failure(entry, KaiterraAuthError("credentials_unavailable"))
     try:
-        reading, metadata = await _read_provider(client, entry)
+        reading, metadata = await _read_provider(client, config)
     except Exception as exc:
-        category = exc.category if isinstance(exc, KaiterraError) else "outage"
-        first_failure = int(entry.get("consecutive_failures", 0)) == 0
-        previous = dict(entry.get("latest_state") or {})
-        state = {
-            **previous,
-            "connected": False,
-            "available": False,
-            "stale": True,
-            "device_udid": entry["device_udid"],
-            "error_class": category,
-            "last_success_at": entry.get("last_success_at"),
-        }
-        registry.update_state(entry["config_id"], state, device_id=entry["device_id"])
-        entry["consecutive_failures"] = int(entry.get("consecutive_failures", 0)) + 1
-        if first_failure:
-            append_runtime_event("kaiterra.unavailable", entry, {"error_class": category})
-        return state
-    return _publish_success(entry, reading, metadata, fetched_at=fetched_at)
+        return _record_failure(entry, exc)
+    entry["alias"] = config.alias or metadata.name or entry["alias"]
+    entry["model"] = metadata.model
+    entry["firmware_version"] = metadata.firmware_version
+    return _publish_success(entry, reading)
 
 
-async def _read_provider(client: KaiterraClient, entry: dict[str, Any]):
-    reading = await client.latest_reading(entry["device_udid"])
-    metadata = await client.device_metadata(entry["device_udid"])
-    returned_udid = next(
-        (str(metadata[key]) for key in ("udid", "device_udid", "id") if metadata.get(key)),
-        None,
-    )
-    if returned_udid is not None and returned_udid != entry["device_udid"]:
-        raise KaiterraError("identity_mismatch")
+async def _read_provider(
+    client: KaiterraClient, config: DeviceConfig
+) -> tuple[KaiterraReading, KaiterraDeviceMetadata]:
+    selected_udid = _udid(config)
+    reading = await client.latest_reading(selected_udid)
+    metadata = await client.device_metadata(selected_udid)
     return reading, metadata
 
 
-def _publish_success(
-    entry: dict[str, Any],
-    reading,
-    metadata: dict[str, Any],
-    *,
-    fetched_at: datetime | None = None,
-) -> dict[str, Any]:
-    fetched_at = fetched_at or datetime.now(UTC)
+def _success_state(entry: dict[str, Any], reading: KaiterraReading) -> dict[str, Any]:
+    fetched_at = datetime.now(UTC)
     age = max(0.0, (fetched_at - reading.observed_at).total_seconds())
     stale = age > max(900, int(entry["poll_interval_seconds"]) * 3)
-    state = {
+    return {
         **reading.metrics,
         "connected": True,
         "available": not stale,
         "stale": stale,
-        "device_udid": entry["device_udid"],
+        "device_ref": entry["device_ref"],
+        "name": entry["alias"],
+        "model": entry.get("model"),
         "latest_timestamp": reading.latest_timestamp,
-        "name": metadata.get("name") or metadata.get("label") or entry.get("alias"),
-        "api_latency_ms": reading.latency_ms,
         "source_observed_at": reading.observed_at.isoformat(),
         "fetched_at": fetched_at.isoformat(),
         "source_age_seconds": int(age),
         "last_success_at": fetched_at.isoformat(),
+        "error_class": None,
+        "reauth_required": False,
+        "retry_after_seconds": None,
     }
-    registry.update_state(entry["config_id"], state, device_id=entry["device_id"])
-    entry["latest_metrics"] = reading.metrics
-    entry["latest_units"] = reading.units
-    entry["latest_state"] = state
-    entry["last_success_at"] = fetched_at.isoformat()
+
+
+def _publish_success(
+    entry: dict[str, Any],
+    reading: KaiterraReading,
+    *,
+    state: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    state = state or _success_state(entry, reading)
     recovered = int(entry.get("consecutive_failures", 0)) > 0
+    previous_fingerprint = entry.get("reading_fingerprint")
+    fingerprint = (
+        reading.latest_timestamp,
+        tuple(sorted(reading.metrics.items())),
+    )
+    registry.update_state(str(entry["config_id"]), state, device_id=str(entry["device_id"]))
+    entry["latest_metrics"] = dict(reading.metrics)
+    entry["latest_units"] = dict(reading.units)
+    entry["last_success_at"] = state["last_success_at"]
     entry["consecutive_failures"] = 0
+    entry["availability"] = "online"
+    entry["retry_after_seconds"] = None
+    entry["reading_fingerprint"] = fingerprint
     schedule_telemetry_delivery(
         process_state=runtime.process_state,
         telemetry_client=telemetry,
@@ -226,38 +284,101 @@ def _publish_success(
         container_id=entry.get("container_id"),
         metrics=reading.metrics,
         units=reading.units,
+        timestamp=reading.observed_at.isoformat(),
     )
     append_runtime_event(
         "kaiterra.readings.refreshed",
         entry,
-        {
-            "device_udid": entry["device_udid"],
-            "metric_count": len(reading.metrics),
-            "latest_timestamp": reading.latest_timestamp,
-        },
+        {"device_ref": entry["device_ref"], "metric_count": len(reading.metrics)},
     )
+    if previous_fingerprint is not None and previous_fingerprint != fingerprint:
+        append_runtime_event(
+            "device.state_changed",
+            entry,
+            {
+                "device_ref": entry["device_ref"],
+                "changed_metrics": sorted(reading.metrics),
+                "source_observed_at": reading.observed_at.isoformat(),
+            },
+        )
     if recovered:
-        append_runtime_event("kaiterra.recovered", entry)
+        append_runtime_event("kaiterra.recovered", entry, {"device_ref": entry["device_ref"]})
     return state
 
 
+def _record_failure(entry: dict[str, Any], exc: Exception) -> dict[str, Any]:
+    category = _error_class(exc)
+    first_failure = int(entry.get("consecutive_failures", 0)) == 0
+    previous = dict(registry.state_snapshots.get(str(entry["config_id"]), {}).get("state", {}))
+    retry_after = exc.retry_after_seconds if isinstance(exc, KaiterraError) else None
+    state = {
+        **previous,
+        "connected": False,
+        "available": False,
+        "stale": True,
+        "device_ref": entry["device_ref"],
+        "error_class": category,
+        "reauth_required": isinstance(exc, KaiterraAuthError),
+        "retry_after_seconds": retry_after,
+        "last_success_at": entry.get("last_success_at"),
+        "last_poll_failed_at": datetime.now(UTC).isoformat(),
+    }
+    registry.update_state(str(entry["config_id"]), state, device_id=str(entry["device_id"]))
+    entry["consecutive_failures"] = int(entry.get("consecutive_failures", 0)) + 1
+    entry["availability"] = "reauth_required" if isinstance(exc, KaiterraAuthError) else category
+    entry["retry_after_seconds"] = retry_after
+    if first_failure:
+        append_runtime_event(
+            "kaiterra.unavailable",
+            entry,
+            {"error_class": category},
+            severity="warning",
+        )
+    return state
+
+
+def _error_class(exc: Exception) -> str:
+    if isinstance(exc, KaiterraAuthError):
+        return "authentication" if exc.category != "authorization" else "authorization"
+    if isinstance(exc, KaiterraRateLimitError):
+        return "rate_limit"
+    if isinstance(exc, KaiterraSelectionError):
+        return exc.category
+    if isinstance(exc, KaiterraError):
+        return exc.category
+    return "transient_outage"
+
+
 def _setup_error(exc: Exception) -> HTTPException:
-    category = exc.category if isinstance(exc, KaiterraError) else "outage"
-    if category == "auth":
-        return HTTPException(status_code=401, detail="Kaiterra credentials were rejected; update the API key")
-    if category in {"provider_contract", "identity_mismatch"}:
-        return HTTPException(status_code=422, detail=f"Kaiterra validation failed ({category})")
-    if category in {"outage", "quota"}:
-        return HTTPException(status_code=503, detail=f"Kaiterra validation temporarily unavailable ({category})")
-    return HTTPException(status_code=400, detail="Kaiterra configuration validation failed")
+    category = _error_class(exc)
+    if category in {"authentication", "authorization"}:
+        return HTTPException(status_code=401, detail={"error": category, "message": "Kaiterra rejected the API key or selected device access."})
+    if category == "rate_limit":
+        return HTTPException(status_code=429, detail={"error": category, "retry_after_seconds": getattr(exc, "retry_after_seconds", None)})
+    if category in {"device_not_found", "request_rejected", "provider_contract"}:
+        return HTTPException(status_code=422, detail={"error": category})
+    return HTTPException(status_code=503, detail={"error": "transient_outage"})
 
 
 async def refresh_all_entries() -> list[dict[str, Any]]:
-    results: list[dict[str, Any]] = []
-    for entry in registry.entries.values():
-        results.append(await refresh_entry(entry))
-    return results
+    return [await refresh_entry(entry) for entry in list(registry.entries.values())]
+
+
 starter.state.provide(refresh_all_entries, source=INTEGRATION_ID)
+
+
+def _poll_delay(entry: dict[str, Any]) -> float:
+    retry_after = entry.get("retry_after_seconds")
+    if isinstance(retry_after, (int, float)):
+        base = min(
+            max(float(retry_after), float(entry["poll_interval_seconds"])),
+            MAX_BACKOFF_SECONDS,
+        )
+    else:
+        failures = min(int(entry.get("consecutive_failures", 0)), 5)
+        base = min(int(entry["poll_interval_seconds"]) * (2 ** failures), MAX_BACKOFF_SECONDS)
+    jitter = runtime_data.jitter(0.0, min(base * 0.1, 30.0))
+    return min(base + max(jitter, 0.0), MAX_BACKOFF_SECONDS)
 
 
 async def _poll_entry(config_id: str) -> None:
@@ -265,46 +386,23 @@ async def _poll_entry(config_id: str) -> None:
         entry = registry.get(config_id)
         if entry is None:
             return
-        failures = int(entry.get("consecutive_failures", 0))
-        delay = min(int(entry["poll_interval_seconds"]) * (2 ** min(failures, 4)), 3600)
         try:
-            await asyncio.sleep(delay)
-            await refresh_entry(entry)
+            await asyncio.sleep(_poll_delay(entry))
+            current = registry.get(config_id)
+            if current is None:
+                return
+            await refresh_entry(current)
         except asyncio.CancelledError:
             raise
-
-
-async def _stop_config(config_id: str) -> None:
-    task = _poll_tasks.pop(config_id, None)
-    if task:
-        task.cancel()
-        await asyncio.gather(task, return_exceptions=True)
-    client = _clients.pop(config_id, None)
-    if client:
-        await client.close()
-
-
-async def _activate_config(config_id: str, entry: dict[str, Any], client: KaiterraClient | None) -> None:
-    old_task = _poll_tasks.pop(config_id, None)
-    old_client = _clients.pop(config_id, None)
-    registry.set(config_id, entry)
-    if client is not None:
-        _clients[config_id] = client
-        _poll_tasks[config_id] = asyncio.create_task(_poll_entry(config_id), name=f"kaiterra-poll-{config_id}")
-    if old_task:
-        old_task.cancel()
-        await asyncio.gather(old_task, return_exceptions=True)
-    if old_client:
-        await _close_client_safely(old_client)
 
 
 async def _close_client_safely(client: KaiterraClient) -> None:
     try:
         await client.close()
-    except Exception:
-        pass
+    except Exception as exc:  # cleanup must not replace the primary outcome
+        logger.debug("kaiterra_client_close_failed error=%s", type(exc).__name__)
 
 
 async def shutdown() -> None:
-    for config_id in list(set(_poll_tasks) | set(_clients)):
-        await _stop_config(config_id)
+    for config_id in list(set(runtime_data.poll_tasks) | set(runtime_data.clients)):
+        await remove_config(config_id)

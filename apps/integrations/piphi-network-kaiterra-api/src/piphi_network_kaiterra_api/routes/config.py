@@ -9,7 +9,7 @@ from piphi_runtime_kit_python import (
     build_config_remove_response,
     validate_typed_configs,
 )
-from piphi_runtime_kit_python.fastapi import sync_runtime_auth_from_fastapi_payload
+from ..runtime_auth import authorize_runtime_request
 
 from ..schemas import DeviceConfig
 from ..state import (
@@ -25,13 +25,17 @@ router = APIRouter(tags=["config"])
 
 @router.post("/config")
 async def configure(payload: DeviceConfig, request: Request):
-    sync_runtime_auth_from_fastapi_payload(runtime, request, payload)
+    authorize_runtime_request(
+        request,
+        runtime_context=runtime,
+        payload_container_id=payload.container_id,
+    )
     await apply_config(payload)
     return build_config_apply_response(
         config_id=payload.config_id or payload.id,
         container_id=payload.container_id,
         metadata={
-            "device_udid": payload.device_udid or payload.host or payload.id,
+            "device_ref": registry.get(str(payload.config_id or payload.id))["device_ref"],
             "alias": payload.alias,
         },
     )
@@ -39,7 +43,11 @@ async def configure(payload: DeviceConfig, request: Request):
 
 @router.post("/config/sync")
 async def sync_config(snapshot: RuntimeConfigSnapshot, request: Request):
-    runtime.auth.sync_from_headers(request.headers, payload_container_id=snapshot.container_id)
+    authorize_runtime_request(
+        request,
+        runtime_context=runtime,
+        payload_container_id=snapshot.container_id,
+    )
     typed_configs = validate_typed_configs(snapshot.configs, DeviceConfig)
     return await config_sync.apply_snapshot(
         snapshot=snapshot.model_copy(update={"configs": typed_configs}),

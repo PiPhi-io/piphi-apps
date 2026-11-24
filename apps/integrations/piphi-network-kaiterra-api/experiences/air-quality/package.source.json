@@ -1,6 +1,6 @@
 {
   "schema_version": "1",
-  "identity": {"publisher_id": "io.piphi", "package_id": "kaiterra-air-quality", "version": "0.1.5"},
+  "identity": {"publisher_id": "io.piphi", "package_id": "kaiterra-air-quality", "version": "0.1.6"},
   "name": "Kaiterra Air Quality",
   "description": "A focused view of indoor air quality and comfort from a Kaiterra monitor.",
   "origin": "integration",

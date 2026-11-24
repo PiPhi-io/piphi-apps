@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "provider_surface": "Kaiterra public API 2025-02-26",
+  "entries": [
+    {"id": "latest_air_quality", "status": "implemented", "kind": "state_telemetry", "source": "GET /devices/{id}/top", "scope": "explicit_device_udid", "permissions": ["api_key", "device_access"], "capabilities": ["co2_ppm", "ozone_ppb", "pm1_ug_m3", "pm25_ug_m3", "pm10_ug_m3", "humidity_percent", "temperature_c", "tvoc_ppb", "pressure_pa", "illuminance_lux", "color_temperature_k", "co_ppm", "no2_ppb"]},
+    {"id": "minimal_device_metadata", "status": "implemented", "kind": "state", "source": "GET /devices/{id}", "scope": "explicit_device_udid", "permissions": ["api_key", "device_access"], "state_fields": ["name", "model", "firmware_version"]},
+    {"id": "cloud_refresh", "status": "implemented", "kind": "read_only_action", "source": "GET latest and metadata", "scope": "configured_devices", "permissions": ["runtime_auth"], "actions": ["refresh", "sync_cloud"], "events": ["device.state_changed"]},
+    {"id": "provider_quota_hints", "status": "implemented", "kind": "diagnostics_state", "source": "HTTP 429, Retry-After, RateLimit-Remaining, X-RateLimit-Remaining", "scope": "when_provider_headers_are_present", "capabilities": ["api_rate_limit_remaining"]},
+    {"id": "motion", "status": "excluded", "kind": "state_telemetry", "source": "pir", "reason": "Occupancy-correlated data is outside the default privacy-preserving slice."},
+    {"id": "color_channels", "status": "excluded", "kind": "telemetry", "source": "light_red/light_green/light_blue/light_ir", "reason": "The supported slice exposes only the documented clear illuminance channel."},
+    {"id": "sound", "status": "excluded", "kind": "telemetry", "source": "laeq/lceq/lzeq/lamax/la10/la90/fluct", "reason": "Sound-derived occupancy/activity inference is outside the supported privacy slice."},
+    {"id": "dew_point", "status": "excluded", "kind": "telemetry", "source": "dew_point", "reason": "Not exposed by the existing official read-only package slice."},
+    {"id": "history", "status": "excluded", "kind": "historical_telemetry", "source": "GET /devices/{id}/history", "reason": "History pagination and retention are outside the latest-reading slice; no pagination is silently truncated."},
+    {"id": "batch", "status": "excluded", "kind": "transport_optimization", "source": "POST /batch", "reason": "Per-device clients preserve simple failure attribution; no mutating subrequests are used."},
+    {"id": "account_discovery", "status": "excluded", "kind": "discovery", "source": "provider contract", "reason": "The official API documents no account or all-devices listing endpoint. Setup requires an explicit UDID and never chooses a first device."},
+    {"id": "provider_mutations", "status": "excluded", "kind": "action", "source": "provider contract", "reason": "The supported official slice is read-only and no provider authorization is inferred."}
+  ]
+}

@@ -23,6 +23,8 @@ CAPABILITIES: dict[str, dict[str, Any]] = {
         "kind": "sensor",
         "unit": "bool"
     },
+    "available": {"kind": "sensor", "unit": "bool"},
+    "stale": {"kind": "sensor", "unit": "bool"},
     "temperature_c": {
         "kind": "sensor",
         "unit": "C"
@@ -66,6 +68,11 @@ CAPABILITIES: dict[str, dict[str, Any]] = {
         "kind": "sensor",
         "unit": "ppb"
     },
+    "pressure_pa": {"kind": "sensor", "unit": "Pa"},
+    "illuminance_lux": {"kind": "sensor", "unit": "lx"},
+    "color_temperature_k": {"kind": "sensor", "unit": "K"},
+    "co_ppm": {"kind": "sensor", "unit": "ppm"},
+    "no2_ppb": {"kind": "sensor", "unit": "ppb"},
     "sync_cloud": {
         "kind": "action"
     }
@@ -93,7 +100,8 @@ CONFIG_SCHEMA: dict[str, Any] = {
         "properties": {
             "device_udid": {
                 "type": "string",
-                "title": "Kaiterra Device UDID"
+                "title": "Kaiterra Device UDID",
+                "writeOnly": True
             },
             "alias": {
                 "type": "string",
@@ -101,25 +109,30 @@ CONFIG_SCHEMA: dict[str, Any] = {
             },
             "api_key": {
                 "type": "string",
-                "title": "API Key"
+                "title": "API Key",
+                "writeOnly": True
             },
             "poll_interval_seconds": {
                 "type": "integer",
                 "title": "Poll Interval Seconds",
-                "minimum": 15
+                "minimum": 60,
+                "maximum": 86400,
+                "default": 300
             }
         }
     },
     "uiSchema": {
-        "device_udid": {
-            "placeholder": "00000000-0031-0101-0000-00007e57c0de"
-        },
         "alias": {
             "placeholder": "Office Kaiterra"
         },
         "api_key": {
             "placeholder": "Kaiterra API key",
             "ui:widget": "password"
+        },
+        "device_udid": {
+            "placeholder": "Kaiterra device UUID",
+            "ui:widget": "password",
+            "help": "The official API requires an explicit device UDID and does not provide account-wide device listing. PiPhi never selects a first device."
         },
         "poll_interval_seconds": {
             "placeholder": "60"
@@ -128,12 +141,14 @@ CONFIG_SCHEMA: dict[str, Any] = {
 }
 
 FALLBACK_ENTITY: dict[str, Any] = {
-    "id": "demo-device",
-    "name": "Demo Device",
-    "device_id": "demo-device",
+    "id": "dynamic-kaiterra-device",
+    "name": "Kaiterra Device",
+    "device_id": "dynamic-kaiterra-device",
     "entity_type": "sensor",
     "capabilities": [
         "connected",
+        "available",
+        "stale",
         "temperature_c",
         "refresh",
         "api_rate_limit_remaining",
@@ -145,6 +160,11 @@ FALLBACK_ENTITY: dict[str, Any] = {
         "pm10_ug_m3",
         "tvoc_ppb",
         "ozone_ppb",
+        "pressure_pa",
+        "illuminance_lux",
+        "color_temperature_k",
+        "co_ppm",
+        "no2_ppb",
         "sync_cloud"
     ],
     "available_commands": [

@@ -18,8 +18,12 @@ async def health():
 async def diagnostics():
     return starter.diagnostics_response(
         diagnostics={
-            "active_config_ids": registry.ids(),
+            "active_config_count": len(registry.ids()),
             "recent_event_count": len(registry.recent_events),
+            "unavailable_config_count": sum(
+                1 for entry in registry.entries.values()
+                if entry.get("availability") != "online"
+            ),
             "kind": PROJECT_KIND,
             "contract": {
                 "endpoints": ENDPOINTS,

@@ -20,9 +20,6 @@ def test_runtime_implements_contract_routes() -> None:
         "/state",
         "/contract",
         "/events",
-        "/events/device/{config_id}/example",
-        "/telemetry/example",
-        "/telemetry/device/{config_id}/example",
         "/command",
     ]:
         assert path in routes
@@ -39,6 +36,9 @@ def test_kaiterra_contract_exposes_air_quality_capabilities() -> None:
         "pm25_ug_m3",
         "tvoc_ppb",
         "ozone_ppb",
+        "pressure_pa",
+        "illuminance_lux",
+        "co_ppm",
     ]:
         assert capability_id in CAPABILITIES
 

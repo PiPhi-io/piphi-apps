@@ -3,7 +3,7 @@
   "manifest_version": "1.0",
   "id": "piphi-network-kaiterra-api",
   "name": "PiPhi Network Kaiterra API",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "PiPhi integration runtime for Kaiterra devices using the Kaiterra public API.",
   "metadata": {
     "generator": "piphi-network-create",
@@ -17,7 +17,12 @@
     "website": "https://github.com/PiPhi-io"
   },
   "license": "Apache-2.0",
-  "image": "piphinetwork/kaiterra-api:0.1.5",
+  "image": "ghcr.io/piphi-io/kaiterra-api:0.1.6",
+  "runtime_requirements": [
+    "internet_access",
+    "secrets_or_api_tokens",
+    "persistent_app_data"
+  ],
   "platforms": [
     "linux"
   ],
@@ -25,7 +30,8 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "piphinetwork/kaiterra-api:0.1.5",
+        "image": "ghcr.io/piphi-io/kaiterra-api:0.1.6",
+        "read_only": true,
         "ports": [
           {
             "container": 8090,
@@ -41,7 +47,11 @@
         }
       },
       "discovery": {
-        "method": "passive"
+        "method": "direct",
+        "inputs": [
+          {"name": "device_udid", "label": "Device UDID", "type": "password", "secret": true, "required": true},
+          {"name": "api_key", "label": "API key", "type": "password", "secret": true, "required": true}
+        ]
       }
     }
   },
@@ -74,7 +84,6 @@
     "editable_fields": [
       "device_udid",
       "alias",
-      "base_url",
       "api_key",
       "poll_interval_seconds"
     ],
@@ -85,12 +94,12 @@
       "device_id"
     ],
     "identity_fields": [
-      "device_udid"
+      "device_ref"
     ]
   },
   "identity": {
     "fields": [
-      "device_udid"
+      "device_ref"
     ]
   },
   "capabilities": {
@@ -98,6 +107,8 @@
       "kind": "sensor",
       "unit": "bool"
     },
+    "available": {"kind": "sensor", "unit": "bool"},
+    "stale": {"kind": "sensor", "unit": "bool"},
     "temperature_c": {
       "kind": "sensor",
       "unit": "C"
@@ -141,6 +152,11 @@
       "kind": "sensor",
       "unit": "ppb"
     },
+    "pressure_pa": {"kind": "sensor", "unit": "Pa"},
+    "illuminance_lux": {"kind": "sensor", "unit": "lx"},
+    "color_temperature_k": {"kind": "sensor", "unit": "K"},
+    "co_ppm": {"kind": "sensor", "unit": "ppm"},
+    "no2_ppb": {"kind": "sensor", "unit": "ppb"},
     "sync_cloud": {
       "kind": "action"
     }
@@ -155,49 +171,7 @@
       "timeout_ms": 15000
     }
   },
-  "entities": [
-    {
-      "id": "demo-device",
-      "name": "Kaiterra Device",
-      "device_id": "demo-device",
-      "entity_type": "sensor",
-      "capabilities": [
-        "connected",
-        "temperature_c",
-        "refresh",
-        "api_rate_limit_remaining",
-        "api_latency_ms",
-        "co2_ppm",
-        "humidity_percent",
-        "pm1_ug_m3",
-        "pm25_ug_m3",
-        "pm10_ug_m3",
-        "tvoc_ppb",
-        "ozone_ppb",
-        "sync_cloud"
-      ],
-      "available_commands": [
-        {
-          "id": "refresh",
-          "label": "Refresh",
-          "kind": "action"
-        },
-        {
-          "id": "sync_cloud",
-          "label": "Sync Cloud",
-          "kind": "action"
-        }
-      ],
-      "dashboard": {
-        "allowed_widgets": [
-          "tile",
-          "stat",
-          "button"
-        ],
-        "default_widget": "tile"
-      }
-    }
-  ],
+  "entities": [],
   "ui": {
     "experience_packages": [
       {
@@ -209,5 +183,44 @@
   },
   "onboarding": {
     "mode": "account"
+  },
+  "marketplace": {
+    "metadata_version": 2,
+    "brand_domain": "kaiterra.com",
+    "display_name": "Kaiterra Air Quality",
+    "summary": "Read the latest measurements from one explicitly selected Kaiterra monitor.",
+    "category": "air_quality",
+    "device_types": ["air_quality_monitor"],
+    "protocols": ["kaiterra_api"],
+    "regions": ["WW"],
+    "languages": ["en"],
+    "discovery_methods": ["direct"],
+    "connectivity": "cloud",
+    "offline_support": "stale_last_good",
+    "publisher": {
+      "name": "PiPhi Integrations Team",
+      "website_url": "https://github.com/PiPhi-io",
+      "support_url": "https://github.com/PiPhi-io/piphi-apps/issues",
+      "security_contact": "support@piphi.io"
+    },
+    "access": [
+      {"id": "external_cloud", "label": "External cloud access", "reason": "Reads latest measurements and minimal model metadata for the explicitly selected device.", "required": true},
+      {"id": "credentials", "label": "API credentials", "reason": "Uses a revocable Kaiterra API key and device UDID; both remain secret runtime configuration.", "required": true}
+    ],
+    "compatibility": [
+      {"brand": "Kaiterra", "model": "Public API compatible air-quality monitors", "regions": ["WW"]}
+    ],
+    "documentation_url": "https://github.com/PiPhi-io/piphi-apps/tree/main/apps/integrations/piphi-network-kaiterra-api",
+    "support_url": "https://github.com/PiPhi-io/piphi-apps/issues",
+    "changelog_url": "https://github.com/PiPhi-io/piphi-apps/releases",
+    "privacy_url": "https://github.com/PiPhi-io/piphi-apps/blob/main/apps/integrations/piphi-network-kaiterra-api/docs/privacy.md",
+    "quality_tier": "bronze",
+    "governance": {
+      "schema_version": 1,
+      "publication_status": "stable",
+      "rollout_percent": 100,
+      "lifecycle_status": "active",
+      "qualification": {"status": "unverified"}
+    }
   }
 }

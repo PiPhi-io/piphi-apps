@@ -4,7 +4,7 @@ import os
 
 INTEGRATION_ID = "piphi-network-kaiterra-api"
 INTEGRATION_NAME = "PiPhi Network Kaiterra API"
-INTEGRATION_VERSION = "0.1.2"
+INTEGRATION_VERSION = "0.1.6"
 PROJECT_KIND = "integration"
 PROJECT_PRESET = "cloud-polling-api"
 PROJECT_DOMAIN = "cloud-api"
