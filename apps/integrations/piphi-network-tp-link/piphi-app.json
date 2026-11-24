@@ -12,18 +12,19 @@
     "python": "3.12"
   },
   "ci": {
-    "enforcement": "legacy-static",
+    "enforcement": "full",
     "commands": [
-      "pdm install --check",
-      "pdm run pytest"
+      "pdm install -G dev --check",
+      "pdm run pytest -q",
+      "pdm run python scripts/build_experience.py --check"
     ],
-    "build_container": false
+    "build_container": true
   },
   "packages": [
     {
       "id": "tp-link-kasa-local-api",
       "type": "integration",
-      "version": "0.1.14",
+      "version": "0.1.15",
       "manifest": "src/manifest.json",
       "release": {
         "tag": "apps/{package_id}/v{version}",

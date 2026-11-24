@@ -1,6 +1,6 @@
 [project]
 name = "piphi_network_tp_link"
-version = "0.1.14"
+version = "0.1.15"
 description = "PiPhi TP-Link Kasa integration"
 authors = [
     {name = "KelvinSan", email = "kelvin.sanyaolu@gmail.com"},

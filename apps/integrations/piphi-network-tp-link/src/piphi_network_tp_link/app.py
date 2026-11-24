@@ -1,10 +1,14 @@
 import json
+import hmac
+import os
 import multiprocessing
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 
 import aiofiles
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
+from fastapi.responses import JSONResponse
 
 from piphi_network_tp_link.contract.command.router import router as command_router
 from piphi_network_tp_link.contract.config.routes import config_router
@@ -17,6 +21,24 @@ from piphi_network_tp_link.contract.ui_schema.router import router as ui_schema_
 from piphi_network_tp_link.lib.lifespan import lifespan
 
 app = FastAPI(lifespan=lifespan)
+
+
+@app.middleware("http")
+async def require_runtime_auth(
+    request: Request, call_next: Callable[[Request], Awaitable[Response]]
+) -> Response:
+    if request.url.path.rstrip("/") == "/health":
+        return await call_next(request)
+    expected = os.getenv("PIPHI_INTEGRATION_INTERNAL_TOKEN", "").strip()
+    if not expected:
+        return JSONResponse(
+            status_code=503,
+            content={"detail": "runtime authentication is not configured"},
+        )
+    supplied = request.headers.get("X-PiPhi-Integration-Token", "")
+    if not hmac.compare_digest(supplied, expected):
+        return JSONResponse(status_code=401, content={"detail": "invalid runtime token"})
+    return await call_next(request)
 
 app.include_router(health_router)
 app.include_router(command_router)

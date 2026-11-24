@@ -1,58 +1,309 @@
 {
-  "schema_version": "1",
+  "schema_version": "2",
   "integration_id": "tp-link-kasa-local-api",
-  "source": "python-kasa feature negotiation and representative Kasa device families",
+  "source": "python-kasa 0.10.2 negotiated feature surface; no physical qualification asserted",
   "completion": {
-    "status": "implementation_complete",
-    "scope": "Negotiated local Kasa plugs, switches, lights, strips, energy monitors, and supported sensor hubs",
-    "automated_validation": "passed",
-    "simulator_validation": "passed",
-    "physical_device_validation": "pending"
+    "status": "production_hardened_monitoring",
+    "automated_validation": "required",
+    "deterministic_fake_transport": "covered by contract fixtures",
+    "physical_model_firmware_validation": "pending_separate_qualification"
   },
   "device_profiles": [
-    {"id": "mini-plug", "models": ["EP10", "KP105"], "capabilities": ["switch"], "simulated": true},
-    {"id": "energy-plug", "models": ["KP115", "KP125M"], "capabilities": ["switch", "power", "energy_power", "energy_today", "energy_this_month"], "simulated": true},
-    {"id": "wall-switch", "models": ["HS200"], "capabilities": ["switch"], "simulated": true},
-    {"id": "dimmer-switch", "models": ["HS220"], "capabilities": ["switch", "brightness"], "simulated": true},
-    {"id": "white-bulb", "models": ["KL110", "KL120"], "capabilities": ["switch", "brightness", "color_temperature"], "simulated": true},
-    {"id": "color-bulb", "models": ["KL125", "KL130", "KL135"], "capabilities": ["switch", "brightness", "color_temperature", "color"], "simulated": true},
-    {"id": "light-strip", "models": ["KL400", "KL420", "KL430"], "capabilities": ["switch", "brightness", "color_temperature", "color"], "simulated": true},
-    {"id": "power-strip", "models": ["HS300", "KP303"], "capabilities": ["switch", "power", "energy_power", "energy_today", "energy_this_month"], "simulated": true},
-    {"id": "sensor-hub", "models": ["KH100", "supported hub children"], "capabilities": ["temperature", "humidity", "telemetry"], "simulated": true}
+    {
+      "id": "mini-plug",
+      "qualification": "pending",
+      "advertised_writes": [],
+      "simulated": true,
+      "capabilities": [
+        "switch"
+      ]
+    },
+    {
+      "id": "energy-plug",
+      "qualification": "pending",
+      "advertised_writes": [],
+      "simulated": true,
+      "capabilities": [
+        "switch",
+        "power",
+        "energy_power",
+        "energy_today",
+        "energy_this_month"
+      ]
+    },
+    {
+      "id": "wall-switch",
+      "qualification": "pending",
+      "advertised_writes": [],
+      "simulated": true,
+      "capabilities": [
+        "switch"
+      ]
+    },
+    {
+      "id": "dimmer-switch",
+      "qualification": "pending",
+      "advertised_writes": [],
+      "simulated": true,
+      "capabilities": [
+        "switch",
+        "brightness"
+      ]
+    },
+    {
+      "id": "white-bulb",
+      "qualification": "pending",
+      "advertised_writes": [],
+      "simulated": true,
+      "capabilities": [
+        "switch",
+        "brightness",
+        "color_temperature"
+      ]
+    },
+    {
+      "id": "color-bulb",
+      "qualification": "pending",
+      "advertised_writes": [],
+      "simulated": true,
+      "capabilities": [
+        "switch",
+        "brightness",
+        "color_temperature",
+        "color"
+      ]
+    },
+    {
+      "id": "light-strip",
+      "qualification": "pending",
+      "advertised_writes": [],
+      "simulated": true,
+      "capabilities": [
+        "switch",
+        "brightness",
+        "color_temperature",
+        "color"
+      ]
+    },
+    {
+      "id": "power-strip",
+      "qualification": "pending",
+      "advertised_writes": [],
+      "simulated": true,
+      "capabilities": [
+        "switch",
+        "power",
+        "energy_power",
+        "energy_today",
+        "energy_this_month"
+      ]
+    },
+    {
+      "id": "sensor-hub",
+      "qualification": "pending",
+      "advertised_writes": [],
+      "simulated": true,
+      "capabilities": [
+        "temperature",
+        "humidity",
+        "telemetry"
+      ]
+    }
   ],
   "capabilities": [
-    {"id": "switch", "status": "implemented", "kind": "state-and-action", "scope": ["plugs", "switches", "lights", "strips"]},
-    {"id": "brightness", "status": "implemented", "kind": "state-and-action", "scope": ["dimmers", "lights", "strips"]},
-    {"id": "color_temperature", "status": "implemented", "kind": "state-and-action", "scope": ["tunable lights", "color lights", "strips"]},
-    {"id": "color", "status": "implemented", "kind": "state-and-action", "scope": ["color lights", "strips"]},
-    {"id": "power", "status": "implemented", "kind": "telemetry", "scope": ["energy plugs", "energy strips"]},
-    {"id": "temperature", "status": "implemented", "kind": "telemetry", "scope": ["supported sensors and hubs"]},
-    {"id": "humidity", "status": "implemented", "kind": "telemetry", "scope": ["supported sensors and hubs"]},
-    {"id": "telemetry", "status": "implemented", "kind": "telemetry", "scope": ["negotiated numeric and binary features"]},
-    {"id": "refresh", "status": "implemented", "kind": "action", "scope": ["all configured devices"]},
-    {"id": "dynamic_feature", "status": "implemented", "kind": "action", "scope": ["negotiated writable features"]},
-    {"id": "energy_power", "status": "implemented", "kind": "telemetry", "scope": ["energy plugs", "energy strips"]},
-    {"id": "energy_today", "status": "implemented", "kind": "telemetry", "scope": ["energy plugs", "energy strips"]},
-    {"id": "energy_this_month", "status": "implemented", "kind": "telemetry", "scope": ["energy plugs", "energy strips"]}
+    {
+      "id": "switch",
+      "status": "implemented",
+      "kind": "state",
+      "source": "python-kasa state feature",
+      "scope": [
+        "negotiated devices"
+      ]
+    },
+    {
+      "id": "brightness",
+      "status": "implemented",
+      "kind": "state",
+      "source": "python-kasa feature",
+      "scope": [
+        "negotiated devices"
+      ]
+    },
+    {
+      "id": "color_temperature",
+      "status": "implemented",
+      "kind": "state",
+      "source": "python-kasa feature",
+      "scope": [
+        "negotiated devices"
+      ]
+    },
+    {
+      "id": "color",
+      "status": "implemented",
+      "kind": "state",
+      "source": "python-kasa feature",
+      "scope": [
+        "negotiated devices"
+      ]
+    },
+    {
+      "id": "power",
+      "status": "implemented",
+      "kind": "telemetry",
+      "source": "python-kasa feature",
+      "scope": [
+        "negotiated devices"
+      ]
+    },
+    {
+      "id": "temperature",
+      "status": "implemented",
+      "kind": "telemetry",
+      "source": "python-kasa feature",
+      "scope": [
+        "negotiated devices"
+      ]
+    },
+    {
+      "id": "humidity",
+      "status": "implemented",
+      "kind": "telemetry",
+      "source": "python-kasa feature",
+      "scope": [
+        "negotiated devices"
+      ]
+    },
+    {
+      "id": "telemetry",
+      "status": "implemented",
+      "kind": "telemetry",
+      "source": "negotiated numeric/binary features",
+      "scope": [
+        "negotiated devices"
+      ]
+    },
+    {
+      "id": "refresh",
+      "status": "implemented",
+      "kind": "read_action",
+      "source": "python-kasa update",
+      "scope": [
+        "configured devices"
+      ]
+    },
+    {
+      "id": "energy_power",
+      "status": "implemented",
+      "kind": "telemetry",
+      "source": "negotiated energy features",
+      "scope": [
+        "negotiated devices"
+      ]
+    },
+    {
+      "id": "energy_today",
+      "status": "implemented",
+      "kind": "telemetry",
+      "source": "negotiated energy features",
+      "scope": [
+        "negotiated devices"
+      ]
+    },
+    {
+      "id": "energy_this_month",
+      "status": "implemented",
+      "kind": "telemetry",
+      "source": "negotiated energy features",
+      "scope": [
+        "negotiated devices"
+      ]
+    }
   ],
   "commands": [
-    {"id": "refresh", "status": "implemented", "simulation": "implemented"},
-    {"id": "turn_on", "status": "implemented", "simulation": "implemented"},
-    {"id": "turn_off", "status": "implemented", "simulation": "implemented"},
-    {"id": "toggle", "status": "implemented", "simulation": "implemented"},
-    {"id": "set_brightness", "status": "implemented", "simulation": "implemented"},
-    {"id": "set_color_temperature", "status": "implemented", "simulation": "implemented"},
-    {"id": "set_hue_saturation", "status": "implemented", "simulation": "implemented"},
-    {"id": "read_energy", "status": "implemented", "simulation": "implemented"},
-    {"id": "set_alias", "status": "implemented", "simulation": "excluded", "reason": "Administrative identity mutation is not needed for dashboard qualification."},
-    {"id": "reboot", "status": "implemented", "simulation": "excluded", "reason": "A fake reboot would not exercise meaningful device behavior."},
-    {"id": "set_feature", "status": "implemented", "simulation": "excluded", "reason": "The simulator exposes typed representative controls instead of arbitrary feature mutation."},
-    {"id": "dynamic_feature", "status": "implemented", "simulation": "excluded", "reason": "The simulator exposes typed representative controls instead of arbitrary feature mutation."},
-    {"id": "feature_action", "status": "implemented", "simulation": "excluded", "reason": "Action-like vendor features are model and firmware specific."}
+    {
+      "id": "refresh",
+      "status": "implemented",
+      "risk": "read_only",
+      "simulation": "deterministic"
+    },
+    {
+      "id": "read_energy",
+      "status": "implemented",
+      "risk": "read_only",
+      "simulation": "deterministic"
+    },
+    {
+      "id": "turn_on",
+      "status": "planned",
+      "reason": "Requires external certified model/firmware profile, explicit opt-in, allow-list, and physical verification."
+    },
+    {
+      "id": "turn_off",
+      "status": "planned",
+      "reason": "Requires external certified model/firmware profile, explicit opt-in, allow-list, and physical verification."
+    },
+    {
+      "id": "set_brightness",
+      "status": "planned",
+      "reason": "Requires model-specific certified bounds and physical verification."
+    },
+    {
+      "id": "set_color_temperature",
+      "status": "planned",
+      "reason": "Requires model-specific certified bounds and physical verification."
+    },
+    {
+      "id": "set_hue_saturation",
+      "status": "planned",
+      "reason": "Requires model-specific certified bounds and physical verification."
+    },
+    {
+      "id": "toggle",
+      "status": "excluded",
+      "reason": "Non-idempotent stale-state action."
+    },
+    {
+      "id": "reboot",
+      "status": "excluded",
+      "reason": "Consequential administrative operation with no ordinary-use justification."
+    },
+    {
+      "id": "set_alias",
+      "status": "excluded",
+      "reason": "Administrative identity mutation is out of scope."
+    },
+    {
+      "id": "set_feature",
+      "status": "excluded",
+      "reason": "Generic vendor feature mutation is not bounded."
+    },
+    {
+      "id": "dynamic_feature",
+      "status": "excluded",
+      "reason": "Generic vendor feature mutation is not bounded."
+    },
+    {
+      "id": "feature_action",
+      "status": "excluded",
+      "reason": "Generic vendor action invocation is not bounded."
+    }
   ],
   "excluded_device_families": [
-    {"id": "cameras", "status": "excluded", "reason": "Camera/media transport is not owned by this Kasa local-device integration."},
-    {"id": "routers-and-mesh", "status": "excluded", "reason": "Network infrastructure requires a separate integration and security contract."},
-    {"id": "robot-vacuums", "status": "excluded", "reason": "No stable runtime contract is implemented in this integration."}
+    {
+      "id": "cameras",
+      "status": "excluded",
+      "reason": "Camera/media transport is owned elsewhere."
+    },
+    {
+      "id": "routers-and-mesh",
+      "status": "excluded",
+      "reason": "Network infrastructure requires a separate security contract."
+    },
+    {
+      "id": "robot-vacuums",
+      "status": "excluded",
+      "reason": "No qualified local runtime contract."
+    }
   ]
 }

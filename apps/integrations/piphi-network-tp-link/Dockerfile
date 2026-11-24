@@ -1,15 +1,33 @@
-FROM python:3.12-slim
-
+FROM python:3.12-slim@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b AS requirements
 WORKDIR /app
+RUN pip install --no-cache-dir "pdm==2.29.7"
+COPY pyproject.toml pdm.lock ./
+RUN pdm export --prod --output /requirements.txt
 
-ENV PYTHONUNBUFFERED=1
-ENV PYTHONPATH=/app/src
-
+FROM python:3.12-slim@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b
+ARG RELEASE_VERSION=0.1.15
+ARG SOURCE_REVISION=unknown
+ARG SOURCE_REPOSITORY=https://github.com/PiPhi-io/piphi-apps
+LABEL org.opencontainers.image.source="${SOURCE_REPOSITORY}" \
+      org.opencontainers.image.revision="${SOURCE_REVISION}" \
+      org.opencontainers.image.version="${RELEASE_VERSION}"
+WORKDIR /app
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app/src \
+    PIPHI_AUTOMATION_LEDGER_PATH=/data/automation-actions.sqlite3
+COPY --from=requirements /requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir --require-hashes -r /tmp/requirements.txt
 COPY pyproject.toml README.md ./
 COPY src ./src
-
-RUN pip install --no-cache-dir .
-
+RUN pip install --no-cache-dir --no-deps . \
+    && groupadd --system --gid 10001 piphi \
+    && useradd --system --uid 10001 --gid piphi --home-dir /app piphi \
+    && mkdir /data \
+    && chown 10001:10001 /data \
+    && chmod -R a-w /app
+USER 10001:10001
+VOLUME ["/data"]
 EXPOSE 3666
-
-CMD ["uvicorn", "piphi_network_tp_link.app:app", "--host", "0.0.0.0", "--port", "3666"]
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:3666/health', timeout=2)"
+CMD ["uvicorn", "piphi_network_tp_link.app:app", "--host", "0.0.0.0", "--port", "3666", "--no-access-log"]

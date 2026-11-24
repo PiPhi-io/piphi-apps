@@ -511,6 +511,16 @@ def test_config_sync_accepts_masked_secret_placeholders(
     monkeypatch.setattr(
         config_module, "start_device_poll_task", lambda **kwargs: _DummyTask()
     )
+    registry.set(
+        "plug-1",
+        {
+            "config_id": "plug-1",
+            "device_id": "plug-1",
+            "host": "10.0.0.227",
+            "username": "existing-user",
+            "password": "existing-password",
+        },
+    )
 
     snapshot = {
         "container_id": "runtime-123",
@@ -536,7 +546,8 @@ def test_config_sync_accepts_masked_secret_placeholders(
         response = client.post("/config/sync", json=snapshot, headers=headers)
 
     assert response.status_code == 200
-    assert registry.get("plug-1")["password"] is None
+    assert registry.get("plug-1")["username"] == "existing-user"
+    assert registry.get("plug-1")["password"] == "existing-password"
 
 
 def test_state_route_refreshes_missing_tp_link_snapshot_with_testkit(
@@ -755,7 +766,7 @@ def test_tp_link_command_returns_404_without_primary_device() -> None:
     reset_runtime_state()
 
     with TestClient(app) as client:
-        response = client.post("/command", json={"command": "turn_on"})
+        response = client.post("/command", json={"command": "refresh"})
 
     assert response.status_code == 404
     assert response.json()["detail"] == "No configured device found"
@@ -793,7 +804,7 @@ def test_tp_link_command_runs_device_command_and_returns_refreshed_state(
         response = client.post(
             "/command",
             json={
-                "command": "turn_on",
+                "command": "refresh",
                 "device_id": "plug-1",
                 "args": {"transition": 1},
             },
@@ -801,7 +812,7 @@ def test_tp_link_command_runs_device_command_and_returns_refreshed_state(
 
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
-    assert response.json()["result"]["command"] == "turn_on"
+    assert response.json()["result"]["command"] == "refresh"
     assert response.json()["state"]["state"]["is_on"] is True
 
 
@@ -837,7 +848,7 @@ def test_tp_link_command_replays_idempotency_key_without_repeating_device_effect
 
     headers = {"X-PiPhi-Idempotency-Key": "tp-link-action-idempotency-1"}
     payload = {
-        "command": "turn_on",
+        "command": "refresh",
         "device_id": "plug-idempotency-1",
     }
     with TestClient(app) as client:
@@ -851,7 +862,7 @@ def test_tp_link_command_replays_idempotency_key_without_repeating_device_effect
     assert calls == 1
 
 
-def test_tp_link_config_apply_still_succeeds_when_initial_refresh_fails(
+def test_tp_link_config_apply_fails_closed_and_preserves_previous_on_connect_failure(
     mock_core,
     monkeypatch,
 ) -> None:
@@ -881,24 +892,12 @@ def test_tp_link_config_apply_still_succeeds_when_initial_refresh_fails(
         container_id="runtime-123", internal_token="secret-token"
     )
 
+    registry.set("plug-1", {"config_id": "plug-1", "device_id": "plug-1", "host": "10.0.0.10"})
     with TestClient(app) as client:
-        response = client.post("/config", json=payload, headers=headers)
-        assert response.status_code == 200
-        assert response.json()["config_id"] == "plug-1"
-        wait_for(lambda: len(mock_core.event_requests) >= 1)
+        with pytest.raises(RuntimeError, match="device unavailable"):
+            client.post("/config", json=payload, headers=headers)
 
-        configured_event = assert_event_sent(
-            mock_core,
-            device_id="plug-1",
-            config_id="plug-1",
-            event_type="device.configured",
-        )
-
-    assert registry.get("plug-1") is not None
-    assert (
-        configured_event.json_body.get("event_type")
-        or configured_event.json_body.get("type")
-    ) == "device.configured"
+    assert registry.get("plug-1")["host"] == "10.0.0.10"
 
 
 @pytest.mark.parametrize("path", ["/ui", "/ui-config"])
@@ -998,7 +997,7 @@ def test_tp_link_discovery_post_passes_host_hint(monkeypatch) -> None:
     assert response.json()["devices"][0]["host"] == "10.0.0.227"
 
 
-def test_tp_link_discovery_returns_500_on_exception(monkeypatch) -> None:
+def test_tp_link_discovery_returns_sanitized_gateway_error(monkeypatch) -> None:
     reset_runtime_state()
 
     async def failing_discover_devices(username=None, password=None):
@@ -1009,8 +1008,8 @@ def test_tp_link_discovery_returns_500_on_exception(monkeypatch) -> None:
     with TestClient(app) as client:
         response = client.get("/discover")
 
-    assert response.status_code == 500
-    assert "Discovery failed: boom" in response.json()["detail"]
+    assert response.status_code == 502
+    assert response.json()["detail"] == "Discovery failed"
 
 
 def test_tp_link_targeted_discovery_uses_host_hint(monkeypatch) -> None:
@@ -1360,8 +1359,8 @@ def test_tp_link_diagnostics_reports_device_ids() -> None:
 
     assert response.status_code == 200
     diagnostics = response.json()["diagnostics"]
-    assert diagnostics["configured_device_ids"] == ["plug-1"]
-    assert diagnostics["devices_with_state"] == ["plug-1"]
+    assert diagnostics["configured_devices"] != ["plug-1"]
+    assert diagnostics["devices_with_state"] == diagnostics["configured_devices"]
 
 
 def test_tp_link_entities_route_returns_device_specific_commands() -> None:
@@ -1407,14 +1406,10 @@ def test_tp_link_entities_route_returns_device_specific_commands() -> None:
     assert entity["device_class"] == "plug"
     assert entity["entity_type"] == "switch"
     assert [command["id"] for command in entity["available_commands"]] == [
-        "toggle",
-        "turn_on",
-        "turn_off",
         "read_energy",
         "refresh",
     ]
-    assert entity["available_commands"][0]["label"] == "Toggle"
-    assert entity["available_commands"][3]["label"] == "Refresh Energy"
+    assert entity["available_commands"][0]["label"] == "Refresh Energy"
 
 
 def test_tp_link_manifest_route_returns_identity_fields() -> None:
@@ -1444,10 +1439,10 @@ def test_tp_link_manifest_maps_action_capabilities_to_commands() -> None:
     }
 
     assert action_capabilities <= set(manifest["commands"])
-    assert "dynamic_feature" in manifest["commands"]
+    assert set(manifest["commands"]) == {"refresh", "read_energy"}
 
 
-def test_dynamic_feature_command_sets_writable_feature(monkeypatch) -> None:
+def test_dynamic_feature_command_is_not_executable(monkeypatch) -> None:
     feature = _FakeFeature()
     device = _FakeKasaDevice(feature)
 
@@ -1456,50 +1451,20 @@ def test_dynamic_feature_command_sets_writable_feature(monkeypatch) -> None:
 
     monkeypatch.setattr(kasa_client_module, "_resolve_device", fake_resolve_device)
 
-    asyncio.run(
-        kasa_client_module.execute_device_command(
-            host="192.168.1.25",
-            command="dynamic_feature",
-            args={"feature_id": "led", "value": False},
+    with pytest.raises(RuntimeError, match="Unsupported command"):
+        asyncio.run(
+            kasa_client_module.execute_device_command(
+                host="192.168.1.25",
+                command="dynamic_feature",
+                args={"feature_id": "led", "value": False},
+            )
         )
-    )
 
-    assert feature.value is False
+    assert feature.value is None
     assert device.disconnect_calls == 1
 
 
-@pytest.mark.parametrize(
-    ("command", "feature_id", "args", "expected"),
-    [
-        ("set_brightness", "brightness", {"brightness": 42}, 42),
-        ("set_color_temperature", "color_temperature", {"kelvin": 3000}, 3000),
-    ],
-)
-def test_named_light_command_arguments_match_the_entity_contract(
-    monkeypatch, command: str, feature_id: str, args: dict[str, int], expected: int
-) -> None:
-    feature = _FakeFeature()
-    device = _FakeKasaDevice(feature)
-    device.features = {feature_id: feature}
-
-    async def fake_resolve_device(*, host: str, username=None, password=None):
-        return device
-
-    monkeypatch.setattr(kasa_client_module, "_resolve_device", fake_resolve_device)
-
-    asyncio.run(
-        kasa_client_module.execute_device_command(
-            host="192.168.1.25",
-            command=command,
-            args=args,
-        )
-    )
-
-    assert feature.value == expected
-    assert device.disconnect_calls == 1
-
-
-def test_supported_light_commands_advertise_their_canonical_argument_names() -> None:
+def test_supported_commands_do_not_advertise_unqualified_writes() -> None:
     device = _FakeKasaDevice(_FakeFeature())
     commands = kasa_client_module._build_supported_commands(
         device,
@@ -1513,8 +1478,7 @@ def test_supported_light_commands_advertise_their_canonical_argument_names() -> 
     )
     args_by_command = {command["id"]: command["args"] for command in commands}
 
-    assert args_by_command["set_brightness"] == ["brightness"]
-    assert args_by_command["set_color_temperature"] == ["kelvin"]
+    assert args_by_command == {"refresh": [], "read_energy": []}
 
 
 def test_tp_link_state_returns_404_for_unknown_explicit_device() -> None:
@@ -1571,11 +1535,11 @@ def test_tp_link_command_uses_primary_device_when_device_id_missing(
     monkeypatch.setattr(command_module, "trigger_refresh", fake_trigger_refresh)
 
     with TestClient(app) as client:
-        response = client.post("/command", json={"command": "turn_on"})
+        response = client.post("/command", json={"command": "refresh"})
 
     assert response.status_code == 200
     assert observed["device_id"] == "plug-1"
-    assert observed["command"] == "turn_on"
+    assert observed["command"] == "refresh"
 
 
 def test_tp_link_command_prefers_target_config_id_over_payload_device_id(
@@ -1624,7 +1588,7 @@ def test_tp_link_command_prefers_target_config_id_over_payload_device_id(
         response = client.post(
             "/command",
             json={
-                "command": "turn_on",
+                "command": "refresh",
                 "device_id": "shared-kasa-device-id",
                 "target": {"config_id": "bulb-config"},
             },
@@ -1632,7 +1596,7 @@ def test_tp_link_command_prefers_target_config_id_over_payload_device_id(
 
     assert response.status_code == 200
     assert observed["device_id"] == "bulb-config"
-    assert observed["command"] == "turn_on"
+    assert observed["command"] == "refresh"
 
 
 def test_tp_link_command_propagates_device_failure(monkeypatch) -> None:
@@ -1660,7 +1624,7 @@ def test_tp_link_command_propagates_device_failure(monkeypatch) -> None:
 
     with TestClient(app) as client:
         response = client.post(
-            "/command", json={"command": "turn_on", "device_id": "plug-1"}
+            "/command", json={"command": "refresh", "device_id": "plug-1"}
         )
 
     assert response.status_code == 400

@@ -3,6 +3,7 @@ from piphi_runtime_kit_python import build_entities_response
 
 from piphi_network_tp_link.lib.manifest import load_manifest
 from piphi_network_tp_link.lib.store import registry
+from piphi_network_tp_link.lib.security import certified_profile
 
 router = APIRouter(tags=["entities"])
 
@@ -81,7 +82,13 @@ def _dashboard_hints(device_class: str, capabilities: list[str]) -> dict[str, ob
     }
 
 
-def _available_commands(device_class: str, capabilities: list[str]) -> list[dict[str, object]]:
+def _available_commands(
+    device_class: str,
+    capabilities: list[str],
+    *,
+    controls_enabled: bool = False,
+    qualified_commands: set[str] | None = None,
+) -> list[dict[str, object]]:
     commands: list[dict[str, object]] = []
 
     def add(
@@ -106,12 +113,16 @@ def _available_commands(device_class: str, capabilities: list[str]) -> list[dict
 
     capability_set = set(capabilities)
 
-    if device_class in {"light", "dimmer", "strip"} or "switch" in capability_set:
-        add("toggle", label="Toggle", kind="primary", description="Toggle the device power state.")
-        add("turn_on", label="Turn On", kind="primary", description="Turn the device on.")
-        add("turn_off", label="Turn Off", kind="secondary", description="Turn the device off.")
+    qualified_commands = qualified_commands or set()
+    if controls_enabled and (
+        device_class in {"light", "dimmer", "strip"} or "switch" in capability_set
+    ):
+        if "turn_on" in qualified_commands:
+            add("turn_on", label="Turn On", kind="primary", description="Turn the device on.")
+        if "turn_off" in qualified_commands:
+            add("turn_off", label="Turn Off", kind="secondary", description="Turn the device off.")
 
-    if "brightness" in capability_set:
+    if controls_enabled and "brightness" in capability_set and "set_brightness" in qualified_commands:
         add(
             "set_brightness",
             label="Set Brightness",
@@ -130,7 +141,7 @@ def _available_commands(device_class: str, capabilities: list[str]) -> list[dict
             },
         )
 
-    if "color_temperature" in capability_set:
+    if controls_enabled and "color_temperature" in capability_set and "set_color_temperature" in qualified_commands:
         add(
             "set_color_temperature",
             label="Set Color Temperature",
@@ -149,7 +160,7 @@ def _available_commands(device_class: str, capabilities: list[str]) -> list[dict
             },
         )
 
-    if "color" in capability_set:
+    if controls_enabled and "color" in capability_set and "set_hue_saturation" in qualified_commands:
         add(
             "set_hue_saturation",
             label="Set Color",
@@ -210,6 +221,8 @@ async def get_entities() -> dict:
             or str(latest_state.get("name") or "").strip()
             or str(device_id)
         )
+        profile = certified_profile(entry.get("certified_profile"), latest_state.get("model"))
+        qualified_commands = set(profile["commands"]) & set(entry.get("allowed_commands") or []) if profile else set()
         entities.append(
             {
                 "id": str(entry.get("device_id") or device_id),
@@ -220,7 +233,12 @@ async def get_entities() -> dict:
                 "device_class": device_class,
                 "entity_type": _entity_type(device_class, capabilities),
                 "capabilities": capabilities,
-                "available_commands": _available_commands(device_class, capabilities),
+                "available_commands": _available_commands(
+                    device_class,
+                    capabilities,
+                    controls_enabled=bool(entry.get("controls_enabled") and profile),
+                    qualified_commands=qualified_commands,
+                ),
                 "dashboard": _dashboard_hints(device_class, capabilities),
                 "alias": str(entry.get("alias") or "").strip() or None,
                 "host": str(entry.get("host") or "").strip() or None,

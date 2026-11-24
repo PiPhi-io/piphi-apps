@@ -68,13 +68,8 @@ def test_capability_matrix_accounts_for_manifest_and_simulator_surface() -> None
         set(profile["capabilities"]) <= implemented_capabilities
         for profile in matrix["device_profiles"]
     )
-    assert matrix["completion"] == {
-        "status": "implementation_complete",
-        "scope": "Negotiated local Kasa plugs, switches, lights, strips, energy monitors, and supported sensor hubs",
-        "automated_validation": "passed",
-        "simulator_validation": "passed",
-        "physical_device_validation": "pending",
-    }
+    assert matrix["completion"]["status"] == "production_hardened_monitoring"
+    assert matrix["completion"]["physical_model_firmware_validation"] == "pending_separate_qualification"
 
 
 def test_package_contains_control_energy_stacked_and_environment_widgets() -> None:
@@ -82,15 +77,11 @@ def test_package_contains_control_energy_stacked_and_environment_widgets() -> No
     assert source["origin"] == "integration"
     assert source["owning_integration_id"] == "tp-link-kasa-local-api"
     assert [widget["id"] for widget in source["widgets"]] == [
-        "device-control",
         "energy-monitor",
-        "smart-plug",
         "environment-monitor",
     ]
     assert [widget["runtime"] for widget in source["widgets"]] == [
-        "sandboxed_bundle",
         "declarative",
-        "sandboxed_bundle",
         "declarative",
     ]
     for widget in source["widgets"]:
@@ -126,15 +117,8 @@ def test_bindings_match_runtime_capabilities_and_are_device_scoped() -> None:
 def test_command_widgets_are_explicitly_permissioned_and_allow_listed() -> None:
     widgets = {widget["id"]: widget for widget in _source()["widgets"]}
     assert widgets["energy-monitor"].get("permissions", []) == []
-    for widget_id in ("device-control", "smart-plug"):
-        widget = widgets[widget_id]
-        assert widget["permissions"] == ["host.executeCommand"]
-        assert widget["allowed_commands"]
-        assert all(
-            "command" in target["allowed_actions"]
-            for target in widget["interaction_targets"]
-            if target["kind"] == "binding" and target["default_action"] == "command"
-        )
+    assert all(widget.get("permissions", []) == [] for widget in widgets.values())
+    assert all(not widget.get("allowed_commands") for widget in widgets.values())
 
 
 def test_themes_are_bounded_and_core_typography_remains_authoritative() -> None:
@@ -194,22 +178,10 @@ def test_device_control_is_one_compact_theme_safe_surface_and_opens_core_details
 
 
 def test_device_control_only_supports_the_unified_glanceable_presentation() -> None:
-    widget = next(
-        item for item in _source()["widgets"] if item["id"] == "device-control"
+    assert all(
+        item["id"] not in {"device-control", "smart-plug"}
+        for item in _source()["widgets"]
     )
-    assert widget["default_column_span"] == 4
-    assert widget["default_row_span"] == 3
-    assert widget["settings_schema_version"] == "3"
-    assert widget["settings"] == []
-    assert widget["settings_migrations"] == [
-        {
-            "from": "1",
-            "to": "2",
-            "defaults": {"dashboard_density": "compact"},
-            "remove": ["show_brightness"],
-        },
-        {"from": "2", "to": "3", "remove": ["dashboard_density"]},
-    ]
 
 
 def test_energy_monitor_uses_a_compact_dashboard_footprint() -> None:
@@ -456,8 +428,6 @@ def test_signed_build_is_deterministic_and_contains_assets_once(tmp_path: Path) 
     with ZipFile(first_archive) as package:
         assert package.namelist() == [
             "package.source.json",
-            "assets/kasa-widget.mjs",
-            "assets/optimistic-control.mjs",
             "themes/kasa.css",
             "themes/quiet.css",
         ]
