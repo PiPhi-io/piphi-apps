@@ -3,21 +3,21 @@
   "manifest_version": "1.0",
   "id": "piphi-network-openepaperlink",
   "name": "OpenEPaperLink",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Monitor tag and pending-transfer counts on a local OpenEPaperLink access point.",
   "metadata": {
     "generator": "piphi-network-create",
     "scaffold_version": "0.3.0",
-    "preset": "actuator-device",
+    "preset": "sensor-device",
     "domain": "local-device",
-    "preset_summary": "Local actuator starter with command and safety-oriented controls."
+    "preset_summary": "Read-only local sensor integration with bounded polling."
   },
   "maintainer": {
     "name": "PiPhi Network",
     "website": "https://piphi.io"
   },
   "license": "Apache-2.0",
-  "image": "docker.io/piphinetwork/piphi-network-openepaperlink:0.1.0",
+  "image": "ghcr.io/piphi-io/piphi-network-openepaperlink:0.1.1",
   "platforms": [
     "linux"
   ],
@@ -25,7 +25,9 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "docker.io/piphinetwork/piphi-network-openepaperlink:0.1.0",
+        "image": "ghcr.io/piphi-io/piphi-network-openepaperlink:0.1.1",
+        "read_only_root_filesystem": true,
+        "run_as_user": 10001,
         "ports": [
           {
             "container": 4219,
@@ -40,9 +42,7 @@
           "maximum_retry_count": 0
         }
       },
-      "discovery": {
-        "method": "passive"
-      }
+      "discovery": {"method": "manual"}
     }
   },
   "api": {
@@ -83,12 +83,12 @@
       "device_id"
     ],
     "identity_fields": [
-      "host"
+      "id"
     ]
   },
   "identity": {
     "fields": [
-      "host"
+      "config_id"
     ]
   },
   "capabilities": {
@@ -108,35 +108,7 @@
       "timeout_ms": 12000
     }
   },
-  "entities": [
-    {
-      "id": "demo-device",
-      "name": "Demo Device",
-      "device_id": "demo-device",
-      "entity_type": "access_point",
-      "capabilities": [
-        "connected",
-        "ap_tag_count",
-        "ap_pending_transfer_count",
-        "refresh"
-      ],
-      "available_commands": [
-        {
-          "id": "refresh",
-          "label": "Refresh",
-          "kind": "action"
-        }
-      ],
-      "dashboard": {
-        "allowed_widgets": [
-          "tile",
-          "stat",
-          "button"
-        ],
-        "default_widget": "tile"
-      }
-    }
-  ],
+  "entities": [],
   "ui": {
     "experience_packages": [
       {"registry_id": "io.piphi.openepaperlink-ap", "version_range": ">=0.1,<1", "auto_install": true}
@@ -164,7 +136,7 @@
       {
         "id": "local_network",
         "label": "Local network access",
-        "reason": "Discovers or communicates with supported services and devices on the homeowner's local network.",
+        "reason": "Connects to the manually configured OpenEPaperLink access point on the homeowner's local network.",
         "required": true
       }
     ],
@@ -188,7 +160,8 @@
       }
     },
     "device_types": [
-      "access point"
+      "access point",
+      "electronic-paper tag"
     ],
     "protocols": [
       "OpenEPaperLink API",
@@ -198,9 +171,7 @@
       "manual"
     ],
     "connectivity": "local",
-    "offline_support": "none"
+    "offline_support": "partial"
   },
-  "onboarding": {
-    "mode": "discovery"
-  }
+  "onboarding": {"mode": "manual"}
 }

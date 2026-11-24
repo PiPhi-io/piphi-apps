@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter
 from piphi_runtime_kit_python import (
     IntegrationDiscoveryRequest,
@@ -12,11 +14,11 @@ router = APIRouter(tags=["discovery"])
 
 
 @router.post("/discover")
-async def discover(payload: IntegrationDiscoveryRequest | None = None):
+async def discover(payload: IntegrationDiscoveryRequest | None = None) -> Any:
     # The AP must be configured explicitly; do not advertise a synthetic device.
     return build_discovery_response([])
 
 
 @router.get("/ui-config")
-async def ui_config():
+async def ui_config() -> dict[str, Any]:
     return CONFIG_SCHEMA

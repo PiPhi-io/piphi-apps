@@ -3,10 +3,10 @@ from __future__ import annotations
 import os
 
 INTEGRATION_ID = "piphi-network-openepaperlink"
-INTEGRATION_NAME = "Piphi Network Openepaperlink"
-INTEGRATION_VERSION = "0.1.0"
+INTEGRATION_NAME = "OpenEPaperLink"
+INTEGRATION_VERSION = "0.1.1"
 PROJECT_KIND = "integration"
-PROJECT_PRESET = "actuator-device"
+PROJECT_PRESET = "sensor-device"
 PROJECT_DOMAIN = "local-device"
 DEFAULT_PORT = 4219
 

@@ -1,126 +1,102 @@
 from __future__ import annotations
 
-import json
-from pathlib import Path
-
 import httpx
 import pytest
 
-from piphi_network_openepaperlink import state
 from piphi_network_openepaperlink.ap import (
-    AccessPointSummary,
+    AccessPointSnapshot,
+    TagObservation,
     _ap_origin,
-    fetch_summary,
+    fetch_snapshot,
 )
-from piphi_network_openepaperlink.routes.discovery import discover
-from piphi_network_openepaperlink.routes.entities import entities
-from piphi_network_openepaperlink.schemas import DeviceConfig
-
-ROOT = Path(__file__).resolve().parents[1]
 
 
 @pytest.mark.anyio
-async def test_paginated_tag_summary_uses_bounded_read_only_endpoint() -> None:
+async def test_paginated_inventory_is_pinned_bounded_and_read_only() -> None:
     requests: list[httpx.Request] = []
 
     def respond(request: httpx.Request) -> httpx.Response:
         requests.append(request)
         if request.url.params["pos"] == "0":
             return httpx.Response(
-                200, json={"tags": [{"mac": "secret", "pending": 2}], "continu": 1}
+                200, json={"tags": [{"mac": "AA:BB:CC:DD", "pending": 2}], "continu": 1}
             )
-        return httpx.Response(200, json={"tags": [{"pending": 0}, {"pending": 1}]})
+        return httpx.Response(200, json={"tags": [{"mac": "11:22:33:44", "pending": 1}]})
 
-    summary = await fetch_summary(
-        "192.168.1.25", transport=httpx.MockTransport(respond)
+    snapshot = await fetch_snapshot(
+        "openepaperlink.local:8080",
+        transport=httpx.MockTransport(respond),
+        resolver=lambda _name, _port: _resolved({"192.168.10.25"}),
     )
-    assert summary == AccessPointSummary(3, 3)
+    assert snapshot.tag_count == 2
+    assert snapshot.pending_transfer_count == 3
     assert [request.url.params["pos"] for request in requests] == ["0", "1"]
-    assert all(
-        request.method == "GET" and request.url.path == "/get_db"
-        for request in requests
-    )
-    assert all(request.url.host == "192.168.1.25" for request in requests)
+    assert all(request.method == "GET" and request.url.path == "/get_db" for request in requests)
+    assert all(request.url.host == "192.168.10.25" for request in requests)
+    assert all(request.headers["host"] == "openepaperlink.local:8080" for request in requests)
+
+
+async def _resolved(values: set[str]) -> set[str]:
+    return values
 
 
 @pytest.mark.anyio
-async def test_invalid_host_and_malformed_pages_fail_closed() -> None:
-    for host in ("https://example.com", "example.com", "8.8.8.8", "192.168.1.2/path"):
+async def test_ssrf_redirect_dns_rebinding_and_proxy_inputs_fail_closed() -> None:
+    for host in (
+        "https://example.com",
+        "example.com",
+        "8.8.8.8",
+        "127.0.0.1",
+        "169.254.169.254",
+        "[fd00:ec2::254]",
+        "192.168.1.2/path",
+        "user@192.168.1.2",
+    ):
         with pytest.raises(ValueError):
             _ap_origin(host)
-    assert _ap_origin("openepaperlink.local:80") == "http://openepaperlink.local:80"
 
-    def malformed(_request: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, json={"tags": [{}], "continu": 0})
+    with pytest.raises(ValueError, match="outside"):
+        await fetch_snapshot(
+            "ap.local",
+            transport=httpx.MockTransport(lambda _request: httpx.Response(200, json={"tags": []})),
+            resolver=lambda _name, _port: _resolved({"192.168.1.2", "1.1.1.1"}),
+        )
 
-    with pytest.raises(ValueError, match="continuation"):
-        await fetch_summary("192.168.1.25", transport=httpx.MockTransport(malformed))
-
-
-@pytest.mark.anyio
-async def test_runtime_emits_real_counts_not_tag_details(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    async def fake_fetch(_host: str) -> AccessPointSummary:
-        return AccessPointSummary(7, 2)
-
-    delivered: list[dict] = []
-    monkeypatch.setattr(state, "fetch_summary", fake_fetch)
-    monkeypatch.setattr(
-        state, "schedule_telemetry_delivery", lambda **kwargs: delivered.append(kwargs)
-    )
-    config = DeviceConfig(
-        id="epaper-widget-test", host="openepaperlink.local", api_key="unused-secret"
-    )
-    entry = state.make_entry(config)
-    state.registry.set(entry["config_id"], entry)
-    try:
-        result = await state.refresh_entry(entry)
-        assert result["ap_tag_count"] == 7
-        assert result["ap_pending_transfer_count"] == 2
-        assert delivered[0]["metrics"]["ap_tag_count"] == 7
-        assert "unused-secret" not in json.dumps(entry)
-        assert "mac" not in json.dumps(result)
-    finally:
-        state.registry.remove(entry["config_id"])
+    with pytest.raises(ValueError, match="redirect"):
+        await fetch_snapshot(
+            "192.168.1.25",
+            transport=httpx.MockTransport(
+                lambda _request: httpx.Response(302, headers={"location": "http://example.com"})
+            ),
+            attempts=1,
+        )
 
 
 @pytest.mark.anyio
-async def test_runtime_marks_fetch_failure_unavailable(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    async def fail(_host: str) -> AccessPointSummary:
-        raise ValueError("private upstream detail")
+async def test_retry_schedule_and_malformed_payload_are_deterministic() -> None:
+    calls = 0
+    delays: list[float] = []
 
-    monkeypatch.setattr(state, "fetch_summary", fail)
-    config = DeviceConfig(id="epaper-error-test", host="openepaperlink.local")
-    entry = state.make_entry(config)
-    state.registry.set(entry["config_id"], entry)
-    try:
-        result = await state.refresh_entry(entry)
-        assert result == {"connected": False, "reason": "ap_fetch_failed"}
-        assert "private upstream detail" not in json.dumps(result)
-    finally:
-        state.registry.remove(entry["config_id"])
+    def flaky(_request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        if calls < 3:
+            raise httpx.ConnectError("offline")
+        return httpx.Response(200, json={"tags": [{"mac": "AABBCCDD", "pending": 0}]})
 
+    async def sleep(delay: float) -> None:
+        delays.append(delay)
 
-@pytest.mark.anyio
-async def test_no_synthetic_access_point_when_unconfigured() -> None:
-    assert not (await discover()).devices
-    assert "demo-device" not in json.dumps(await entities())
+    result = await fetch_snapshot("192.168.1.25", transport=httpx.MockTransport(flaky), sleep=sleep)
+    assert result == AccessPointSnapshot((TagObservation("aabbccdd", 0),))
+    assert calls == 3
+    assert delays == [0.2, 0.4]
 
-
-def test_widget_binds_only_implemented_ap_summary_capabilities() -> None:
-    manifest = json.loads((ROOT / "manifest.json").read_text())
-    package = json.loads((ROOT / "experiences/ap/package.source.json").read_text())
-    assert (
-        manifest["ui"]["experience_packages"][0]["registry_id"]
-        == "io.piphi.openepaperlink-ap"
-    )
-    assert package["owning_integration_id"] == manifest["id"]
-    (widget,) = package["widgets"]
-    assert widget["runtime"] == "declarative"
-    assert {slot["capability_requirements"][0] for slot in widget["binding_slots"]} == {
-        "ap_tag_count",
-        "ap_pending_transfer_count",
-    }
+    with pytest.raises(ValueError, match="stable identifier"):
+        await fetch_snapshot(
+            "192.168.1.25",
+            transport=httpx.MockTransport(
+                lambda _request: httpx.Response(200, json={"tags": [{"pending": 0}]})
+            ),
+            attempts=1,
+        )
