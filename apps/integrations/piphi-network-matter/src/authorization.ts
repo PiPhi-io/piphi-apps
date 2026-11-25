@@ -1,17 +1,13 @@
 import { timingSafeEqual } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 
-export function registerCoreAuthorization(app: FastifyInstance): void {
+export function registerCoreAuthorization(app: FastifyInstance, allowUnauthenticatedForTests = false): void {
   app.addHook("onRequest", async (request, reply) => {
     const path = request.url.split("?", 1)[0] ?? request.url;
     if (path === "/health") return;
     const expected = String(process.env.PIPHI_INTEGRATION_INTERNAL_TOKEN ?? "").trim();
-    if (!expected) {
-      if (process.env.NODE_ENV === "production") {
-        return reply.code(503).send({ ok: false, error: "core_authorization_not_configured" });
-      }
-      return;
-    }
+    if (!expected && allowUnauthenticatedForTests && process.env.NODE_ENV === "test") return;
+    if (!expected) return reply.code(503).send({ ok: false, error: "core_authorization_not_configured" });
     const [scheme = "", bearerCredential = ""] = String(request.headers.authorization ?? "").split(" ", 2);
     const runtimeCredential = String(request.headers["x-piphi-integration-token"] ?? "").trim();
     const credential = runtimeCredential || (scheme.toLowerCase() === "bearer" ? bearerCredential : "");

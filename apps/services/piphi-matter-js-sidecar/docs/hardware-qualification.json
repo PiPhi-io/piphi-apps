@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "reviewed_at": "2026-11-17",
-  "release": "0.2.0-alpha.7",
+  "reviewed_at": "2026-11-25",
+  "release": "0.2.0-alpha.8",
   "publications": [
     {
       "release": "0.2.0-alpha.5",
@@ -27,9 +27,9 @@
       "wifi_on_network"
     ],
     "experimental_transports": [
-      "ble",
-      "thread"
+      "ble"
     ],
+    "excluded_transports": ["thread"],
     "required_profiles": [
       "ethernet_on_off_plug",
       "wifi_on_off_light",

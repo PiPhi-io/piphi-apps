@@ -30,7 +30,8 @@ for (const publication of hardware.publications) {
 const currentPublication = hardware.publications.find((publication) => publication.release === hardware.release);
 if (currentPublication) assert.equal(currentPublication.image, manifest.runtime.linux.container.image);
 assert.deepEqual(hardware.policy.supported_transports.sort(), ["ethernet", "wifi_on_network"]);
-assert.deepEqual(hardware.policy.experimental_transports.sort(), ["ble", "thread"]);
+assert.deepEqual(hardware.policy.experimental_transports.sort(), ["ble"]);
+assert.deepEqual(hardware.policy.excluded_transports.sort(), ["thread"]);
 const profileIds = hardware.profiles.map((profile) => profile.id);
 assert.equal(new Set(profileIds).size, profileIds.length, "hardware qualification profile IDs must be unique");
 assert.deepEqual([...profileIds].sort(), [...hardware.policy.required_profiles].sort());
@@ -78,8 +79,6 @@ for (const capability of required) {
 for (const row of rows.filter((item) => item.status !== "implemented")) {
   assert.ok(!advertised.has(row.id), `${row.status} capability ${row.id} must not be advertised`);
 }
-const implementedActions = new Set(rows.filter((row) => row.status === "implemented" && row.kind === "action").map((row) => row.id));
-const behaviorActions = new Set(behaviors.devices.flatMap((device) => device.actions.map((action) => action.id)));
-assert.deepEqual([...behaviorActions].sort(), [...implementedActions].sort(), "behavior actions and implemented catalog actions must agree");
+assert.deepEqual(behaviors.devices, [], "sidecar must not fabricate behavior-visible device entities");
 
 console.log(`Validated Matter sidecar ${pkg.version}: ${implemented.size} implemented capabilities.`);

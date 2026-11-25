@@ -2,7 +2,7 @@ import { resolve } from "node:path";
 
 export const integrationId = "piphi.service.matter-sidecar";
 export const integrationName = "Matter Sidecar";
-export const integrationVersion = "0.2.0-alpha.7";
+export const integrationVersion = "0.2.0-alpha.8";
 
 export interface MatterSettings {
   apiHost: string;
@@ -15,6 +15,8 @@ export interface MatterSettings {
   enableBle: boolean;
   dclOffline: boolean;
   logManagedServer: boolean;
+  allowControl?: boolean;
+  allowCommissioning?: boolean;
   primaryInterface?: string;
 }
 
@@ -56,6 +58,8 @@ export function loadSettings(env: NodeJS.ProcessEnv = process.env): MatterSettin
     enableBle: enabled(env.MATTER_ENABLE_BLE),
     dclOffline: enabled(env.MATTER_DCL_OFFLINE),
     logManagedServer: enabled(env.MATTER_LOG_MANAGED_SERVER, true),
+    allowControl: enabled(env.MATTER_ALLOW_CONTROL),
+    allowCommissioning: enabled(env.MATTER_ALLOW_COMMISSIONING),
     ...(primaryInterface === undefined ? {} : { primaryInterface }),
   };
 }

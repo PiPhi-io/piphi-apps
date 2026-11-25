@@ -18,7 +18,7 @@ export function buildRuntime() {
     ...(settings.coreConfigId ? { configId: settings.coreConfigId } : {}),
   });
   const reconciler = new Reconciler(sidecar, configs, core, settings.reconcileIntervalMs);
-  return createApp(reconciler, sidecar, configs);
+  return createApp(reconciler, sidecar, configs, { allowMutations: settings.allowMutations });
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

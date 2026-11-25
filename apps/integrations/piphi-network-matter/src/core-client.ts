@@ -16,6 +16,7 @@ export class CoreClient {
     if (!this.settings.endpoint || !this.settings.containerId) return "not_configured";
     const response = await fetch(this.settings.endpoint, {
       method: "POST",
+      signal: AbortSignal.timeout(10_000),
       headers: {
         "content-type": "application/json",
         ...buildRuntimeAuthHeaders({
@@ -43,6 +44,7 @@ export class CoreClient {
     });
     const response = await fetch(this.settings.eventEndpoint, {
       method: "POST",
+      signal: AbortSignal.timeout(10_000),
       headers: {
         "content-type": "application/json",
         ...buildRuntimeAuthHeaders({

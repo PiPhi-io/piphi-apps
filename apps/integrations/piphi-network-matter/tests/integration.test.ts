@@ -21,7 +21,7 @@ test("projects an authenticated On/Off snapshot, persists aliases, and forwards 
   const client = new SidecarClient(sidecar.url, "sidecar-secret");
   const configs = new ConfigStore(join(directory, "config.json"));
   const reconciler = new Reconciler(client, configs, new CoreClient({}), 60_000);
-  const app = createApp(reconciler, client, configs);
+  const app = createApp(reconciler, client, configs, { allowUnauthenticatedForTests: true, allowMutations: true });
   cleanups.push(() => app.close());
   await app.ready();
 
@@ -33,7 +33,7 @@ test("projects an authenticated On/Off snapshot, persists aliases, and forwards 
     name: "Desk plug",
     device_class: "switch",
     capabilities: ["connected", "switch_on"],
-    available_commands: ["turn_on", "turn_off", "toggle"],
+    available_commands: ["refresh", "toggle", "turn_off", "turn_on"],
     state: { connected: true, switch_on: false },
     metadata: { controller_identity_hash: "fabric-test", node_id: "node-17", endpoint_id: 1, source: "matter_sidecar" },
   });
@@ -45,7 +45,7 @@ test("projects an authenticated On/Off snapshot, persists aliases, and forwards 
   assert.match(await readFile(join(directory, "config.json"), "utf8"), /Coffee maker/);
 
   sidecar.switchOn = true;
-  const command = await app.inject({ method: "POST", url: "/command", payload: { entity_id: "matter:fabric-test:node-17:1", command: "turn_on" } });
+  const command = await app.inject({ method: "POST", url: "/command", headers: { "x-piphi-idempotency-key": "parent-turn-on" }, payload: { entity_id: "matter:fabric-test:node-17:1", command: "turn_on" } });
   assert.equal(command.statusCode, 200);
   assert.deepEqual(sidecar.commands[0], { node_id: "node-17", endpoint_id: 1, command: "turn_on", args: {} });
   assert.equal((await app.inject({ method: "GET", url: "/state" })).json().entities[0].state.switch_on, true);
@@ -110,7 +110,7 @@ test("projects an authenticated On/Off snapshot, persists aliases, and forwards 
     url: "/commissioning/thread",
     payload: { setup_payload: "MT:THREAD-WRITE-ONLY", operational_dataset: "a".repeat(64) },
   });
-  assert.equal(threadDenied.statusCode, 400);
+  assert.equal(threadDenied.statusCode, 410);
   assert.equal(sidecar.threadCommissioningBodies.length, 0);
   const threadCommissioned = await app.inject({
     method: "POST",
@@ -121,12 +121,9 @@ test("projects an authenticated On/Off snapshot, persists aliases, and forwards 
       experimental_acknowledgement: "thread",
     },
   });
-  assert.equal(threadCommissioned.statusCode, 201, threadCommissioned.body);
-  assert.equal(threadCommissioned.json().experimental, "thread");
+  assert.equal(threadCommissioned.statusCode, 410, threadCommissioned.body);
   assert.doesNotMatch(threadCommissioned.body, /THREAD-WRITE-ONLY|a{32}/);
-  assert.deepEqual(sidecar.threadCommissioningBodies[0], {
-    setup_payload: "MT:THREAD-WRITE-ONLY", operational_dataset: "a".repeat(64),
-  });
+  assert.equal(sidecar.threadCommissioningBodies.length, 0);
 
   const unconfirmed = await app.inject({ method: "POST", url: "/nodes/node-17/decommission", payload: { confirm_node_id: "wrong" } });
   assert.equal(unconfirmed.statusCode, 400);

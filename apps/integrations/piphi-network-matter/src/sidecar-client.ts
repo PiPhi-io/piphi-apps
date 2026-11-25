@@ -1,7 +1,7 @@
 import type { JsonObject, SidecarEventPage, SidecarSnapshot } from "./types.js";
 
 export class SidecarRequestError extends Error {
-  constructor(readonly status: number) {
+  constructor(readonly status: number, readonly code?: string) {
     super(`Matter sidecar request failed with HTTP ${status}`);
     this.name = "SidecarRequestError";
   }
@@ -37,15 +37,16 @@ export class SidecarClient {
     return value as SidecarEventPage;
   }
 
-  async command(nodeId: string, endpointId: number, command: string): Promise<JsonObject> {
+  async command(nodeId: string, endpointId: number, command: string, idempotencyKey?: string): Promise<JsonObject> {
     return await this.request("/v1/commands/invoke", {
       method: "POST",
+      headers: idempotencyKey ? { "x-piphi-idempotency-key": idempotencyKey } : {},
       body: JSON.stringify({ node_id: nodeId, endpoint_id: endpointId, command, args: {} }),
     }) as JsonObject;
   }
 
   async commissionables(timeoutSeconds: number): Promise<unknown[]> {
-    const value = await this.request(`/v1/discovery/commissionables?timeout_seconds=${timeoutSeconds}`);
+    const value = await this.request(`/v1/discovery/commissionables?timeout_seconds=${timeoutSeconds}`, {}, (timeoutSeconds + 5) * 1000);
     if (!Array.isArray(value)) throw new Error("Invalid Matter commissionables response");
     return value;
   }
@@ -54,21 +55,14 @@ export class SidecarClient {
     return await this.request("/v1/commission/code", {
       method: "POST",
       body: JSON.stringify({ setup_payload: setupPayload, network_only: true }),
-    }) as JsonObject;
+    }, 310_000) as JsonObject;
   }
 
   async provisionWifi(setupPayload: string, ssid: string, credentials: string): Promise<JsonObject> {
     return await this.request("/v1/commission/wifi", {
       method: "POST",
       body: JSON.stringify({ setup_payload: setupPayload, ssid, credentials }),
-    }) as JsonObject;
-  }
-
-  async provisionThread(setupPayload: string, operationalDataset: string): Promise<JsonObject> {
-    return await this.request("/v1/commission/thread", {
-      method: "POST",
-      body: JSON.stringify({ setup_payload: setupPayload, operational_dataset: operationalDataset }),
-    }) as JsonObject;
+    }, 310_000) as JsonObject;
   }
 
   async decommissionNode(nodeId: string): Promise<JsonObject> {
@@ -98,9 +92,17 @@ export class SidecarClient {
     return await this.request("/v1/admin/backup/resume", { method: "POST", body: "{}" }) as JsonObject;
   }
 
-  private async request(path: string, init: RequestInit = {}): Promise<unknown> {
-    const response = await fetch(`${this.baseUrl}${path}`, { ...init, headers: { ...this.headers(), ...init.headers } });
-    if (!response.ok) throw new SidecarRequestError(response.status);
+  private async request(path: string, init: RequestInit = {}, timeoutMs = 30_000): Promise<unknown> {
+    const response = await fetch(`${this.baseUrl}${path}`, {
+      ...init,
+      signal: init.signal ?? AbortSignal.timeout(timeoutMs),
+      headers: { ...this.headers(), ...init.headers },
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => undefined) as { error?: unknown } | undefined;
+      const code = typeof body?.error === "string" && /^[a-z0-9_]{1,80}$/.test(body.error) ? body.error : undefined;
+      throw new SidecarRequestError(response.status, code);
+    }
     return response.status === 204 ? null : response.json();
   }
 

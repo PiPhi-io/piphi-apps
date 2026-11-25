@@ -46,10 +46,10 @@ export interface ProjectedEntity {
   id: string;
   device_id: string;
   name: string;
-  device_class: "switch";
+  device_class: "switch" | "light" | "sensor" | "binary_sensor" | "matter_device";
   capabilities: string[];
   available_commands: string[];
-  state: { connected: boolean; switch_on?: boolean };
+  state: JsonObject & { connected: boolean; switch_on?: boolean };
   metadata: { controller_identity_hash: string; node_id: string; endpoint_id: number; source: "matter_sidecar" };
 }
 

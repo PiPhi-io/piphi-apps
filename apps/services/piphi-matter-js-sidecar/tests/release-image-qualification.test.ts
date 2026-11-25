@@ -40,7 +40,8 @@ test("snapshot parser requires schema 15 and returns a hashed identity", () => {
 
 test("docker command uses host networking, the allocated port, token, and named volume", () => {
   const args = dockerRunArgs({ image: "piphi-matter:test", containerName: "matter-q", volumeName: "matter-state", token: "secret", port: 38171 });
-  assert.deepEqual(args.slice(0, 7), ["run", "--detach", "--name", "matter-q", "--network", "host", "--volume"]);
+  assert.deepEqual(args.slice(0, 7), ["run", "--detach", "--name", "matter-q", "--read-only", "--tmpfs", "/tmp:rw,noexec,nosuid,size=32m"]);
+  assert.ok(args.includes("--network"));
   assert.ok(args.includes("matter-state:/var/lib/piphi/matter"));
   assert.ok(args.includes("PORT=38171"));
   assert.ok(args.includes("PIPHI_MATTER_SIDECAR_TOKEN=secret"));

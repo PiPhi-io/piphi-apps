@@ -48,17 +48,12 @@ delete or recreate the sidecar volume.
 5. Reconcile entities after every result because commissioning may have completed before a lost
    response. Never retry automatically with retained secrets.
 
-The UI must state that BLE/Wi-Fi and Thread commissioning are experimental. A commissioning
+The UI must state that BLE/Wi-Fi commissioning is experimental and Thread is excluded. A commissioning
 failure does not authorize automatic node removal; refresh entities and
 repairs first because upstream commissioning may have completed before response delivery failed.
 
-Thread commissioning accepts the setup payload and active operational dataset only through the
-one-shot `POST /commissioning/thread` Core flow, which maps to sidecar
-`POST /v1/commission/thread`. The sidecar clears the dataset in a `finally` path after success or
-failure and also clears any orphaned dataset during startup. Persistent Thread credential writes
-are rejected. Core must clear both secret fields locally in its own `finally` path and must never
-retry automatically with a retained dataset. The Core request must include
-`experimental_acknowledgement: "thread"` after presenting its experimental-status warning.
+Thread commissioning is not offered by Core. The compatibility endpoint returns `410`; a future
+Thread flow requires separate border-router, dataset, routing, sleepy-device, and hardware evidence.
 
 Parent failures use stable safe codes: `matter_operation_rejected`, `matter_resource_not_found`,
 `matter_operation_conflict`, `matter_sidecar_unavailable`,

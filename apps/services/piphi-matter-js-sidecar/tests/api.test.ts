@@ -26,10 +26,12 @@ async function fixture(nodes?: MatterNodeSnapshot[]) {
     enableBle: false,
     dclOffline: false,
     logManagedServer: false,
+    allowControl: true,
+    allowCommissioning: true,
   };
   const backend = new FakeMatterBackend(nodes);
   const service = new MatterSidecarService(backend, settings);
-  const app = createApp(service);
+  const app = createApp(service, { allowUnauthenticatedForTests: true });
   return { app, backend, service, storageDir };
 }
 
@@ -62,7 +64,9 @@ test("health, discovery, configuration, telemetry, and entities share one negoti
     telemetry.json().map((sample: { state: Record<string, unknown> }) => sample.state),
   );
   const entities = await app.inject({ method: "GET", url: "/entities" });
-  assert.equal(entities.json().entities[0].name, "Office");
+  assert.deepEqual(entities.json(), { entities: [] });
+  const configs = await app.inject({ method: "GET", url: "/v1/configs" });
+  assert.equal(configs.json()[0].alias, "Office");
 });
 
 test("health reports dependency loss as degraded", async (t) => {
@@ -232,12 +236,30 @@ test("event queue is bounded and supports cursors", async (t) => {
   assert.equal(expired.json().recovery, "fetch_full_snapshot");
 });
 
+test("command saturation applies bounded backpressure and recovers capacity", async (t) => {
+  const { app, backend, service } = await fixture();
+  t.after(() => app.close());
+  let release!: () => void;
+  const blocked = new Promise<void>((resolve) => { release = resolve; });
+  backend.invoke = async () => { await blocked; return { accepted: true }; };
+  await app.ready();
+  const running = Array.from({ length: 16 }, () => service.invoke("1234", 1, "turn_on", {}));
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  await assert.rejects(service.invoke("1234", 1, "turn_on", {}), (error: unknown) => (
+    error instanceof Error && "statusCode" in error && error.statusCode === 429
+  ));
+  assert.equal(service.snapshot().active_command_count, 16);
+  release();
+  await Promise.all(running);
+  assert.equal(service.snapshot().active_command_count, 0);
+});
+
 test("configured aliases survive a service restart", async () => {
   const first = await fixture();
   await first.app.inject({ method: "POST", url: "/v1/configs", payload: { node_id: "1234", endpoint_id: 1, alias: "Persistent alias" } });
   await first.app.close();
   const backend = new FakeMatterBackend();
-  const second = createApp(new MatterSidecarService(backend, { ...first.service.settings, storageDir: first.storageDir }));
+  const second = createApp(new MatterSidecarService(backend, { ...first.service.settings, storageDir: first.storageDir }), { allowUnauthenticatedForTests: true });
   const configs = await second.inject({ method: "GET", url: "/v1/configs" });
   assert.equal(configs.json()[0].alias, "Persistent alias");
   await second.close();

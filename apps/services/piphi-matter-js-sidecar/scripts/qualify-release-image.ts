@@ -70,6 +70,7 @@ export function dockerRunArgs(input: {
 }): string[] {
   return [
     "run", "--detach", "--name", input.containerName,
+    "--read-only", "--tmpfs", "/tmp:rw,noexec,nosuid,size=32m",
     "--network", "host",
     "--volume", `${input.volumeName}:${STORAGE_PATH}`,
     "--env", `PORT=${input.port}`,

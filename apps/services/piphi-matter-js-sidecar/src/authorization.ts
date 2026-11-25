@@ -4,18 +4,14 @@ import type { FastifyInstance } from "fastify";
 
 const PUBLIC_PATHS = new Set(["/health"]);
 
-export function registerSidecarAuthorization(app: FastifyInstance): void {
+export function registerSidecarAuthorization(app: FastifyInstance, allowUnauthenticatedForTests = false): void {
   app.addHook("onRequest", async (request, reply) => {
     const path = request.url.split("?", 1)[0] ?? request.url;
     if (PUBLIC_PATHS.has(path)) return;
 
     const expected = sidecarToken();
-    if (!expected) {
-      if (process.env.NODE_ENV === "production") {
-        return reply.code(503).send({ ok: false, error: "sidecar_authorization_not_configured" });
-      }
-      return;
-    }
+    if (!expected && allowUnauthenticatedForTests && process.env.NODE_ENV === "test") return;
+    if (!expected) return reply.code(503).send({ ok: false, error: "sidecar_authorization_not_configured" });
 
     const authorization = String(request.headers.authorization ?? "");
     const [scheme = "", credential = ""] = authorization.split(" ", 2);
