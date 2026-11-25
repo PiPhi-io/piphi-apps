@@ -85,6 +85,7 @@ async def test_supervisor_recovers_power_loss_and_adapter_reappearance(tmp_path:
     assert transport.recoveries == 1
 
     transport.available = True
+    gateway._next_reconnect_at = 0
     assert await gateway.supervise_once() is True
     assert transport.recoveries == 2
     assert scanner.starts == 2

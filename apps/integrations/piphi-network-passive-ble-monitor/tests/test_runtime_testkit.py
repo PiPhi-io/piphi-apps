@@ -23,7 +23,7 @@ async def test_testkit_configuration_identity_and_entities_flow(monkeypatch) -> 
             "alias": "TestKit BTHome sensor",
         },
     )
-    headers = build_runtime_headers(container_id="ble-runtime-1", internal_token="runtime-secret")
+    headers = build_runtime_headers(container_id="ble-runtime-1", internal_token="test-token")
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
         try:

@@ -6,13 +6,24 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from piphi_runtime_kit_python import runtime_lifespan
+from piphi_runtime_kit_python import rehydrate_runtime_configs
 
-from .state import runtime, scan_poll_loop
+from .schemas import DeviceConfig
+from .state import apply_config_snapshot, restore_runtime_state, runtime, scan_poll_loop
 
 
-async def startup_sync(_runtime, _client) -> None:
-    # Real integrations can fetch an existing config snapshot from Core here.
-    return None
+async def startup_sync(runtime_context, client) -> None:
+    await restore_runtime_state()
+
+    async def apply_snapshot(snapshot) -> None:
+        await apply_config_snapshot(snapshot, restored=True)
+
+    await rehydrate_runtime_configs(
+        runtime_context=runtime_context,
+        client=client,
+        apply_snapshot=apply_snapshot,
+        config_model=DeviceConfig,
+    )
 
 
 @asynccontextmanager

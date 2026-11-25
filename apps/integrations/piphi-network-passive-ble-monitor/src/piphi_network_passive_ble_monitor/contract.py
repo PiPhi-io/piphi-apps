@@ -54,6 +54,12 @@ CONFIG_SCHEMA: dict[str, Any] = {
                 "title": "Gateway token",
                 "description": "Bearer token; never returned in state or diagnostics"
             },
+            "bind_key": {
+                "type": "string",
+                "format": "password",
+                "title": "BTHome bind key (optional)",
+                "description": "16-byte hexadecimal key; sent only to the gateway's scoped in-memory consumer"
+            },
             "device_handle": {
                 "type": "string",
                 "title": "Approved device handle",
@@ -85,6 +91,10 @@ CONFIG_SCHEMA: dict[str, Any] = {
         },
         "device_handle": {
             "placeholder": "ble_c7f2a1b9000000000000000000000000"
+        },
+        "bind_key": {
+            "ui:widget": "password",
+            "placeholder": "32 hexadecimal characters"
         },
         "alias": {
             "placeholder": "Living room sensor"

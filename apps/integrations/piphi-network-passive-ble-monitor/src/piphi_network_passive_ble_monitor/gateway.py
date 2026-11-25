@@ -26,6 +26,10 @@ class SequenceGap(GatewayError):
     """The gateway stream skipped a sequence and requires snapshot resync."""
 
 
+class ConsumerMissing(GatewayError):
+    """The sidecar restarted and no longer has this consumer registration."""
+
+
 def _bounded_hex_map(value: Any, field: str) -> dict[str, bytes]:
     if value is None:
         return {}
@@ -136,7 +140,9 @@ class GatewayClient:
             response = await self._client.request(method, path, **kwargs)
         except httpx.HTTPError as exc:
             raise GatewayError("BLE gateway unavailable") from exc
-        if response.status_code in {401, 403}:
+        if response.status_code in {403, 404}:
+            raise ConsumerMissing("BLE gateway consumer is not registered")
+        if response.status_code == 401:
             raise GatewayError("BLE gateway authentication rejected")
         if response.status_code == 409:
             raise SequenceGap("BLE observation cursor gap")
@@ -149,17 +155,21 @@ class GatewayClient:
         except ValueError as exc:
             raise GatewayError("BLE gateway returned invalid JSON") from exc
 
-    async def register(self, consumer_id: str, device_handle: str) -> None:
-        await self._request(
+    async def register(self, consumer_id: str, device_handle: str, bind_key: str | None = None) -> None:
+        body = {
+            "schema_version": "piphi.ble.consumer.v1",
+            "matcher": {"device_handles": [device_handle], "service_uuids": [BTHOME_UUID]},
+            "scan_mode": "passive",
+            "queue_capacity": 128,
+            "bind_keys": {device_handle: bind_key} if bind_key else {},
+        }
+        result = await self._request(
             "PUT",
             f"/v1/ble/consumers/{quote(consumer_id, safe='')}",
-            json={
-                "schema_version": "piphi.ble.consumer.v1",
-                "matcher": {"device_handles": [device_handle], "service_uuids": [BTHOME_UUID]},
-                "scan_mode": "passive",
-                "queue_capacity": 128,
-            },
+            json=body,
         )
+        if bind_key and "bthome_bind_key" not in result.get("capabilities", []):
+            raise GatewayError("BLE gateway does not support encrypted BTHome")
 
     async def unregister(self, consumer_id: str) -> None:
         await self._request("DELETE", f"/v1/ble/consumers/{quote(consumer_id, safe='')}")

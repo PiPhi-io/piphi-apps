@@ -4,14 +4,14 @@ Read-only BTHome v2 integration for the authenticated PiPhi BLE gateway v1 API. 
 
 ## Supported slice
 
-- Unencrypted BTHome v2 battery, temperature, and humidity objects
+- Authenticated BTHome v2 battery, temperature, and humidity objects, including optional encrypted advertisements mediated by the gateway
 - RSSI supplied by `piphi.ble.observation.v1`
 - Packet-ID deduplication and malformed-packet isolation
 - Ordered cursors, bounded pages/backoff, snapshot resync, and replay-safe restart behavior
 - Separate `receiver_healthy`, `observation_fresh`, and `sensor_available` state
 - Last good measurements retained with `last_measurement_at` and `measurement_age_seconds`
 
-Encrypted advertisements, arbitrary vendor formats, active BLE sessions, GATT, and raw payload diagnostics are deliberately excluded.
+Arbitrary vendor formats, active BLE sessions, GATT, and raw payload diagnostics are deliberately excluded. An encrypted BTHome bind key is accepted only as a secret; the sidecar decrypts the scoped advertisement while it still has the nonce identity, and neither runtime persists or diagnoses the plaintext key.
 
 ## Configuration
 
@@ -21,6 +21,7 @@ Encrypted advertisements, arbitrary vendor formats, active BLE sessions, GATT, a
   "gateway_url": "https://ble-gateway.local:4210",
   "gateway_token": "secret bearer token",
   "device_handle": "ble_c7f2a1b9000000000000000000000000",
+  "bind_key": "00112233445566778899aabbccddeeff",
   "alias": "Living room sensor",
   "poll_interval_seconds": 10,
   "stale_after_seconds": 180
@@ -31,12 +32,20 @@ The configured token is a per-consumer capability credential used for registrati
 reads, snapshots, and deletion; it grants no gateway-wide administration. It is
 never returned in entities, telemetry, events, health, or diagnostics. Registration
 requests only the configured handle and BTHome service UUID.
+`bind_key` is optional, must be exactly 16 bytes encoded as hexadecimal, and is recursively redacted with the gateway token.
 
 Configuration is committed only after gateway registration and a bounded
 snapshot succeed. Reusing the same stable configuration ID updates that entry
 rather than creating a duplicate.
 
 ## Installation and removal
+
+Installing version `0.4.0` auto-installs the compatible
+`piphi-ble-gateway-sidecar >=0.4.0,<0.5.0`. Core places both services on one
+private application network, resolves the sidecar as
+`http://piphi-ble-gateway-sidecar:4210`, and provisions a distinct high-entropy
+consumer bearer token. The sidecar is shared; this parent never receives host
+Bluetooth or D-Bus access.
 
 Install the OCI package through PiPhi, ensure the managed BLE gateway is healthy,
 then use `/ui-config` to enter the gateway URL, per-consumer token, opaque device
@@ -48,6 +57,13 @@ unregisters the gateway consumer, stops polling, closes the HTTP client, and
 removes runtime state. If the gateway is temporarily unavailable, local cleanup
 still completes and the failed remote deletion is logged without exposing the
 token.
+
+Core mounts `/var/lib/piphi/passive-ble-monitor` at
+`/var/lib/piphi/passive-ble` for the owner-only last-good checkpoint and
+automation ledger. The image runs as UID/GID `65532`, with a read-only root
+filesystem; the host directory must be owned by that identity and mode `0700`.
+On Core restart, configurations are rehydrated transactionally and the persisted
+last-good state is restored as stale until a live advertisement arrives.
 
 ## Automation
 
@@ -63,9 +79,16 @@ reported as action failures rather than fabricated sensor updates.
 - Cursor gaps trigger a bounded snapshot resync. Replay warms state but never
   counts as a live observation.
 - Verify that the configured handle is opaque, the token is scoped to this
-  consumer, and the advertiser includes unencrypted BTHome v2 service data.
-- Only battery, temperature, humidity, and RSSI are currently supported.
-  Encrypted BTHome and vendor-specific formats are intentionally unsupported.
+  consumer, and the advertiser includes authenticated BTHome v2 service data.
+- Only battery, temperature, humidity, and RSSI are currently supported. Other
+  BTHome measurements remain unadvertised until authoritative fixtures and
+  capability negotiation cover them.
+- A shared adapter has one effective scan plan. Other host BLE software can
+  change BlueZ discovery state or consume radio time, reducing observation
+  reliability; no room, device model, radio, antenna, or adapter has been
+  physically qualified by this software-only workstream.
+- `/health` is the sole public route. Every other runtime route requires Core's
+  internal token; gateway calls independently require the scoped bearer token.
 
 ## Runtime and portability
 
@@ -77,7 +100,7 @@ The HTTP consumer is pure async Python/httpx and has no OS-specific imports, so 
 PDM_IGNORE_ACTIVE_VENV=1 pdm install -G dev
 PDM_IGNORE_ACTIVE_VENV=1 pdm run pytest
 PDM_IGNORE_ACTIVE_VENV=1 pdm run python scripts/validate.py
-docker build -t ghcr.io/piphi-io/piphi-network-passive-ble-monitor:0.3.1 .
+docker build -t ghcr.io/piphi-io/piphi-network-passive-ble-monitor:0.4.0 .
 ```
 
 `piphi-app.json` opts this package into full CI, dependency audit, tests, package validation, and portable Linux image builds. `capability-catalog.json` is the machine-readable capability inventory.

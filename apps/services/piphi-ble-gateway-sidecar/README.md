@@ -13,6 +13,8 @@ or required by the Windows path.
 - Isolated bounded consumer queues with coalescing/drop counters, snapshots, and bounded replay.
 - Deduplication, out-of-order rejection, clean scanner restart, and age-checked marked restart replay.
 - Linux-only BlueZ Adapter1/rfkill diagnostics and supervised recovery behind an optional capability adapter; WinRT never imports D-Bus.
+- Scoped in-memory BTHome bind-key mediation. Authenticated plaintext is delivered only to the matching consumer and keys never enter checkpoints or diagnostics.
+- Deterministic fake scanner and fake D-Bus transports for lifecycle, recovery, malformed-input, queue-pressure, and encryption simulation.
 
 Remote receivers, private/rotating identity resolution, GATT, pairing, and destructive host controls are
 not implemented. The capability catalog records those as planned or excluded rather than advertising them.
@@ -28,7 +30,8 @@ high-entropy bearer token and only the opaque handles it is allowed to select.
 - `DELETE /v1/ble/consumers/{consumer_id}` — consumer-authorized removal.
 - `GET /v1/ble/observations/{consumer_id}?after=&limit=` — consumer-authorized bounded replay.
 - `GET /v1/ble/snapshot/{consumer_id}` — latest matching observations.
-- `GET /health` and `GET /diagnostics` — scanner/backend/receiver/queue health and counters.
+- `GET /health` — the sole public route, including dependency-aware readiness.
+- `GET /diagnostics` — Core-authenticated scanner/backend/receiver/queue health and counters.
 
 An empty catch-all matcher is rejected. Matcher categories are conjunctive, so a
 service UUID cannot broaden an explicit device-handle scope. Consumer tokens are
@@ -43,11 +46,21 @@ Windows proxy runtime. Installing that wheel provides the supervised
 
 ## Installation and removal
 
-PiPhi installs the Linux OCI image as a singleton platform service. Select the
-approved adapter (or `default`), mount persistent access-controlled paths for
-`PIPHI_BLE_HANDLE_KEY_PATH` and `PIPHI_BLE_CHECKPOINT_PATH`, and grant only the
-documented BlueZ Adapter1 access. Windows installs the wheel from the matching
+PiPhi installs the Linux OCI image as a singleton platform service on a private
+application network shared with compatible parents. Select the approved adapter
+(or `default`), mount `/var/lib/piphi/ble-gateway`, the system bus socket
+read-only, and `/sys/class/rfkill` read-only. The image runs as UID/GID `65532`
+with a read-only root filesystem; the persistent directory must be owned by that
+identity and mode `0700`. No privileged container, host network, blanket `/dev`,
+or broad capability grant is required. Windows installs the wheel from the matching
 GitHub release and supervises the `piphi_ble_gateway_sidecar` entry point.
+
+BlueZ mediation is intentionally narrow: `GetManagedObjects` reads Adapter1
+health and `org.freedesktop.DBus.Properties.Set` may set `Powered=true` only on
+the configured adapter. The host D-Bus policy must grant only those calls to UID
+`65532`, plus the ordinary discovery calls Bleak requires. Core provisions a
+high-entropy consumer token to the parent and does not expose the sidecar port
+outside the private network.
 
 Before removal, deconfigure parent consumers so their registrations are deleted.
 Then stop the supervised process and remove the container or wheel. The handle
@@ -71,6 +84,11 @@ device triggers; parent integrations own device semantics.
   slots, and GATT are not part of this release.
 - Diagnostics intentionally omit addresses, names, keys, raw advertisements,
   and the D-Bus object tree.
+- BlueZ discovery is host-global. Multiple consumers are arbitrated to one
+  effective scan mode (`active > auto > passive`), but unrelated host BLE
+  software can contend for discovery and radio airtime. This can delay or drop
+  advertisements. The tests simulate transport behavior; they do not qualify a
+  physical adapter, antenna, device model, room, range, or RF environment.
 
 ## Validate
 
@@ -80,7 +98,7 @@ pdm run pytest
 pdm run python scripts/validate.py
 pdm export --prod --output /tmp/piphi-ble-gateway-sidecar-requirements.txt
 pdm run pip-audit --disable-pip -r /tmp/piphi-ble-gateway-sidecar-requirements.txt
-docker build -t ghcr.io/piphi-io/piphi-ble-gateway-sidecar:0.3.1 .
+docker build -t ghcr.io/piphi-io/piphi-ble-gateway-sidecar:0.4.0 .
 ```
 
 Deterministic fake-D-Bus evidence covers configured-adapter power loss,

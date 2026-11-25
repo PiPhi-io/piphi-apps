@@ -24,5 +24,9 @@ class EmptyGateway:
 
 
 @pytest.fixture(autouse=True)
-def no_external_gateway(monkeypatch):
+def no_external_gateway(monkeypatch, tmp_path):
     monkeypatch.setattr(state, "gateway_client", lambda _config: EmptyGateway())
+    monkeypatch.setenv("PIPHI_BLE_MONITOR_STATE_PATH", str(tmp_path / "state.json"))
+    state._persisted_state.clear()
+    state.runtime.auth.update(container_id="", internal_token="")
+    monkeypatch.setenv("PIPHI_INTEGRATION_INTERNAL_TOKEN", "test-token")

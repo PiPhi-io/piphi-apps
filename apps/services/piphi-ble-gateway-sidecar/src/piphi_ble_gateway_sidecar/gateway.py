@@ -5,6 +5,8 @@ import hashlib
 import hmac
 import json
 import os
+import re
+import tempfile
 from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -14,6 +16,7 @@ from time import monotonic_ns
 from .ble_models import SCHEMA_VERSION, Advertisement, Matcher, ScanMode, bounded_hex_map, utc_now
 from .scanner import BleakCallbackScanner, CapabilityAdapter, Scanner
 from .bluez import default_capability_adapter
+from .bthome_crypto import BTHOME_UUIDS, BTHomeDecryptionError, decrypt_bthome
 
 DEFAULT_CAPACITY = 128
 MAX_CAPACITY = 1024
@@ -30,12 +33,14 @@ class Consumer:
     matcher: Matcher
     mode: ScanMode
     capacity: int
+    bind_keys: dict[str, bytes] = field(default_factory=dict, repr=False)
     queue: deque[dict] = field(default_factory=deque)
     latest: dict[str, dict] = field(default_factory=dict)
     high_water: int = 0
     dropped: int = 0
     coalesced: int = 0
     lost_through: int = 0
+    decrypt_failures: int = 0
 
 
 class Gateway:
@@ -50,9 +55,9 @@ class Gateway:
     ) -> None:
         self.scanner = scanner or BleakCallbackScanner(os.getenv("PIPHI_BLE_ADAPTER"))
         self.capability_adapter = capability_adapter or default_capability_adapter(self.scanner.adapter)
-        self.receiver_id = receiver_id or os.getenv("PIPHI_BLE_RECEIVER_ID", "local-receiver")
-        self.secret_path = Path(secret_path or os.getenv("PIPHI_BLE_HANDLE_KEY_PATH", "./data/ble-handle.key"))
-        self.checkpoint_path = Path(checkpoint_path or os.getenv("PIPHI_BLE_CHECKPOINT_PATH", "./data/ble-latest.json"))
+        self.receiver_id = receiver_id or os.getenv("PIPHI_BLE_RECEIVER_ID", "")
+        self.secret_path = Path(secret_path or os.getenv("PIPHI_BLE_HANDLE_KEY_PATH", "/var/lib/piphi/ble-gateway/ble-handle.key"))
+        self.checkpoint_path = Path(checkpoint_path or os.getenv("PIPHI_BLE_CHECKPOINT_PATH", "/var/lib/piphi/ble-gateway/ble-latest.json"))
         self.consumers: dict[str, Consumer] = {}
         self.scanner_state = "stopped"
         self.service_available = False
@@ -67,9 +72,16 @@ class Gateway:
         self._dedup: dict[str, tuple[int, bytes]] = {}
         self._checkpoint: list[dict] = []
         self._lock = asyncio.Lock()
+        self._ingest_lock = asyncio.Lock()
+        self._next_reconnect_at = 0.0
+        self._reconnect_delay = 1.0
 
     async def start(self) -> None:
         self._load_secret()
+        if not self.receiver_id:
+            self.receiver_id = f"gw_{hmac.new(self._secret or b'', b'receiver', hashlib.sha256).hexdigest()[:24]}"
+        if re.fullmatch(r"gw_[0-9a-f]{24}", self.receiver_id) is None:
+            raise ValueError("PIPHI_BLE_RECEIVER_ID must be an opaque gw_ identity")
         self._load_checkpoint()
         self.service_available = True
         await self._apply_plan()
@@ -90,7 +102,8 @@ class Gateway:
         return consumer
 
     async def register(
-        self, consumer_id: str, token: str, matcher: Matcher, mode: ScanMode, capacity: int
+        self, consumer_id: str, token: str, matcher: Matcher, mode: ScanMode, capacity: int,
+        bind_keys: dict[str, bytes] | None = None,
     ) -> Consumer:
         if not matcher.bounded:
             raise ValueError("at least one bounded matcher scope is required")
@@ -99,7 +112,10 @@ class Gateway:
         existing = self.consumers.get(consumer_id)
         if existing and not hmac.compare_digest(existing.token_digest, self._token_digest(token)):
             raise PermissionError("consumer authorization failed")
-        consumer = Consumer(consumer_id, self._token_digest(token), matcher, mode, capacity)
+        keys = dict(bind_keys or {})
+        if set(keys) - set(matcher.device_handles) or any(len(key) != 16 for key in keys.values()):
+            raise ValueError("bind keys must be scoped to matched opaque device handles")
+        consumer = Consumer(consumer_id, self._token_digest(token), matcher, mode, capacity, keys)
         if existing:
             consumer.queue = deque(list(existing.queue)[-capacity:])
             consumer.latest = existing.latest
@@ -107,6 +123,7 @@ class Gateway:
             consumer.dropped = existing.dropped
             consumer.coalesced = existing.coalesced
             consumer.lost_through = existing.lost_through
+            consumer.decrypt_failures = existing.decrypt_failures
         self.consumers[consumer_id] = consumer
         self._replay_checkpoint(consumer)
         await self._apply_plan()
@@ -167,11 +184,24 @@ class Gateway:
             or (self.scanner_state == "scanning" and diagnostics.get("adapter_discovering") is False)
         )
         if self.scanner_state != "failed" and not platform_degraded:
+            self._reconnect_delay = 1.0
+            return False
+        now = __import__("time").monotonic()
+        if now < self._next_reconnect_at:
             return False
         if not await self.capability_adapter.recover():
+            self._next_reconnect_at = now + self._reconnect_delay
+            self._reconnect_delay = min(self._reconnect_delay * 2, 60.0)
             return False
         await self.restart()
-        return self.scanner_state == "scanning"
+        recovered = self.scanner_state == "scanning"
+        if recovered:
+            self._reconnect_delay = 1.0
+            self._next_reconnect_at = 0.0
+        else:
+            self._next_reconnect_at = now + self._reconnect_delay
+            self._reconnect_delay = min(self._reconnect_delay * 2, 60.0)
+        return recovered
 
     async def supervise(self, interval_seconds: float = 5.0) -> None:
         while self.service_available:
@@ -186,46 +216,63 @@ class Gateway:
             self.receiver_healthy = False
 
     async def ingest(self, advert: Advertisement) -> None:
-        self.observations_received += 1
-        now_ms = monotonic_ns() // 1_000_000
-        if advert.observed_monotonic_ms > now_ms + 5_000:
-            return
-        handle = self._handle(advert.address)
-        payload_fingerprint = repr((advert.rssi, advert.tx_power, advert.connectable, advert.address_type,
-            sorted(advert.service_uuids), sorted(advert.manufacturer_data.items()), sorted(advert.service_data.items()))).encode()
-        previous = self._dedup.get(handle)
-        if previous and advert.observed_monotonic_ms <= previous[0]:
-            self.observations_deduplicated += 1
-            return
-        if previous and advert.observed_monotonic_ms - previous[0] <= DEDUP_WINDOW_MS and previous[1] == payload_fingerprint:
-            self.observations_deduplicated += 1
-            return
-        self._dedup[handle] = (advert.observed_monotonic_ms, payload_fingerprint)
-        self.sequence += 1
-        observation = {
-            "schema_version": SCHEMA_VERSION,
-            "sequence": self.sequence,
-            "device_handle": handle,
-            "receiver_id": self.receiver_id,
-            "receiver_kind": self.scanner.receiver_kind,
-            "observed_monotonic_ms": advert.observed_monotonic_ms,
-            "ingested_at": utc_now(),
-            "replayed": False,
-            "rssi": max(-127, min(20, int(advert.rssi))),
-            "connectable": advert.connectable,
-            "address_type": advert.address_type if advert.address_type in {"public", "random", "public_identity", "random_identity"} else "unknown",
-            "service_uuids": sorted(set(uuid.lower()[:64] for uuid in advert.service_uuids))[:64],
-            "manufacturer_data": bounded_hex_map(advert.manufacturer_data, numeric_keys=True),
-            "service_data": bounded_hex_map(advert.service_data),
-        }
-        if advert.tx_power is not None:
-            observation["tx_power"] = max(-127, min(127, int(advert.tx_power)))
-        self._last_observation_ms = now_ms
-        for consumer in self.consumers.values():
-            if consumer.matcher.matches(handle, advert):
-                self._enqueue(consumer, observation)
-        self._checkpoint = self._merge_checkpoint(observation)
-        self._save_checkpoint()
+        async with self._ingest_lock:
+            self.observations_received += 1
+            now_ms = monotonic_ns() // 1_000_000
+            if advert.observed_monotonic_ms > now_ms + 5_000:
+                return
+            handle = self._handle(advert.address)
+            payload_fingerprint = repr((advert.rssi, advert.tx_power, advert.connectable, advert.address_type,
+                sorted(advert.service_uuids), sorted(advert.manufacturer_data.items()), sorted(advert.service_data.items()))).encode()
+            previous = self._dedup.get(handle)
+            if previous and advert.observed_monotonic_ms <= previous[0]:
+                self.observations_deduplicated += 1
+                return
+            if previous and advert.observed_monotonic_ms - previous[0] <= DEDUP_WINDOW_MS and previous[1] == payload_fingerprint:
+                self.observations_deduplicated += 1
+                return
+            self._dedup[handle] = (advert.observed_monotonic_ms, payload_fingerprint)
+            self.sequence += 1
+            observation = {
+                "schema_version": SCHEMA_VERSION,
+                "sequence": self.sequence,
+                "device_handle": handle,
+                "receiver_id": self.receiver_id,
+                "receiver_kind": self.scanner.receiver_kind,
+                "observed_monotonic_ms": advert.observed_monotonic_ms,
+                "ingested_at": utc_now(),
+                "replayed": False,
+                "rssi": max(-127, min(20, int(advert.rssi))),
+                "connectable": advert.connectable,
+                "address_type": advert.address_type if advert.address_type in {"public", "random", "public_identity", "random_identity"} else "unknown",
+                "service_uuids": sorted(set(uuid.lower()[:64] for uuid in advert.service_uuids))[:64],
+                "manufacturer_data": bounded_hex_map(advert.manufacturer_data, numeric_keys=True),
+                "service_data": bounded_hex_map(advert.service_data),
+            }
+            if advert.tx_power is not None:
+                observation["tx_power"] = max(-127, min(127, int(advert.tx_power)))
+            self._last_observation_ms = now_ms
+            for consumer in list(self.consumers.values()):
+                if not consumer.matcher.matches(handle, advert):
+                    continue
+                scoped = dict(observation)
+                scoped["service_data"] = dict(observation["service_data"])
+                bind_key = consumer.bind_keys.get(handle)
+                if bind_key:
+                    try:
+                        for uuid, payload in advert.service_data.items():
+                            if uuid.lower() in BTHOME_UUIDS and payload and payload[0] & 0x01:
+                                scoped["service_data"][uuid.lower()] = decrypt_bthome(
+                                    advert.address, payload, bind_key
+                                ).hex()
+                    except BTHomeDecryptionError:
+                        consumer.decrypt_failures += 1
+                        continue
+                self._enqueue(consumer, scoped)
+            # Checkpoints contain opaque identities and bounded advertisement
+            # bytes, but never per-consumer plaintext produced with a bind key.
+            self._checkpoint = self._merge_checkpoint(observation)
+            self._save_checkpoint()
 
     def _enqueue(self, consumer: Consumer, observation: dict) -> None:
         item = dict(observation)
@@ -264,16 +311,26 @@ class Gateway:
         return hashlib.sha256(token.encode()).hexdigest()
 
     def _load_secret(self) -> None:
-        self.secret_path.parent.mkdir(parents=True, exist_ok=True)
+        self.secret_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        try:
+            self.secret_path.parent.chmod(0o700)
+        except OSError:
+            pass
         if self.secret_path.exists():
             self._secret = self.secret_path.read_bytes()
-        else:
-            self._secret = os.urandom(32)
-            self.secret_path.write_bytes(self._secret)
+            if len(self._secret) != 32:
+                raise ValueError("BLE handle key must contain exactly 32 bytes")
             try:
                 self.secret_path.chmod(0o600)
             except OSError:
                 pass
+        else:
+            self._secret = os.urandom(32)
+            descriptor = os.open(self.secret_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            with os.fdopen(descriptor, "wb") as stream:
+                stream.write(self._secret)
+                stream.flush()
+                os.fsync(stream.fileno())
 
     def _merge_checkpoint(self, observation: dict) -> list[dict]:
         by_handle = {item["device_handle"]: item for item in self._checkpoint}
@@ -301,11 +358,31 @@ class Gateway:
             return CHECKPOINT_MAX_AGE_MS + 1
 
     def _save_checkpoint(self) -> None:
-        self.checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+        self.checkpoint_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        try:
+            self.checkpoint_path.parent.chmod(0o700)
+        except OSError:
+            pass
         payload = {"saved_at_ms": int(__import__("time").time() * 1000), "observations": self._checkpoint[-MAX_CHECKPOINT_ITEMS:]}
-        temporary = self.checkpoint_path.with_suffix(".tmp")
-        temporary.write_text(json.dumps(payload, separators=(",", ":")))
-        temporary.replace(self.checkpoint_path)
+        temporary_name = ""
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w", encoding="utf-8", dir=self.checkpoint_path.parent,
+                prefix=f".{self.checkpoint_path.name}.", delete=False,
+            ) as temporary:
+                temporary_name = temporary.name
+                json.dump(payload, temporary, separators=(",", ":"))
+                temporary.flush()
+                os.fsync(temporary.fileno())
+            os.chmod(temporary_name, 0o600)
+            os.replace(temporary_name, self.checkpoint_path)
+            os.chmod(self.checkpoint_path, 0o600)
+        finally:
+            if temporary_name:
+                try:
+                    Path(temporary_name).unlink()
+                except FileNotFoundError:
+                    pass
 
     def _replay_checkpoint(self, consumer: Consumer) -> None:
         for item in self._checkpoint:
@@ -331,10 +408,12 @@ class Gateway:
             "reconnects": self.reconnects,
             "observations_received": self.observations_received,
             "observations_deduplicated": self.observations_deduplicated,
+            "scanner_callback_drops": int(getattr(self.scanner, "callback_drops", 0)),
             "consumers": {
                 key: {"queue_depth": len(value.queue), "queue_capacity": value.capacity,
                       "queue_high_water": value.high_water, "drops": value.dropped,
-                      "coalesces": value.coalesced}
+                      "coalesces": value.coalesced,
+                      "decrypt_failures": value.decrypt_failures}
                 for key, value in sorted(self.consumers.items())
             },
             "platform_capabilities": capability,

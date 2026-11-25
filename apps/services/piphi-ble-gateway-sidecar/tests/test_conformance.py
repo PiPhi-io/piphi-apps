@@ -17,10 +17,11 @@ FIXTURES = json.loads((Path(__file__).parent / "fixtures" / "contract-conformanc
 @pytest.mark.anyio
 async def test_runtime_conforms_to_shared_contract_fixtures() -> None:
     transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+    runtime_headers = build_runtime_headers()
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver", headers=runtime_headers) as client:
         for fixture in FIXTURES["cases"]:
             payload = fixture.get("body")
-            headers = None
+            headers = runtime_headers
             if fixture["id"] == "config":
                 payload = build_config_payload(
                     config_id=str(payload.get("id", "demo-device")),

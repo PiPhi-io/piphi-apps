@@ -5,6 +5,7 @@ from pathlib import Path
 
 import httpx
 import pytest
+from piphi_runtime_testkit_python import build_runtime_headers
 
 from piphi_network_passive_ble_monitor.main import app
 
@@ -113,7 +114,7 @@ def test_implemented_behavior_events_and_conditions_are_declared() -> None:
 async def test_config_apply_emits_the_implemented_behavior_event() -> None:
     transport = httpx.ASGITransport(app=app)
     config_id = "capability-catalog-test"
-    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver", headers=build_runtime_headers()) as client:
         try:
             response = await client.post(
                 "/config",
@@ -134,7 +135,7 @@ async def test_config_apply_emits_the_implemented_behavior_event() -> None:
 @pytest.mark.parametrize("command", ["set_power", "identify", "send_arbitrary_command"])
 async def test_unimplemented_and_unsafe_commands_fail_closed(command: str) -> None:
     transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver", headers=build_runtime_headers()) as client:
         response = await client.post(
             "/command",
             json={
@@ -153,7 +154,7 @@ async def test_secret_and_gateway_url_are_redacted_from_public_routes() -> None:
     transport = httpx.ASGITransport(app=app)
     secret = "redaction-canary-token"
     config_id = "redaction-test"
-    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver", headers=build_runtime_headers()) as client:
         try:
             response = await client.post("/config", json={"id": config_id, "gateway_url": "https://private-gateway.example", "gateway_token": secret, "device_handle": "ble_00000000000000000000000000000003"})
             assert response.status_code == 200

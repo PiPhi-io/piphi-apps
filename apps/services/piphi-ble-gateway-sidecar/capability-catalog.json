@@ -2,7 +2,7 @@
   "catalog_version": "1.0",
   "integration_id": "piphi-ble-gateway-sidecar",
   "coverage_mode": "cross_platform_bleak_observation_gateway",
-  "reviewed_at": "2026-11-15",
+  "reviewed_at": "2026-11-25",
   "sources": {
     "bleak": "https://bleak.readthedocs.io/en/latest/api/scanner.html",
     "bluez": "https://github.com/bluez/bluez/blob/master/doc/org.bluez.Adapter.rst",
@@ -12,52 +12,164 @@
   },
   "groups": [
     {
-      "id": "runtime-health", "status": "implemented", "scope": ["sidecar-service"],
-      "source_refs": ["parent_contract", "audit"],
+      "id": "runtime-health",
+      "status": "implemented",
+      "scope": [
+        "sidecar-service"
+      ],
+      "source_refs": [
+        "parent_contract",
+        "audit"
+      ],
       "reason": "Health and diagnostics expose actual service, scanner, receiver, freshness, and restart state without treating configuration as radio connectivity.",
-      "state": ["service_available", "receiver_healthy", "scanner_state", "reconnects"],
-      "events": ["runtime.config.applied", "runtime.config.removed", "runtime.command.received"],
-      "conditions": [], "actions": ["refresh"]
+      "state": [
+        "service_available",
+        "receiver_healthy",
+        "scanner_state",
+        "reconnects"
+      ],
+      "events": [
+        "runtime.config.applied",
+        "runtime.config.removed",
+        "runtime.command.received"
+      ],
+      "conditions": [],
+      "actions": [
+        "refresh"
+      ]
     },
     {
-      "id": "bleak-scanning-and-observations", "status": "implemented", "scope": ["linux-bluez", "windows-winrt", "authorized-matchers"],
-      "source_refs": ["bleak", "bluez", "winrt", "parent_contract", "audit"],
-      "reason": "Continuous Bleak detection callbacks feed a versioned redacted envelope, deterministic mode arbitration, opaque identity, deduplication, and age-checked restart replay.",
-      "state": ["scan_mode", "observations_received_total", "observations_deduplicated_total", "last_observation_age_ms"],
-      "events": [], "conditions": [], "actions": []
-    },
-    {
-      "id": "bounded-consumer-delivery", "status": "implemented", "scope": ["authenticated-parent-consumers"],
-      "source_refs": ["parent_contract", "audit"],
-      "reason": "Authenticated consumers receive isolated bounded queues and snapshots with explicit drop/coalesce diagnostics.",
-      "state": ["queue_depth", "queue_capacity", "queue_high_water", "drops", "coalesces"],
-      "events": [], "conditions": [], "actions": []
-    },
-    {
-      "id": "optional-linux-adapter-capabilities", "status": "implemented", "scope": ["linux-bluez-only"],
-      "source_refs": ["bluez", "audit"],
-      "reason": "A Linux-only, least-privilege D-Bus adapter reports bounded BlueZ Adapter1 and rfkill health, powers only the configured adapter, and supervises scanner restart after adapter or daemon recovery. WinRT never imports D-Bus.",
-      "state": ["adapter_count", "adapter_powered", "adapter_discovering", "rfkill_soft_blocked", "rfkill_hard_blocked"],
+      "id": "bleak-scanning-and-observations",
+      "status": "implemented",
+      "scope": [
+        "linux-bluez",
+        "windows-winrt",
+        "authorized-matchers"
+      ],
+      "source_refs": [
+        "bleak",
+        "bluez",
+        "winrt",
+        "parent_contract",
+        "audit"
+      ],
+      "reason": "Continuous bounded Bleak callbacks feed a versioned redacted envelope, deterministic mode arbitration, opaque identity, deduplication, scoped BTHome bind-key decryption, and age-checked restart replay.",
+      "state": [
+        "scan_mode",
+        "observations_received_total",
+        "observations_deduplicated_total",
+        "last_observation_age_ms",
+        "scanner_callback_drops",
+        "decrypt_failures"
+      ],
       "events": [],
       "conditions": [],
       "actions": []
     },
     {
-      "id": "remote-receivers-private-identity-and-gatt", "status": "planned", "scope": ["demand-driven-future-tranches"],
-      "source_refs": ["parent_contract", "audit"],
-      "reason": "Remote receivers, rotating/private identity resolution, connection slots, and narrowly allow-listed GATT operations are intentionally deferred beyond the first transport tranche.",
-      "state": ["remote_receiver_health", "identity_resolution_status", "gatt_connection_count"],
-      "events": ["remote_receiver.connected", "identity.resolved", "gatt.operation_failed"],
-      "conditions": ["remote_receiver_is_healthy", "identity_is_resolved"],
-      "actions": ["connect_allowlisted_device", "read_allowlisted_characteristic", "write_allowlisted_characteristic"]
+      "id": "bounded-consumer-delivery",
+      "status": "implemented",
+      "scope": [
+        "authenticated-parent-consumers"
+      ],
+      "source_refs": [
+        "parent_contract",
+        "audit"
+      ],
+      "reason": "Authenticated consumers receive isolated bounded queues and snapshots with explicit drop/coalesce diagnostics.",
+      "state": [
+        "queue_depth",
+        "queue_capacity",
+        "queue_high_water",
+        "drops",
+        "coalesces"
+      ],
+      "events": [],
+      "conditions": [],
+      "actions": []
     },
     {
-      "id": "unsafe-sensitive-and-host-control", "status": "excluded", "scope": ["all-platforms-and-consumers"],
-      "source_refs": ["parent_contract", "audit"],
+      "id": "optional-linux-adapter-capabilities",
+      "status": "implemented",
+      "scope": [
+        "linux-bluez-only"
+      ],
+      "source_refs": [
+        "bluez",
+        "audit"
+      ],
+      "reason": "A Linux-only, least-privilege D-Bus adapter reports bounded BlueZ Adapter1 and rfkill health, powers only the configured adapter, and supervises scanner restart after adapter or daemon recovery. WinRT never imports D-Bus.",
+      "state": [
+        "adapter_count",
+        "adapter_powered",
+        "adapter_discovering",
+        "rfkill_soft_blocked",
+        "rfkill_hard_blocked"
+      ],
+      "events": [],
+      "conditions": [],
+      "actions": []
+    },
+    {
+      "id": "remote-receivers-private-identity-and-gatt",
+      "status": "planned",
+      "scope": [
+        "demand-driven-future-tranches"
+      ],
+      "source_refs": [
+        "parent_contract",
+        "audit"
+      ],
+      "reason": "Remote receivers, rotating/private identity resolution, connection slots, and narrowly allow-listed GATT operations are intentionally deferred beyond the first transport tranche.",
+      "state": [
+        "remote_receiver_health",
+        "identity_resolution_status",
+        "gatt_connection_count"
+      ],
+      "events": [
+        "remote_receiver.connected",
+        "identity.resolved",
+        "gatt.operation_failed"
+      ],
+      "conditions": [
+        "remote_receiver_is_healthy",
+        "identity_is_resolved"
+      ],
+      "actions": [
+        "connect_allowlisted_device",
+        "read_allowlisted_characteristic",
+        "write_allowlisted_characteristic"
+      ]
+    },
+    {
+      "id": "unsafe-sensitive-and-host-control",
+      "status": "excluded",
+      "scope": [
+        "all-platforms-and-consumers"
+      ],
+      "source_refs": [
+        "parent_contract",
+        "audit"
+      ],
       "reason": "Raw identity, names, keys, unrestricted D-Bus/GATT, arbitrary pairing, spoofing, and destructive host control never cross the gateway contract.",
-      "state": ["raw_device_address", "irk_key", "ltk_key", "raw_advertisement_bytes", "raw_dbus_object_tree", "unredacted_device_name"],
-      "events": [], "conditions": [],
-      "actions": ["execute_arbitrary_dbus_method", "write_arbitrary_characteristic", "pair_arbitrary_device", "spoof_advertisement", "reset_all_adapters", "disable_host_bluetooth"]
+      "state": [
+        "raw_device_address",
+        "irk_key",
+        "ltk_key",
+        "raw_advertisement_bytes",
+        "raw_dbus_object_tree",
+        "unredacted_device_name"
+      ],
+      "events": [],
+      "conditions": [],
+      "actions": [
+        "execute_arbitrary_dbus_method",
+        "write_arbitrary_characteristic",
+        "pair_arbitrary_device",
+        "spoof_advertisement",
+        "reset_all_adapters",
+        "disable_host_bluetooth"
+      ]
     }
   ]
 }
