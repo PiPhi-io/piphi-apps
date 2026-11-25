@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import stat
 from pathlib import Path
 from time import monotonic_ns
@@ -103,8 +104,11 @@ async def test_key_and_checkpoint_are_owner_only_and_identity_is_stable(tmp_path
     second = Gateway(FakeScanner(), NoopCapabilityAdapter(), secret_path=tmp_path / "key", checkpoint_path=tmp_path / "checkpoint.json")
     await second.start()
     assert second._handle("AA:BB:CC:DD:EE:FF") == handle
-    assert stat.S_IMODE((tmp_path / "key").stat().st_mode) == 0o600
-    assert stat.S_IMODE((tmp_path / "checkpoint.json").stat().st_mode) == 0o600
+    assert (tmp_path / "key").is_file()
+    assert (tmp_path / "checkpoint.json").is_file()
+    if os.name == "posix":
+        assert stat.S_IMODE((tmp_path / "key").stat().st_mode) == 0o600
+        assert stat.S_IMODE((tmp_path / "checkpoint.json").stat().st_mode) == 0o600
 
 
 @pytest.mark.anyio
