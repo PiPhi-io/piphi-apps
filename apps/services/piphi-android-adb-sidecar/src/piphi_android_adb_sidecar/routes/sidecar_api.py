@@ -5,8 +5,16 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi import Request as FastAPIRequest
-from pydantic import ValidationError
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    SecretStr,
+    ValidationError,
+    field_validator,
+)
 
+from ..network_policy import require_local_endpoint
 from ..parent_contract_v1 import (
     MAX_PAYLOAD_BYTES,
     CompletedResponse,
@@ -23,9 +31,80 @@ from ..transport import (
     AdbQueueFullError,
     AdbTransportError,
     AdbUnauthorizedError,
+    CommandRunner,
+    SubprocessAdbRunner,
 )
 
 router = APIRouter(prefix="/v1/adb", tags=["parent-sidecar"])
+pairing_runner: CommandRunner = SubprocessAdbRunner()
+
+
+class PairRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    host: str = Field(min_length=1, max_length=253)
+    port: int = Field(ge=1, le=65535)
+    pairing_code: SecretStr
+    timeout_ms: int = Field(default=30_000, ge=1_000, le=30_000)
+
+    @field_validator("pairing_code")
+    @classmethod
+    def validate_pairing_code(cls, value: SecretStr) -> SecretStr:
+        code = value.get_secret_value()
+        if len(code) != 6 or not code.isdecimal():
+            raise ValueError("pairing code must be exactly six digits")
+        return value
+
+
+_ADB_MDNS_SERVICES = frozenset(
+    {"_adb-tls-pairing._tcp", "_adb-tls-connect._tcp"}
+)
+
+
+@router.get("/mdns")
+async def mdns_services() -> dict[str, list[dict[str, object]]]:
+    result = await pairing_runner.run(("mdns", "services"), timeout_ms=3_000)
+    if result.returncode != 0 or result.output_truncated:
+        raise HTTPException(status_code=503, detail="ADB mDNS discovery is unavailable")
+    candidates: list[dict[str, object]] = []
+    for line in result.stdout.splitlines():
+        parts = line.split()
+        if len(parts) < 3 or parts[-2].rstrip(".") not in _ADB_MDNS_SERVICES:
+            continue
+        endpoint = parts[-1]
+        host, separator, raw_port = endpoint.rpartition(":")
+        if not separator or not raw_port.isdecimal():
+            continue
+        port = int(raw_port)
+        if not host or not 1 <= port <= 65535:
+            continue
+        try:
+            await require_local_endpoint(host, port)
+        except ValueError:
+            continue
+        candidates.append(
+            {
+                "service_type": parts[-2].rstrip("."),
+                "host": host,
+                "port": port,
+                "verification_status": "unverified",
+            }
+        )
+    return {"candidates": candidates[:32]}
+
+
+@router.post("/pair")
+async def pair(payload: PairRequest) -> dict[str, str]:
+    await require_local_endpoint(payload.host, payload.port)
+    endpoint = f"{payload.host}:{payload.port}"
+    result = await pairing_runner.run(
+        ("pair", endpoint, payload.pairing_code.get_secret_value()),
+        timeout_ms=payload.timeout_ms,
+    )
+    combined = f"{result.stdout}\n{result.stderr}".lower()
+    if result.returncode != 0 or "successfully paired" not in combined:
+        raise HTTPException(status_code=401, detail="ADB pairing was rejected")
+    return {"status": "paired"}
 
 
 @router.get("/snapshot")

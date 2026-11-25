@@ -123,7 +123,7 @@ async def test_pair_configure_observe_control_remove_and_forget(
 
     config_id = "vertical-slice-tv"
     transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver", headers={"X-Container-Id": "test-container", "X-PiPhi-Integration-Token": "test-token"}) as client:
         started = await client.post(
             "/pairing/start",
             json={"config_id": config_id, "host": "tv.local"},
@@ -138,7 +138,12 @@ async def test_pair_configure_observe_control_remove_and_forget(
 
         configured = await client.post(
             "/config",
-            json={"id": config_id, "host": "tv.local", "alias": "Living Room"},
+            json={
+                "id": config_id,
+                "host": "tv.local",
+                "alias": "Living Room",
+                "enable_controls": True,
+            },
             headers=build_runtime_headers(),
         )
         assert configured.status_code == 200

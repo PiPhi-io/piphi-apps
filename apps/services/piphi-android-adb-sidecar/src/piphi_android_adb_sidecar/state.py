@@ -107,7 +107,10 @@ async def apply_config(config: DeviceConfig) -> None:
         raise ValueError("adb_target_not_ready")
     controllers[config_id] = candidate
     if previous is not None:
-        await previous.close()
+        if previous.session.endpoint == candidate.session.endpoint:
+            await previous.retire()
+        else:
+            await previous.close()
     registry.set(config_id, entry)
     registry.update_state(
         config_id,
@@ -199,6 +202,20 @@ class AdbController:
             except asyncio.CancelledError:
                 pass
         await self.session.queue.run_exclusive(self.session.close)
+        self.lifecycle = "stopped"
+
+    async def retire(self) -> None:
+        """Stop an replaced controller without disconnecting its live endpoint."""
+        self._closed = True
+        task, self._recovery_task = self._recovery_task, None
+        if task is not None:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+        self.session.connected = False
+        self.session.authorized = False
         self.lifecycle = "stopped"
 
     async def reconnect(self) -> bool:

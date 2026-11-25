@@ -66,17 +66,14 @@ def test_only_implemented_capabilities_are_advertised() -> None:
     actions = _by_status("implemented", "actions")
     assert set(MANIFEST["capabilities"]) == implemented
     assert set(MANIFEST["commands"]) == actions
-    assert {item for entity in MANIFEST["entities"] for item in entity["capabilities"]} == implemented
-    assert {item["id"] for entity in MANIFEST["entities"] for item in entity["available_commands"]} == actions
+    assert MANIFEST["entities"] == []
     assert set(EXAMPLE["capabilities"]) == implemented
     assert set(EXAMPLE["commands"]) == actions
 
 
-def test_sidecar_has_only_a_transport_service_entity() -> None:
+def test_sidecar_does_not_fabricate_transport_entities() -> None:
     assert not (ROOT / "src" / "behaviors.json").exists()
-    assert len(MANIFEST["entities"]) == 1
-    assert MANIFEST["entities"][0]["id"] == "android-adb-service"
-    assert MANIFEST["entities"][0]["entity_type"] == "service"
+    assert MANIFEST["entities"] == []
 
 
 @pytest.mark.anyio

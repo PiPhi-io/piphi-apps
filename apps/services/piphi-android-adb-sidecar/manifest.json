@@ -3,7 +3,7 @@
   "manifest_version": "1.0",
   "id": "piphi-android-adb-sidecar",
   "name": "Android ADB sidecar",
-  "version": "0.3.0-rc.1",
+  "version": "0.3.0-rc.2",
   "description": "Provide bounded, authenticated network ADB transport for parent integrations.",
   "metadata": {
     "generator": "piphi-network-create",
@@ -17,7 +17,7 @@
     "website": "https://piphi.io"
   },
   "license": "Apache-2.0",
-  "image": "ghcr.io/piphi-io/piphi-android-adb-sidecar:0.3.0-rc.1",
+  "image": "ghcr.io/piphi-io/piphi-android-adb-sidecar:0.3.0-rc.2",
   "platforms": [
     "linux"
   ],
@@ -25,7 +25,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "ghcr.io/piphi-io/piphi-android-adb-sidecar:0.3.0-rc.1",
+        "image": "ghcr.io/piphi-io/piphi-android-adb-sidecar:0.3.0-rc.2",
         "ports": [
           {
             "container": 4213
@@ -74,7 +74,9 @@
       "command": "/command",
       "adb_snapshot": "/v1/adb/snapshot",
       "adb_reconnect": "/v1/adb/reconnect",
-      "adb_execute": "/v1/adb/execute"
+      "adb_execute": "/v1/adb/execute",
+      "adb_pair": "/v1/adb/pair",
+      "adb_mdns": "/v1/adb/mdns"
     }
   },
   "config": {
@@ -178,42 +180,7 @@
     }
   },
   "commands": {},
-  "entities": [
-    {
-      "id": "android-adb-service",
-      "name": "Android ADB Service",
-      "device_id": "android-adb-service",
-      "entity_type": "service",
-      "capabilities": [
-        "connected",
-        "authorized",
-        "lifecycle",
-        "service_available",
-        "device_manufacturer",
-        "device_model",
-        "android_release",
-        "android_sdk",
-        "queue_depth",
-        "queue_capacity",
-        "queue_high_water_mark",
-        "reconnect_count",
-        "request_success_count",
-        "request_failure_count",
-        "timeout_count",
-        "transport_error_count",
-        "operation_duration_ms"
-      ],
-      "available_commands": [],
-      "dashboard": {
-        "allowed_widgets": [
-          "tile",
-          "stat",
-          "button"
-        ],
-        "default_widget": "tile"
-      }
-    }
-  ],
+  "entities": [],
   "marketplace": {
     "metadata_version": 2,
     "display_name": "Android ADB sidecar",

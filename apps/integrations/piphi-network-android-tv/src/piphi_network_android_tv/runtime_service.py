@@ -28,6 +28,8 @@ class SessionManager(Protocol):
 
 
 class AdbSessionManager(Protocol):
+    async def pair(self, *, host: str, port: int, pairing_code: str, timeout_ms: int = 30_000) -> None: ...
+    async def discover_pairing_candidates(self) -> list[dict[str, Any]]: ...
     async def configure(self, config: DeviceConfig) -> AdbDeviceSnapshot: ...
     async def refresh(self, config_id: str, *, timeout_ms: int) -> AdbDeviceSnapshot: ...
     async def send_key(self, config_id: str, key: str, *, timeout_ms: int) -> None: ...
@@ -50,6 +52,7 @@ class AndroidTVRuntimeService:
         self.sessions = sessions
         self.credentials = credentials
         self.adb = adb
+        self._last_states: dict[str, dict[str, Any]] = {}
 
     async def configure(
         self,
@@ -70,7 +73,11 @@ class AndroidTVRuntimeService:
                 adb_snapshot = await self.adb.configure(config)
             except AdbSidecarError as exc:
                 self._raise_adb_http(exc)
-            adb_entry = {**entry, "transport": TransportType.ADB.value}
+            adb_entry = {
+                **entry,
+                "device_id": adb_snapshot.device_identity or entry["device_id"],
+                "transport": TransportType.ADB.value,
+            }
             self.registry.set(config_id, adb_entry)
             self._write_adb_snapshot(config_id, adb_snapshot)
             return adb_snapshot
@@ -130,30 +137,35 @@ class AndroidTVRuntimeService:
                     timeout_ms=self._adb_timeout_ms(entry),
                 )
             except AdbSidecarError as exc:
-                self.registry.update_state(
-                    config_id,
-                    {
+                stale = {
+                    **self._last_states.get(config_id, {}),
                         "connected": False,
+                        "authenticated": False if exc.code == "unauthorized" else self._last_states.get(config_id, {}).get("authenticated"),
+                        "reauth_required": exc.code == "unauthorized",
                         "adb_authorized": False if exc.code == "unauthorized" else None,
                         "sidecar_last_error_code": exc.code,
-                    },
-                    device_id=str(entry["device_id"]),
-                )
+                }
+                self._publish_if_changed(config_id, stale, device_id=str(entry["device_id"]))
                 self._raise_adb_http(exc)
             return self._write_adb_snapshot(config_id, adb_snapshot)
         try:
             remote_snapshot = await self.sessions.refresh(config_id)
         except Exception as exc:
-            self.registry.update_state(
-                config_id,
-                {"connected": False},
-                device_id=str(entry["device_id"]),
-            )
+            stale = {**self._last_states.get(config_id, {}), "connected": False}
+            if isinstance(exc, RemoteV2AuthenticationError):
+                stale.update({"authenticated": False, "reauth_required": True})
+            self._publish_if_changed(config_id, stale, device_id=str(entry["device_id"]))
             raise HTTPException(status_code=502, detail="Android TV refresh failed") from exc
         return self._write_snapshot(config_id, remote_snapshot)
 
     async def send_key(self, config_id: str, key: str) -> None:
         entry = self._require_entry(config_id)
+        config = entry.get("config")
+        if not isinstance(config, dict) or config.get("enable_controls") is not True:
+            raise HTTPException(
+                status_code=403,
+                detail="Android TV controls are disabled for this configuration",
+            )
         if entry.get("transport") == TransportType.ADB.value:
             if self.adb is None:
                 raise HTTPException(status_code=503, detail="ADB sidecar is unavailable")
@@ -190,6 +202,7 @@ class AndroidTVRuntimeService:
         else:
             await self.sessions.remove(config_id)
         self.registry.remove(config_id)
+        self._last_states.pop(config_id, None)
         return existed
 
     async def close(self) -> None:
@@ -228,7 +241,7 @@ class AndroidTVRuntimeService:
             "sidecar_last_error_code": None,
             "config_id": config_id,
         }
-        self.registry.update_state(config_id, state, device_id=str(entry["device_id"]))
+        self._publish_if_changed(config_id, state, device_id=str(entry["device_id"]))
         return state
 
     def _write_adb_snapshot(
@@ -259,8 +272,20 @@ class AndroidTVRuntimeService:
             "sidecar_last_error_code": snapshot.last_error_code,
             "config_id": config_id,
         }
-        self.registry.update_state(config_id, state, device_id=str(entry["device_id"]))
+        self._publish_if_changed(config_id, state, device_id=str(entry["device_id"]))
         return state
+
+    def _publish_if_changed(
+        self,
+        config_id: str,
+        state: dict[str, Any],
+        *,
+        device_id: str,
+    ) -> None:
+        if self._last_states.get(config_id) == state:
+            return
+        self._last_states[config_id] = dict(state)
+        self.registry.update_state(config_id, state, device_id=device_id)
 
     @staticmethod
     def _raise_adb_http(error: AdbSidecarError) -> NoReturn:

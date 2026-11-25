@@ -93,7 +93,7 @@ async def test_config_apply_emits_the_implemented_behavior_event(monkeypatch) ->
     monkeypatch.setattr(runtime_state.android_tv_service, "configure", configure)
     transport = httpx.ASGITransport(app=app)
     config_id = "capability-catalog-test"
-    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver", headers={"X-Container-Id": "test-container", "X-PiPhi-Integration-Token": "test-token"}) as client:
         try:
             response = await client.post("/config", json={"id": config_id, "host": "127.0.0.1", "alias": "Coverage Test"})
             assert response.status_code == 200
@@ -107,7 +107,7 @@ async def test_config_apply_emits_the_implemented_behavior_event(monkeypatch) ->
 async def test_config_rejects_unpaired_device_before_saving() -> None:
     transport = httpx.ASGITransport(app=app)
     config_id = "unreachable-device-test"
-    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver", headers={"X-Container-Id": "test-container", "X-PiPhi-Integration-Token": "test-token"}) as client:
         try:
             response = await client.post(
                 "/config",
@@ -128,7 +128,7 @@ async def test_discovery_does_not_fabricate_a_device(monkeypatch) -> None:
 
     monkeypatch.setattr(discovery_routes.remote_v2_discovery, "discover", discover)
     transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver", headers={"X-Container-Id": "test-container", "X-PiPhi-Integration-Token": "test-token"}) as client:
         response = await client.post("/discover", json={})
     assert response.status_code == 200
     assert response.json()["devices"] == []
@@ -137,7 +137,7 @@ async def test_discovery_does_not_fabricate_a_device(monkeypatch) -> None:
 @pytest.mark.anyio
 async def test_refresh_fails_for_unknown_configuration() -> None:
     transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver", headers={"X-Container-Id": "test-container", "X-PiPhi-Integration-Token": "test-token"}) as client:
         response = await client.post(
             "/command",
             json={
@@ -156,7 +156,7 @@ async def test_refresh_fails_for_unknown_configuration() -> None:
 @pytest.mark.parametrize("command", ["set_power", "identify", "send_arbitrary_command"])
 async def test_unimplemented_and_unsafe_commands_fail_closed(command: str) -> None:
     transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver", headers={"X-Container-Id": "test-container", "X-PiPhi-Integration-Token": "test-token"}) as client:
         response = await client.post(
             "/command",
             json={

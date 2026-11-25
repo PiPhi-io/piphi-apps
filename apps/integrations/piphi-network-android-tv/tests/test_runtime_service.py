@@ -23,6 +23,7 @@ class Registry:
     def __init__(self) -> None:
         self.entries = {}
         self.states = {}
+        self.update_count = 0
 
     def set(self, config_id, entry):
         self.entries[config_id] = entry
@@ -34,6 +35,7 @@ class Registry:
         return self.entries.pop(config_id, None)
 
     def update_state(self, config_id, state, *, device_id):
+        self.update_count += 1
         self.states[config_id] = {"state": state, "device_id": device_id}
 
 
@@ -172,7 +174,10 @@ def test_configure_requires_pairing_credentials_before_saving(tmp_path: Path) ->
 
 def test_refresh_key_and_removal_use_authenticated_session(tmp_path: Path) -> None:
     registry = Registry()
-    registry.set("tv", {"config_id": "tv", "device_id": "stable"})
+    registry.set(
+        "tv",
+        {"config_id": "tv", "device_id": "stable", "config": {"enable_controls": True}},
+    )
     sessions = Sessions(sample_snapshot())
     service = AndroidTVRuntimeService(
         registry=registry, sessions=sessions, credentials=lambda _: (tmp_path, tmp_path)
@@ -208,7 +213,9 @@ def test_adb_configure_refresh_key_and_remove_are_explicitly_routed(tmp_path: Pa
         "config_id": "adb-tv",
         "device_id": "adb-tv",
         "transport": "adb",
-        "config": config.model_dump(exclude={"host"}, mode="json"),
+        "config": config.model_copy(update={"enable_controls": True}).model_dump(
+            exclude={"host"}, mode="json"
+        ),
     }
 
     result = asyncio.run(service.configure(config, entry))
@@ -259,7 +266,7 @@ def test_adb_queue_full_is_normalized_without_retry(tmp_path: Path) -> None:
             "config_id": "tv",
             "device_id": "tv",
             "transport": "adb",
-            "config": {"adb_operation_timeout_ms": 1_000},
+            "config": {"adb_operation_timeout_ms": 1_000, "enable_controls": True},
         },
     )
     adb = AdbSessions()
@@ -279,3 +286,50 @@ def test_adb_queue_full_is_normalized_without_retry(tmp_path: Path) -> None:
 
     assert asyncio.run(service.remove("tv")) is True
     assert registry.get("tv") is None
+
+
+def test_refresh_failure_preserves_last_good_state_and_marks_offline(tmp_path: Path) -> None:
+    registry = Registry()
+    sessions = Sessions(sample_snapshot())
+    service = AndroidTVRuntimeService(
+        registry=registry, sessions=sessions, credentials=lambda _: (tmp_path, tmp_path)
+    )
+    registry.set("tv", {"config_id": "tv", "device_id": "stable"})
+    first = asyncio.run(service.refresh("tv"))
+
+    async def fail(_config_id):
+        raise OSError("private transport detail")
+
+    sessions.refresh = fail
+    with pytest.raises(HTTPException):
+        asyncio.run(service.refresh("tv"))
+    stale = registry.states["tv"]["state"]
+    assert stale["connected"] is False
+    assert stale["current_app_id"] == first["current_app_id"]
+    assert stale["volume_level_percent"] == first["volume_level_percent"]
+
+
+def test_identical_snapshots_are_deduplicated(tmp_path: Path) -> None:
+    registry = Registry()
+    registry.set("tv", {"config_id": "tv", "device_id": "stable"})
+    service = AndroidTVRuntimeService(
+        registry=registry,
+        sessions=Sessions(sample_snapshot()),
+        credentials=lambda _: (tmp_path, tmp_path),
+    )
+    asyncio.run(service.refresh("tv"))
+    asyncio.run(service.refresh("tv"))
+    assert registry.update_count == 1
+
+
+def test_mutating_controls_are_opt_in(tmp_path: Path) -> None:
+    registry = Registry()
+    registry.set("tv", {"config_id": "tv", "device_id": "stable", "config": {}})
+    service = AndroidTVRuntimeService(
+        registry=registry,
+        sessions=Sessions(sample_snapshot()),
+        credentials=lambda _: (tmp_path, tmp_path),
+    )
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(service.send_key("tv", "HOME"))
+    assert exc.value.status_code == 403

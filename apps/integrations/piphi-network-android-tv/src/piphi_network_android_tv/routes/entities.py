@@ -20,8 +20,24 @@ async def entities() -> dict[str, Any]:
             "config_id": entry["config_id"],
             "device_id": entry["device_id"],
             "entity_type": FALLBACK_ENTITY["entity_type"],
-            "capabilities": FALLBACK_ENTITY["capabilities"],
-            "available_commands": FALLBACK_ENTITY["available_commands"],
+            "capabilities": [
+                item
+                for item in FALLBACK_ENTITY["capabilities"]
+                if item != "send_key"
+                or (
+                    isinstance(entry.get("config"), dict)
+                    and entry["config"].get("enable_controls") is True
+                )
+            ],
+            "available_commands": [
+                item
+                for item in FALLBACK_ENTITY["available_commands"]
+                if item["id"] != "send_key"
+                or (
+                    isinstance(entry.get("config"), dict)
+                    and entry["config"].get("enable_controls") is True
+                )
+            ],
             "dashboard": FALLBACK_ENTITY["dashboard"],
         }
         for entry in entries

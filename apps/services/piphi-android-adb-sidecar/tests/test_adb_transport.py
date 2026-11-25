@@ -200,16 +200,24 @@ async def test_failed_or_cancelled_key_event_is_never_replayed() -> None:
 
 
 @pytest.mark.anyio
-async def test_subprocess_runner_and_stream_reader_enforce_local_bounds(tmp_path) -> None:
+async def test_subprocess_runner_and_stream_reader_enforce_local_bounds(tmp_path, monkeypatch) -> None:
     with pytest.raises(AdbOfflineError, match="unavailable"):
         await SubprocessAdbRunner(str(tmp_path / "missing-adb")).run(
             ("start-server",), timeout_ms=500
         )
 
+    monkeypatch.setenv("PIPHI_ADB_HOME", str(tmp_path / "home"))
     executable = tmp_path / "adb"
-    executable.write_text("not executed")
-    with pytest.raises(AdbUnauthorizedError, match="keys_unavailable"):
-        await SubprocessAdbRunner(str(executable)).run(("start-server",), timeout_ms=500)
+    executable.write_text("#!/bin/sh\nexit 0\n")
+    executable.chmod(0o700)
+    result = await SubprocessAdbRunner(str(executable)).run(("start-server",), timeout_ms=500)
+    assert result.returncode == 0
+    android_home = tmp_path / "home" / ".android"
+    assert android_home.stat().st_mode & 0o777 == 0o700
+    private_key = android_home / "adbkey"
+    private_key.write_text("secret")
+    SubprocessAdbRunner._secure_credentials(android_home)
+    assert private_key.stat().st_mode & 0o777 == 0o600
 
     reader = asyncio.StreamReader()
     reader.feed_data(b"x" * (MAX_PROCESS_OUTPUT_BYTES + 10))

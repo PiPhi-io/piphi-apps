@@ -8,6 +8,7 @@ ENDPOINTS = {
     "discover": "/discover",
     "pairing_start": "/pairing/start",
     "pairing_finish": "/pairing/{session_id}/finish",
+    "adb_pairing": "/pairing/adb",
     "forget_credentials": "/pairing/credentials/{config_id}",
     "entities": "/entities",
     "state": "/state",
@@ -85,6 +86,11 @@ CONFIG_SCHEMA: dict[str, Any] = {
                 "title": "Transport",
                 "enum": ["remote_v2", "adb"],
                 "default": "remote_v2"
+            },
+            "enable_controls": {
+                "type": "boolean",
+                "title": "Enable allow-listed remote controls",
+                "default": False
             },
             "adb_port": {
                 "type": "integer",

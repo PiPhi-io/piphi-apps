@@ -17,6 +17,8 @@ ENDPOINTS = {
     "adb_snapshot": "/v1/adb/snapshot",
     "adb_reconnect": "/v1/adb/reconnect",
     "adb_execute": "/v1/adb/execute",
+    "adb_pair": "/v1/adb/pair",
+    "adb_mdns": "/v1/adb/mdns",
 }
 
 REQUIRED_ENDPOINTS = ["health", "entities", "command", "config", "ui_config"]

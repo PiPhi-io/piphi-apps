@@ -21,14 +21,14 @@ The workflow qualifies the package, builds and pushes `linux/amd64` and
 immutable release evidence plus a registry proposal, and creates a namespaced
 GitHub prerelease/tag.
 
-For `0.3.0-rc.1`, the artifact includes bounded network ADB transport and a
-private parent API. Physical hardware, USB, and wireless-pairing qualification
-remain outstanding. Android TV parent dependency/client wiring is deferred to a
-later product slice. Governance must remain `draft`, `unverified`, and rollout
-zero.
+For `0.3.0-rc.2`, the artifact includes bounded network ADB transport, Android
+11+ wireless pairing and mDNS through pinned Platform Tools, and a private API
+wired to the Android TV parent integration. Physical hardware, firmware, and
+USB qualification remain outstanding. Governance must remain `draft`,
+`unverified`, and rollout zero.
 
 Current image target:
 
 ```text
-ghcr.io/piphi-io/piphi-android-adb-sidecar:0.3.0-rc.1
+ghcr.io/piphi-io/piphi-android-adb-sidecar:0.3.0-rc.2
 ```

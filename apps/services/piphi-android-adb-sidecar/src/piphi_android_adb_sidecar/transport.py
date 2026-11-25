@@ -3,12 +3,13 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import os
-import secrets
+import stat
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol, TypeVar
 
+from .network_policy import require_local_endpoint
 from .parent_contract_v1 import KeyCode, ReadableProperty
 from .schemas import DeviceConfig
 
@@ -102,11 +103,9 @@ class SubprocessAdbRunner:
     async def run(self, args: Sequence[str], *, timeout_ms: int) -> CommandResult:
         if not Path(self.executable).is_file():
             raise AdbOfflineError("adb_unavailable")
-        if args == ("start-server",):
-            private_key = self.home / ".android" / "adbkey"
-            public_key = self.home / ".android" / "adbkey.pub"
-            if not private_key.is_file() or not public_key.is_file():
-                raise AdbUnauthorizedError("adb_authorized_keys_unavailable")
+        android_home = self.home / ".android"
+        android_home.mkdir(mode=0o700, parents=True, exist_ok=True)
+        android_home.chmod(0o700)
         environment = os.environ.copy()
         environment["HOME"] = str(self.home)
         environment["ADB_VENDOR_KEYS"] = str(self.home / ".android" / "adbkey")
@@ -138,12 +137,26 @@ class SubprocessAdbRunner:
         stdout, stderr = await asyncio.gather(stdout_task, stderr_task)
         stdout_bytes, stdout_truncated = stdout
         stderr_bytes, stderr_truncated = stderr
-        return CommandResult(
+        result = CommandResult(
             returncode=returncode,
             stdout=stdout_bytes.decode("utf-8", errors="replace").strip(),
             stderr=stderr_bytes.decode("utf-8", errors="replace").strip(),
             output_truncated=stdout_truncated or stderr_truncated,
         )
+        self._secure_credentials(android_home)
+        return result
+
+    @staticmethod
+    def _secure_credentials(android_home: Path) -> None:
+        for name in ("adbkey", "adbkey.pub"):
+            path = android_home / name
+            try:
+                mode = path.lstat().st_mode
+            except FileNotFoundError:
+                continue
+            if not stat.S_ISREG(mode):
+                raise AdbUnauthorizedError("adb_credential_path_invalid")
+            path.chmod(0o600)
 
 
 class BoundedQueue:
@@ -187,6 +200,7 @@ class AdbSession:
     async def open(self) -> None:
         self.connected = False
         self.authorized = False
+        await require_local_endpoint(self.config.host, self.config.port)
         await self._require_success(
             await self.runner.run(
                 ("start-server",), timeout_ms=self.config.connect_timeout_ms
@@ -214,7 +228,7 @@ class AdbSession:
             raise AdbIdentityMismatchError("adb_target_identity_changed")
         self._identity_digest = digest
         if self.target_id is None:
-            self.target_id = f"adb-{secrets.token_urlsafe(24)}"
+            self.target_id = f"adb-{digest[:32]}"
         self.metadata = await self._query_properties(list(ReadableProperty))
         self.connected = True
         self.authorized = True
@@ -297,7 +311,6 @@ class AdbSession:
                 break
         if not values:
             raise AdbIdentityMismatchError("adb_target_identity_unavailable")
-        values.extend((self.config.host, str(self.config.port)))
         return "\0".join(values)
 
     async def _query_properties(

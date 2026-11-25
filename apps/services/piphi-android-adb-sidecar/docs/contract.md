@@ -10,12 +10,19 @@ All routes except `GET /health` require the configured internal bearer token.
 
 ## Target lifecycle
 
-`POST /config` accepts one manual network endpoint and requires an existing
-pre-authorized key mounted in the sidecar data volume. A successful authenticated
-probe creates a random opaque `target_id` returned by
+`POST /config` accepts one local network endpoint. Platform Tools generates and
+stores its key only under the private sidecar data volume. A successful authenticated
+probe creates a deterministic, non-reversible, serial-derived `target_id` returned by
 `GET /v1/adb/snapshot`. Raw hosts, ports, device serials, and ADB key material
 are never returned. Reconfiguration is transactional when an existing session
 is active. A failed initial probe is rejected and creates no configuration.
+The stable target identity excludes host and port, so an address change does not
+change device ownership after the same physical target is authenticated.
+
+`GET /v1/adb/mdns` returns at most 32 sanitized, unverified Android 11+
+`_adb-tls-pairing` or `_adb-tls-connect` candidates from authoritative Platform
+Tools. `POST /v1/adb/pair` accepts one six-digit code, validates the endpoint as
+local, passes it once to `adb pair`, and never persists or echoes the code.
 
 ## Execute request
 
@@ -65,3 +72,6 @@ The contract accepts no raw shell, argv, endpoint, serial, intent, package,
 path, file transfer, forwarding, privilege, or multi-target field. The
 sidecar's internal Platform Tools calls are constructed solely from fixed
 allow-lists.
+
+The sidecar does not expose PiPhi device entities. Its `/entities` response is
+always empty because the parent integration owns television identity and state.

@@ -16,13 +16,13 @@
     {
       "id": "runtime-foundation", "status": "implemented", "scope": ["all-configurations"],
       "source_refs": ["core_vocabulary"],
-      "reason": "The runtime implements explicit transport selection, authenticated availability, honest transport-specific state, refresh, and conservative short key presses. Remote v2 remains the default; unsupported ADB state stays unknown.",
+      "reason": "The runtime implements explicit transport selection, authenticated availability, honest transport-specific state, refresh, and per-config opt-in conservative short key presses. Remote v2 remains the default; unsupported ADB state stays unknown.",
       "state": ["connected", "authenticated", "reauth_required", "power_on", "current_app_id", "volume_level_percent", "muted", "manufacturer", "model", "software_version", "transport_type", "adb_authorized", "android_version", "android_api_level", "sidecar_queue_depth", "sidecar_queue_capacity", "sidecar_reconnect_count", "sidecar_command_timeout_count", "sidecar_last_error_code"], "events": ["runtime.config.applied"], "conditions": ["state_matches"], "actions": ["refresh", "send_key"]
     },
     {
       "id": "remote-v2-pairing-and-discovery", "status": "implemented", "scope": ["android-tv-and-google-tv-with-remote-service"],
       "source_refs": ["androidtvremote2", "ha_androidtv_remote"],
-      "reason": "The runtime implements bounded Remote v2 mDNS candidates, expiring one-shot PIN pairing, restrictive credential storage, connect-before-save, stable opaque MAC-derived identity, reauthentication signaling, reconnect callbacks, and explicit credential removal. Pairing remains an interactive administrative flow and is not a behavior action.",
+      "reason": "The runtime implements bounded Remote v2 mDNS candidates, expiring one-shot PIN pairing, Android 11+ ADB mDNS/pairing through the authenticated sidecar, restrictive credential storage, connect-before-save, stable opaque device identity, reauthentication signaling, reconnect callbacks, and explicit credential removal. Pairing remains an interactive administrative flow and is not a behavior action.",
       "state": [], "events": [], "conditions": [], "actions": []
     },
     {

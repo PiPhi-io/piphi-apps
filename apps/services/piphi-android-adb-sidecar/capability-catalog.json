@@ -69,14 +69,15 @@
     },
     {
       "id": "wireless-pairing-and-mdns",
-      "status": "planned",
+      "status": "implemented",
       "scope": ["android-11-plus-wireless-debugging", "android-tv-13-plus"],
       "source_refs": ["android_adb", "adb_source"],
-      "reason": "mDNS discovery, TLS pairing-code exchange, expiry, revocation, and trusted-network policy require a separate user-interaction and credential lifecycle.",
-      "state": ["mdns_available", "pairing_state", "pairing_expires_at"],
-      "events": ["pairing.requested", "pairing.completed", "pairing.failed", "pairing.expired"],
-      "conditions": ["pairing_is_pending", "pairing_has_expired"],
-      "actions": ["pair_with_one_time_code", "cancel_pairing", "forget_paired_endpoint"]
+      "reason": "The authenticated private API uses pinned Android Platform Tools for bounded mDNS candidate discovery and one-shot Android 11+ pairing-code exchange. Codes are SecretStr values, are never persisted or returned, and pairing remains an administrative setup operation rather than an entity action.",
+      "private_operations": ["mdns_services", "pair_with_one_time_code"],
+      "state": [],
+      "events": [],
+      "conditions": [],
+      "actions": []
     },
     {
       "id": "usb-transport",

@@ -16,5 +16,7 @@ RUN pip install --no-cache-dir --no-deps . \
     && mkdir -p /app/data \
     && chown -R piphi:piphi /app/data
 USER 10001:10001
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
 EXPOSE 4220
 CMD ["uvicorn", "piphi_network_android_tv.main:app", "--host", "0.0.0.0", "--port", "4220"]

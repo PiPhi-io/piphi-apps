@@ -1,15 +1,30 @@
 from __future__ import annotations
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from .lifecycle import lifespan
 from .routes import routers
+from .security import install_log_scrubbing
 from .settings import INTEGRATION_NAME
 
 
 def create_app() -> FastAPI:
+    install_log_scrubbing()
     app = FastAPI(title=INTEGRATION_NAME, lifespan=lifespan)
+
+    @app.exception_handler(RequestValidationError)
+    async def sanitized_validation_error(_request: Request, exc: RequestValidationError):
+        return JSONResponse(
+            status_code=422,
+            content={
+                "detail": [
+                    {"type": item.get("type"), "loc": list(item.get("loc") or []), "msg": item.get("msg")}
+                    for item in exc.errors()
+                ]
+            },
+        )
 
     @app.middleware("http")
     async def protect_parent_api(request: Request, call_next):
