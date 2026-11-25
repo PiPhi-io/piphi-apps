@@ -2,9 +2,20 @@
   "schema_version": 1,
   "capabilities": [
     { "id": "connected", "status": "implemented", "source": "endpoint state.connected", "type": "boolean" },
-    { "id": "switch_on", "status": "implemented", "source": "endpoint state.switch_on", "type": "boolean" },
+    { "id": "switch_on", "status": "implemented", "source": "Matter On/Off 6/0 when negotiated", "type": "boolean" },
+    { "id": "brightness_percent", "status": "implemented", "source": "Matter Level Control 8/0 when negotiated", "type": "number" },
+    { "id": "temperature_c", "status": "implemented", "source": "Matter Temperature Measurement 1026/0 when negotiated", "type": "number" },
+    { "id": "humidity_percent", "status": "implemented", "source": "Matter Relative Humidity Measurement 1029/0 when negotiated", "type": "number" },
+    { "id": "battery_percent", "status": "implemented", "source": "Matter Power Source 47/12 when negotiated", "type": "number" },
+    { "id": "contact_open", "status": "implemented", "source": "Contact Sensor device type plus Boolean State 69/0", "type": "boolean" },
+    { "id": "occupancy_detected", "status": "implemented", "source": "Matter Occupancy Sensing 1030/0 when negotiated", "type": "boolean" },
+    { "id": "illuminance_raw", "status": "implemented", "source": "Matter Illuminance Measurement 1024/0 when negotiated", "type": "number" },
+    { "id": "refresh", "status": "implemented", "source": "sidecar read-only command", "type": "action" },
     { "id": "turn_on", "status": "implemented", "source": "sidecar command", "type": "action" },
     { "id": "turn_off", "status": "implemented", "source": "sidecar command", "type": "action" },
-    { "id": "toggle", "status": "implemented", "source": "sidecar command", "type": "action" }
+    { "id": "toggle", "status": "implemented", "source": "sidecar command; explicit idempotency key required", "type": "action" },
+    { "id": "set_brightness", "status": "planned", "source": "Matter Level Control", "reason": "No authoritative transition-time and boundary contract in the qualified fixtures" },
+    { "id": "thread_commissioning", "status": "excluded", "source": "Matter Thread", "reason": "Separate credential, border-router, and physical qualification workstream" },
+    { "id": "arbitrary_cluster_invoke", "status": "excluded", "source": "Matter clusters", "reason": "Bypasses negotiated least-privilege command coverage" }
   ]
 }

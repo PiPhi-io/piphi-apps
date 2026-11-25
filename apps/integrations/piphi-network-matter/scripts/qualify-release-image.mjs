@@ -36,6 +36,7 @@ function inspectImage(image) {
 function runArgs({ image, name, volume, parentPort, sidecarPort, sidecarToken, coreToken }) {
   return [
     "run", "--detach", "--name", name,
+    "--read-only", "--tmpfs", "/tmp:rw,noexec,nosuid,size=16m",
     "--network", "host",
     "--volume", `${volume}:${DATA_PATH}`,
     "--env", "NODE_ENV=production",

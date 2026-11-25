@@ -25,3 +25,14 @@ test("sequenced event pages make overflow and restart recovery explicit", () => 
   assert.equal((page.events as Array<{ sequence: number }>)[0]?.sequence, 2);
   assert.notEqual(new MatterEventJournal().streamId, journal.streamId);
 });
+
+test("event journal rejects malformed input and deduplicates retained event IDs", () => {
+  const journal = new MatterEventJournal(2);
+  const event = { id: "same", type: "device.state_changed", timestamp: new Date().toISOString(), payload: {} };
+  const first = journal.append(event);
+  const duplicate = journal.append(event);
+  assert.equal(duplicate.sequence, first.sequence);
+  assert.equal(journal.size, 1);
+  assert.throws(() => journal.append({ ...event, id: "bad", type: "not allowed!" }), /Malformed/);
+  assert.equal(journal.malformed, 1);
+});

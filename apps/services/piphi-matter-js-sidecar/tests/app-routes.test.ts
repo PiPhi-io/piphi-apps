@@ -21,6 +21,8 @@ async function fixture(overrides: Partial<MatterSettings> = {}) {
     enableBle: false,
     dclOffline: false,
     logManagedServer: false,
+    allowControl: true,
+    allowCommissioning: true,
     ...overrides,
   };
   const backend = new FakeMatterBackend();
@@ -29,6 +31,7 @@ async function fixture(overrides: Partial<MatterSettings> = {}) {
   return {
     app: createApp(service, {
       bleBinding: "dbus",
+      allowUnauthenticatedForTests: true,
       blePreflight: async () => ({ status: "pass", adapter: "hci0", transport: "bluez_dbus" }),
     }), backend, service, settings,
   };
@@ -42,7 +45,7 @@ test("diagnostics, discovery, registry, and commissioning expose bounded public 
   assert.deepEqual(diagnostics.json().security, {
     backend_bound_to_loopback: true,
     ble_enabled: true,
-    credentials_exposed: false,
+    credentials_exposed: "[REDACTED]",
   });
 
   const preflight = await app.inject({ method: "GET", url: "/v1/preflight" });
@@ -73,7 +76,7 @@ test("diagnostics, discovery, registry, and commissioning expose bounded public 
     device_type: null,
     long_discriminator: null,
     commissioning_mode: null,
-    addresses: ["fd00::1"],
+    address_count: 1,
     metadata: {},
   });
   await app.inject({ method: "GET", url: "/v1/discovery/commissionables?timeout_seconds=60" });
@@ -81,7 +84,7 @@ test("diagnostics, discovery, registry, and commissioning expose bounded public 
 
   const invalidCommission = await app.inject({ method: "POST", url: "/v1/commission/code", payload: {} });
   assert.equal(invalidCommission.statusCode, 400);
-  assert.match(invalidCommission.json().error, /setup_payload is required/);
+  assert.equal(invalidCommission.json().error, "internal_error");
 });
 
 test("BLE Wi-Fi provisioning uses an isolated credential slot and always clears it", async (t) => {
@@ -160,7 +163,7 @@ test("persistent Wi-Fi credentials are rejected while other configuration routes
   assert.equal(missing.statusCode, 404);
 });
 
-test("Thread commissioning uses a one-shot dataset and clears it on success and failure", async (t) => {
+test("Thread commissioning remains excluded and never stores a dataset", async (t) => {
   const { app, backend } = await fixture();
   t.after(() => app.close());
   const secretDataset = "a".repeat(64);
@@ -170,18 +173,9 @@ test("Thread commissioning uses a one-shot dataset and clears it on success and 
     url: "/v1/commission/thread",
     payload: { setup_payload: "MT:WRITE-ONLY-THREAD", operational_dataset: secretDataset },
   });
-  assert.equal(success.statusCode, 201, success.body);
+  assert.equal(success.statusCode, 410, success.body);
+  assert.equal(success.json().error, "thread_commissioning_out_of_scope");
   assert.doesNotMatch(success.body, new RegExp(secretDataset));
-  assert.equal(backend.threadDataset, undefined);
-
-  backend.commissionWithCode = async () => { throw new Error("thread-device-not-discovered"); };
-  const failure = await app.inject({
-    method: "POST",
-    url: "/v1/commission/thread",
-    payload: { setup_payload: "MT:WRITE-ONLY-THREAD", operational_dataset: secretDataset },
-  });
-  assert.equal(failure.statusCode, 400);
-  assert.doesNotMatch(failure.body, new RegExp(secretDataset));
   assert.equal(backend.threadDataset, undefined);
 
   for (const operationalDataset of ["", "not-hex", "aa", "a".repeat(509)]) {
@@ -190,7 +184,7 @@ test("Thread commissioning uses a one-shot dataset and clears it on success and 
       url: "/v1/commission/thread",
       payload: { setup_payload: "MT:WRITE-ONLY-THREAD", operational_dataset: operationalDataset },
     });
-    assert.equal(invalid.statusCode, 400);
+    assert.equal(invalid.statusCode, 410);
   }
 });
 

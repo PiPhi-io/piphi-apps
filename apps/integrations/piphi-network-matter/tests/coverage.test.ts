@@ -10,6 +10,8 @@ import { ConfigStore } from "../src/config-store.js";
 import { Reconciler } from "../src/reconciler.js";
 import { settingsFromEnv } from "../src/settings.js";
 import { SidecarClient, SidecarRequestError } from "../src/sidecar-client.js";
+import { projectNodes } from "../src/capabilities.js";
+import { publicErrorCode, redact } from "../src/redaction.js";
 import type { ProjectedEntity, SidecarEventPage, SidecarSnapshot } from "../src/types.js";
 
 const cleanups: Array<() => Promise<void>> = [];
@@ -41,6 +43,31 @@ function snapshot(switchOn = false): SidecarSnapshot {
   };
 }
 
+test("projects only authoritative per-endpoint Matter capabilities and recursively redacts secrets", () => {
+  const [entity] = projectNodes([{
+    node_id: "sensor/node", available: true, attributes: {
+      "0/40/3": "Combo", "1/29/0": [{ deviceType: 0x0015 }],
+      "1/29/1": [6, 8, 47, 69, 1024, 1026, 1029, 1030],
+      "1/6/0": true, "1/8/0": 127, "1/47/12": 150, "1/69/0": true,
+      "1/1024/0": 42, "1/1026/0": 2250, "1/1029/0": 5010, "1/1030/0": 1,
+    },
+  }], "controller", () => "Alias");
+  assert.equal(entity?.id, "matter:controller:sensor%2Fnode:1");
+  assert.equal(entity?.device_class, "light");
+  assert.deepEqual(entity?.state, {
+    connected: true, switch_on: true, brightness_percent: 50, temperature_c: 22.5,
+    humidity_percent: 50.1, battery_percent: 75, occupancy_detected: true,
+    illuminance_raw: 42, contact_open: true,
+  });
+  const sensorOnly = projectNodes([{ node_id: "s", available: false, attributes: { "2/29/1": [1026] } }], "c", () => undefined)[0];
+  assert.equal(sensorOnly?.device_class, "matter_device");
+  assert.deepEqual(redact({ nested: { api_token: "canary", safe: "ok" }, list: [{ fabric_secret: "x" }] }), {
+    nested: { api_token: "[REDACTED]", safe: "ok" }, list: [{ fabric_secret: "[REDACTED]" }],
+  });
+  assert.equal(publicErrorCode({ code: "BOUNDED_FAILURE" }), "bounded_failure");
+  assert.equal(publicErrorCode(new Error("credential canary")), "internal_error");
+});
+
 test("app reports repairs and validates route edge cases", async () => {
   let status = {
     connected: false, stream_id: null as string | null, cursor: 7, last_reconciled_at: null,
@@ -65,7 +92,7 @@ test("app reports repairs and validates route edge cases", async () => {
     list: () => [],
     set: async (value: unknown) => value,
   } as unknown as ConfigStore;
-  const app = createApp(reconciler, sidecar, configs);
+  const app = createApp(reconciler, sidecar, configs, { allowUnauthenticatedForTests: true, allowMutations: true });
   cleanups.push(() => app.close());
   await app.ready();
 
@@ -92,7 +119,7 @@ test("app reports repairs and validates route edge cases", async () => {
   currentEntities = [];
   const upstreamError = await app.inject({ method: "GET", url: "/preflight" });
   assert.equal(upstreamError.statusCode, 502);
-  assert.equal(upstreamError.json().message, "sidecar down");
+  assert.equal(upstreamError.json().error, "internal_error");
 });
 
 test("production authorization rejects a missing token and accepts bearer credentials", async () => {
@@ -221,7 +248,7 @@ test("app classifies sidecar failures without forwarding upstream bodies", async
   const sidecar = {
     preflight: async () => { throw new SidecarRequestError(statuses[index++]!); },
   } as unknown as SidecarClient;
-  const app = createApp(reconciler, sidecar, { list: () => [] } as unknown as ConfigStore);
+  const app = createApp(reconciler, sidecar, { list: () => [] } as unknown as ConfigStore, { allowUnauthenticatedForTests: true });
   cleanups.push(() => app.close());
   await app.ready();
   const expected = [
@@ -254,10 +281,26 @@ test("settings validate production credentials and normalize optional values", (
     PIPHI_CONTAINER_ID: "container",
     PIPHI_CONFIG_ID: "config",
   }), {
-    sidecarUrl: "http://sidecar", sidecarToken: "shared", configPath: "/app/data/config.json", reconcileIntervalMs: 5000,
+    sidecarUrl: "http://sidecar", sidecarToken: "shared", configPath: "/app/data/config.json", reconcileIntervalMs: 5000, allowMutations: false,
     telemetryEndpoint: "http://core/telemetry", eventEndpoint: "http://core/events", coreContainerId: "container",
     coreToken: "shared", coreConfigId: "config",
   });
+});
+
+test("manifest, behavior, and catalog advertise only synchronized implemented coverage", async () => {
+  const root = new URL("../../", import.meta.url);
+  const manifest = JSON.parse(await readFile(new URL("manifest.json", root), "utf8"));
+  const behaviors = JSON.parse(await readFile(new URL("src/behaviors.json", root), "utf8"));
+  const catalog = JSON.parse(await readFile(new URL("capability-catalog.json", root), "utf8"));
+  const implemented = new Set(catalog.capabilities.filter((row: { status: string }) => row.status === "implemented").map((row: { id: string }) => row.id));
+  const advertised = new Set(behaviors.devices.flatMap((device: { capabilities: string[] }) => device.capabilities));
+  assert.deepEqual([...advertised].sort(), [...implemented].sort());
+  assert.deepEqual(Object.keys(manifest.capabilities).sort(), [...implemented].sort());
+  for (const row of catalog.capabilities.filter((item: { status: string }) => item.status !== "implemented")) {
+    assert.equal(advertised.has(row.id), false);
+  }
+  assert.equal(manifest.requires.services[0].id, "piphi.service.matter-sidecar");
+  assert.equal(manifest.requires.services[0].auto_install, true);
 });
 
 function send(response: ServerResponse, status: number, value?: unknown): void {

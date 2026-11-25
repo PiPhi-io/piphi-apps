@@ -19,6 +19,7 @@ import type {
   MatterEvent,
   MatterNodeSnapshot,
 } from "./types.js";
+import { redact } from "./redaction.js";
 
 export class MatterJsBackend implements MatterBackend {
   #child: ChildProcess | undefined;
@@ -327,7 +328,7 @@ export function toPublicMatterEvent(event: EventMessage): PublicMatterEvent | un
         path,
         cluster_id: clusterId,
         attribute_id: attributeId ?? null,
-        value: sanitize(value),
+        value: redact(sanitize(value)),
       },
     };
   }
@@ -342,7 +343,7 @@ export function toPublicMatterEvent(event: EventMessage): PublicMatterEvent | un
         event_id: event.data.event_id,
         event_number: String(event.data.event_number),
         priority: event.data.priority,
-        data: sanitize(event.data.data),
+        data: redact(sanitize(event.data.data)),
       },
     };
   }

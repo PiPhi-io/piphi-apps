@@ -1,28 +1,34 @@
 {
   "behaviorSchemaVersion": "integration.behaviors.v2",
   "devices": [{
-    "id": "matter_on_off_endpoint", "name": "Matter switch", "description": "A negotiated Matter On/Off endpoint",
-    "deviceClass": "switch", "entityType": "switch", "capabilities": ["connected", "switch_on", "turn_on", "turn_off", "toggle"],
-    "conditions": [{
-      "id": "is_on", "label": "Is on", "type": "boolean", "capability": "sensor.switch_on", "operators": ["eq"],
-      "runtime": { "source": "state", "field": "switch_on", "operator": "eq" },
-      "freshness": { "maxAgeSeconds": 60, "staleDataMode": "block" }, "ui": { "group": "only_if" }
-    }],
-    "actions": [
-      { "id": "turn_on", "label": "Turn on", "capability": "action.turn_on", "runtime": { "command": "turn_on" }, "safety": { "riskLevel": "low" } },
-      { "id": "turn_off", "label": "Turn off", "capability": "action.turn_off", "runtime": { "command": "turn_off" }, "safety": { "riskLevel": "low" } },
-      { "id": "toggle", "label": "Toggle", "capability": "action.toggle", "runtime": { "command": "toggle" }, "safety": { "riskLevel": "low" } }
+    "id": "matter_endpoint", "name": "Negotiated Matter endpoint", "description": "A capability-negotiated endpoint owned by the managed Matter controller",
+    "deviceClass": "matter_device", "entityType": "matter_device",
+    "capabilities": ["connected", "switch_on", "brightness_percent", "temperature_c", "humidity_percent", "battery_percent", "contact_open", "occupancy_detected", "illuminance_raw", "refresh", "turn_on", "turn_off", "toggle"],
+    "conditions": [
+      { "id": "is_on", "label": "Is on", "type": "boolean", "capability": "switch.power", "capabilityRequirements": ["switch_on"], "operators": ["eq", "neq"], "runtime": { "source": "state", "field": "switch_on", "operator": "eq" }, "freshness": { "maxAgeSeconds": 60, "staleDataMode": "block" }, "ui": { "group": "only_if" } },
+      { "id": "temperature_threshold", "label": "Temperature threshold", "type": "number", "capability": "sensor.temperature_c", "capabilityRequirements": ["temperature_c"], "operators": [">", ">=", "<", "<=", "eq"], "runtime": { "source": "state", "field": "temperature_c", "operator": ">" }, "freshness": { "maxAgeSeconds": 180, "staleDataMode": "block" }, "ui": { "group": "only_if" } },
+      { "id": "humidity_threshold", "label": "Humidity threshold", "type": "number", "capability": "sensor.humidity_percent", "capabilityRequirements": ["humidity_percent"], "operators": [">", ">=", "<", "<=", "eq"], "runtime": { "source": "state", "field": "humidity_percent", "operator": ">" }, "freshness": { "maxAgeSeconds": 180, "staleDataMode": "block" }, "ui": { "group": "only_if" } },
+      { "id": "contact_is_open", "label": "Contact is open", "type": "boolean", "capability": "contact.open", "capabilityRequirements": ["contact_open"], "operators": ["eq", "neq"], "runtime": { "source": "state", "field": "contact_open", "operator": "eq" }, "freshness": { "maxAgeSeconds": 180, "staleDataMode": "block" }, "ui": { "group": "only_if" } }
     ],
-    "triggers": [{
-      "id": "state_changed", "label": "Switch state changes", "capability": "telemetry.state",
-      "runtime": { "event": "device.state_changed", "source": "integration" },
-      "freshness": { "maxAgeSeconds": 60, "staleDataMode": "block" }, "ui": { "group": "when" }
-    }],
-    "ui": { "icon": "power", "category": "switch" }
+    "actions": [
+      { "id": "refresh", "label": "Refresh", "capability": "device.refresh", "runtime": { "command": "refresh" }, "failure": { "strategy": "retry_then_stop", "retry": { "maxAttempts": 1, "delaySeconds": 1, "backoff": "fixed" }, "timeoutSeconds": 15, "idempotent": true }, "safety": { "riskLevel": "low" } },
+      { "id": "turn_on", "label": "Turn on", "capability": "switch.turn_on", "capabilityRequirements": ["switch_on"], "runtime": { "command": "turn_on" }, "failure": { "strategy": "stop_on_error", "timeoutSeconds": 15, "idempotent": true }, "safety": { "riskLevel": "medium" } },
+      { "id": "turn_off", "label": "Turn off", "capability": "switch.turn_off", "capabilityRequirements": ["switch_on"], "runtime": { "command": "turn_off" }, "failure": { "strategy": "stop_on_error", "timeoutSeconds": 15, "idempotent": true }, "safety": { "riskLevel": "medium" } },
+      { "id": "toggle", "label": "Toggle", "capability": "switch.toggle", "capabilityRequirements": ["switch_on"], "runtime": { "command": "toggle" }, "failure": { "strategy": "stop_on_error", "timeoutSeconds": 15, "idempotent": false }, "safety": { "riskLevel": "medium", "requiresConfirmation": true } }
+    ],
+    "triggers": [{ "id": "state_changed", "label": "State changes", "capability": "telemetry.state", "runtime": { "event": "device.state_changed", "source": "integration" }, "freshness": { "maxAgeSeconds": 180, "staleDataMode": "block" }, "ui": { "group": "when" } }],
+    "ui": { "icon": "hub", "category": "matter_device" }
   }],
   "templates": [],
   "telemetry": { "capabilityMappings": [
     { "nativeMetric": "connected", "capability": "sensor.connected" },
-    { "nativeMetric": "switch_on", "capability": "sensor.switch_on" }
+    { "nativeMetric": "switch_on", "capability": "switch.power" },
+    { "nativeMetric": "brightness_percent", "capability": "light.brightness" },
+    { "nativeMetric": "temperature_c", "capability": "sensor.temperature_c" },
+    { "nativeMetric": "humidity_percent", "capability": "sensor.humidity_percent" },
+    { "nativeMetric": "battery_percent", "capability": "sensor.battery_percent" },
+    { "nativeMetric": "contact_open", "capability": "contact.open" },
+    { "nativeMetric": "occupancy_detected", "capability": "occupancy.detected" },
+    { "nativeMetric": "illuminance_raw", "capability": "sensor.illuminance" }
   ] }
 }

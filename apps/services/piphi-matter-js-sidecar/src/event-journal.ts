@@ -11,6 +11,7 @@ export class MatterEventJournal {
   readonly #events: SequencedMatterEvent[] = [];
   #latestSequence = 0;
   #dropped = 0;
+  #malformed = 0;
 
   constructor(readonly capacity = 1000) {
     if (!Number.isInteger(capacity) || capacity < 1) throw new RangeError("Event journal capacity must be positive");
@@ -19,8 +20,15 @@ export class MatterEventJournal {
   get size(): number { return this.#events.length; }
   get latestSequence(): number { return this.#latestSequence; }
   get dropped(): number { return this.#dropped; }
+  get malformed(): number { return this.#malformed; }
 
   append(event: MatterEvent): SequencedMatterEvent {
+    if (!validEvent(event)) {
+      this.#malformed += 1;
+      throw new TypeError("Malformed Matter event rejected");
+    }
+    const duplicate = this.#events.find((item) => item.id === event.id);
+    if (duplicate) return duplicate;
     const record = { ...event, sequence: ++this.#latestSequence };
     this.#events.push(record);
     if (this.#events.length > this.capacity) {
@@ -64,6 +72,13 @@ export class MatterEventJournal {
       events,
     };
   }
+}
+
+function validEvent(event: MatterEvent): boolean {
+  return Boolean(event && typeof event.id === "string" && event.id.length <= 200
+    && typeof event.type === "string" && /^[a-z0-9_.-]{1,100}$/i.test(event.type)
+    && typeof event.timestamp === "string" && !Number.isNaN(Date.parse(event.timestamp))
+    && event.payload && typeof event.payload === "object" && !Array.isArray(event.payload));
 }
 
 export class EventCursorExpiredError extends Error {

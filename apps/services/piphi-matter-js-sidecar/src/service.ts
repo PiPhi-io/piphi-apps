@@ -14,6 +14,7 @@ import type {
 } from "./types.js";
 
 const THREAD_DATASET_PENDING_MARKER = ".piphi-thread-dataset-pending";
+const MAX_CONCURRENT_COMMANDS = 16;
 
 export class MatterSidecarService {
   readonly #configs = new Map<string, ConfiguredEndpoint>();
@@ -23,6 +24,7 @@ export class MatterSidecarService {
   #unsubscribe: (() => void) | undefined;
   #backupQuiesced = false;
   #networkProvisioning = false;
+  #activeCommands = 0;
 
   constructor(
     readonly backend: MatterBackend,
@@ -92,9 +94,12 @@ export class MatterSidecarService {
       configured_endpoint_count: this.#configs.size,
       queued_event_count: this.#eventJournal.size,
       dropped_event_count: this.#eventJournal.dropped,
+      malformed_event_count: this.#eventJournal.malformed,
       event_stream_id: this.#eventJournal.streamId,
       latest_event_sequence: this.#eventJournal.latestSequence,
       backup_quiesced: this.#backupQuiesced,
+      active_command_count: this.#activeCommands,
+      command_capacity: MAX_CONCURRENT_COMMANDS,
       last_error: this.#lastError ?? null,
     };
   }
@@ -110,12 +115,14 @@ export class MatterSidecarService {
 
   async commission(setupCode: string, networkOnly = false): Promise<MatterEndpoint[]> {
     if (!setupCode.trim()) throw new Error("setup_payload is required");
-    const node = await this.backend.commissionWithCode(setupCode.trim(), networkOnly);
-    const endpoints = normalizeNode(node);
-    for (const endpoint of endpoints) {
-      await this.configure(endpoint.nodeId, endpoint.endpointId);
+    if (this.#networkProvisioning) throw statusError(409, "network_provisioning_in_progress");
+    this.#networkProvisioning = true;
+    try {
+      const node = await this.backend.commissionWithCode(setupCode.trim(), networkOnly);
+      return await this.#commitCommissionedNode(node);
+    } finally {
+      this.#networkProvisioning = false;
     }
-    return endpoints;
   }
 
   async provisionWifi(setupCode: string, ssid: string, credentials: string): Promise<MatterEndpoint[]> {
@@ -139,9 +146,7 @@ export class MatterSidecarService {
         discoveryTimeoutSeconds: 180,
         timeoutMs: 300_000,
       });
-      const endpoints = normalizeNode(node);
-      for (const endpoint of endpoints) await this.configure(endpoint.nodeId, endpoint.endpointId);
-      return endpoints;
+      return await this.#commitCommissionedNode(node);
     } catch (error) {
       operationFailed = true;
       throw error;
@@ -151,44 +156,6 @@ export class MatterSidecarService {
       } catch {
         this.#lastError = "Temporary Wi-Fi credential cleanup failed";
         if (!operationFailed) throw statusError(500, "wifi_credential_cleanup_failed");
-      } finally {
-        this.#networkProvisioning = false;
-      }
-    }
-  }
-
-  async provisionThread(setupCode: string, operationalDataset: string): Promise<MatterEndpoint[]> {
-    if (!setupCode.trim()) throw statusError(400, "setup_payload_required");
-    const dataset = operationalDataset.trim();
-    if (!validOperationalDataset(dataset)) throw statusError(400, "thread_operational_dataset_invalid");
-    if (this.#networkProvisioning) throw statusError(409, "network_provisioning_in_progress");
-
-    this.#networkProvisioning = true;
-    let cleanupPending = false;
-    let operationFailed = false;
-    try {
-      await this.#markThreadDatasetPending();
-      cleanupPending = true;
-      await this.backend.setThreadDataset(dataset);
-      const node = await this.backend.commissionWithCode(setupCode.trim(), false, {
-        discoveryTimeoutSeconds: 180,
-        timeoutMs: 300_000,
-      });
-      const endpoints = normalizeNode(node);
-      for (const endpoint of endpoints) await this.configure(endpoint.nodeId, endpoint.endpointId);
-      return endpoints;
-    } catch (error) {
-      operationFailed = true;
-      throw error;
-    } finally {
-      try {
-        if (cleanupPending) {
-          await this.backend.clearThreadDataset();
-          await this.#clearThreadDatasetPending();
-        }
-      } catch {
-        this.#lastError = "Temporary Thread dataset cleanup failed";
-        if (!operationFailed) throw statusError(500, "thread_dataset_cleanup_failed");
       } finally {
         this.#networkProvisioning = false;
       }
@@ -207,11 +174,19 @@ export class MatterSidecarService {
   }
 
   async removeNode(nodeId: string): Promise<void> {
-    await this.backend.removeNode(nodeId);
+    const exists = (await this.backend.listNodes()).some((node) => node.nodeId === nodeId);
+    const previous = new Map(this.#configs);
     for (const key of [...this.#configs.keys()]) {
       if (key.startsWith(`${nodeId}:`)) this.#configs.delete(key);
     }
-    await this.#saveConfigs();
+    try {
+      await this.#saveConfigs();
+      if (exists) await this.backend.removeNode(nodeId);
+    } catch (error) {
+      this.#replaceConfigs(previous);
+      await this.#saveConfigs();
+      throw error;
+    }
   }
 
   listConfigs(): ConfiguredEndpoint[] {
@@ -228,8 +203,12 @@ export class MatterSidecarService {
       enabled: true,
       preferred_source: "matter",
     };
+    const previous = this.#configs.get(keyFor(nodeId, endpointId));
     this.#configs.set(keyFor(nodeId, endpointId), configured);
-    await this.#saveConfigs();
+    try { await this.#saveConfigs(); } catch (error) {
+      if (previous) this.#configs.set(keyFor(nodeId, endpointId), previous); else this.#configs.delete(keyFor(nodeId, endpointId));
+      throw error;
+    }
     return configured;
   }
 
@@ -269,13 +248,19 @@ export class MatterSidecarService {
   }
 
   async invoke(nodeId: string, endpointId: number, command: string, args: JsonObject): Promise<JsonObject> {
-    if (!isSupportedCommand(command)) throw new Error(`Unsupported command: ${command}`);
-    const endpoint = (await this.discover(nodeId)).find((item) => item.endpointId === endpointId);
-    if (!endpoint) throw new Error(`Matter endpoint ${nodeId}/${endpointId} was not found`);
-    if (!endpoint.commandBindings.includes(command)) throw new Error(`Command ${command} is unavailable for ${nodeId}/${endpointId}`);
-    if (command !== "refresh" && Object.keys(args).length > 0) throw new Error(`${command} does not accept arguments`);
-    const result = await this.backend.invoke(nodeId, endpointId, command, args);
-    return { ok: true, node_id: nodeId, endpoint_id: endpointId, command, result: result ?? null };
+    if (this.#activeCommands >= MAX_CONCURRENT_COMMANDS) throw statusError(429, "matter_command_capacity_exhausted");
+    this.#activeCommands += 1;
+    try {
+      if (!isSupportedCommand(command)) throw new Error(`Unsupported command: ${command}`);
+      const endpoint = (await this.discover(nodeId)).find((item) => item.endpointId === endpointId);
+      if (!endpoint) throw new Error(`Matter endpoint ${nodeId}/${endpointId} was not found`);
+      if (!endpoint.commandBindings.includes(command)) throw new Error(`Command ${command} is unavailable for ${nodeId}/${endpointId}`);
+      if (command !== "refresh" && Object.keys(args).length > 0) throw new Error(`${command} does not accept arguments`);
+      const result = await this.backend.invoke(nodeId, endpointId, command, args);
+      return { ok: true, node_id: nodeId, endpoint_id: endpointId, command, result: result ?? null };
+    } finally {
+      this.#activeCommands -= 1;
+    }
   }
 
   events(after?: string): MatterEvent[] {
@@ -319,7 +304,7 @@ export class MatterSidecarService {
   }
 
   #recordEvent(event: MatterEvent): void {
-    this.#eventJournal.append(event);
+    try { this.#eventJournal.append(event); } catch { this.#lastError = "Malformed backend event rejected"; }
   }
 
   get #configPath(): string {
@@ -342,6 +327,27 @@ export class MatterSidecarService {
     await rename(temporary, this.#configPath);
   }
 
+  async #commitCommissionedNode(node: Awaited<ReturnType<MatterBackend["commissionWithCode"]>>): Promise<MatterEndpoint[]> {
+    const endpoints = normalizeNode(node);
+    const previous = new Map(this.#configs);
+    for (const endpoint of endpoints) {
+      this.#configs.set(keyFor(endpoint.nodeId, endpoint.endpointId), {
+        node_id: endpoint.nodeId, endpoint_id: endpoint.endpointId, enabled: true, preferred_source: "matter",
+      });
+    }
+    try { await this.#saveConfigs(); } catch (error) {
+      this.#replaceConfigs(previous);
+      try { await this.backend.removeNode(node.nodeId); } catch { this.#lastError = "Commission rollback requires operator repair"; }
+      throw error;
+    }
+    return endpoints;
+  }
+
+  #replaceConfigs(items: Map<string, ConfiguredEndpoint>): void {
+    this.#configs.clear();
+    for (const [key, item] of items) this.#configs.set(key, item);
+  }
+
   async #threadDatasetCleanupPending(): Promise<boolean> {
     try {
       await access(join(this.settings.storageDir, THREAD_DATASET_PENDING_MARKER));
@@ -350,11 +356,6 @@ export class MatterSidecarService {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
       throw error;
     }
-  }
-
-  async #markThreadDatasetPending(): Promise<void> {
-    await mkdir(this.settings.storageDir, { recursive: true, mode: 0o700 });
-    await writeFile(join(this.settings.storageDir, THREAD_DATASET_PENDING_MARKER), "pending\n", { mode: 0o600 });
   }
 
   async #clearThreadDatasetPending(): Promise<void> {
@@ -414,10 +415,6 @@ function safeMessage(error: unknown): string {
 function validSsid(ssid: string): boolean {
   const bytes = Buffer.byteLength(ssid, "utf8");
   return ssid.trim() === ssid && bytes >= 1 && bytes <= 32;
-}
-
-function validOperationalDataset(dataset: string): boolean {
-  return dataset.length >= 32 && dataset.length <= 508 && dataset.length % 2 === 0 && /^[a-fA-F0-9]+$/.test(dataset);
 }
 
 function statusError(statusCode: number, message: string): Error & { statusCode: number } {

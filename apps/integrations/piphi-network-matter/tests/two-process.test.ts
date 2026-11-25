@@ -39,6 +39,7 @@ test("real parent and sidecar processes route commands, Core delivery, gaps, and
         PIPHI_INTEGRATION_INTERNAL_TOKEN: "parent-process-secret",
         PIPHI_MATTER_CONFIG_PATH: join(directory, "parent-config.json"),
         PIPHI_MATTER_RECONCILE_INTERVAL_MS: "250",
+        PIPHI_MATTER_ALLOW_CONTROL: "true",
         PIPHI_TELEMETRY_ENDPOINT: core.url,
         PIPHI_EVENTS_ENDPOINT: core.eventUrl,
         PIPHI_CONTAINER_ID: "matter-parent-process",

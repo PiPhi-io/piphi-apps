@@ -4,20 +4,28 @@ import { registerCoreAuthorization } from "./authorization.js";
 import type { ConfigStore } from "./config-store.js";
 import type { Reconciler } from "./reconciler.js";
 import { SidecarRequestError, type SidecarClient } from "./sidecar-client.js";
+import { publicErrorCode, redact } from "./redaction.js";
+import type { JsonObject } from "./types.js";
 
 interface ConfigBody { node_id?: string; endpoint_id?: number; alias?: string; enabled?: boolean }
 interface CommandBody { command?: string; node_id?: string; endpoint_id?: number; entity_id?: string }
 interface CommissionBody { setup_payload?: string; network_only?: boolean }
 interface WifiCommissionBody { setup_payload?: string; ssid?: string; credentials?: string }
-interface ThreadCommissionBody { setup_payload?: string; operational_dataset?: string; experimental_acknowledgement?: string }
 
-export function createApp(reconciler: Reconciler, sidecar: SidecarClient, configs: ConfigStore): FastifyInstance {
+export function createApp(reconciler: Reconciler, sidecar: SidecarClient, configs: ConfigStore, options: {
+  allowUnauthenticatedForTests?: boolean;
+  allowMutations?: boolean;
+} = {}): FastifyInstance {
   const app = Fastify({ logger: process.env.NODE_ENV !== "test" && process.env.NODE_TEST_CONTEXT === undefined });
-  registerCoreAuthorization(app);
+  registerCoreAuthorization(app, options.allowUnauthenticatedForTests);
 
   app.addHook("onReady", async () => reconciler.start());
   app.addHook("onClose", async () => reconciler.stop());
-  app.get("/health", async (_request, reply) => reply.code(reconciler.status().connected ? 200 : 503).send({ ok: reconciler.status().connected, reconciliation: reconciler.status() }));
+  app.get("/health", async (_request, reply) => {
+    const status = reconciler.status();
+    const ok = status.connected && status.stream_id !== null;
+    return reply.code(ok ? 200 : 503).send(redact({ ok, ready: ok, dependencies: { matter_sidecar: status.connected }, reconciliation: status }));
+  });
   app.get("/entities", async () => ({ entities: reconciler.entities() }));
   app.get("/state", async () => ({ sampled_at: new Date().toISOString(), entities: reconciler.entities().map(({ id, device_id, state }) => ({ id, device_id, state })) }));
   app.post("/telemetry", async () => ({ results: await reconciler.deliverTelemetry() }));
@@ -41,7 +49,8 @@ export function createApp(reconciler: Reconciler, sidecar: SidecarClient, config
     supported_scope: {
       transports: ["ethernet", "wifi_on_network"],
       device_features: ["on_off"],
-      experimental: ["ble", "thread"],
+      experimental: ["ble"],
+      excluded: ["thread"],
     },
   }));
   app.get("/repairs", async () => {
@@ -72,7 +81,7 @@ export function createApp(reconciler: Reconciler, sidecar: SidecarClient, config
     }
     return { schema_version: "piphi.matter.repairs.v1", issues };
   });
-  app.get("/preflight", async () => sidecar.preflight());
+  app.get("/preflight", async () => redact(await sidecar.preflight()));
   app.post<{ Body: { confirmation?: string } }>("/backup/quiesce", async (request, reply) => {
     if (request.body?.confirmation !== "quiesce-matter-controller") {
       return reply.code(400).send({ ok: false, error: "backup_quiesce_confirmation_required" });
@@ -89,7 +98,7 @@ export function createApp(reconciler: Reconciler, sidecar: SidecarClient, config
     if (!Number.isInteger(timeoutSeconds) || timeoutSeconds < 1 || timeoutSeconds > 60) {
       return reply.code(400).send({ ok: false, error: "timeout_seconds_must_be_between_1_and_60" });
     }
-    return { commissionables: await sidecar.commissionables(timeoutSeconds) };
+    return { commissionables: redact(await sidecar.commissionables(timeoutSeconds)) };
   });
   app.post<{ Body: CommissionBody }>("/commissioning/code", async (request, reply) => {
     const setupPayload = request.body?.setup_payload?.trim() ?? "";
@@ -129,22 +138,9 @@ export function createApp(reconciler: Reconciler, sidecar: SidecarClient, config
       reconciled_entity_count: reconciler.entities().length,
     });
   });
-  app.post<{ Body: ThreadCommissionBody }>("/commissioning/thread", async (request, reply) => {
-    const setupPayload = request.body?.setup_payload?.trim() ?? "";
-    const operationalDataset = request.body?.operational_dataset?.trim() ?? "";
-    if (!setupPayload) return reply.code(400).send({ ok: false, error: "setup_payload_required" });
-    if (!operationalDataset) return reply.code(400).send({ ok: false, error: "thread_operational_dataset_required" });
-    if (request.body?.experimental_acknowledgement !== "thread") {
-      return reply.code(400).send({ ok: false, error: "thread_experimental_acknowledgement_required" });
-    }
-    const result = await sidecar.provisionThread(setupPayload, operationalDataset);
-    await reconciler.fullSnapshot();
-    return reply.code(201).send({
-      ok: true,
-      node_id: result.node_id ?? null,
-      reconciled_entity_count: reconciler.entities().length,
-      experimental: "thread",
-    });
+  app.post("/commissioning/thread", async (request, reply) => {
+    void request;
+    return reply.code(410).send({ ok: false, error: "thread_commissioning_out_of_scope" });
   });
   app.post<{ Params: { nodeId: string }; Body: { confirm_node_id?: string } }>("/nodes/:nodeId/decommission", async (request, reply) => {
     if (request.body?.confirm_node_id !== request.params.nodeId) {
@@ -153,8 +149,15 @@ export function createApp(reconciler: Reconciler, sidecar: SidecarClient, config
     const controllerIdentityHash = reconciler.entities().find((entity) => (
       entity.metadata.node_id === request.params.nodeId
     ))?.metadata.controller_identity_hash;
-    const result = await sidecar.decommissionNode(request.params.nodeId);
+    const previousConfigs = configs.list();
     const removed_config_count = await configs.removeNode(request.params.nodeId, controllerIdentityHash);
+    let result: JsonObject;
+    try {
+      result = await sidecar.decommissionNode(request.params.nodeId);
+    } catch (error) {
+      await configs.replaceAll(previousConfigs);
+      throw error;
+    }
     await reconciler.fullSnapshot();
     return { ok: true, node_id: request.params.nodeId, removed_config_count, result };
   });
@@ -167,6 +170,7 @@ export function createApp(reconciler: Reconciler, sidecar: SidecarClient, config
       entity.metadata.node_id === nodeId && entity.metadata.endpoint_id === endpointId
     ));
     if (!target) return reply.code(404).send({ ok: false, error: "matter_endpoint_not_found" });
+    const previous = configs.get(target.metadata.controller_identity_hash, nodeId, endpointId);
     const item = await configs.set({
       controller_identity_hash: target.metadata.controller_identity_hash,
       node_id: nodeId,
@@ -174,7 +178,13 @@ export function createApp(reconciler: Reconciler, sidecar: SidecarClient, config
       enabled: request.body.enabled ?? true,
       ...(request.body.alias ? { alias: request.body.alias } : {}),
     });
-    await reconciler.fullSnapshot();
+    try {
+      await reconciler.fullSnapshot();
+    } catch (error) {
+      if (previous) await configs.set(previous);
+      else await configs.delete(target.metadata.controller_identity_hash, nodeId, endpointId);
+      throw error;
+    }
     return item;
   });
   app.post<{ Body: CommandBody }>("/command", async (request, reply) => {
@@ -183,25 +193,31 @@ export function createApp(reconciler: Reconciler, sidecar: SidecarClient, config
     const target = resolveTarget(request.body, reconciler);
     if (!target) return reply.code(404).send({ ok: false, error: "entity_not_found" });
     if (!target.available_commands.includes(command)) return reply.code(422).send({ ok: false, error: "command_not_negotiated" });
-    const result = await sidecar.command(target.metadata.node_id, target.metadata.endpoint_id, command);
+    if (command !== "refresh" && options.allowMutations !== true) {
+      return reply.code(403).send({ ok: false, error: "matter_control_disabled" });
+    }
+    const idempotencyKey = String(request.headers["x-piphi-idempotency-key"] ?? "").trim();
+    if (command === "toggle" && !idempotencyKey) {
+      return reply.code(400).send({ ok: false, error: "idempotency_key_required" });
+    }
+    const result = await sidecar.command(target.metadata.node_id, target.metadata.endpoint_id, command, idempotencyKey || undefined);
     await reconciler.fullSnapshot();
     return { ok: true, entity_id: target.id, command, result };
   });
   app.setErrorHandler((error, _request, reply) => {
     if (error instanceof SidecarRequestError) {
-      const classified = classifySidecarError(error.status);
+      const classified = classifySidecarError(error.status, error.code);
       return reply.code(classified.status).send({ ok: false, error: classified.code });
     }
-    return reply.code(502).send({
-      ok: false,
-      error: "upstream_error",
-      message: error instanceof Error ? error.message : String(error),
-    });
+    return reply.code(502).send({ ok: false, error: publicErrorCode(error) });
   });
   return app;
 }
 
-function classifySidecarError(status: number): { status: 404 | 409 | 422 | 502 | 503; code: string } {
+function classifySidecarError(status: number, code?: string): { status: 403 | 404 | 409 | 422 | 502 | 503; code: string } {
+  if (status === 403 && ["matter_control_disabled", "matter_commissioning_disabled"].includes(code ?? "")) {
+    return { status: 403, code: code! };
+  }
   if (status === 400 || status === 422) return { status: 422, code: "matter_operation_rejected" };
   if (status === 404) return { status: 404, code: "matter_resource_not_found" };
   if (status === 409) return { status: 409, code: "matter_operation_conflict" };

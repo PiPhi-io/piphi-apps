@@ -1,4 +1,4 @@
-import { projectOnOffNodes } from "./capabilities.js";
+import { projectNodes } from "./capabilities.js";
 import type { ConfigStore } from "./config-store.js";
 import type { CoreClient } from "./core-client.js";
 import type { SidecarClient } from "./sidecar-client.js";
@@ -12,6 +12,8 @@ export class Reconciler {
   #lastError: string | undefined;
   #lastDeliveryError: string | undefined;
   #lastReconciledAt: string | undefined;
+  #consecutiveFailures = 0;
+  #nextRetryAt: string | undefined;
 
   constructor(
     private readonly sidecar: SidecarClient,
@@ -30,6 +32,9 @@ export class Reconciler {
       last_error: this.#lastError ? "sidecar_unavailable" : null,
       delivery_error: this.#lastDeliveryError ? "core_delivery_failed" : null,
       entity_count: this.#entities.size,
+      stale: Boolean(this.#lastError && this.#lastReconciledAt),
+      consecutive_failures: this.#consecutiveFailures,
+      next_retry_at: this.#nextRetryAt ?? null,
     };
   }
 
@@ -40,8 +45,7 @@ export class Reconciler {
     } catch (error) {
       this.#lastError = error instanceof Error ? error.message : String(error);
     }
-    this.#timer = setInterval(() => { void this.poll().catch(() => undefined); }, this.intervalMs);
-    this.#timer.unref();
+    this.#schedulePoll(this.intervalMs);
   }
 
   stop(): void { if (this.#timer) clearInterval(this.#timer); this.#timer = undefined; }
@@ -69,8 +73,11 @@ export class Reconciler {
       if (page.events.length > 0) await this.fullSnapshot();
       else this.#cursor = page.next_cursor;
       this.#lastError = undefined;
+      this.#consecutiveFailures = 0;
+      this.#nextRetryAt = undefined;
     } catch (error) {
       this.#lastError = error instanceof Error ? error.message : String(error);
+      this.#consecutiveFailures += 1;
       throw error;
     }
   }
@@ -81,7 +88,7 @@ export class Reconciler {
 
   #applySnapshot(snapshot: SidecarSnapshot): Array<{ entity: ProjectedEntity; previous?: ProjectedEntity }> {
     const next = new Map<string, ProjectedEntity>();
-    const entities = projectOnOffNodes(snapshot.nodes, snapshot.controller.identity_hash, (nodeId, endpointId) => {
+    const entities = projectNodes(snapshot.nodes, snapshot.controller.identity_hash, (nodeId, endpointId) => {
       return this.configs.get(snapshot.controller.identity_hash, nodeId, endpointId)?.alias;
     });
     for (const entity of entities) {
@@ -103,6 +110,19 @@ export class Reconciler {
     this.#cursor = snapshot.latest_sequence;
     this.#lastReconciledAt = new Date().toISOString();
     this.#lastError = undefined;
+    this.#consecutiveFailures = 0;
+    this.#nextRetryAt = undefined;
     return changed;
+  }
+
+  #schedulePoll(delayMs: number): void {
+    if (this.#timer) clearTimeout(this.#timer);
+    this.#nextRetryAt = new Date(Date.now() + delayMs).toISOString();
+    this.#timer = setTimeout(async () => {
+      try { await this.poll(); } catch { /* Last-good state remains available while health is degraded. */ }
+      const backoff = Math.min(this.intervalMs * (2 ** Math.min(this.#consecutiveFailures, 5)), 60_000);
+      this.#schedulePoll(backoff);
+    }, delayMs);
+    this.#timer.unref();
   }
 }

@@ -11,6 +11,7 @@ import { registerSidecarAuthorization } from "./authorization.js";
 import { checkBluezAdapter, type BlePreflightResult } from "./ble-preflight.js";
 import { EventCursorExpiredError, MatterSidecarService } from "./service.js";
 import type { JsonObject } from "./types.js";
+import { publicErrorCode, redact } from "./redaction.js";
 
 interface CommandBody {
   node_id?: string;
@@ -27,12 +28,13 @@ interface CommandBody {
 export function createApp(service: MatterSidecarService, options: {
   blePreflight?: () => Promise<BlePreflightResult>;
   bleBinding?: string;
+  allowUnauthenticatedForTests?: boolean;
 } = {}): FastifyInstance {
   const app = Fastify({
     logger: process.env.NODE_ENV !== "test" && process.env.NODE_TEST_CONTEXT === undefined,
     pluginTimeout: 60_000,
   });
-  registerSidecarAuthorization(app);
+  registerSidecarAuthorization(app, options.allowUnauthenticatedForTests);
   const automations = new AutomationRegistry({
     idempotencyStore: new FileAutomationIdempotencyStore(
       process.env.PIPHI_AUTOMATION_LEDGER_DIR ?? `${service.settings.storageDir}/automation-actions`,
@@ -41,6 +43,7 @@ export function createApp(service: MatterSidecarService, options: {
 
   for (const command of supportedCommands) {
     automations.action(command, { label: `Matter ${command.replaceAll("_", " ")}` })(async (request) => {
+      if (command !== "refresh" && !service.settings.allowControl) throw statusError(403, "matter_control_disabled");
       const target = request.target && typeof request.target === "object" ? request.target as JsonObject : {};
       const nodeId = String(request.deviceId ?? target.node_id ?? "");
       const endpointId = Number(request.entityId ?? target.endpoint_id ?? 0);
@@ -53,10 +56,10 @@ export function createApp(service: MatterSidecarService, options: {
 
   app.get("/health", async (_request, reply) => {
     const ok = service.backend.connected;
-    return reply.code(ok ? 200 : 503).send({ ok, service: service.snapshot() });
+    return reply.code(ok ? 200 : 503).send(redact({ ok, ready: ok, dependencies: { matter_server: ok }, service: service.snapshot() }));
   });
   app.get("/v1/snapshot", async () => service.snapshot());
-  app.get("/diagnostics", async () => ({
+  app.get("/diagnostics", async () => redact({
     ok: service.backend.connected,
     diagnostics: service.snapshot(),
     security: {
@@ -100,7 +103,7 @@ export function createApp(service: MatterSidecarService, options: {
       external_ipv6: { status: externalIpv6 ? "pass" : "fail" },
       link_local_ipv6: { status: linkLocalIpv6 ? "pass" : "fail" },
       ble_commissioning: bleCheck,
-      thread_commissioning: { status: "experimental" },
+      thread_commissioning: { status: "excluded" },
     };
     return {
       schema_version: "piphi.matter.preflight.v1",
@@ -114,7 +117,7 @@ export function createApp(service: MatterSidecarService, options: {
   app.get<{ Querystring: { node_id?: string } }>("/v1/devices/discover", async (request) => {
     return (await service.discover(request.query.node_id)).map(discoveryRecord);
   });
-  app.get("/entities", async () => service.entities());
+  app.get("/entities", async () => ({ entities: [] }));
   app.get<{ Querystring: { timeout_seconds?: string } }>("/v1/discovery/commissionables", async (request) => {
     const timeout = boundedTimeout(request.query.timeout_seconds);
     return (await service.discoverCommissionables(timeout)).map((record) => ({
@@ -124,7 +127,7 @@ export function createApp(service: MatterSidecarService, options: {
       device_type: record.deviceType ?? null,
       long_discriminator: record.longDiscriminator ?? null,
       commissioning_mode: record.commissioningMode ?? null,
-      addresses: record.addresses,
+       address_count: record.addresses.length,
       metadata: {},
     }));
   });
@@ -143,6 +146,7 @@ export function createApp(service: MatterSidecarService, options: {
     });
   });
   app.post<{ Params: { nodeId: string }; Body: { confirm_node_id?: string } }>("/v1/nodes/:nodeId/decommission", async (request, reply) => {
+    if (!service.settings.allowCommissioning) return reply.code(403).send({ ok: false, error: "matter_commissioning_disabled" });
     if (request.body?.confirm_node_id !== request.params.nodeId) {
       return reply.code(400).send({
         ok: false,
@@ -162,6 +166,7 @@ export function createApp(service: MatterSidecarService, options: {
   app.post("/v1/admin/backup/resume", async () => service.resumeAfterBackup());
 
   app.post<{ Body: { setup_payload?: string; network_only?: boolean } }>("/v1/commission/code", async (request, reply) => {
+    if (!service.settings.allowCommissioning) return reply.code(403).send({ ok: false, error: "matter_commissioning_disabled" });
     const setupCode = request.body?.setup_payload ?? "";
     const endpoints = await service.commission(setupCode, request.body?.network_only ?? false);
     return reply.code(201).send({
@@ -171,6 +176,7 @@ export function createApp(service: MatterSidecarService, options: {
   });
 
   app.post<{ Body: { setup_payload?: string; ssid?: string; credentials?: string } }>("/v1/commission/wifi", async (request, reply) => {
+    if (!service.settings.allowCommissioning) return reply.code(403).send({ ok: false, error: "matter_commissioning_disabled" });
     const endpoints = await service.provisionWifi(
       request.body?.setup_payload ?? "",
       request.body?.ssid ?? "",
@@ -183,14 +189,8 @@ export function createApp(service: MatterSidecarService, options: {
   });
 
   app.post<{ Body: { setup_payload?: string; operational_dataset?: string } }>("/v1/commission/thread", async (request, reply) => {
-    const endpoints = await service.provisionThread(
-      request.body?.setup_payload ?? "",
-      request.body?.operational_dataset ?? "",
-    );
-    return reply.code(201).send({
-      node_id: endpoints[0]?.nodeId ?? null,
-      endpoints: endpoints.map(discoveryRecord),
-    });
+    void request;
+    return reply.code(410).send({ ok: false, error: "thread_commissioning_out_of_scope" });
   });
 
   app.post("/v1/credentials/wifi", async (_request, reply) => reply.code(410).send({
@@ -205,7 +205,7 @@ export function createApp(service: MatterSidecarService, options: {
   app.post("/v1/credentials/thread", async (_request, reply) => reply.code(410).send({
     ok: false,
     error: "persistent_thread_dataset_removed",
-    message: "Use /v1/commission/thread; PiPhi clears the dataset after that operation.",
+    message: "Thread commissioning is outside this release; only defensive cleanup remains available.",
   }));
   app.delete("/v1/credentials/thread", async (_request, reply) => {
     await service.backend.clearThreadDataset();
@@ -250,8 +250,7 @@ export function createApp(service: MatterSidecarService, options: {
       ? Number(error.statusCode)
       : 400;
     const statusCode = Number.isInteger(candidate) && candidate >= 400 ? candidate : 400;
-    const message = error instanceof Error ? error.message : String(error);
-    reply.code(statusCode).send({ ok: false, error: message });
+    reply.code(statusCode).send({ ok: false, error: publicErrorCode(error) });
   });
   return app;
 }
@@ -334,4 +333,8 @@ function discoveryRecord(endpoint: Awaited<ReturnType<MatterSidecarService["disc
 function boundedTimeout(value: string | undefined): number {
   const parsed = Number(value ?? 5);
   return Number.isInteger(parsed) && parsed >= 1 && parsed <= 60 ? parsed : 5;
+}
+
+function statusError(statusCode: number, code: string): Error & { statusCode: number; code: string } {
+  return Object.assign(new Error(code), { statusCode, code });
 }

@@ -1,6 +1,6 @@
 {
   "name": "piphi-matter-js-sidecar",
-  "version": "0.2.0-alpha.7",
+  "version": "0.2.0-alpha.8",
   "description": "Matter.js controller sidecar for PiPhi Network.",
   "type": "module",
   "scripts": {
@@ -8,8 +8,8 @@
     "build": "tsc -p tsconfig.json",
     "check": "tsc --noEmit -p tsconfig.json",
     "check:e2e": "tsc --ignoreConfig --noEmit --target ES2022 --module NodeNext --moduleResolution NodeNext --strict --skipLibCheck --types node src/jellybrick-dbus-next.d.ts src/proper-lockfile.d.ts scripts/qualify-backup-restore.ts scripts/qualify-release-image.ts tests/fixtures/virtual-onoff-light.ts tests/matter-server-virtual-e2e.test.ts",
-    "test": "node --test --import tsx tests/*.test.ts",
-    "test:coverage": "node --test --experimental-test-coverage --test-coverage-include='src/**/*.ts' --test-coverage-lines=95 --import tsx tests/*.test.ts",
+    "test": "NODE_ENV=test node --test --import tsx tests/*.test.ts",
+    "test:coverage": "NODE_ENV=test node --test --experimental-test-coverage --test-coverage-include='src/**/*.ts' --test-coverage-lines=95 --import tsx tests/*.test.ts",
     "qualify:backup-restore": "node --import tsx scripts/qualify-backup-restore.ts",
     "qualify:physical-hardware": "bash scripts/qualify-physical-hardware.sh",
     "qualify:release-image": "node --import tsx scripts/qualify-release-image.ts",

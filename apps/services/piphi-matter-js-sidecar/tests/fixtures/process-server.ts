@@ -44,6 +44,8 @@ const settings: MatterSettings = {
   enableBle: false,
   dclOffline: true,
   logManagedServer: false,
+  allowControl: true,
+  allowCommissioning: false,
 };
 const backend = new ProcessFixtureBackend();
 const service = new MatterSidecarService(backend, settings);

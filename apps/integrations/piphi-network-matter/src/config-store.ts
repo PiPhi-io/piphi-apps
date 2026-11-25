@@ -35,27 +35,48 @@ export class ConfigStore {
       enabled: item.enabled,
       ...(item.alias?.trim() ? { alias: item.alias.trim() } : {}),
     };
-    this.#items.set(key(item.controller_identity_hash, item.node_id, item.endpoint_id), normalized);
-    await this.save();
+    const next = new Map(this.#items);
+    next.set(key(item.controller_identity_hash, item.node_id, item.endpoint_id), normalized);
+    await this.save(next);
+    this.#replace(next);
     return normalized;
   }
 
   async removeNode(nodeId: string, controllerIdentityHash?: string): Promise<number> {
     let removed = 0;
-    for (const [itemKey, item] of this.#items) {
+    const next = new Map(this.#items);
+    for (const [itemKey, item] of next) {
       if (item.node_id !== nodeId
         || (controllerIdentityHash !== undefined && item.controller_identity_hash !== controllerIdentityHash)) continue;
-      this.#items.delete(itemKey);
+      next.delete(itemKey);
       removed += 1;
     }
-    if (removed > 0) await this.save();
+    if (removed > 0) { await this.save(next); this.#replace(next); }
     return removed;
   }
 
-  private async save(): Promise<void> {
+  async delete(controllerIdentityHash: string, nodeId: string, endpointId: number): Promise<boolean> {
+    const next = new Map(this.#items);
+    const removed = next.delete(key(controllerIdentityHash, nodeId, endpointId));
+    if (removed) { await this.save(next); this.#replace(next); }
+    return removed;
+  }
+
+  async replaceAll(items: EndpointConfig[]): Promise<void> {
+    const next = new Map(items.map((item) => [key(item.controller_identity_hash, item.node_id, item.endpoint_id), item]));
+    await this.save(next);
+    this.#replace(next);
+  }
+
+  private async save(items: Map<string, EndpointConfig>): Promise<void> {
     await mkdir(dirname(this.path), { recursive: true, mode: 0o700 });
     const temporary = `${this.path}.tmp`;
-    await writeFile(temporary, `${JSON.stringify(this.list(), null, 2)}\n`, { mode: 0o600 });
+    await writeFile(temporary, `${JSON.stringify([...items.values()], null, 2)}\n`, { mode: 0o600 });
     await rename(temporary, this.path);
+  }
+
+  #replace(items: Map<string, EndpointConfig>): void {
+    this.#items.clear();
+    for (const [itemKey, item] of items) this.#items.set(itemKey, item);
   }
 }

@@ -18,8 +18,9 @@ The original alpha used `chip-tool` subprocesses, regex parsing, and a manually 
 - Host networking for IPv6 and mDNS
 - BLE disabled by default and enabled explicitly with `MATTER_ENABLE_BLE=true`
 - PiPhi API and Matter.js backend bound to loopback by default
-- Production API routes require `PIPHI_MATTER_SIDECAR_TOKEN` (or the Core-injected internal token)
-- Mutating device commands restricted to negotiated, allow-listed actions
+- Every API route except `/health` requires `PIPHI_MATTER_SIDECAR_TOKEN` (or the Core-injected internal token)
+- Mutating device commands and commissioning are disabled by default and restricted to negotiated, allow-listed actions
+- The sidecar exposes no PiPhi device entities; the parent integration owns entity projection
 
 ## API
 
@@ -31,7 +32,7 @@ The original alpha used `chip-tool` subprocesses, regex parsing, and a manually 
 | `GET` | `/v1/discovery/commissionables` | Discover devices in commissioning mode |
 | `POST` | `/v1/commission/code` | Commission using a QR/manual setup payload |
 | `POST` | `/v1/commission/wifi` | Experimentally provision a factory-reset Wi-Fi device over BLE using write-only setup and network credentials |
-| `POST` | `/v1/commission/thread` | Experimentally commission a Thread device with a one-shot write-only operational dataset |
+| `POST` | `/v1/commission/thread` | Compatibility endpoint returning `410`; Thread is a separate workstream |
 | `GET` | `/v1/registry` | Matter.js-owned commissioned-node inventory |
 | `POST` | `/v1/nodes/:node/decommission` | Decommission a whole node after matching `confirm_node_id` |
 | `POST` | `/v1/admin/backup/quiesce` | Stop controller I/O while retaining its exclusive storage lease |
@@ -50,6 +51,11 @@ Credentials and setup payloads are never returned by health, discovery, telemetr
 The legacy endpoint-shaped registry deletion route returns `410` and never removes a node.
 The API refuses non-loopback binding; remote access must go through authenticated PiPhi Core APIs.
 Never clone and run a restored Matter storage directory concurrently with its source instance.
+
+Core must generate one high-entropy sidecar token and inject the same value as
+`PIPHI_MATTER_SIDECAR_TOKEN` into the sidecar and parent. `MATTER_ALLOW_CONTROL=true` enables only
+negotiated On/Off commands; `MATTER_ALLOW_COMMISSIONING=true` separately enables commissioning and
+confirmed decommissioning. Both consequential-action gates default to false.
 
 The release qualification command `npm run qualify:backup-restore` starts the real pinned
 Matter Server, creates a checksummed backup while quiesced, restores it into an empty target,
@@ -121,11 +127,9 @@ The setup payload, SSID, and password are never returned. Startup deletes any or
 Controller storage remains owner-only because a crash can leave a credential on disk until that
 cleanup completes; storage encryption is still recommended before promoting BLE beyond experimental status.
 
-`POST /v1/commission/thread` similarly writes a non-secret pending marker before installing the
-operational dataset for one serialized commissioning attempt, then removes both in `finally` after
-success or failure. Startup removes an orphaned Thread dataset only when that marker proves an
-operation was interrupted; unrelated startup does not mutate the credential store. Persistent
-Thread dataset writes return `410`.
+Thread commissioning and persistent Thread dataset writes return `410`. Startup retains a narrowly
+scoped cleanup path for interrupted pre-`alpha.8` operations, but new Thread credentials cannot be
+installed through this release.
 
 Qualify the exact release image on a Linux Docker host before promotion:
 
@@ -134,7 +138,7 @@ npm run qualify:release-image -- ghcr.io/piphi-io/matter-sidecar:0.2.0
 ```
 
 The qualifier inspects the image's non-root user and `/var/lib/piphi/matter` volume,
-then runs it with host networking, an allocated loopback port, a bearer token, and a
+then runs it with a read-only root filesystem, bounded `/tmp` tmpfs, host networking, an allocated loopback port, a bearer token, and a
 temporary named volume. It waits for the backend—not merely HTTP—to be healthy,
 checks snapshot authentication and schema 15, and proves that the hashed controller
 identity survives container replacement with the same volume. It always removes the
@@ -148,7 +152,7 @@ part of generic CI.
 This alpha has physical Wi-Fi plug and BLE-to-Wi-Fi commissioning evidence for a TP-Link KP125M
 (hardware 1.0, firmware 1.0.0), including subscriptions, restart, empty-volume controller restore,
 restored control, and decommissioning. It still requires representative Ethernet plugs, Wi-Fi
-lights, Thread commissioning through a border router, broader vendor/device coverage, and private
+lights, a separate Thread workstream, broader vendor/device coverage, and private
 Core UI evidence.
 
 Physical support evidence is governed by the machine-validated
