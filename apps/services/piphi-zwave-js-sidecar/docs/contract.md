@@ -6,8 +6,9 @@ devices, capabilities, state, telemetry, widgets, and homeowner-facing commands.
 
 ## Configuration
 
-`POST /config` requires `controller_path`. Stable paths under
-`/dev/serial/by-id/` or `/dev/serial/by-path/` are accepted. Unstable tty paths
+`POST /config` requires `controller_path`. The production container maps one
+host by-id adapter to `/dev/zwave-controller`.
+Direct development may use `/dev/serial/by-id/` or `/dev/serial/by-path/`. Unstable tty paths
 are rejected unless `PIPHI_ZWAVE_ALLOW_UNSTABLE_TTY=true`; other paths require an
 exact entry in `PIPHI_ZWAVE_ALLOWED_CONTROLLER_PATHS`.
 
@@ -26,8 +27,8 @@ increments `dropped_event_count`.
 redacted controller and node/value view with the current stream ID and sequence.
 The parent uses it as the resynchronization point after overflow or restart.
 
-In production, both Z-Wave routes and `POST /command` require the bearer token
-from `PIPHI_ZWAVE_SIDECAR_TOKEN`, falling back to the runtime internal token.
+Every route except `GET /health` requires the bearer token from
+`PIPHI_ZWAVE_SIDECAR_TOKEN`, falling back to the runtime internal token.
 
 ## Commands
 
@@ -38,14 +39,18 @@ from `PIPHI_ZWAVE_SIDECAR_TOKEN`, falling back to the runtime internal token.
 - `ping_node` with `params.node_id`
 - `request_node_interview` with `params.node_id`
 - `refresh_node_values` with `params.node_id`
-- `set_value` with `params.node_id`, an exact metadata-declared `value_id`, and
-  a type/range/state-valid `value`
+
+The parent alone uses the unadvertised internal `set_value` dispatch with
+`params.node_id`, an exact metadata-declared `value_id`, and a
+type/range/state-valid `value`.
 
 Commands are serialized through a bounded queue. Arbitrary API calls, raw serial
-frames, unrestricted writes, factory reset, inclusion, NVM operations, and
-network-key access fail closed.
+frames, unrestricted writes, factory reset, and network-key access fail closed.
+Administration routes provide confirmed, serialized, bounded inclusion,
+exclusion, failed-node reconciliation, and NVM backup/restore operations.
 
 ## Health and shutdown
 
-`GET /health` and `GET /diagnostics` expose redacted driver and queue state. The
-Fastify close hook destroys the driver and drains tracked Core deliveries.
+`GET /health` exposes only liveness/readiness. Authenticated `GET /diagnostics`
+exposes redacted driver and queue state. The Fastify close hook destroys the
+driver and drains tracked Core deliveries.

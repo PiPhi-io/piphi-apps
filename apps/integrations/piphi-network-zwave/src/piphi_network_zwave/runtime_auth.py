@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import os
 import secrets
+import os
 from typing import Any
 
 from fastapi import HTTPException, Request
@@ -45,6 +45,6 @@ def authorize_runtime_request(
         )
         return parsed
 
-    if os.getenv("PIPHI_ENV", "").lower() == "production" or os.getenv("ENVIRONMENT", "").lower() == "production":
-        raise HTTPException(status_code=503, detail="Runtime authentication is not configured")
-    return parsed
+    if os.getenv("PIPHI_ALLOW_UNAUTHENTICATED_TESTS") == "true" and os.getenv("PIPHI_ENV", "").lower() != "production":
+        return parsed
+    raise HTTPException(status_code=503, detail="Runtime authentication is not configured")

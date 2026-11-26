@@ -1,6 +1,6 @@
 {
   "id": "primary-zwave-controller",
-  "controller_path": "/dev/serial/by-id/usb-Z-Wave_Controller-if00",
+  "controller_path": "/dev/zwave-controller",
   "alias": "Primary Z-Wave controller",
   "event_queue_capacity": 1000,
   "command_queue_capacity": 100

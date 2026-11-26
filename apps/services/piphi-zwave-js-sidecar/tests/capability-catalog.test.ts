@@ -3,10 +3,11 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import { createApp } from "../src/app.js";
+import { setDriverSessionFactory } from "../src/state.js";
+import { createMockDriverFactory } from "./helpers/mock-driver.js";
 
 const catalog = JSON.parse(readFileSync(new URL("../capability-catalog.json", import.meta.url), "utf8"));
 const manifest = JSON.parse(readFileSync(new URL("../manifest.json", import.meta.url), "utf8"));
-const example = JSON.parse(readFileSync(new URL("../examples/entity-response.json", import.meta.url), "utf8"));
 const roles = ["state", "events", "conditions", "actions"] as const;
 
 function byStatus(status: string, role: (typeof roles)[number]): Set<string> {
@@ -31,21 +32,30 @@ test("capability catalog is reviewable and duplicate free", () => {
 test("only implemented capabilities are advertised", () => {
   const implemented = new Set([...byStatus("implemented", "state"), ...byStatus("implemented", "actions")]);
   const actions = byStatus("implemented", "actions");
-  const entityCapabilities = new Set(manifest.entities.flatMap((entity: { capabilities: string[] }) => entity.capabilities));
-  const entityCommands = new Set(manifest.entities.flatMap((entity: { available_commands: { id: string }[] }) => entity.available_commands.map((command) => command.id)));
   assert.deepEqual(new Set(Object.keys(manifest.capabilities)), implemented);
   assert.deepEqual(new Set(Object.keys(manifest.commands)), actions);
-  assert.deepEqual(entityCapabilities, implemented);
-  assert.deepEqual(entityCommands, actions);
-  assert.deepEqual(new Set(Object.keys(example.capabilities)), implemented);
-  assert.deepEqual(new Set(Object.keys(example.commands)), actions);
+  assert.deepEqual(manifest.entities, []);
 });
 
-test("sidecar has only a driver service entity", () => {
-  assert.equal(manifest.entities.length, 1);
-  assert.equal(manifest.entities[0].id, "zwave-js-service");
-  assert.equal(manifest.entities[0].entity_type, "service");
+test("sidecar does not fabricate PiPhi entities", () => {
+  assert.deepEqual(manifest.entities, []);
   assert.equal(byStatus("implemented", "conditions").size, 0);
+});
+
+test("runtime entities remain empty after controller configuration", async (t) => {
+  setDriverSessionFactory(createMockDriverFactory());
+  const app = createApp();
+  t.after(() => app.close());
+  const configured = await app.inject({
+    method: "POST",
+    url: "/config",
+    payload: { id: "entityless-controller", controller_path: "/dev/serial/by-id/fake" },
+  });
+  assert.equal(configured.statusCode, 200);
+  const response = await app.inject({ method: "GET", url: "/entities" });
+  const body = response.json();
+  assert.deepEqual(body.entities, []);
+  assert.equal("set_value" in body.commands, false);
 });
 
 for (const command of ["restart_worker", "execute_arbitrary_server_command", "factory_reset_controller"]) {

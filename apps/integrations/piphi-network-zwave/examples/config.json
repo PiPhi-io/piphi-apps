@@ -1,6 +1,6 @@
 {
   "id": "home-network",
-  "network_id": "primary",
+  "network_id": "managed",
   "alias": "Home Z-Wave",
   "event_poll_interval_seconds": 1
 }

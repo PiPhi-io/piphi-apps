@@ -79,7 +79,7 @@
         "contract_version": "automation.runtime.command.v1",
         "command": "refresh",
         "target": {
-          "device_id": "zwave-node-2-endpoint-0",
+          "device_id": "zwave-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb-node-cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc-endpoint-0",
           "config_id": "home-network"
         },
         "params": {},

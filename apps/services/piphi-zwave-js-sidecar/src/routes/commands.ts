@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { dispatchAutomationActionFromFastify } from "piphi-runtime-kit-node/adapters/fastify";
 
 import { commands } from "../contract.js";
-import { automations } from "../state.js";
+import { automations, executeDriverCommand } from "../state.js";
 
 export function registerCommandRoutes(app: FastifyInstance): void {
   app.post("/command", async (request, reply) => {
@@ -23,13 +23,18 @@ export function registerCommandRoutes(app: FastifyInstance): void {
     if (!commandName) {
       return reply.code(400).send({ ok: false, reason: "Missing command" });
     }
-    if (!(commandName in commands)) {
+    const internalSetValue = commandName === "set_value";
+    if (!(commandName in commands) && !internalSetValue) {
       return reply.code(400).send({ ok: false, reason: `Unsupported command: ${commandName}` });
     }
 
     const target = body.target && typeof body.target === "object" ? body.target : {};
     const deviceId = String(body.device_id ?? target.device_id ?? "zwave-js-service");
     const configId = String(body.config_id ?? target.config_id ?? deviceId);
+    if (internalSetValue) {
+      const result = await executeDriverCommand(configId, "set_value", body.params ?? body.args ?? {});
+      return reply.code(200).send({ ok: true, ...result });
+    }
     const requestedCapabilities = [
       body.capability,
       ...(Array.isArray(body.capability_requirements) ? body.capability_requirements : []),

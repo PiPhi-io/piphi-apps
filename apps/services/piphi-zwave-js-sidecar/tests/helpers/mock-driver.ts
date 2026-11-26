@@ -9,6 +9,14 @@ export function createMockDriverFactory(): DriverSessionFactory {
   return ({ config, onEvent }) => {
     let lifecycle: DriverSnapshot["lifecycle"] = "stopped";
     const session: DriverSession = {
+      async beginInclusion() { return true; },
+      async stopInclusion() { return true; },
+      async beginExclusion() { return true; },
+      async stopExclusion() { return true; },
+      async removeFailedNode() {},
+      async replaceFailedNode() { return true; },
+      async backupNVM() { return Uint8Array.from([1, 2, 3, 4]); },
+      async restoreNVM() {},
       async start() {
         lifecycle = "ready";
         onEvent({
@@ -34,6 +42,8 @@ export function createMockDriverFactory(): DriverSessionFactory {
           controllerReady: lifecycle === "ready",
           controllerPathSuffix: config.controller_path.split("/").at(-1) ?? "mock",
           driverVersion: "15.32.3-test",
+          networkIdentityHash: "a".repeat(64),
+          controllerIdentityHash: "b".repeat(64),
           nodeCount: 5,
           readyNodeCount: 4,
           sleepingNodeCount: 1,
@@ -45,12 +55,14 @@ export function createMockDriverFactory(): DriverSessionFactory {
         return [
           {
             node_id: 2,
+            identity_hash: "c".repeat(64),
             name: "Kitchen switch",
             status: "alive",
             ready: true,
             values: [
               {
                 id: { command_class: 37, endpoint: 0, property: "currentValue" },
+                identity_hash: "d".repeat(64),
                 label: "Current value",
                 value: false,
                 metadata: {

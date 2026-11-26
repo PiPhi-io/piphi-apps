@@ -8,6 +8,7 @@ import { registerEventRoutes } from "./events.js";
 import { registerHealthRoutes } from "./health.js";
 import { registerRuntimeRoutes } from "./runtime.js";
 import { registerTelemetryRoutes } from "./telemetry.js";
+import { registerAdminRoutes } from "./admin.js";
 
 export function registerRoutes(app: FastifyInstance): void {
   registerHealthRoutes(app);
@@ -18,4 +19,5 @@ export function registerRoutes(app: FastifyInstance): void {
   registerEventRoutes(app);
   registerTelemetryRoutes(app);
   registerCommandRoutes(app);
+  registerAdminRoutes(app);
 }

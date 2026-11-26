@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 from piphi_runtime_kit_python import (
     RuntimeConfigSnapshot,
     build_config_apply_response,
@@ -32,7 +32,10 @@ async def configure(payload: DeviceConfig, request: Request):
         payload_container_id=payload.container_id,
     )
     sync_runtime_auth_from_fastapi_payload(runtime, request, payload)
-    await apply_config(payload)
+    try:
+        await apply_config(payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from None
     return build_config_apply_response(
         config_id=payload.config_id or payload.id,
         container_id=payload.container_id,

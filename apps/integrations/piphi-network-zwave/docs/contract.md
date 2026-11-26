@@ -15,8 +15,10 @@ Both routes and `POST /command` use the bearer token from
 
 ## Entity identity
 
-Each entity has the stable ID `zwave-node-<node>-endpoint-<endpoint>`. State and
-controls derive from command-class value metadata in the sidecar snapshot.
+Each entity has the stable ID
+`zwave-<controller-hash>-node-<node-hash>-endpoint-<endpoint>`. The complete
+SHA-256 network, controller, node, and value identities flow from the sidecar
+snapshot. State and controls derive from command-class value metadata.
 Unknown values may remain visible in redacted metadata but never receive an
 unrestricted write action.
 
@@ -28,7 +30,7 @@ unrestricted write action.
   "command": "set_switch",
   "target": {
     "config_id": "home-network",
-    "device_id": "zwave-node-2-endpoint-0",
+    "device_id": "zwave-<controller-hash>-node-<node-hash>-endpoint-0",
     "entity_id": null
   },
   "params": {"value": true},

@@ -1,4 +1,6 @@
-import { Driver, libVersion, NodeStatus, SetValueStatus } from "zwave-js";
+import { createHash } from "node:crypto";
+import { Driver, InclusionStrategy, libVersion, NodeStatus, SetValueStatus } from "zwave-js";
+import { SecurityClass } from "@zwave-js/core";
 
 import { normalizeNodeEvent, sanitizeZWaveValue } from "./transport.js";
 import type {
@@ -66,6 +68,14 @@ type DriverLike = {
     homeId?: number;
     ownNodeId?: number;
     nodes: Iterable<[number, NodeLike]>;
+    beginInclusion(options: Record<string, unknown>): Promise<boolean>;
+    stopInclusion(): Promise<boolean>;
+    beginExclusion(): Promise<boolean>;
+    stopExclusion(): Promise<boolean>;
+    removeFailedNode(nodeId: number): Promise<void>;
+    replaceFailedNode(nodeId: number, options: Record<string, unknown>): Promise<boolean>;
+    backupNVMRaw(): Promise<Uint8Array>;
+    restoreNVM(data: Uint8Array): Promise<void>;
   };
   on(event: string, callback: (...args: unknown[]) => void): DriverLike;
   start(): Promise<void>;
@@ -182,12 +192,14 @@ export class ZWaveJsDriverSession implements DriverSession {
 
   snapshot(): DriverSnapshot {
     const nodes = this.driver ? [...this.driver.controller.nodes].map(([, node]) => node) : [];
+    const identities = this.driver ? controllerIdentities(this.driver, this.config.controller_path) : {};
     return {
       lifecycle: this.lifecycle,
       driverReady: this.driverReady,
       controllerReady: this.controllerReady,
       controllerPathSuffix: redactControllerPath(this.config.controller_path),
       driverVersion: libVersion,
+      ...identities,
       ...(this.driver?.controller.homeId != null
         ? { homeIdSuffix: this.driver.controller.homeId.toString(16).padStart(8, "0").slice(-4) }
         : {}),
@@ -206,10 +218,51 @@ export class ZWaveJsDriverSession implements DriverSession {
 
   nodesSnapshot(): ZWaveNodeSnapshot[] {
     if (!this.driver) return [];
+    const controllerHash = controllerIdentities(this.driver, this.config.controller_path).controllerIdentityHash ?? "unavailable";
     return [...this.driver.controller.nodes]
-      .map(([, node]) => nodeSnapshot(node))
+      .map(([, node]) => nodeSnapshot(node, controllerHash))
       .sort((left, right) => left.node_id - right.node_id);
   }
+
+  async beginInclusion(options: { dsk: string; securityClasses: string[] }): Promise<boolean> {
+    const controller = this.requireDriver().controller;
+    const requested = parseSecurityClasses(options.securityClasses);
+    const suppliedDSK = validateDSK(options.dsk);
+    return controller.beginInclusion({
+      strategy: InclusionStrategy.Security_S2,
+      dsk: suppliedDSK,
+      userCallbacks: {
+        grantSecurityClasses: async (grant: { securityClasses: SecurityClass[]; clientSideAuth: boolean }) => ({
+          securityClasses: grant.securityClasses.filter((item) => requested.includes(item)),
+          clientSideAuth: false,
+        }),
+        validateDSKAndEnterPIN: async (partial: string) => dskMatches(partial, suppliedDSK) ? suppliedDSK.slice(0, 5) : false,
+        abort: () => undefined,
+      },
+    });
+  }
+
+  async stopInclusion(): Promise<boolean> { return this.requireDriver().controller.stopInclusion(); }
+  async beginExclusion(): Promise<boolean> { return this.requireDriver().controller.beginExclusion(); }
+  async stopExclusion(): Promise<boolean> { return this.requireDriver().controller.stopExclusion(); }
+  async removeFailedNode(nodeId: number): Promise<void> { await this.requireDriver().controller.removeFailedNode(nodeId); }
+  async replaceFailedNode(nodeId: number, options: { dsk: string; securityClasses: string[] }): Promise<boolean> {
+    const suppliedDSK = validateDSK(options.dsk);
+    const requested = parseSecurityClasses(options.securityClasses);
+    return this.requireDriver().controller.replaceFailedNode(nodeId, {
+      strategy: InclusionStrategy.Security_S2,
+      dsk: suppliedDSK,
+      userCallbacks: {
+        grantSecurityClasses: async (grant: { securityClasses: SecurityClass[]; clientSideAuth: boolean }) => ({
+          securityClasses: grant.securityClasses.filter((item) => requested.includes(item)), clientSideAuth: false,
+        }),
+        validateDSKAndEnterPIN: async (partial: string) => dskMatches(partial, suppliedDSK) ? suppliedDSK.slice(0, 5) : false,
+        abort: () => undefined,
+      },
+    });
+  }
+  async backupNVM(): Promise<Uint8Array> { return this.requireDriver().controller.backupNVMRaw(); }
+  async restoreNVM(data: Uint8Array): Promise<void> { await this.requireDriver().controller.restoreNVM(data); }
 
   private bindEvents(driver: DriverLike): void {
     driver.on("driver ready", () => {
@@ -336,7 +389,8 @@ function getNode(driver: DriverLike, nodeId: number): NodeLike {
   return node;
 }
 
-function nodeSnapshot(node: NodeLike): ZWaveNodeSnapshot {
+function nodeSnapshot(node: NodeLike, controllerHash: string): ZWaveNodeSnapshot {
+  const nodeHash = hashIdentity(controllerHash, node.id, node.manufacturerId, node.productType, node.productId);
   const values = node.getDefinedValueIDs().flatMap((valueId) => {
     const metadata = node.getValueMetadata(valueId as Record<string, unknown>);
     if (isSensitiveValue(valueId, metadata) || metadata.type === "buffer") return [];
@@ -349,6 +403,7 @@ function nodeSnapshot(node: NodeLike): ZWaveNodeSnapshot {
       : undefined;
     return [{
       id: toPublicValueId(valueId),
+      identity_hash: hashIdentity(nodeHash, valueId.commandClass, valueId.endpoint ?? 0, valueId.property, valueId.propertyKey ?? ""),
       label: String(metadata.label ?? valueId.propertyName ?? valueId.property),
       ...(valueId.propertyName ? { property_name: valueId.propertyName } : {}),
       ...(valueId.propertyKeyName ? { property_key_name: valueId.propertyKeyName } : {}),
@@ -370,6 +425,7 @@ function nodeSnapshot(node: NodeLike): ZWaveNodeSnapshot {
   });
   return {
     node_id: node.id,
+    identity_hash: nodeHash,
     ...(node.name ? { name: node.name } : {}),
     ...(node.location ? { location: node.location } : {}),
     ...(typeof node.manufacturerId === "number" ? { manufacturer_id: node.manufacturerId } : {}),
@@ -381,6 +437,42 @@ function nodeSnapshot(node: NodeLike): ZWaveNodeSnapshot {
     ...(node.lastSeen instanceof Date ? { last_seen_at: node.lastSeen.toISOString() } : {}),
     values,
   };
+}
+
+function controllerIdentities(driver: DriverLike, controllerPath: string): Pick<DriverSnapshot, "networkIdentityHash" | "controllerIdentityHash"> {
+  const homeId = driver.controller.homeId;
+  if (homeId == null) return {};
+  const fullHomeId = homeId.toString(16).padStart(8, "0");
+  const networkIdentityHash = hashIdentity("zwave-home", fullHomeId);
+  return {
+    networkIdentityHash,
+    controllerIdentityHash: hashIdentity(networkIdentityHash, driver.controller.ownNodeId ?? "", controllerPath.split("/").at(-1) ?? ""),
+  };
+}
+
+function hashIdentity(...parts: unknown[]): string {
+  return createHash("sha256").update(parts.map(String).join("\0")).digest("hex");
+}
+
+function validateDSK(value: string): string {
+  const normalized = String(value ?? "").trim();
+  if (!/^\d{5}(?:-\d{5}){7}$/.test(normalized)) throw new Error("dsk_format_invalid");
+  return normalized;
+}
+
+function dskMatches(partial: string, full: string): boolean {
+  return partial.split("-").slice(1).join("-") === full.split("-").slice(1).join("-");
+}
+
+function parseSecurityClasses(values: string[]): SecurityClass[] {
+  const allowed = new Map<string, SecurityClass>([
+    ["s2_access_control", SecurityClass.S2_AccessControl],
+    ["s2_authenticated", SecurityClass.S2_Authenticated],
+    ["s2_unauthenticated", SecurityClass.S2_Unauthenticated],
+  ]);
+  const parsed = [...new Set(values.map((value) => allowed.get(String(value).toLowerCase())))].filter((value): value is SecurityClass => value != null);
+  if (!parsed.length || parsed.length !== values.length) throw new Error("security_classes_invalid");
+  return parsed;
 }
 
 export function isSensitiveValue(

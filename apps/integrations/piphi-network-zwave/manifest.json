@@ -3,7 +3,7 @@
   "manifest_version": "1.0",
   "id": "piphi-network-zwave",
   "name": "Z-Wave",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "Expose command-class-negotiated Z-Wave devices through the managed Z-Wave JS sidecar.",
   "metadata": {
     "generator": "piphi-network-create",
@@ -17,7 +17,7 @@
     "website": "https://piphi.io"
   },
   "license": "Apache-2.0",
-  "image": "ghcr.io/piphi-io/piphi-network-zwave:0.3.1",
+  "image": "ghcr.io/piphi-io/piphi-network-zwave:0.4.0",
   "runtime_requirements": [
     "sidecar_runtime"
   ],
@@ -28,7 +28,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "ghcr.io/piphi-io/piphi-network-zwave:0.3.1",
+        "image": "ghcr.io/piphi-io/piphi-network-zwave:0.4.0",
         "ports": [
           {
             "container": 4221
@@ -40,6 +40,8 @@
           "PIPHI_ZWAVE_SIDECAR_URL": "http://127.0.0.1:4211",
           "PIPHI_AUTOMATION_LEDGER_PATH": "/app/data/automation-actions.sqlite3"
         },
+        "read_only": true,
+        "tmpfs": ["/tmp"],
         "restart_policy": {
           "name": "unless-stopped",
           "maximum_retry_count": 0
@@ -56,6 +58,19 @@
         "method": "passive"
       }
     }
+  },
+  "requires": {
+    "services": [
+      {
+        "id": "piphi-zwave-js-sidecar",
+        "kind": "platform_service",
+        "version_range": ">=0.4.0,<0.5.0",
+        "required": true,
+        "shared": false,
+        "auto_install": true,
+        "reason": "Owns the persistent controller, serial device, event journal, secure commissioning, and NVM lifecycle contract."
+      }
+    ]
   },
   "api": {
     "required": [
@@ -84,9 +99,9 @@
     "endpoint": "/ui-config",
     "required": true,
     "editable_fields": [
-      "network_id",
       "alias",
-      "event_poll_interval_seconds"
+      "event_poll_interval_seconds",
+      "expected_controller_identity_hash"
     ],
     "runtime_fields": [
       "id",
@@ -95,12 +110,12 @@
       "device_id"
     ],
     "identity_fields": [
-      "network_id"
+      "expected_controller_identity_hash"
     ]
   },
   "identity": {
     "fields": [
-      "network_id"
+      "expected_controller_identity_hash"
     ]
   },
   "capabilities": {
@@ -385,9 +400,9 @@
         "model": "Devices whose command classes are supported by the managed sidecar"
       }
     ],
-    "documentation_url": "https://github.com/PiPhi-io/piphi-apps/tree/apps/piphi-network-zwave/v0.3.1/apps/integrations/piphi-network-zwave",
+    "documentation_url": "https://github.com/PiPhi-io/piphi-apps/tree/apps/piphi-network-zwave/v0.4.0/apps/integrations/piphi-network-zwave",
     "support_url": "https://github.com/PiPhi-io/piphi-apps/issues",
-    "changelog_url": "https://github.com/PiPhi-io/piphi-apps/releases/tag/apps/piphi-network-zwave/v0.3.1",
+    "changelog_url": "https://github.com/PiPhi-io/piphi-apps/releases/tag/apps/piphi-network-zwave/v0.4.0",
     "quality_tier": "unrated",
     "governance": {
       "schema_version": 1,

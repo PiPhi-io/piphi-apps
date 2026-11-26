@@ -6,12 +6,11 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from piphi_runtime_kit_python import runtime_lifespan
 
-from .state import runtime, shutdown_supervisors
+from .state import restore_persisted_configs, runtime, shutdown_supervisors
 
 
 async def startup_sync(_runtime, _client) -> None:
-    # Real integrations can fetch an existing config snapshot from Core here.
-    return None
+    await restore_persisted_configs()
 
 
 @asynccontextmanager

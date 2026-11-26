@@ -82,4 +82,4 @@ class ZWaveSidecarClient:
                 response.raise_for_status()
                 return response.json()
         except (httpx.RequestError, httpx.HTTPStatusError, ValueError) as exc:
-            raise SidecarError(f"Z-Wave sidecar request failed: {method} {path}") from exc
+            raise SidecarError("Z-Wave sidecar dependency request failed") from exc

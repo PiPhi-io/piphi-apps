@@ -9,6 +9,11 @@ os.environ.setdefault(
     "PIPHI_AUTOMATION_LEDGER_PATH",
     "/tmp/opencode/piphi-network-zwave-tests.sqlite3",
 )
+os.environ.setdefault(
+    "PIPHI_ZWAVE_CONFIG_STORE_PATH",
+    "/tmp/opencode/piphi-network-zwave-controller-configs.json",
+)
+os.environ.setdefault("PIPHI_ALLOW_UNAUTHENTICATED_TESTS", "true")
 
 from piphi_network_zwave import state
 
@@ -39,10 +44,16 @@ class FakeSidecarClient:
             "stream_id": "stream-test-1",
             "latest_sequence": 4,
             "dropped_event_count": 0,
-            "controller": {"lifecycle": "ready", "driverReady": True},
+            "controller": {
+                "lifecycle": "ready",
+                "driverReady": True,
+                "networkIdentityHash": "a" * 64,
+                "controllerIdentityHash": "b" * 64,
+            },
             "nodes": [
                 {
                     "node_id": 2,
+                    "identity_hash": "c" * 64,
                     "name": "Kitchen plug",
                     "status": "alive",
                     "ready": True,
@@ -54,6 +65,7 @@ class FakeSidecarClient:
                                 "endpoint": 0,
                                 "property": "currentValue",
                             },
+                            "identity_hash": "1" * 64,
                             "label": "Current value",
                             "value": False,
                             "metadata": {
@@ -69,6 +81,7 @@ class FakeSidecarClient:
                                 "endpoint": 0,
                                 "property": "targetValue",
                             },
+                            "identity_hash": "2" * 64,
                             "label": "Target value",
                             "value": switch_value,
                             "metadata": {
@@ -85,6 +98,7 @@ class FakeSidecarClient:
                                 "property": "value",
                                 "property_key": 65537,
                             },
+                            "identity_hash": "3" * 64,
                             "label": "Power",
                             "value": 46.7,
                             "metadata": {
@@ -99,6 +113,7 @@ class FakeSidecarClient:
                 },
                 {
                     "node_id": 5,
+                    "identity_hash": "d" * 64,
                     "name": "Hall sensor",
                     "status": "asleep",
                     "ready": True,
@@ -110,6 +125,7 @@ class FakeSidecarClient:
                                 "property": "Air temperature",
                                 "property_key": 1,
                             },
+                            "identity_hash": "4" * 64,
                             "property_name": "Air temperature",
                             "label": "Air temperature",
                             "value": 22.1,
@@ -127,6 +143,7 @@ class FakeSidecarClient:
                                 "endpoint": 0,
                                 "property": "level",
                             },
+                            "identity_hash": "5" * 64,
                             "label": "Battery level",
                             "value": 87,
                             "metadata": {

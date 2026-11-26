@@ -7,7 +7,6 @@ from .lifecycle import lifespan
 from .routes import routers
 from .runtime_auth import authorize_runtime_request
 from .settings import INTEGRATION_NAME
-from .state import runtime
 
 
 def create_app() -> FastAPI:
@@ -17,10 +16,6 @@ def create_app() -> FastAPI:
     async def authorize_operational_routes(request: Request, call_next):
         if request.url.path == "/health":
             return await call_next(request)
-        if request.method == "POST" and request.url.path == "/config":
-            expected_container_id, expected_token = runtime.auth.resolve()
-            if not expected_container_id and not expected_token:
-                return await call_next(request)
         try:
             authorize_runtime_request(request)
         except HTTPException as exc:

@@ -27,7 +27,7 @@
     {
       "id": "piphi-zwave-js-sidecar",
       "type": "platform_service",
-      "version": "0.3.1",
+      "version": "0.4.0",
       "manifest": "manifest.json",
       "release": {
         "tag": "apps/{package_id}/v{version}",

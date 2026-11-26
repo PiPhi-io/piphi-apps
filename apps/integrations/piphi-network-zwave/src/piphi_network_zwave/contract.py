@@ -72,8 +72,8 @@ CONFIG_SCHEMA: dict[str, Any] = {
             "network_id": {
                 "type": "string",
                 "title": "Managed network",
-                "enum": ["primary"],
-                "default": "primary"
+                "enum": ["managed"],
+                "default": "managed"
             },
             "alias": {
                 "type": "string",

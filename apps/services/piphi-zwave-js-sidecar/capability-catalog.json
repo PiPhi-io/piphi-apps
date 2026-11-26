@@ -51,8 +51,7 @@
         "reconnect_driver",
         "ping_node",
         "request_node_interview",
-        "refresh_node_values",
-        "set_value"
+        "refresh_node_values"
       ]
     },
     {
@@ -93,12 +92,13 @@
       ],
       "conditions": [],
       "actions": [
-        "replay_events_from_cursor"
+        "replay_events_from_cursor",
+        "set_value"
       ]
     },
     {
       "id": "hardware-qualified-radio-management",
-      "status": "planned",
+      "status": "implemented-admin-unqualified",
       "scope": [
         "physical-controller-required"
       ],
@@ -106,7 +106,7 @@
         "zwave_js",
         "zwave_js_docs"
       ],
-      "reason": "RF region, hotplug recovery, secure inclusion, controller reset, network healing, firmware, and NVM behavior require physical controller qualification.",
+      "reason": "Secure inclusion/exclusion, failed-node reconciliation, and checked NVM backup/restore have bounded authenticated software contracts and fake-controller tests; physical RF, controller, device, and restore qualification remains explicitly outstanding.",
       "state": [
         "controller_rf_region",
         "controller_statistics",
@@ -127,9 +127,13 @@
       ],
       "actions": [
         "begin_inclusion",
+        "cancel_inclusion",
         "begin_exclusion",
-        "begin_network_heal",
-        "backup_nvm"
+        "cancel_exclusion",
+        "remove_failed_node",
+        "replace_failed_node",
+        "backup_nvm",
+        "restore_nvm"
       ]
     },
     {
