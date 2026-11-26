@@ -4,6 +4,11 @@ PiPhi runtime integration for the Airthings Consumer Cloud API.
 
 This integration targets consumer Airthings accounts and polls the latest cloud sample for configured devices using an Airthings API client id and client secret created from the Airthings dashboard integrations page.
 
+Automated tests and release qualification use only a deterministic local transport
+that implements the documented Airthings OAuth, account, device, and sensor
+contracts. They never use live credentials or contact an Airthings account. Live
+account/device qualification remains unverified.
+
 ## Current scope
 
 - Discovers devices only within an explicitly selected Airthings consumer account

@@ -1,7 +1,7 @@
 {
   "schema_version": "1",
   "integration_id": "airthings-consumer-cloud-api",
-  "catalog_version": "0.1.9",
+  "catalog_version": "0.1.10",
   "completion": {
     "status": "implementation_complete",
     "scope": "Airthings Consumer Cloud devices and readings declared by this integration",
@@ -99,6 +99,24 @@
   "commands": [
     {
       "id": "refresh",
+      "status": "implemented"
+    }
+  ],
+  "events": [
+    {
+      "id": "device.state_changed",
+      "status": "implemented"
+    },
+    {
+      "id": "airthings.cloud.sample.failed",
+      "status": "implemented"
+    },
+    {
+      "id": "airthings.cloud.sample.recovered",
+      "status": "implemented"
+    },
+    {
+      "id": "airthings.cloud.device.removed",
       "status": "implemented"
     }
   ]

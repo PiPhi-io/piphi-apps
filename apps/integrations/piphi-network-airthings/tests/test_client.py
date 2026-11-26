@@ -11,20 +11,20 @@ from piphi_network_airthings.cloud.client import (
     CONSUMER_BASE_URL_ENV,
     AirthingsCloudAuthError,
     AirthingsCloudClient,
+    AirthingsCloudDeviceRemovedError,
+    AirthingsCloudRateLimitError,
     AirthingsCloudRequestError,
     AirthingsCredentials,
     airthings_cloud_client_from_environment,
 )
 
 
-def test_runtime_client_uses_https_environment_overrides(monkeypatch) -> None:
+def test_runtime_client_rejects_non_official_https_overrides(monkeypatch) -> None:
     monkeypatch.setenv(ACCOUNTS_BASE_URL_ENV, "https://accounts.example.test/")
     monkeypatch.setenv(CONSUMER_BASE_URL_ENV, "https://consumer.example.test/")
 
-    client = airthings_cloud_client_from_environment()
-
-    assert client.accounts_base_url == "https://accounts.example.test"
-    assert client.consumer_base_url == "https://consumer.example.test"
+    with pytest.raises(ValueError, match="official Airthings endpoint"):
+        airthings_cloud_client_from_environment()
 
 
 def test_runtime_client_rejects_insecure_override_without_test_opt_in(monkeypatch) -> None:
@@ -43,6 +43,15 @@ def test_runtime_client_allows_insecure_fixture_with_explicit_test_opt_in(monkey
 
     assert client.accounts_base_url == "http://127.0.0.1:38001"
     assert client.consumer_base_url == "http://127.0.0.1:38001"
+
+
+def test_test_opt_in_still_rejects_non_loopback_override(monkeypatch) -> None:
+    monkeypatch.setenv(ACCOUNTS_BASE_URL_ENV, "https://accounts.example.test/")
+    monkeypatch.setenv(CONSUMER_BASE_URL_ENV, "https://consumer.example.test/")
+    monkeypatch.setenv(ALLOW_INSECURE_TEST_ENDPOINTS_ENV, "true")
+
+    with pytest.raises(ValueError, match="isolated loopback fixture"):
+        airthings_cloud_client_from_environment()
 
 
 @pytest.mark.asyncio
@@ -373,3 +382,57 @@ async def test_provider_rate_limit_header_controls_jittered_retry(monkeypatch) -
 
     assert response.status_code == 200
     assert sleeps == pytest.approx([7.35])
+
+
+@pytest.mark.asyncio
+async def test_long_retry_after_fails_without_spending_more_quota(monkeypatch) -> None:
+    attempts = 0
+    sleeps: list[float] = []
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        nonlocal attempts
+        attempts += 1
+        return httpx.Response(
+            429,
+            headers={
+                "X-RateLimit-Retry-After": "600",
+                "X-RateLimit-Remaining": "0",
+            },
+        )
+
+    async def capture_sleep(delay: float) -> None:
+        sleeps.append(delay)
+
+    monkeypatch.setattr("piphi_network_airthings.cloud.client.asyncio.sleep", capture_sleep)
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http_client:
+        client = AirthingsCloudClient(http_client=http_client, retry_attempts=3)
+        with pytest.raises(AirthingsCloudRateLimitError) as exc_info:
+            await client._request("GET", "https://example.test/rate-limited")
+
+    assert attempts == 1
+    assert sleeps == []
+    assert exc_info.value.retry_after_seconds == 600
+    assert exc_info.value.quota_remaining == 0
+
+
+@pytest.mark.asyncio
+async def test_missing_selected_sensor_record_has_device_removed_semantics() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v1/token":
+            return httpx.Response(200, json={"access_token": "token", "expires_in": 3600})
+        if request.url.path == "/v1/accounts":
+            return httpx.Response(200, json={"accounts": [{"id": "account-1"}]})
+        return httpx.Response(200, json={"results": [], "hasNext": False})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http_client:
+        client = AirthingsCloudClient(
+            accounts_base_url="https://example.test",
+            consumer_base_url="https://example.test",
+            http_client=http_client,
+        )
+        with pytest.raises(AirthingsCloudDeviceRemovedError):
+            await client.latest_sample(
+                credentials=AirthingsCredentials("client", "secret"),
+                account_id="account-1",
+                serial_number="removed-device",
+            )

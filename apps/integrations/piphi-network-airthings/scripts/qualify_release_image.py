@@ -9,11 +9,13 @@ import json
 import os
 import socket
 import subprocess
+import tempfile
 import threading
 import time
 from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
+from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -76,7 +78,12 @@ class AirthingsFixtureHandler(BaseHTTPRequestHandler):
             return
         content_length = int(self.headers.get("Content-Length") or 0)
         payload = json.loads(self.rfile.read(content_length) or b"{}")
-        if payload.get("client_id") != CLIENT_ID or payload.get("client_secret") != CLIENT_SECRET:
+        if (
+            payload.get("grant_type") != "client_credentials"
+            or payload.get("client_id") != CLIENT_ID
+            or payload.get("client_secret") != CLIENT_SECRET
+            or payload.get("scope") != ["read:device:current_values"]
+        ):
             self.fixture_state.errors.append("token payload credentials did not match")
             self._json(401, {"error": "invalid_client"})
             return
@@ -238,6 +245,9 @@ def start_container(
         container_name,
         "--network",
         "host",
+        "--read-only",
+        "--tmpfs",
+        "/tmp:rw,nosuid,nodev,noexec,size=16m",
         "--volume",
         f"{volume_name}:/var/lib/piphi",
         "--env",
@@ -257,24 +267,67 @@ def stop_container(container_name: str) -> None:
     run_command("docker", "rm", "--force", container_name, check=False)
 
 
+def write_restart_snapshot(container_name: str) -> None:
+    snapshot = {
+        "schema_version": 1,
+        "container_id": CONTAINER_ID,
+        "integration_id": "airthings-consumer-cloud-api",
+        "generation": 1,
+        "reason": "release_qualification_restart",
+        "configs": [
+            {
+                "id": CONFIG_ID,
+                "container_id": CONTAINER_ID,
+                "integration_id": "airthings-consumer-cloud-api",
+                "client_id": CLIENT_ID,
+                "client_secret": CLIENT_SECRET,
+                "account_id": "account-1",
+                "serial_number": SERIAL_NUMBER,
+                "poll_interval_seconds": 86400,
+            }
+        ],
+    }
+    with tempfile.TemporaryDirectory(prefix="piphi-airthings-snapshot-") as directory:
+        path = Path(directory) / "configs.json"
+        path.write_text(json.dumps(snapshot), encoding="utf-8")
+        run_command(
+            "docker",
+            "cp",
+            str(path),
+            f"{container_name}:/var/lib/piphi/configs.json",
+        )
+
+
 def configure_and_assert_state(base_url: str, headers: dict[str, str]) -> None:
     response = request_json(
-        f"{base_url}/config",
+        f"{base_url}/configs/sync",
         method="POST",
         headers=headers,
         payload={
-            "id": CONFIG_ID,
             "container_id": CONTAINER_ID,
             "integration_id": "airthings-consumer-cloud-api",
-            "client_id": CLIENT_ID,
-            "client_secret": CLIENT_SECRET,
-            "account_id": "account-1",
-            "serial_number": SERIAL_NUMBER,
-            "poll_interval_seconds": 86400,
+            "generation": 1,
+            "reason": "release_qualification",
+            "configs": [
+                {
+                    "id": CONFIG_ID,
+                    "container_id": CONTAINER_ID,
+                    "integration_id": "airthings-consumer-cloud-api",
+                    "client_id": CLIENT_ID,
+                    "client_secret": CLIENT_SECRET,
+                    "account_id": "account-1",
+                    "serial_number": SERIAL_NUMBER,
+                    "poll_interval_seconds": 86400,
+                }
+            ],
         },
     )
-    if response.get("config_id") != CONFIG_ID:
-        raise AssertionError(f"config response did not preserve config identity: {response}")
+    if CONFIG_ID not in response.get("active_config_ids", []):
+        raise AssertionError(f"config sync did not preserve config identity: {response}")
+    assert_restored_state(base_url, headers)
+
+
+def assert_restored_state(base_url: str, headers: dict[str, str]) -> None:
     state = request_json(f"{base_url}/state", headers=headers)
     latest_state = ((state.get("entries") or {}).get(CONFIG_ID) or {}).get("latest_state") or {}
     if latest_state.get("co2_ppm") != 812.0 or latest_state.get("connected") is not True:
@@ -330,8 +383,20 @@ def qualify(args: argparse.Namespace) -> dict[str, Any]:
             runtime_port=args.runtime_port,
         )
         health = wait_for_health(base_url)
-        contract = request_json(f"{base_url}/contract")
-        request_json(f"{base_url}/state", expected_status=401)
+        protected_paths = (
+            "/contract",
+            "/ui-config",
+            "/discover",
+            "/diagnostics",
+            "/entities",
+            "/state",
+            "/events",
+            "/openapi.json",
+            "/docs",
+        )
+        for path in protected_paths:
+            request_json(f"{base_url}{path}", expected_status=401)
+        contract = request_json(f"{base_url}/contract", headers=auth_headers)
         if health.get("version") != args.version and (
             (health.get("integration") or {}).get("version") != args.version
         ):
@@ -371,6 +436,7 @@ def qualify(args: argparse.Namespace) -> dict[str, Any]:
         if first_refresh.get("replayed") is not False:
             raise AssertionError(f"first refresh was unexpectedly replayed: {first_refresh}")
 
+        write_restart_snapshot(container_name)
         stop_container(container_name)
         start_container(
             image=args.image,
@@ -380,7 +446,8 @@ def qualify(args: argparse.Namespace) -> dict[str, Any]:
             runtime_port=args.runtime_port,
         )
         wait_for_health(base_url)
-        configure_and_assert_state(base_url, auth_headers)
+        request_json(f"{base_url}/contract", headers=auth_headers)
+        assert_restored_state(base_url, auth_headers)
         samples_before_replay = fixture_state.sample_requests
         replayed_refresh = request_json(
             f"{base_url}/command",

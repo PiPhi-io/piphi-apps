@@ -1,6 +1,6 @@
 [project]
 name = "piphi-network-airthings"
-version = "0.1.9"
+version = "0.1.10"
 description = "Privacy-hardened PiPhi integration for the official Airthings Consumer API"
 authors = [
     {name = "PiPhi Network", email = "support@piphi.io"},
