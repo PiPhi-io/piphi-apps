@@ -7,9 +7,15 @@ COPY src ./src
 
 RUN npm ci && npm run build && npm prune --omit=dev
 
+FROM node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293 AS node-runtime
+
+ARG TARGETARCH
+RUN node_arch="$(node -p process.arch)" \
+    && case "${TARGETARCH}:${node_arch}" in amd64:x64|arm64:arm64) ;; *) exit 1 ;; esac
+
 FROM alpine:3.23@sha256:469c9ea410b9215eaee7976ba6c0639039b444be8e5d638f7abbada189971eb2
 
-ARG RELEASE_VERSION=0.4.1
+ARG RELEASE_VERSION=0.4.2
 ARG SOURCE_REVISION=unknown
 ARG SOURCE_REPOSITORY=https://github.com/PiPhi-io/piphi-apps
 ARG MOSQUITTO_VERSION=2.0.22-r0
@@ -28,7 +34,7 @@ WORKDIR /app
 
 COPY docker ./docker
 COPY package.json ./
-COPY --from=build /usr/local/bin/node /usr/local/bin/node
+COPY --from=node-runtime /usr/local/bin/node /usr/local/bin/node
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/node_modules ./node_modules
 
@@ -40,7 +46,8 @@ RUN apk add --no-cache \
       "libstdc++=${LIBSTDCXX_VERSION}" \
     && chmod +x /app/docker/entrypoint.sh /app/docker/credentials-admin.sh /app/docker/tls-admin.sh /app/docker/storage-admin.sh \
     && mkdir -p /mosquitto/config /mosquitto/data /mosquitto/log \
-    && chown -R mosquitto:mosquitto /mosquitto/config /mosquitto/data /mosquitto/log
+    && chown -R mosquitto:mosquitto /mosquitto/config /mosquitto/data /mosquitto/log \
+    && node --version
 
 ENV MQTT_HOST=0.0.0.0 \
     MQTT_PORT=1883 \
