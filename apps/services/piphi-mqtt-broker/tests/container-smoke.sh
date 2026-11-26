@@ -28,17 +28,17 @@ chmod 0600 "$secrets/password"
 
 if [ -z "${PIPHI_MQTT_IMAGE:-}" ]; then
   docker build \
-    --build-arg "RELEASE_VERSION=${EXPECTED_VERSION:-0.4.1}" \
+    --build-arg "RELEASE_VERSION=${EXPECTED_VERSION:-0.4.2}" \
     --build-arg "SOURCE_REVISION=${EXPECTED_REVISION:-local}" \
     -t "$image" .
 else
   docker pull "$image" >/dev/null
 fi
 if [ -n "${EXPECTED_VERSION:-}" ]; then
-  test "$(docker image inspect -f '{{index .Config.Labels \"org.opencontainers.image.version\"}}' "$image")" = "$EXPECTED_VERSION"
+  test "$(docker image inspect -f '{{index .Config.Labels "org.opencontainers.image.version"}}' "$image")" = "$EXPECTED_VERSION"
 fi
 if [ -n "${EXPECTED_REVISION:-}" ]; then
-  test "$(docker image inspect -f '{{index .Config.Labels \"org.opencontainers.image.revision\"}}' "$image")" = "$EXPECTED_REVISION"
+  test "$(docker image inspect -f '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$image")" = "$EXPECTED_REVISION"
 fi
 docker run -d --name "$name" --read-only --tmpfs /tmp \
   -e MQTT_ALLOW_PLAINTEXT=true \
@@ -58,6 +58,10 @@ until [ "$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{end}
 done
 assert_broker_non_root
 docker exec "$name" sh -ec '! command -v npm; ! command -v npx'
+case "${DOCKER_DEFAULT_PLATFORM:-}" in
+  linux/amd64) test "$(docker exec "$name" node -p process.arch)" = x64 ;;
+  linux/arm64) test "$(docker exec "$name" node -p process.arch)" = arm64 ;;
+esac
 docker exec "$name" node /app/dist/src/healthcheck.js --liveness
 docker exec "$name" chmod 0555 /mosquitto/data
 docker exec "$name" node /app/dist/src/healthcheck.js --liveness
