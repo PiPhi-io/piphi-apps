@@ -3,7 +3,7 @@
   "manifest_version": "1.0",
   "id": "piphi-network-sense",
   "name": "Sense Energy",
-  "version": "0.1.2",
+  "version": "0.2.1",
   "description": "Sense Energy Monitor integration using the unofficial sense-energy cloud API client.",
   "marketplace": {
     "brand_domain": "sense.com",
@@ -50,8 +50,8 @@
     "quality_tier": "unrated",
     "governance": {
       "schema_version": 1,
-      "publication_status": "draft",
-      "rollout_percent": 0,
+      "publication_status": "stable",
+      "rollout_percent": 100,
       "lifecycle_status": "active",
       "qualification": {"status": "unverified"}
     }
@@ -70,13 +70,13 @@
     "website": "https://piphi.io"
   },
   "license": "Apache-2.0",
-  "image": "piphinetwork/piphi-network-sense:0.1.2",
+  "image": "ghcr.io/piphi-io/piphi-network-sense:0.2.1",
   "platforms": ["linux"],
   "runtime": {
     "linux": {
       "type": "container",
       "container": {
-        "image": "piphinetwork/piphi-network-sense:0.1.2",
+        "image": "ghcr.io/piphi-io/piphi-network-sense:0.2.1",
         "ports": [{"container": 8090, "host": 8090}],
         "environment": {"LOG_LEVEL": "info", "PIPHI_WIDGET_DIR": "/app/widgets"},
         "restart_policy": {"name": "unless-stopped", "maximum_retry_count": 0}
@@ -106,7 +106,8 @@
     "required": true,
     "maximum_instances": 1,
     "editable_fields": [
-      "email", "password", "mfa_code", "alias", "poll_interval_seconds", "trend_interval_seconds"
+      "email", "password", "mfa_code", "alias", "poll_interval_seconds", "trend_interval_seconds",
+      "expose_appliance_activity", "expose_timeline"
     ],
     "secret_fields": ["password", "mfa_code"],
     "runtime_fields": ["id", "config_id", "container_id", "device_id"],

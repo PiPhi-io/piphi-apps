@@ -36,6 +36,17 @@ def test_runtime_container_uses_a_non_root_persistent_profile() -> None:
     assert 'HEALTHCHECK' in dockerfile
 
 
+def test_release_workflow_qualifies_candidate_and_exact_published_digest() -> None:
+    workflow = (ROOT.parents[2] / ".github" / "workflows" / "release-app.yml").read_text()
+    script = (ROOT / "scripts" / "qualify_release_image.py").read_text()
+    assert "Build and qualify Sense release candidate" in workflow
+    assert "Qualify immutable published Sense image" in workflow
+    assert "@${{ steps.build.outputs.digest }}" in workflow
+    assert '"--network", "none"' in script
+    assert '"--read-only"' in script
+    assert '"live_account_qualification": False' in script
+
+
 @pytest.mark.parametrize("tag", ["main", "0.1.0", "v0.1.0-rc1", "v01.1.0", "v0.1.0\n"])
 def test_invalid_release_tags_are_rejected(tag: str) -> None:
     assert CHECK.validate_release(tag)

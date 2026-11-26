@@ -6,6 +6,7 @@ from typing import Any
 
 import httpx
 import pytest
+from piphi_runtime_kit_python import build_runtime_auth_headers
 
 from piphi_network_sense import service as service_module
 from piphi_network_sense.main import app
@@ -14,10 +15,13 @@ from piphi_network_sense.state import registry, sense_service
 
 
 FIXTURES = json.loads((Path(__file__).parent / "fixtures" / "contract-conformance.json").read_text())
+RUNTIME_TOKEN = "sense-test-runtime-token"
+RUNTIME_HEADERS = dict(build_runtime_auth_headers(container_id="sense-test", internal_token=RUNTIME_TOKEN))
 
 
 @pytest.mark.anyio
 async def test_runtime_conforms_to_shared_contract_fixtures(monkeypatch) -> None:
+    monkeypatch.setenv("PIPHI_INTEGRATION_INTERNAL_TOKEN", RUNTIME_TOKEN)
     monkeypatch.setattr(service_module, "schedule_telemetry_delivery", lambda **_kwargs: None)
     sense_service.client_factory = FakeSenseClient
     transport = httpx.ASGITransport(app=app)
@@ -28,6 +32,7 @@ async def test_runtime_conforms_to_shared_contract_fixtures(monkeypatch) -> None
                     fixture["method"],
                     fixture["path"],
                     json=fixture.get("body"),
+                    headers={} if fixture["path"] == "/health" else RUNTIME_HEADERS,
                 )
                 assert response.status_code == fixture["status"], fixture["id"]
                 body = response.json()

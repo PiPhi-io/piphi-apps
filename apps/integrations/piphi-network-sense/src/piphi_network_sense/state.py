@@ -19,6 +19,8 @@ from piphi_runtime_kit_python import (
 
 from .contract import CAPABILITIES, COMMANDS
 from .schemas import DeviceConfig
+from .security import redact
+from .sense_client import SenseEnergyClient
 from .service import SenseRuntimeService
 from .settings import INTEGRATION_ID, INTEGRATION_NAME, INTEGRATION_VERSION
 
@@ -39,10 +41,30 @@ automations = AutomationRegistry(
 
 capabilities = CAPABILITIES
 commands = COMMANDS
-sense_service = SenseRuntimeService(registry=registry, runtime=runtime, telemetry=telemetry)
 
+
+def create_sense_client():
+    scenario = os.getenv("PIPHI_SENSE_FAKE_ACCOUNT", "").strip()
+    if scenario:
+        from .fake_account import DeterministicFakeSenseClient, QUALIFICATION_SCENARIO
+
+        if scenario != QUALIFICATION_SCENARIO:
+            raise RuntimeError("unknown deterministic Sense fixture scenario")
+        return DeterministicFakeSenseClient()
+    return SenseEnergyClient()
+
+
+sense_service = SenseRuntimeService(
+    registry=registry,
+    runtime=runtime,
+    telemetry=telemetry,
+    client_factory=create_sense_client,
+)
+
+_PACKAGED_BEHAVIORS = Path(__file__).with_name("behaviors.json")
+_SOURCE_BEHAVIORS = Path(__file__).resolve().parents[1] / "behaviors.json"
 BEHAVIORS = json.loads(
-    (Path(__file__).resolve().parents[1] / "behaviors.json").read_text()
+    (_PACKAGED_BEHAVIORS if _PACKAGED_BEHAVIORS.is_file() else _SOURCE_BEHAVIORS).read_text()
 )
 
 # Core projects the telemetry sent by this runtime into this event. Registering
@@ -96,7 +118,7 @@ def append_runtime_event(
     event = build_local_event_record(
         event_type=event_type,
         device=device,
-        payload=payload or {},
+        payload=redact(payload or {}),
         source=INTEGRATION_ID,
         severity="info",
     )
@@ -154,10 +176,11 @@ async def refresh_automation(request: AutomationActionRequest) -> dict[str, Any]
     target = request_target if isinstance(request_target, dict) else {}
     device_id = str(request.device_id or target.get("device_id") or "sense-monitor")
     config_id = str(request.config_id or target.get("config_id") or device_id)
-    entry = registry.get(config_id) or {
-        "device_id": device_id,
-        "config_id": config_id,
-    }
+    entry = registry.get(config_id)
+    if entry is None or sense_service.active_config_id != config_id:
+        raise HTTPException(status_code=404, detail="unknown Sense configuration target")
+    if device_id not in {str(entry["device_id"]), config_id, "sense-monitor"}:
+        raise HTTPException(status_code=409, detail="refresh target does not belong to the active Sense account")
     event = append_runtime_event(
         "runtime.command.received",
         entry,
@@ -165,8 +188,8 @@ async def refresh_automation(request: AutomationActionRequest) -> dict[str, Any]
             "command": request.command,
             "device_id": device_id,
             "entity_id": request.entity_id,
-            "args": request.args,
-            "target": target,
+            "args": redact(request.args),
+            "target": redact(target),
         },
     )
     state = await sense_service.refresh(force_trends=True)
@@ -175,9 +198,9 @@ async def refresh_automation(request: AutomationActionRequest) -> dict[str, Any]
         "command": request.command,
         "device_id": device_id,
         "config_id": config_id,
-        "target": target,
-        "params": request.args,
-        "state": state,
+        "target": redact(target),
+        "params": redact(request.args),
+        "state": redact(state),
     }
 
 

@@ -157,7 +157,10 @@
         "ci_build_container": true,
         "ci_commands": [
           "pdm install --check",
-          "pdm run pytest"
+          "pdm run pytest",
+          "pdm run python scripts/validate.py",
+          "pdm run python scripts/check_release.py v0.2.1",
+          "for widget in sense-energy-flow sense-device-breakdown; do (cd widgets/$widget && npm ci --ignore-scripts && npm run build && npm test && npm run conformance); done"
         ]
       },
       "release": {
@@ -1868,7 +1871,7 @@
       "type": "integration",
       "source": {
         "folder": "apps/integrations/piphi-network-matter",
-        "source_version": "0.1.2",
+        "source_version": "0.2.1",
         "manifest_path": "manifest.json",
         "manifest_image": "ghcr.io/piphi-io/piphi-network-matter-integration:0.1.2",
         "imported_from": "https://github.com/PiPhi-io/piphi-apps",
@@ -2735,10 +2738,10 @@
         "folder": "apps/integrations/piphi-network-sense",
         "source_version": "0.1.2",
         "manifest_path": "manifest.json",
-        "manifest_image": "piphinetwork/piphi-network-sense:0.1.2",
+        "manifest_image": "ghcr.io/piphi-io/piphi-network-sense:0.2.1",
         "imported_from": "https://github.com/PiPhi-io/piphi-network-sense",
-        "ci_enforcement": "legacy-static",
-        "ci_build_container": false,
+        "ci_enforcement": "full",
+        "ci_build_container": true,
         "ci_commands": [
           "pdm install --check",
           "pdm run pytest"
@@ -2755,7 +2758,7 @@
           "registry": "ghcr.io",
           "repository": "piphi-io/piphi-network-sense"
         },
-        "expected_tag": "apps/piphi-network-sense/v0.1.2",
+        "expected_tag": "apps/piphi-network-sense/v0.2.1",
         "tag_present_locally": false,
         "registry_ref": "v0.1.2",
         "registry_image": "piphinetwork/piphi-network-sense:0.1.2",
@@ -2786,7 +2789,7 @@
       },
       "consistency": {
         "source_registry_version_match": false,
-        "source_registry_image_match": true,
+        "source_registry_image_match": false,
         "immutable_registry_image": false
       },
       "home_assistant": {

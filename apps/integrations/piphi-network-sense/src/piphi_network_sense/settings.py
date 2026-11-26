@@ -4,7 +4,7 @@ import os
 
 INTEGRATION_ID = "piphi-network-sense"
 INTEGRATION_NAME = "Sense Energy"
-INTEGRATION_VERSION = "0.1.2"
+INTEGRATION_VERSION = "0.2.1"
 PROJECT_KIND = "integration"
 PROJECT_PRESET = "cloud-polling-api"
 PROJECT_DOMAIN = "cloud-api"

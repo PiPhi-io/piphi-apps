@@ -2,7 +2,11 @@
 
 PiPhi runtime integration for the [Sense Energy Monitor](https://sense.com/), built with `piphi-runtime-kit-python` and the `piphi-network-create` cloud-polling scaffold.
 
-The integration uses the unofficial [`sense-energy`](https://github.com/scottbonline/sense) Python client. It maintains exactly one authenticated client, polls realtime data no more often than once per minute, refreshes daily trend data on a slower interval, exposes detected Sense devices as PiPhi entities, and supports Sense MFA during configuration. A best-effort extension reuses that same session for read-only appliance metadata, Always On/Other watts, and recent timeline events; failures there never disconnect normal monitoring.
+The integration uses the unofficial [`sense-energy`](https://github.com/scottbonline/sense) Python client. It maintains exactly one authenticated client, polls realtime data no more often than once per minute, refreshes provider-local daily trend data on a slower interval, exposes detected Sense devices as PiPhi entities, and supports Sense MFA during configuration. A best-effort extension reuses that same session for read-only appliance metadata, Always On/Other watts, and at most 20 recent timeline events; failures there never disconnect normal monitoring.
+
+Only `GET /health` is public. Every other route fails closed unless Core supplies the runtime token. Reconfiguration authenticates and reads from a candidate session before replacing the active session, and a different provider monitor cannot silently replace an existing account identity. Access and refresh tokens are stored only in the mode-`0600` session cache on `/var/lib/piphi`; responses, events, diagnostics, and logs apply recursive secret redaction. Core-managed configuration is rehydrated on restart.
+
+Realtime, daily-trend, and opt-in private-activity slices report independent freshness. Authentication failures stop provider retries until reconfiguration; transient and rate-limit recovery uses bounded backoff. Daily totals are explicitly labeled as the current, incomplete calendar day in the monitor's provider timezone rather than as a rolling 24-hour interval.
 
 ## Run locally
 
@@ -72,38 +76,23 @@ The service exposes `/health`, `/diagnostics`, `/discover`, `/config`, `/config/
 Build the production image with:
 
 ```bash
-docker build -t piphinetwork/piphi-network-sense:0.1.2 .
+docker build -t ghcr.io/piphi-io/piphi-network-sense:0.2.1 .
 ```
 
 ## Releases
 
-The **Publish Sense release** workflow is manually dispatched with an existing
-`vMAJOR.MINOR.PATCH` tag (for example `v0.1.0`). It checks that the tag matches
-`manifest.json`, `pyproject.toml`, the runtime version in `settings.py`, and both
-manifest image references before publishing anything.
+After source CI passes and the source PR is merged, dispatch the monorepo
+**Release one app package** workflow from `main` with package
+`piphi-network-sense`, the exact committed version, and publishing enabled. The
+workflow creates the immutable namespaced tag `apps/piphi-network-sense/vVERSION`,
+publishes `ghcr.io/piphi-io/piphi-network-sense` for `linux/amd64` and
+`linux/arm64`, attaches SBOM and provenance attestations, and emits release and
+registry-proposal evidence.
 
-One-time repository setup:
-
-- Create a GitHub environment named `release`, ideally with required reviewers.
-- Configure a Docker Hub OIDC connection for this repository and environment in
-  the `piphinetwork` organization, with push access to `piphi-network-sense`.
-- Add the organization Actions variable `DOCKERHUB_OIDC_CONNECTIONID` under
-  **PiPhi-io → Settings → Secrets and variables → Actions → Variables**, set it
-  to that connection ID, and grant `piphi-network-sense` repository access (or
-  make it available to all repositories). No Docker Hub password/token secret
-  is needed. The `release` environment remains the protected deployment and
-  OIDC identity; the connection ID itself may come from the organization variable.
-
-After merging the release workflow and version changes, create and push the
-matching tag, then run **Actions → Publish Sense release → Run workflow** on
-`main` with that tag as `release_ref`. The tag must contain the release scripts.
-Python tests, contract validation, widget tests/conformance, and a container
-import smoke test must pass before publication.
-
-The workflow publishes the exact versioned Docker Hub image for `linux/amd64`
-and `linux/arm64`, then creates a GitHub prerelease with the manifest, behaviors,
-widget assets, and image digest in its notes. It does not publish `latest`,
-promote registry governance, or claim runtime qualification. Registry status
-remains `draft` with zero rollout until separately approved. If an image push
-succeeds but GitHub release creation fails, the image is already published;
-check both destinations before retrying. An existing GitHub release is not overwritten.
+Both the release candidate and exact published digest are qualified with the
+network-disabled deterministic account fixture in
+`scripts/qualify_release_image.py`. It verifies fail-closed routes, stable
+identity, privacy, period/freshness semantics, non-root execution, and a
+read-only root filesystem. This is simulator evidence only and **does not claim
+live-account qualification**. Registry synchronization remains a separate,
+reviewed PR and must preserve the existing governance fields.

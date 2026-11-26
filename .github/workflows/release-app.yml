@@ -120,7 +120,7 @@ jobs:
         with:
           python-version: ${{ needs.plan.outputs.python_version }}
       - name: Prepare BACnet qualification Python
-        if: needs.plan.outputs.package_id == 'piphi-network-bacnet' || needs.plan.outputs.package_id == 'airthings-consumer-cloud-api'
+        if: needs.plan.outputs.package_id == 'piphi-network-bacnet' || needs.plan.outputs.package_id == 'airthings-consumer-cloud-api' || needs.plan.outputs.package_id == 'piphi-network-sense'
         uses: actions/setup-python@v5
         with:
           python-version: ${{ needs.plan.outputs.python_version }}
@@ -128,7 +128,7 @@ jobs:
         if: needs.plan.outputs.python_wheel == 'true'
         run: python -m pip install "pdm==2.29.7"
       - name: Install BACnet qualification dependencies
-        if: needs.plan.outputs.package_id == 'piphi-network-bacnet' || needs.plan.outputs.package_id == 'airthings-consumer-cloud-api'
+        if: needs.plan.outputs.package_id == 'piphi-network-bacnet' || needs.plan.outputs.package_id == 'airthings-consumer-cloud-api' || needs.plan.outputs.package_id == 'piphi-network-sense'
         working-directory: ${{ needs.plan.outputs.app_path }}
         run: |
           python -m pip install "pdm==2.29.7"
@@ -167,6 +167,22 @@ jobs:
             --build-arg BEHAVIORS_SHA256='${{ steps.contracts.outputs.behaviors_sha256 }}' .
           pdm run python scripts/qualify_release_image.py \
             --image airthings-consumer-cloud-api:release-candidate \
+            --version '${{ needs.plan.outputs.version }}' \
+            --revision '${{ github.sha }}' \
+            --manifest-sha256 '${{ steps.contracts.outputs.manifest_sha256 }}' \
+           --behaviors-sha256 '${{ steps.contracts.outputs.behaviors_sha256 }}'
+      - name: Build and qualify Sense release candidate
+        if: needs.plan.outputs.package_id == 'piphi-network-sense'
+        working-directory: ${{ needs.plan.outputs.app_path }}
+        run: |
+          docker build --tag piphi-network-sense:release-candidate \
+            --build-arg RELEASE_VERSION='${{ needs.plan.outputs.version }}' \
+            --build-arg SOURCE_REVISION='${{ github.sha }}' \
+            --build-arg SOURCE_REPOSITORY='https://github.com/PiPhi-io/piphi-apps' \
+            --build-arg MANIFEST_SHA256='${{ steps.contracts.outputs.manifest_sha256 }}' \
+            --build-arg BEHAVIORS_SHA256='${{ steps.contracts.outputs.behaviors_sha256 }}' .
+          pdm run python scripts/qualify_release_image.py \
+            --image piphi-network-sense:release-candidate \
             --version '${{ needs.plan.outputs.version }}' \
             --revision '${{ github.sha }}' \
             --manifest-sha256 '${{ steps.contracts.outputs.manifest_sha256 }}' \
@@ -214,6 +230,16 @@ jobs:
           --revision '${{ github.sha }}'
       - name: Qualify immutable published Airthings image
         if: needs.plan.outputs.package_id == 'airthings-consumer-cloud-api' && inputs.publish
+        working-directory: ${{ needs.plan.outputs.app_path }}
+        run: >-
+          pdm run python scripts/qualify_release_image.py
+          --image '${{ needs.plan.outputs.image }}@${{ steps.build.outputs.digest }}'
+          --version '${{ needs.plan.outputs.version }}'
+          --revision '${{ github.sha }}'
+          --manifest-sha256 '${{ steps.contracts.outputs.manifest_sha256 }}'
+           --behaviors-sha256 '${{ steps.contracts.outputs.behaviors_sha256 }}'
+      - name: Qualify immutable published Sense image
+        if: needs.plan.outputs.package_id == 'piphi-network-sense' && inputs.publish
         working-directory: ${{ needs.plan.outputs.app_path }}
         run: >-
           pdm run python scripts/qualify_release_image.py
