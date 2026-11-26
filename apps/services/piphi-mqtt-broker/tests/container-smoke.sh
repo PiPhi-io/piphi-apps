@@ -28,7 +28,7 @@ chmod 0600 "$secrets/password"
 
 if [ -z "${PIPHI_MQTT_IMAGE:-}" ]; then
   docker build \
-    --build-arg "RELEASE_VERSION=${EXPECTED_VERSION:-0.4.0}" \
+    --build-arg "RELEASE_VERSION=${EXPECTED_VERSION:-0.4.1}" \
     --build-arg "SOURCE_REVISION=${EXPECTED_REVISION:-local}" \
     -t "$image" .
 else
@@ -57,6 +57,7 @@ until [ "$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{end}
   sleep 1
 done
 assert_broker_non_root
+docker exec "$name" sh -ec '! command -v npm; ! command -v npx'
 docker exec "$name" node /app/dist/src/healthcheck.js --liveness
 docker exec "$name" chmod 0555 /mosquitto/data
 docker exec "$name" node /app/dist/src/healthcheck.js --liveness

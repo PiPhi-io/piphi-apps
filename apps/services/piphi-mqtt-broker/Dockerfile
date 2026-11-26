@@ -7,14 +7,15 @@ COPY src ./src
 
 RUN npm ci && npm run build && npm prune --omit=dev
 
-FROM node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
+FROM alpine:3.23@sha256:469c9ea410b9215eaee7976ba6c0639039b444be8e5d638f7abbada189971eb2
 
-ARG RELEASE_VERSION=0.4.0
+ARG RELEASE_VERSION=0.4.1
 ARG SOURCE_REVISION=unknown
 ARG SOURCE_REPOSITORY=https://github.com/PiPhi-io/piphi-apps
 ARG MOSQUITTO_VERSION=2.0.22-r0
 ARG OPENSSL_VERSION=3.5.9-r1
 ARG SU_EXEC_VERSION=0.3-r0
+ARG LIBSTDCXX_VERSION=15.2.0-r2
 LABEL org.opencontainers.image.title="PiPhi MQTT Broker" \
       org.opencontainers.image.description="Managed MQTT broker platform service for PiPhi" \
       org.opencontainers.image.source="${SOURCE_REPOSITORY}" \
@@ -27,6 +28,7 @@ WORKDIR /app
 
 COPY docker ./docker
 COPY package.json ./
+COPY --from=build /usr/local/bin/node /usr/local/bin/node
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/node_modules ./node_modules
 
@@ -35,6 +37,7 @@ RUN apk add --no-cache \
       "mosquitto-clients=${MOSQUITTO_VERSION}" \
       "openssl=${OPENSSL_VERSION}" \
       "su-exec=${SU_EXEC_VERSION}" \
+      "libstdc++=${LIBSTDCXX_VERSION}" \
     && chmod +x /app/docker/entrypoint.sh /app/docker/credentials-admin.sh /app/docker/tls-admin.sh /app/docker/storage-admin.sh \
     && mkdir -p /mosquitto/config /mosquitto/data /mosquitto/log \
     && chown -R mosquitto:mosquitto /mosquitto/config /mosquitto/data /mosquitto/log
