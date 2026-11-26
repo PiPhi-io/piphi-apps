@@ -52,6 +52,17 @@ else
     audit "reload-failed-rolled-back"
     exit 1
   fi
+  attempt=0
+  until node /app/dist/src/healthcheck.js --readiness >/dev/null 2>&1; do
+    attempt=$((attempt + 1))
+    if [ "$attempt" -ge 5 ]; then
+      node /app/dist/src/cli.js --rollback-identity
+      kill -HUP 1 || true
+      audit "reload-not-ready-rolled-back"
+      exit 1
+    fi
+    sleep 1
+  done
   if [ "${PIPHI_TEST_FAIL_IDENTITY_STEP:-}" = "after-reload" ]; then
     node /app/dist/src/cli.js --rollback-identity
     kill -HUP 1 || true

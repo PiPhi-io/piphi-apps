@@ -57,4 +57,17 @@ test("image labels provenance and drops broker privileges", () => {
   assert.match(dockerfile, /org\.opencontainers\.image\.revision="\$\{SOURCE_REVISION\}"/);
   assert.match(dockerfile, /org\.opencontainers\.image\.version="\$\{RELEASE_VERSION\}"/);
   assert.match(entrypoint, /exec su-exec mosquitto:mosquitto mosquitto -c "\$config_file"/);
+  assert.match(dockerfile, /ARG MOSQUITTO_VERSION=2\.0\.22-r0/);
+  assert.match(dockerfile, /ARG OPENSSL_VERSION=3\.5\.9-r1/);
+  assert.match(dockerfile, /"mosquitto=\$\{MOSQUITTO_VERSION\}"/);
+  assert.match(dockerfile, /"openssl=\$\{OPENSSL_VERSION\}"/);
+});
+
+test("release contract keeps exact-artifact qualification separate and immutable", () => {
+  const qualifier = readFileSync(new URL("./qualify-release-image.sh", import.meta.url), "utf8");
+  assert.match(qualifier, /@sha256:/);
+  assert.match(qualifier, /linux\/amd64\|linux\/arm64/);
+  assert.match(qualifier, /EXPECTED_VERSION/);
+  assert.match(qualifier, /EXPECTED_REVISION/);
+  assert.match(dockerfile, /HEALTHCHECK/);
 });

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { chmod, lstat, mkdir, open, readFile, readdir, readlink, realpath, rename, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, open, readFile, readdir, readlink, realpath, rename, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { isAbsolute, relative, resolve } from "node:path";
 
@@ -19,6 +19,20 @@ export interface IdentityPolicy {
   principals: BrokerPrincipal[];
   sourceDigest: string;
 }
+
+export const OBSERVABILITY_TOPICS = [
+  "$SYS/broker/uptime",
+  "$SYS/broker/clients/connected",
+  "$SYS/broker/clients/disconnected",
+  "$SYS/broker/clients/maximum",
+  "$SYS/broker/clients/total",
+  "$SYS/broker/messages/dropped",
+  "$SYS/broker/messages/stored",
+  "$SYS/broker/retained messages/count",
+  "$SYS/broker/store/messages/bytes",
+  "$SYS/broker/store/messages/count",
+  "$SYS/broker/subscriptions/count",
+] as const;
 
 function assertSecretPath(value: unknown, field: string): string {
   if (typeof value !== "string" || /[\r\n\0]/.test(value) || !isAbsolute(value) || !["/run/secrets", "/mosquitto/config"].some((root) => isContainedPath(root, resolve(value)))) {
@@ -90,6 +104,8 @@ export async function loadIdentityPolicy(config: BrokerConfig): Promise<Identity
     };
   }
 
+  const policyStat = await stat(config.authPolicyFile);
+  if (!policyStat.isFile() || policyStat.size > 1_048_576) throw new Error("MQTT auth policy must be a regular file no larger than 1 MiB");
   const raw = await readFile(config.authPolicyFile, "utf8");
   const policy = parseIdentityPolicy(raw, config);
   for (const principal of policy.principals) principal.passwordSecretFile = await resolveSecretPath(principal.passwordSecretFile);
@@ -104,6 +120,7 @@ export function parseIdentityPolicy(raw: string, config: BrokerConfig): Identity
     throw new Error("MQTT auth policy is not valid JSON");
   }
   if (document.schema_version !== 1 || !Array.isArray(document.principals) || document.principals.length === 0) throw new Error("MQTT auth policy requires schema_version 1 and at least one principal");
+  if (document.principals.length > config.maxConnections) throw new Error(`MQTT auth policy exceeds the ${config.maxConnections} principal limit`);
   const usernames = new Set<string>();
   const namespaces = new Set<string>();
   const principals = document.principals.map((value, index) => {
@@ -136,7 +153,12 @@ export function renderIdentityAcl(policy: IdentityPolicy): string {
   const lines: string[] = [];
   for (const principal of policy.principals) {
     lines.push(`user ${principal.username}`);
-    lines.push("topic deny readwrite $SYS/#", "topic deny readwrite $CONTROL/#");
+    if (principal.health) {
+      for (const topic of OBSERVABILITY_TOPICS) lines.push(`topic read ${topic}`);
+    } else {
+      lines.push("topic deny $SYS/#");
+    }
+    lines.push("topic deny $CONTROL/#");
     for (const filter of principal.read) lines.push(`topic read ${filter}`);
     for (const filter of principal.write) lines.push(`topic write ${filter}`);
     lines.push("");
@@ -144,10 +166,12 @@ export function renderIdentityAcl(policy: IdentityPolicy): string {
   return lines.join("\n");
 }
 
-async function readPrincipalPassword(principal: BrokerPrincipal, config: BrokerConfig): Promise<string> {
-  const raw = principal.passwordSecretFile === "environment:MQTT_PASSWORD"
-    ? config.password
-    : await readFile(principal.passwordSecretFile, "utf8");
+export async function readPrincipalPassword(principal: BrokerPrincipal, config: BrokerConfig): Promise<string> {
+  if (principal.passwordSecretFile !== "environment:MQTT_PASSWORD") {
+    const secretStat = await stat(principal.passwordSecretFile);
+    if (!secretStat.isFile() || secretStat.size > 8_192) throw new Error(`Password secret for ${principal.username} must be a regular file no larger than 8 KiB`);
+  }
+  const raw = principal.passwordSecretFile === "environment:MQTT_PASSWORD" ? config.password : await readFile(principal.passwordSecretFile, "utf8");
   const password = raw?.replace(/[\r\n]+$/, "") ?? "";
   if (!password || /[\r\n\0]/.test(password)) throw new Error(`Password secret for ${principal.username} is empty or malformed`);
   return password;
@@ -157,11 +181,14 @@ export async function writeIdentityCandidates(config: BrokerConfig, policy: Iden
   await rm(config.identityCandidateDir, { recursive: true, force: true });
   await mkdir(config.identityCandidateDir, { recursive: true, mode: 0o750 });
   const passwordCandidate = `${config.identityCandidateDir}/passwordfile`;
-  const credentialLines: string[] = [];
-  for (const principal of policy.principals) credentialLines.push(`${principal.username}:${await readPrincipalPassword(principal, config)}`);
-  await writeFile(passwordCandidate, `${credentialLines.join("\n")}\n`, { encoding: "utf8", mode: 0o600 });
+  const passwordHandle = await open(passwordCandidate, "wx", 0o600);
+  try {
+    for (const principal of policy.principals) await passwordHandle.write(`${principal.username}:${await readPrincipalPassword(principal, config)}\n`);
+    await passwordHandle.sync();
+  } finally {
+    await passwordHandle.close();
+  }
   await chmod(passwordCandidate, 0o600);
-  credentialLines.fill("");
   const aclCandidate = `${config.identityCandidateDir}/aclfile`;
   await writeFile(aclCandidate, renderIdentityAcl(policy), { encoding: "utf8", mode: 0o640 });
   await chmod(aclCandidate, 0o640);

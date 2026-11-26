@@ -27,11 +27,19 @@ export interface BrokerConfig {
   maxPacketSize: number;
   messageSizeLimit: number;
   maxInflightMessages: number;
+  maxInflightBytes: number;
   maxQueuedMessages: number;
   maxQueuedBytes: number;
   memoryLimit: number;
   maxKeepalive: number;
   persistentClientExpiration: string;
+  retainExpiryInterval: number;
+  sysInterval: number;
+  autosaveInterval: number;
+  minimumFreeBytes: number;
+  readinessStatePath: string;
+  readinessStaleAfterSeconds: number;
+  brokerId: string;
 }
 
 const DEFAULTS = {
@@ -50,11 +58,18 @@ const DEFAULTS = {
   maxPacketSize: 1_048_576,
   messageSizeLimit: 1_048_576,
   maxInflightMessages: 32,
+  maxInflightBytes: 8_388_608,
   maxQueuedMessages: 1_024,
   maxQueuedBytes: 16_777_216,
   memoryLimit: 268_435_456,
   maxKeepalive: 300,
   persistentClientExpiration: "7d",
+  retainExpiryInterval: 60,
+  sysInterval: 5,
+  autosaveInterval: 60,
+  minimumFreeBytes: 67_108_864,
+  readinessStaleAfterSeconds: 90,
+  brokerId: "piphi.service.mqtt-broker",
 } as const;
 
 function readBoolean(rawValue: string | undefined, fallback: boolean): boolean {
@@ -111,13 +126,14 @@ function absolutePath(value: string, name: string, allowedRoots: readonly string
 export function loadBrokerConfig(env: NodeJS.ProcessEnv = process.env): BrokerConfig {
   const tlsEnabled = readBoolean(env.MQTT_TLS_ENABLED, DEFAULTS.tlsEnabled);
   const identityRoot = absolutePath(env.MQTT_IDENTITY_ROOT?.trim() || DEFAULTS.identityRoot, "MQTT_IDENTITY_ROOT", ["/mosquitto/config/"]);
+  const persistenceLocation = absolutePath(env.MQTT_PERSISTENCE_LOCATION?.trim() || DEFAULTS.persistenceLocation, "MQTT_PERSISTENCE_LOCATION", ["/mosquitto/data/"]);
   const config: BrokerConfig = {
     host: safeToken(env.MQTT_HOST?.trim() || DEFAULTS.host, "MQTT_HOST", /^[A-Za-z0-9:._-]+$/),
     port: readManagedPort(env),
     allowAnonymous: readBoolean(env.MQTT_ALLOW_ANONYMOUS, DEFAULTS.allowAnonymous),
     allowPlaintext: readBoolean(env.MQTT_ALLOW_PLAINTEXT, DEFAULTS.allowPlaintext),
     persistence: readBoolean(env.MQTT_PERSISTENCE, DEFAULTS.persistence),
-    persistenceLocation: absolutePath(env.MQTT_PERSISTENCE_LOCATION?.trim() || DEFAULTS.persistenceLocation, "MQTT_PERSISTENCE_LOCATION", ["/mosquitto/data/"]),
+    persistenceLocation,
     logDest: safeToken(env.MQTT_LOG_DEST?.trim() || DEFAULTS.logDest, "MQTT_LOG_DEST", /^(stdout|stderr)$/) as "stdout" | "stderr",
     username: optional(env.MQTT_USERNAME),
     password: optional(env.MQTT_PASSWORD),
@@ -140,11 +156,19 @@ export function loadBrokerConfig(env: NodeJS.ProcessEnv = process.env): BrokerCo
     maxPacketSize: readBoundedInteger(env.MQTT_MAX_PACKET_SIZE, DEFAULTS.maxPacketSize, "MQTT_MAX_PACKET_SIZE", 268_435_455),
     messageSizeLimit: readBoundedInteger(env.MQTT_MESSAGE_SIZE_LIMIT, DEFAULTS.messageSizeLimit, "MQTT_MESSAGE_SIZE_LIMIT", 268_435_455),
     maxInflightMessages: readBoundedInteger(env.MQTT_MAX_INFLIGHT_MESSAGES, DEFAULTS.maxInflightMessages, "MQTT_MAX_INFLIGHT_MESSAGES", 65_535),
+    maxInflightBytes: readBoundedInteger(env.MQTT_MAX_INFLIGHT_BYTES, DEFAULTS.maxInflightBytes, "MQTT_MAX_INFLIGHT_BYTES", 4_294_967_295),
     maxQueuedMessages: readBoundedInteger(env.MQTT_MAX_QUEUED_MESSAGES, DEFAULTS.maxQueuedMessages, "MQTT_MAX_QUEUED_MESSAGES", 1_000_000),
     maxQueuedBytes: readBoundedInteger(env.MQTT_MAX_QUEUED_BYTES, DEFAULTS.maxQueuedBytes, "MQTT_MAX_QUEUED_BYTES", 4_294_967_295),
     memoryLimit: readBoundedInteger(env.MQTT_MEMORY_LIMIT, DEFAULTS.memoryLimit, "MQTT_MEMORY_LIMIT", 4_294_967_295),
     maxKeepalive: readBoundedInteger(env.MQTT_MAX_KEEPALIVE, DEFAULTS.maxKeepalive, "MQTT_MAX_KEEPALIVE", 65_535),
     persistentClientExpiration: safeToken(env.MQTT_PERSISTENT_CLIENT_EXPIRATION?.trim() || DEFAULTS.persistentClientExpiration, "MQTT_PERSISTENT_CLIENT_EXPIRATION", /^[1-9]\d*[hdwmy]$/),
+    retainExpiryInterval: readBoundedInteger(env.MQTT_RETAIN_EXPIRY_INTERVAL, DEFAULTS.retainExpiryInterval, "MQTT_RETAIN_EXPIRY_INTERVAL", 525_600),
+    sysInterval: readBoundedInteger(env.MQTT_SYS_INTERVAL, DEFAULTS.sysInterval, "MQTT_SYS_INTERVAL", 60),
+    autosaveInterval: readBoundedInteger(env.MQTT_AUTOSAVE_INTERVAL, DEFAULTS.autosaveInterval, "MQTT_AUTOSAVE_INTERVAL", 3_600),
+    minimumFreeBytes: readBoundedInteger(env.MQTT_MINIMUM_FREE_BYTES, DEFAULTS.minimumFreeBytes, "MQTT_MINIMUM_FREE_BYTES", 1_099_511_627_776),
+    readinessStatePath: absolutePath(env.MQTT_READINESS_STATE_PATH?.trim() || `${persistenceLocation}.piphi-readiness.json`, "MQTT_READINESS_STATE_PATH", ["/mosquitto/data/"]),
+    readinessStaleAfterSeconds: readBoundedInteger(env.MQTT_READINESS_STALE_AFTER_SECONDS, DEFAULTS.readinessStaleAfterSeconds, "MQTT_READINESS_STALE_AFTER_SECONDS", 3_600),
+    brokerId: safeToken(env.MQTT_BROKER_ID?.trim() || DEFAULTS.brokerId, "MQTT_BROKER_ID", /^[A-Za-z0-9._-]{1,128}$/),
   };
 
   if (config.username) safeToken(config.username, "MQTT_USERNAME", /^[A-Za-z0-9._-]{1,128}$/);

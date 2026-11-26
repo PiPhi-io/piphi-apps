@@ -4,7 +4,7 @@
   "id": "piphi.service.mqtt-broker",
   "name": "MQTT Broker",
   "description": "Shared MQTT broker for PiPhi integrations and helpers.",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "platforms": [
     "linux"
   ],
@@ -15,7 +15,7 @@
         "type": "container"
       },
       "container": {
-        "image": "ghcr.io/piphi-io/mqtt-broker:0.3.2",
+        "image": "ghcr.io/piphi-io/mqtt-broker:0.4.0",
         "environment": {
           "MQTT_ALLOW_PLAINTEXT": "false",
           "MQTT_TLS_ENABLED": "true",
@@ -104,6 +104,101 @@
           "x-env": "MQTT_TOPIC_PREFIX",
           "default": "piphi",
           "pattern": "^[A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]+)*$"
+        },
+        "broker_id": {
+          "type": "string",
+          "title": "Stable Broker ID",
+          "x-env": "MQTT_BROKER_ID",
+          "default": "piphi.service.mqtt-broker",
+          "pattern": "^[A-Za-z0-9._-]{1,128}$"
+        },
+        "max_connections": {
+          "type": "integer",
+          "title": "Maximum Connections and Managed Principals",
+          "x-env": "MQTT_MAX_CONNECTIONS",
+          "default": 256,
+          "minimum": 1,
+          "maximum": 100000
+        },
+        "max_packet_size": {
+          "type": "integer",
+          "title": "Maximum MQTT Packet Bytes",
+          "x-env": "MQTT_MAX_PACKET_SIZE",
+          "default": 1048576,
+          "minimum": 1,
+          "maximum": 268435455
+        },
+        "message_size_limit": {
+          "type": "integer",
+          "title": "Maximum MQTT Payload Bytes",
+          "x-env": "MQTT_MESSAGE_SIZE_LIMIT",
+          "default": 1048576,
+          "minimum": 1,
+          "maximum": 268435455
+        },
+        "max_inflight_messages": {
+          "type": "integer",
+          "title": "Maximum Inflight Messages Per Client",
+          "x-env": "MQTT_MAX_INFLIGHT_MESSAGES",
+          "default": 32,
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "max_inflight_bytes": {
+          "type": "integer",
+          "title": "Maximum Inflight Bytes Per Client",
+          "x-env": "MQTT_MAX_INFLIGHT_BYTES",
+          "default": 8388608,
+          "minimum": 1,
+          "maximum": 4294967295
+        },
+        "max_queued_messages": {
+          "type": "integer",
+          "title": "Maximum Offline Queued Messages Per Client",
+          "x-env": "MQTT_MAX_QUEUED_MESSAGES",
+          "default": 1024,
+          "minimum": 1,
+          "maximum": 1000000
+        },
+        "max_queued_bytes": {
+          "type": "integer",
+          "title": "Maximum Offline Queued Bytes Per Client",
+          "x-env": "MQTT_MAX_QUEUED_BYTES",
+          "default": 16777216,
+          "minimum": 1,
+          "maximum": 4294967295
+        },
+        "memory_limit": {
+          "type": "integer",
+          "title": "Broker Heap Limit Bytes",
+          "x-env": "MQTT_MEMORY_LIMIT",
+          "default": 268435456,
+          "minimum": 1,
+          "maximum": 4294967295
+        },
+        "minimum_free_bytes": {
+          "type": "integer",
+          "title": "Readiness Persistence Free-Space Floor",
+          "x-env": "MQTT_MINIMUM_FREE_BYTES",
+          "default": 67108864,
+          "minimum": 1,
+          "maximum": 1099511627776
+        },
+        "readiness_stale_after_seconds": {
+          "type": "integer",
+          "title": "Diagnostics Stale Threshold",
+          "x-env": "MQTT_READINESS_STALE_AFTER_SECONDS",
+          "default": 90,
+          "minimum": 1,
+          "maximum": 3600
+        },
+        "sys_interval": {
+          "type": "integer",
+          "title": "Aggregate Broker Metrics Interval",
+          "x-env": "MQTT_SYS_INTERVAL",
+          "default": 5,
+          "minimum": 1,
+          "maximum": 60
         },
         "tls_enabled": {
           "type": "boolean",

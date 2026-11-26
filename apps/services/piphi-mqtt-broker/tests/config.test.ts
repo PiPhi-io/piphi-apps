@@ -20,6 +20,11 @@ test("loadBrokerConfig applies bounded defaults", () => {
   assert.equal(config.maxQueuedBytes, 16_777_216);
   assert.equal(config.memoryLimit, 268_435_456);
   assert.equal(config.maxKeepalive, 300);
+  assert.equal(config.maxInflightBytes, 8_388_608);
+  assert.equal(config.sysInterval, 5);
+  assert.equal(config.autosaveInterval, 60);
+  assert.equal(config.minimumFreeBytes, 67_108_864);
+  assert.equal(config.brokerId, "piphi.service.mqtt-broker");
 });
 
 test("loadBrokerConfig gives the Core-assigned PORT precedence", () => {
@@ -36,12 +41,19 @@ test("renderMosquittoConfig enables ACLs and resource limits", () => {
   assert.match(rendered, /acl_file \/mosquitto\/config\/identity\/current\/aclfile/);
   assert.match(rendered, /max_packet_size 1048576/);
   assert.match(rendered, /memory_limit 268435456/);
+  assert.match(rendered, /max_inflight_bytes 8388608/);
+  assert.match(rendered, /sys_interval 5/);
+  assert.match(rendered, /autosave_interval 60/);
+  assert.match(rendered, /use_username_as_clientid true/);
   assert.match(rendered, /connection_messages false/);
-  assert.equal(renderIdentityAcl({
+  const acl = renderIdentityAcl({
     schemaVersion: 1,
     sourceDigest: "test",
     principals: [{ username: "piphi", passwordSecretFile: "environment:MQTT_PASSWORD", read: ["piphi/#"], write: ["piphi/#"], health: true, namespace: "legacy" }],
-  }), "user piphi\ntopic deny readwrite $SYS/#\ntopic deny readwrite $CONTROL/#\ntopic read piphi/#\ntopic write piphi/#\n");
+  });
+  assert.match(acl, /topic read \$SYS\/broker\/uptime/);
+  assert.match(acl, /topic deny \$CONTROL\/#/);
+  assert.doesNotMatch(acl, /topic read \$SYS\/#/);
 });
 
 test("loadBrokerConfig fails closed without authentication or a transport policy", () => {
@@ -56,6 +68,8 @@ test("loadBrokerConfig rejects directive injection and unsafe paths", () => {
   assert.throws(() => loadBrokerConfig({ ...authenticated, MQTT_CONFIG_OUTPUT: "/tmp/mosquitto.conf" }), /Invalid MQTT_CONFIG_OUTPUT/);
   assert.throws(() => loadBrokerConfig({ ...authenticated, MQTT_PASSWORD_SECRET_FILE: "/run/secrets-escape/password", MQTT_PASSWORD: undefined }), /Invalid MQTT_PASSWORD_SECRET_FILE/);
   assert.throws(() => loadBrokerConfig({ ...authenticated, MQTT_MEMORY_LIMIT: "4294967296" }), /exceeds/);
+  assert.throws(() => loadBrokerConfig({ ...authenticated, MQTT_SYS_INTERVAL: "0" }), /Invalid MQTT_SYS_INTERVAL/);
+  assert.throws(() => loadBrokerConfig({ ...authenticated, MQTT_BROKER_ID: "broker/id" }), /Invalid MQTT_BROKER_ID/);
 });
 
 test("TLS requires a certificate and key and renders verified TLS", () => {

@@ -17,7 +17,17 @@ test("identity policy renders distinct least-privilege principals", () => {
   ]), config);
   assert.equal(parsed.principals.length, 2);
   assert.match(renderIdentityAcl(parsed), /user worker[\s\S]*topic read piphi\/worker\/#\ntopic write piphi\/worker\/set/);
-  assert.match(renderIdentityAcl(parsed), /topic deny readwrite \$SYS\/#/);
+  assert.match(renderIdentityAcl(parsed), /user worker\ntopic deny \$SYS\/#/);
+  assert.match(renderIdentityAcl(parsed), /user health[\s\S]*topic read \$SYS\/broker\/uptime/);
+  assert.doesNotMatch(renderIdentityAcl(parsed), /topic read \$SYS\/#/);
+});
+
+test("identity policy bounds the number of stable client identities", () => {
+  const bounded = loadBrokerConfig({ MQTT_ALLOW_PLAINTEXT: "true", MQTT_AUTH_POLICY_FILE: "/run/secrets/policy.json", MQTT_MAX_CONNECTIONS: "1" });
+  assert.throws(() => parseIdentityPolicy(policy([
+    { username: "worker", namespace: "worker", password_secret_file: "/run/secrets/worker", read: ["piphi/worker/#"], write: ["piphi/worker/#"], health: false },
+    { username: "health", namespace: "_health", password_secret_file: "/run/secrets/health", read: ["piphi/_health/#"], write: ["piphi/_health/#"], health: true },
+  ]), bounded), /principal limit/);
 });
 
 test("identity policy rejects duplicate users, broad topics, and missing health identity", () => {
