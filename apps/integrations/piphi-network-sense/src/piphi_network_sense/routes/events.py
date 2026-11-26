@@ -4,6 +4,7 @@ from fastapi import APIRouter
 from piphi_runtime_kit_python import build_event_ingest_response, build_event_list_response
 
 from ..settings import INTEGRATION_ID
+from ..security import redact
 from ..state import append_runtime_event, get_entry_or_404, registry, runtime
 
 router = APIRouter(tags=["events"])
@@ -11,7 +12,7 @@ router = APIRouter(tags=["events"])
 
 @router.get("/events")
 async def events():
-    return build_event_list_response(registry.recent_events)
+    return build_event_list_response(redact(registry.recent_events))
 
 
 @router.post("/events/example")

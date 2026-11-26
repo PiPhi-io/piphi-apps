@@ -13,6 +13,7 @@ from ..settings import (
     PROJECT_KIND,
     PROJECT_PRESET,
 )
+from ..security import redact
 from ..state import registry, starter
 
 router = APIRouter(tags=["runtime"])
@@ -34,7 +35,7 @@ async def state(
         "active_config_count": len(registry.ids()),
         "recent_event_count": len(registry.recent_events),
     }
-    return payload
+    return redact(payload)
 
 
 @router.get("/contract")

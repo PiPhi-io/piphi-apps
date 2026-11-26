@@ -48,7 +48,9 @@
         "id": "sense-account",
         "email": "owner@example.com",
         "password": "test-password",
-        "alias": "Sense Home"
+        "alias": "Sense Home",
+        "expose_appliance_activity": true,
+        "expose_timeline": true
       },
       "required_any_keys": [
         [

@@ -33,7 +33,7 @@ def validate_release(tag: str, root: Path = ROOT) -> list[str]:
     }.items():
         if value != version:
             errors.append(f"{name} must match release tag {tag}; got {value!r}")
-    expected_image = f"piphinetwork/piphi-network-sense:{version}"
+    expected_image = f"ghcr.io/piphi-io/piphi-network-sense:{version}"
     if manifest.get("image") != expected_image:
         errors.append(f"manifest.image must be {expected_image}")
     if manifest["runtime"]["linux"]["container"].get("image") != expected_image:

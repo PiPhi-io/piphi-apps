@@ -4,10 +4,11 @@ import asyncio
 from collections.abc import Callable
 from contextlib import suppress
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from time import monotonic
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import HTTPException
 from piphi_runtime_kit_python import schedule_telemetry_delivery
@@ -30,6 +31,10 @@ class ActiveSenseSession:
     credentials_key: str
     last_trend_poll: float = 0.0
     failure_count: int = 0
+    retry_after_seconds: float | None = None
+    realtime_observed_at: datetime | None = None
+    trends_observed_at: datetime | None = None
+    private_observed_at: datetime | None = None
 
 
 class SenseRuntimeService:
@@ -67,30 +72,48 @@ class SenseRuntimeService:
             ).hexdigest()
             if self._active and self._active.credentials_key == credentials_key:
                 self._active.config = config
+                entry["device_id"] = str(self._active.client.monitor_id)
                 self._active.entry = entry
                 return
 
-            await self._stop_locked()
+            previous = self._active
             client = self.client_factory()
             try:
                 await client.authenticate(config)
+                if previous is not None and str(client.monitor_id) != str(previous.client.monitor_id):
+                    raise HTTPException(
+                        status_code=409,
+                        detail={
+                            "error": "account_identity_changed",
+                            "message": "Reconfiguration resolved to a different Sense monitor; remove the existing configuration first.",
+                        },
+                    )
+                candidate = ActiveSenseSession(
+                    config=config,
+                    client=client,
+                    entry=entry,
+                    credentials_key=credentials_key,
+                )
+                entry["device_id"] = str(client.monitor_id)
+                reading = await client.read(include_trends=True)
             except Exception:
                 await client.close()
                 raise
-            self._active = ActiveSenseSession(
-                config=config,
-                client=client,
-                entry=entry,
-                credentials_key=credentials_key,
-            )
-            # The provider monitor id is the immutable entity identity. Mutable
-            # email/alias values never form the runtime device id.
-            entry["device_id"] = str(client.monitor_id)
+            old_task, self._poll_task = self._poll_task, None
+            self._active = candidate
             try:
-                await self._refresh_locked(force_trends=True)
+                self._record_reading(candidate, reading, include_trends=True)
             except Exception:
-                await self._stop_locked()
+                self._active = previous
+                self._poll_task = old_task
+                await client.close()
                 raise
+            if old_task is not None and old_task is not asyncio.current_task():
+                old_task.cancel()
+                with suppress(asyncio.CancelledError):
+                    await old_task
+            if previous is not None:
+                await previous.client.close()
             self._poll_task = asyncio.create_task(self._poll_loop(), name="sense-energy-poller")
 
     async def refresh(self, *, force_trends: bool = False) -> dict[str, Any]:
@@ -126,8 +149,9 @@ class SenseRuntimeService:
             active = self._active
             if active is None:
                 return
-            delay = active.config.poll_interval_seconds * (2 ** min(active.failure_count, 5))
-            await asyncio.sleep(min(delay, 1800))
+            backoff = active.config.poll_interval_seconds * (2 ** min(active.failure_count, 5))
+            delay = active.retry_after_seconds or backoff
+            await asyncio.sleep(min(max(delay, active.config.poll_interval_seconds), 1800))
             try:
                 async with self._lock:
                     if self._active is not active:
@@ -135,39 +159,90 @@ class SenseRuntimeService:
                     await self._refresh_locked(force_trends=False)
             except asyncio.CancelledError:
                 raise
-            except Exception as exc:  # keep the long-lived session alive after transient API failures
-                active.failure_count += 1
-                previous = self.registry.state_snapshots.get(
-                    str(active.entry["config_id"]), {}
-                ).get("state", {}) if hasattr(self.registry, "state_snapshots") else {}
-                self.registry.update_state(
-                    str(active.entry["config_id"]),
-                    {
-                        **previous,
-                        "connected": False,
-                        "available": False,
-                        "stale": True,
-                        "error_class": _error_class(exc),
-                        "reauth_required": isinstance(exc, SenseAuthenticationError),
-                        "last_poll_failed_at": _utc_now_iso(),
-                    },
-                    device_id=str(active.entry["device_id"]),
-                )
+            except Exception as exc:  # keep transient recovery bounded and observable
+                if isinstance(exc, SenseAuthenticationError):
+                    return
 
     async def _refresh_locked(self, *, force_trends: bool) -> dict[str, Any]:
         assert self._active is not None
         active = self._active
         now = monotonic()
         include_trends = force_trends or now - active.last_trend_poll >= active.config.trend_interval_seconds
-        reading = await active.client.read(include_trends=include_trends)
+        try:
+            reading = await active.client.read(include_trends=include_trends)
+        except Exception as exc:
+            self._record_failure(active, exc)
+            raise
         active.failure_count = 0
+        active.retry_after_seconds = None
         if include_trends:
             active.last_trend_poll = now
+        return self._record_reading(active, reading, include_trends=include_trends)
+
+    def _record_failure(self, active: ActiveSenseSession, exc: Exception) -> None:
+        active.failure_count = min(active.failure_count + 1, 6)
+        active.retry_after_seconds = (
+            exc.retry_after_seconds if isinstance(exc, SenseRateLimitError) else None
+        )
+        config_id = str(active.entry["config_id"])
+        previous = (
+            self.registry.state_snapshots.get(config_id, {}).get("state", {})
+            if hasattr(self.registry, "state_snapshots")
+            else {}
+        )
+        failed_at = datetime.now(tz=UTC)
+        freshness = _freshness_payload(
+            active,
+            now=failed_at,
+            realtime_failed=True,
+        )
+        self.registry.update_state(
+            config_id,
+            {
+                **previous,
+                "connected": False,
+                "available": False,
+                "stale": True,
+                "freshness": freshness,
+                "error_class": _error_class(exc),
+                "reauth_required": isinstance(exc, SenseAuthenticationError),
+                "last_poll_failed_at": failed_at.isoformat(),
+                "retry": {
+                    "attempt": active.failure_count,
+                    "maximum_backoff_seconds": 1800,
+                    "retry_after_seconds": active.retry_after_seconds,
+                    "blocked_until_reconfigure": isinstance(exc, SenseAuthenticationError),
+                },
+            },
+            device_id=str(active.entry["device_id"]),
+        )
+
+    def _record_reading(
+        self,
+        active: ActiveSenseSession,
+        reading: SenseReading,
+        *,
+        include_trends: bool,
+    ) -> dict[str, Any]:
+        observed_at = datetime.now(tz=UTC)
+        active.realtime_observed_at = observed_at
+        if include_trends:
+            active.trends_observed_at = observed_at
+            active.private_observed_at = observed_at
         state = _reading_to_state(
             reading,
             expose_appliance_activity=active.config.expose_appliance_activity,
             expose_timeline=active.config.expose_timeline,
+            fetched_at=observed_at,
         )
+        state["freshness"] = _freshness_payload(active, now=observed_at)
+        state["periods"] = _daily_period(reading.time_zone, observed_at)
+        state["retry"] = {
+            "attempt": 0,
+            "maximum_backoff_seconds": 1800,
+            "retry_after_seconds": None,
+            "blocked_until_reconfigure": False,
+        }
         config_id = str(active.entry["config_id"])
         device_id = str(active.entry["device_id"])
         self.registry.update_state(config_id, state, device_id=device_id)
@@ -237,14 +312,15 @@ def _reading_to_state(
     *,
     expose_appliance_activity: bool = False,
     expose_timeline: bool = False,
+    fetched_at: datetime | None = None,
 ) -> dict[str, Any]:
-    fetched_at = _utc_now_iso()
+    fetched_at_text = (fetched_at or datetime.now(tz=UTC)).isoformat()
     state: dict[str, Any] = {
         "connected": True,
         "available": True,
         "stale": False,
-        "fetched_at": fetched_at,
-        "last_success_at": fetched_at,
+        "fetched_at": fetched_at_text,
+        "last_success_at": fetched_at_text,
         "error_class": None,
         "reauth_required": False,
         "monitor_id": reading.monitor_id,
@@ -288,7 +364,7 @@ def _reading_to_state(
                 "device_name": event.device_name,
                 "icon": event.icon,
             }
-            for event in reading.timeline_events
+            for event in reading.timeline_events[:20]
             if expose_timeline
         ],
     }
@@ -297,3 +373,54 @@ def _reading_to_state(
     if len(reading.voltage_v) > 1:
         state["voltage_l2_v"] = reading.voltage_v[1]
     return state
+
+
+def _freshness_payload(
+    active: ActiveSenseSession,
+    *,
+    now: datetime,
+    realtime_failed: bool = False,
+) -> dict[str, dict[str, Any]]:
+    def status(observed: datetime | None, max_age: int, *, force_stale: bool = False):
+        age = None if observed is None else max(0, int((now - observed).total_seconds()))
+        return {
+            "observed_at": observed.isoformat() if observed else None,
+            "age_seconds": age,
+            "max_age_seconds": max_age,
+            "stale": force_stale or age is None or age > max_age,
+        }
+
+    return {
+        "realtime": status(
+            active.realtime_observed_at,
+            max(active.config.poll_interval_seconds * 2, 120),
+            force_stale=realtime_failed,
+        ),
+        "daily_trends": status(
+            active.trends_observed_at,
+            max(active.config.trend_interval_seconds * 2, 1800),
+        ),
+        "private_activity": status(
+            active.private_observed_at,
+            max(active.config.trend_interval_seconds * 2, 1800),
+        ),
+    }
+
+
+def _daily_period(time_zone: str, observed_at: datetime) -> dict[str, Any]:
+    try:
+        zone = ZoneInfo(time_zone)
+    except (ZoneInfoNotFoundError, ValueError):
+        zone = UTC
+        time_zone = "UTC"
+    local = observed_at.astimezone(zone)
+    start = local.replace(hour=0, minute=0, second=0, microsecond=0)
+    return {
+        "daily": {
+            "kind": "provider_local_calendar_day",
+            "time_zone": time_zone,
+            "start": start.isoformat(),
+            "end_exclusive": (start + timedelta(days=1)).isoformat(),
+            "complete": False,
+        }
+    }
