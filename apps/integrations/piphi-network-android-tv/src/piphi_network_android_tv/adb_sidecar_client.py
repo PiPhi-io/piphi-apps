@@ -5,6 +5,7 @@ import os
 import secrets
 from dataclasses import dataclass
 from typing import Annotated, Any, Literal
+from urllib.parse import urlsplit
 
 import httpx
 from pydantic import (
@@ -16,6 +17,7 @@ from pydantic import (
     ValidationError,
 )
 
+from .network_policy import require_local_endpoint
 from .schemas import DeviceConfig
 
 MAX_SIDECAR_RESPONSE_BYTES = 16_384
@@ -134,6 +136,21 @@ class _ErrorResponse(BaseModel):
     retry_after_ms: int | None = Field(default=None, ge=0, le=60_000)
 
 
+class _AdbMdnsCandidate(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    service_type: Literal["_adb-tls-pairing._tcp", "_adb-tls-connect._tcp"]
+    host: str = Field(min_length=1, max_length=253)
+    port: int = Field(ge=1, le=65535)
+    verification_status: Literal["unverified"]
+
+
+class _AdbMdnsResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    candidates: list[_AdbMdnsCandidate] = Field(max_length=32)
+
+
 _PROPERTY_RESPONSE: TypeAdapter[_CompletedPropertyResponse | _ErrorResponse] = TypeAdapter(
     _CompletedPropertyResponse | _ErrorResponse
 )
@@ -155,6 +172,7 @@ class AdbDeviceSnapshot:
     reconnect_count: int
     timeout_count: int
     last_error_code: str | None
+    device_identity: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -188,7 +206,14 @@ class AdbSidecarClient:
             timeout=httpx.Timeout(15.0),
         )
         self._owns_client = client is None
+        self._enforce_network_policy = client is None
         self._targets: dict[str, _TargetLease] = {}
+
+        parsed = urlsplit(self.base_url)
+        if parsed.scheme != "http" or not parsed.hostname or parsed.username or parsed.password:
+            raise ValueError("ADB sidecar URL must be an unauthenticated local HTTP endpoint")
+        self._sidecar_host = parsed.hostname
+        self._sidecar_port = parsed.port or 80
 
     async def configure(self, config: DeviceConfig) -> AdbDeviceSnapshot:
         if not self.token:
@@ -234,6 +259,39 @@ class AdbSidecarClient:
         self._targets[config_id] = _TargetLease(target_id=snapshot.target_id)
         return self._snapshot(snapshot)
 
+    async def pair(
+        self,
+        *,
+        host: str,
+        port: int,
+        pairing_code: str,
+        timeout_ms: int = 30_000,
+    ) -> None:
+        if not pairing_code.isdecimal() or len(pairing_code) != 6:
+            raise ValueError("ADB pairing code must be exactly six digits")
+        await self._request_json(
+            "POST",
+            "/v1/adb/pair",
+            payload={
+                "host": host,
+                "port": port,
+                "pairing_code": pairing_code,
+                "timeout_ms": timeout_ms,
+            },
+            timeout_seconds=(timeout_ms / 1000) + 1.0,
+        )
+
+    async def discover_pairing_candidates(self) -> list[dict[str, Any]]:
+        raw = await self._request_json("GET", "/v1/adb/mdns", timeout_seconds=4.0)
+        try:
+            response = _AdbMdnsResponse.model_validate(raw)
+        except ValidationError as exc:
+            raise AdbSidecarProtocolError(
+                "invalid_mdns_response",
+                "ADB sidecar returned invalid discovery data",
+            ) from exc
+        return [candidate.model_dump(mode="json") for candidate in response.candidates]
+
     async def refresh(self, config_id: str, *, timeout_ms: int) -> AdbDeviceSnapshot:
         # A property query is idempotent. Reacquire a lease before issuing it so
         # a sidecar restart can recover without replaying a command.
@@ -266,6 +324,7 @@ class AdbSidecarClient:
             reconnect_count=before.reconnect_count,
             timeout_count=before.timeout_count,
             last_error_code=before.last_error_code,
+            device_identity=before.device_identity,
         )
 
     async def send_key(self, config_id: str, key: str, *, timeout_ms: int) -> None:
@@ -397,6 +456,8 @@ class AdbSidecarClient:
                 "authentication_not_configured",
                 "ADB sidecar authentication is not configured",
             )
+        if self._enforce_network_policy:
+            await require_local_endpoint(self._sidecar_host, self._sidecar_port)
         request = self._client.build_request(
             method,
             path,
@@ -464,6 +525,7 @@ class AdbSidecarClient:
             reconnect_count=response.reconnect_count,
             timeout_count=response.timeout_count,
             last_error_code=response.last_error_code,
+            device_identity=response.target_id,
         )
 
     @staticmethod

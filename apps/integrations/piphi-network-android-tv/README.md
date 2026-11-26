@@ -8,7 +8,7 @@ application, volume/mute state, refresh, and conservative short remote keys.
 The optional `adb` transport delegates all network ADB ownership to the managed
 `piphi-android-adb-sidecar`. The parent receives only an opaque target lease and
 can query four allow-listed identity properties or send the intersection of the
-parent and sidecar key allow-lists. It does not expose shell, pairing, files,
+parent and sidecar key allow-lists. It does not expose shell, files,
 packages, intents, USB, or arbitrary ADB operations.
 
 ## Pair and configure
@@ -30,7 +30,7 @@ curl -X POST http://127.0.0.1:4220/pairing/SESSION_ID/finish \
 # 3. Save only after authenticated connectivity and identity are verified.
 curl -X POST http://127.0.0.1:4220/config \
   -H 'content-type: application/json' \
-  -d '{"id":"living-room","host":"192.168.1.50","alias":"Living Room","transport":"remote_v2"}'
+  -d '{"id":"living-room","host":"192.168.1.50","alias":"Living Room","transport":"remote_v2","enable_controls":true}'
 ```
 
 Credentials are stored under `PIPHI_ANDROID_TV_CREDENTIAL_DIR` with `0700`
@@ -41,13 +41,15 @@ the remote from the television when appropriate.
 
 ## Configure managed ADB
 
-ADB must already be authorized outside this integration. Select it explicitly;
-the runtime never falls back from Remote v2 to ADB:
+ADB must be authorized explicitly. On Android 11+ firmware that advertises
+wireless debugging, `/discover` includes sanitized pairing candidates and
+`POST /pairing/adb` consumes one six-digit pairing code through the sidecar.
+Select ADB explicitly; the runtime never falls back from Remote v2 to ADB:
 
 ```bash
 curl -X POST http://127.0.0.1:4220/config \
   -H 'content-type: application/json' \
-  -d '{"id":"living-room-adb","host":"192.168.1.50","alias":"Living Room","transport":"adb","adb_port":5555}'
+  -d '{"id":"living-room-adb","host":"192.168.1.50","alias":"Living Room","transport":"adb","adb_port":5555,"enable_controls":true}'
 ```
 
 The parent configures the authenticated sidecar first and saves only after the
@@ -55,6 +57,11 @@ target is connected and authorized. Changing transport requires deconfiguring
 the existing entry first. ADB refresh reports manufacturer, model, Android
 release, API level, and bounded sidecar counters; power, app, volume, and mute
 remain unknown because this contract does not query them.
+
+Mutating key controls are disabled by default. `enable_controls=true` enables
+only the documented short-key allow-list for that one configured television;
+it does not enable text, app launch, shell, fanout, or retries after an
+uncertain outcome.
 
 ## Run locally
 
@@ -72,6 +79,7 @@ The runtime listens on port `4220` by default and exposes the common PiPhi runti
 - `POST /discover`
 - `POST /pairing/start`
 - `POST /pairing/{session_id}/finish`
+- `POST /pairing/adb`
 - `DELETE /pairing/{session_id}`
 - `DELETE /pairing/credentials/{config_id}`
 - `POST /config`
@@ -112,6 +120,8 @@ filesystem access is explicitly excluded.
 - A reset television or revoked certificate requires pairing again.
 - App IDs, text, long presses, deep links, and voice are not exposed yet.
 - ADB authorization and network reachability must be provisioned separately.
+- Android 11+ mDNS/pairing depends on firmware and authoritative Platform Tools
+  support and has not been physically qualified here.
 - ADB key failures with an uncertain outcome are never retried.
 - The ADB release candidate has not been physically device-qualified.
 
@@ -128,6 +138,6 @@ filesystem access is explicitly excluded.
 ## Docker
 
 ```bash
-docker build -t ghcr.io/piphi-io/piphi-network-android-tv:0.3.0-rc.1 .
-docker run --rm -p 4220:4220 ghcr.io/piphi-io/piphi-network-android-tv:0.3.0-rc.1
+docker build -t ghcr.io/piphi-io/piphi-network-android-tv:0.3.0-rc.2 .
+docker run --rm -p 4220:4220 ghcr.io/piphi-io/piphi-network-android-tv:0.3.0-rc.2
 ```

@@ -26,7 +26,7 @@ async def test_pairing_route_returns_only_credential_free_metadata(monkeypatch) 
 
     monkeypatch.setattr(pairing_routes.pairing_manager, "start_pairing", start_pairing)
     transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver", headers={"X-Container-Id": "test-container", "X-PiPhi-Integration-Token": "test-token"}) as client:
         response = await client.post(
             "/pairing/start",
             json={"config_id": "living-room", "host": "tv.local"},
@@ -52,7 +52,7 @@ async def test_pairing_pin_is_forwarded_once_and_not_echoed(monkeypatch) -> None
 
     monkeypatch.setattr(pairing_routes.pairing_manager, "finish_pairing", finish_pairing)
     transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver", headers={"X-Container-Id": "test-container", "X-PiPhi-Integration-Token": "test-token"}) as client:
         response = await client.post(
             "/pairing/opaque-session/finish",
             json={"pin": "A1B2C3"},
@@ -71,7 +71,7 @@ async def test_expired_pairing_session_fails_closed(monkeypatch) -> None:
 
     monkeypatch.setattr(pairing_routes.pairing_manager, "finish_pairing", finish_pairing)
     transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver", headers={"X-Container-Id": "test-container", "X-PiPhi-Integration-Token": "test-token"}) as client:
         response = await client.post(
             "/pairing/expired/finish",
             json={"pin": "A1B2C3"},
@@ -83,7 +83,7 @@ async def test_expired_pairing_session_fails_closed(monkeypatch) -> None:
 @pytest.mark.anyio
 async def test_pairing_payloads_reject_extra_fields() -> None:
     transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver", headers={"X-Container-Id": "test-container", "X-PiPhi-Integration-Token": "test-token"}) as client:
         response = await client.post(
             "/pairing/start",
             json={"config_id": "tv", "host": "tv.local", "private_key": "secret"},
@@ -98,7 +98,7 @@ async def test_discovery_returns_unverified_candidate_not_fake_identity(monkeypa
 
     monkeypatch.setattr(discovery_routes.remote_v2_discovery, "discover", discover)
     transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver", headers={"X-Container-Id": "test-container", "X-PiPhi-Integration-Token": "test-token"}) as client:
         response = await client.post("/discover", json={})
 
     assert response.status_code == 200
@@ -118,7 +118,7 @@ async def test_credentials_are_removed_only_by_explicit_forget(monkeypatch) -> N
         lambda config_id: removed.append(config_id),
     )
     transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver", headers={"X-Container-Id": "test-container", "X-PiPhi-Integration-Token": "test-token"}) as client:
         response = await client.delete("/pairing/credentials/forgotten-tv")
 
     assert response.status_code == 200

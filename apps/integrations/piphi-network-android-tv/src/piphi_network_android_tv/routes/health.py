@@ -11,7 +11,16 @@ router = APIRouter(tags=["health"])
 
 @router.get("/health")
 async def health():
-    return starter.health_response(metadata={"active_configs": len(registry.ids())})
+    entries = registry.entries.values()
+    snapshots = [entry.get("latest_state", {}) for entry in entries if isinstance(entry, dict)]
+    ready = not snapshots or all(item.get("connected") is True for item in snapshots)
+    return starter.health_response(
+        metadata={
+            "active_configs": len(registry.ids()),
+            "ready": ready,
+            "dependency_state": "ready" if ready else "degraded",
+        }
+    )
 
 
 @router.get("/diagnostics")

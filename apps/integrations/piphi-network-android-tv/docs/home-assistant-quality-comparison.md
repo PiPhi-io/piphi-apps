@@ -9,23 +9,22 @@
 
 ## Current implementation status
 
-> **Implementation update (2026-11-15):** The findings below describe the
-> audited `e9c7fb5` baseline. The current worktree now implements a first Remote
-> Protocol v2 vertical slice: mDNS candidates, expiring PIN pairing, restrictive
-> credential persistence, connect-before-save, opaque MAC-derived identity,
-> push-backed availability/power/app/volume state, reconnect and reauth
-> signaling, refresh, conservative short key commands, lifecycle cleanup,
-> redacted diagnostics, strict typing/lint gates, TestKit-backed vertical-flow
-> coverage, and container smoke tests. The ADB sidecar still has no transport;
-> its false connectivity/action claims were removed and a versioned bounded
-> parent contract was added. Hardware qualification, long-press/text/deep-link
-> controls, and the actual isolated ADB transport remain outstanding.
+> **Implementation update (2026-11-25):** The findings below describe the
+> audited `e9c7fb5` baseline. The current worktree implements bounded Remote
+> Protocol v2 and isolated network ADB slices: authenticated pairing and
+> discovery, connect-before-save, stable opaque identities, measured state,
+> reconnect and reauth signaling, Core restart restoration, bounded queues,
+> opt-in allow-listed short key commands, lifecycle cleanup, recursive secret
+> redaction, and fail-closed runtime boundaries. Android 11+ wireless ADB pairing
+> and mDNS use pinned Platform Tools in the sidecar. Hardware/firmware
+> qualification, USB, long-press/text/deep-link controls, and broad ADB
+> administration remain outstanding or deliberately excluded.
 
 ## Archived baseline assessment (`e9c7fb5`)
 
 > The remainder of this report is retained as the evidence-based assessment of
 > the audited baseline. Statements below about what PiPhi "currently" lacks
-> refer to revision `e9c7fb5`, not to the `0.2.0-rc.1` implementation update
+> refer to revision `e9c7fb5`, not to the current implementation update
 > above.
 
 PiPhi does **not yet implement Android TV control or an ADB sidecar**. Both packages are coherent runtime-contract scaffolds, but configuring either one immediately records `connected: true` without opening a socket, authenticating, pairing, discovering a device, or invoking ADB; the sole `refresh` action records a `runtime.command.received` event and returns its arguments. The honest supported slice is therefore:

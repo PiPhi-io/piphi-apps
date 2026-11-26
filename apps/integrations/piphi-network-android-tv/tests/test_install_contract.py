@@ -16,8 +16,8 @@ def test_parent_auto_installs_compatible_adb_sidecar() -> None:
         {
             "id": "piphi-android-adb-sidecar",
             "kind": "platform_service",
-            "version_range": ">=0.3.0-rc.1,<0.4.0",
-            "recommended_version": "0.3.0-rc.1",
+            "version_range": ">=0.3.0-rc.2,<0.4.0",
+            "recommended_version": "0.3.0-rc.2",
             "required": True,
             "shared": True,
             "auto_install": True,
@@ -30,7 +30,7 @@ def test_parent_auto_installs_compatible_adb_sidecar() -> None:
     package = SIDECAR_PACKAGE["packages"][0]
     assert package["id"] == "piphi-android-adb-sidecar"
     assert package["type"] == "platform_service"
-    assert package["version"] == "0.3.0-rc.1"
+    assert package["version"] == "0.3.0-rc.2"
 
 
 def test_managed_adb_sidecar_is_internal_and_uses_injected_authentication() -> None:
@@ -49,7 +49,7 @@ def test_managed_adb_sidecar_is_internal_and_uses_injected_authentication() -> N
 
 
 def test_parent_and_sidecar_release_metadata_are_consistent() -> None:
-    assert PARENT_MANIFEST["version"] == "0.3.0-rc.1"
-    assert PARENT_MANIFEST["image"].endswith(":0.3.0-rc.1")
-    assert SIDECAR_MANIFEST["version"] == "0.3.0-rc.1"
-    assert SIDECAR_MANIFEST["image"].endswith(":0.3.0-rc.1")
+    assert PARENT_MANIFEST["version"] == "0.3.0-rc.2"
+    assert PARENT_MANIFEST["image"].endswith(":0.3.0-rc.2")
+    assert SIDECAR_MANIFEST["version"] == "0.3.0-rc.2"
+    assert SIDECAR_MANIFEST["image"].endswith(":0.3.0-rc.2")

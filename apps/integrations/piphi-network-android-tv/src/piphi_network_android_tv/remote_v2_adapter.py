@@ -9,6 +9,8 @@ from dataclasses import dataclass
 from importlib import import_module
 from typing import Any, Protocol
 
+from .network_policy import require_local_endpoint
+
 
 class RemoteV2UnavailableError(RuntimeError):
     """Raised when the optional Remote Protocol v2 client is unavailable."""
@@ -147,6 +149,7 @@ class AndroidTVRemoteV2Adapter:
         connect_timeout_seconds: float = 5.0,
         remote_factory: RemoteFactory | None = None,
     ) -> None:
+        self._host = host
         self._remote = (remote_factory or _default_remote_factory)(
             client_name=client_name,
             certfile=certfile,
@@ -188,6 +191,7 @@ class AndroidTVRemoteV2Adapter:
         return remove
 
     async def connect(self) -> RemoteV2Snapshot:
+        await require_local_endpoint(self._host, 6466)
         if self._authenticated:
             return await self.refresh()
         self._register_callbacks()
@@ -220,6 +224,7 @@ class AndroidTVRemoteV2Adapter:
         return bool(await self._remote.async_generate_cert_if_missing())
 
     async def start_pairing(self) -> tuple[str, str]:
+        await require_local_endpoint(self._host, 6467)
         async with asyncio.timeout(self._connect_timeout_seconds):
             await self.generate_credentials()
             name, mac_address = await self._remote.async_get_name_and_mac()

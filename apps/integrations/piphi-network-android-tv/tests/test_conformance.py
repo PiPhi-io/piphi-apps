@@ -15,7 +15,7 @@ FIXTURES = json.loads((Path(__file__).parent / "fixtures" / "contract-conformanc
 @pytest.mark.anyio
 async def test_runtime_conforms_to_shared_contract_fixtures() -> None:
     transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver", headers={"X-Container-Id": "test-container", "X-PiPhi-Integration-Token": "test-token"}) as client:
         for fixture in FIXTURES["cases"]:
             response = await client.request(
                 fixture["method"],

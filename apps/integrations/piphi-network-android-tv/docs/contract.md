@@ -37,6 +37,9 @@ the target has been configured using explicit `remote_v2` (the default) or
 
 Unknown keys, commands, capabilities, or targets fail closed. Raw protocol
 keys, text, long presses, and multi-target key fanout are not accepted.
+`send_key` is omitted from each entity and rejected at dispatch unless that
+configuration explicitly sets `enable_controls=true`; `refresh` remains
+read-only and available.
 
 For ADB, the parent sends only the sidecar-issued opaque `target_id`. Property
 queries are restricted to manufacturer, model, Android release, and SDK. Key
@@ -52,13 +55,21 @@ an already attempted key event is not replayed.
 - `DELETE /pairing/{session_id}` cancels a pending flow.
 - `DELETE /pairing/credentials/{config_id}` explicitly forgets local
   credentials after deconfiguration.
+- `POST /pairing/adb` passes one Android 11+ six-digit pairing code to the
+  authenticated sidecar without storing or echoing it.
 
 `POST /config` connects and authenticates before saving. It returns
 `pairing_required` when credentials do not exist.
 
 ADB configuration instead requires the managed sidecar to report a connected,
-authorized target before saving. The parent does not perform ADB pairing and
-does not silently fall back to ADB. Changing transport requires deconfiguration.
+authorized target before saving. The parent can broker the bounded sidecar
+pairing endpoint but does not silently fall back to ADB. Changing transport
+requires deconfiguration.
+
+Every endpoint except `GET /health` requires complete PiPhi runtime
+authentication. Configuration bootstrap captures the Core-issued container ID
+and internal token; missing, partial, revoked, or mismatched credentials fail
+closed.
 
 ## Recommended Endpoints
 

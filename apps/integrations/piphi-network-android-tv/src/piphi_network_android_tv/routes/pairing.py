@@ -9,7 +9,7 @@ from ..remote_v2_pairing import (
     PairingSessionNotFoundError,
 )
 from ..schemas import normalize_host
-from ..state import credential_store, pairing_manager, registry
+from ..state import android_tv_service, credential_store, pairing_manager, registry
 
 router = APIRouter(prefix="/pairing", tags=["pairing"])
 
@@ -30,6 +30,19 @@ class PairingFinishRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     pin: str = Field(min_length=6, max_length=6)
+
+
+class AdbPairingRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    host: str = Field(min_length=1, max_length=253)
+    port: int = Field(ge=1, le=65535)
+    pairing_code: str = Field(min_length=6, max_length=6, pattern=r"^[0-9]{6}$")
+
+    @field_validator("host")
+    @classmethod
+    def validate_host(cls, value: str) -> str:
+        return normalize_host(value)
 
 
 @router.post("/start")
@@ -53,6 +66,23 @@ async def start_pairing(payload: PairingStartRequest):
         "device_name": session.device_name,
         "status": "pin_required",
     }
+
+
+@router.post("/adb")
+async def pair_adb(payload: AdbPairingRequest):
+    if android_tv_service.adb is None:
+        raise HTTPException(status_code=503, detail="ADB sidecar is unavailable")
+    try:
+        await android_tv_service.adb.pair(
+            host=payload.host,
+            port=payload.port,
+            pairing_code=payload.pairing_code,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail="ADB pairing failed") from exc
+    return {"status": "paired"}
 
 
 @router.post("/{session_id}/finish")
