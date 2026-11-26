@@ -178,6 +178,8 @@ async def test_bridge_routes_render_and_snapshot(tmp_path, monkeypatch) -> None:
                 "dry_run": True,
                 "time": 30,
                 "device": "coordinator",
+                "operation_id": "test-permit-join-001",
+                "confirmation": "open-zigbee-network",
                 "server": "mqtt://127.0.0.1:1883",
                 "base_topic": "zigbee2mqtt",
             },

@@ -128,6 +128,9 @@ async def apply_config(config: DeviceConfig) -> None:
                 user=config.mqtt_username,
                 password=config.mqtt_password,
                 base_topic=mqtt_base_topic,
+                ca=config.mqtt_ca_file,
+                cert=config.mqtt_cert_file,
+                key=config.mqtt_key_file,
             ),
             serial=SerialSettings(port=config.serial_port, adapter=config.adapter),
             data_path=config.data_path,
@@ -145,8 +148,12 @@ async def apply_config(config: DeviceConfig) -> None:
         rendered.config_path = write_result.config_path
         rendered.config_hash = write_result.config_hash
         sidecar_store.current_config = bridge_config
-        if topic_prefix:
-            mqtt_gateway.configure(bridge_config.mqtt)
+        mqtt_gateway.configure(bridge_config.mqtt)
+        from .commissioning import permit_join_controller
+        from .zigbee2mqtt_mqtt import Zigbee2MqttMqttClient
+
+        recovery_client = Zigbee2MqttMqttClient(mqtt=bridge_config.mqtt)
+        await permit_join_controller.recover(bridge_config.mqtt, recovery_client.permit_join)
         sidecar_store.current_render = rendered
         sidecar_store.config_path = write_result.config_path
         sidecar_store.config_hash = write_result.config_hash

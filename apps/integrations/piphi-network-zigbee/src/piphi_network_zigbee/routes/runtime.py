@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException, Query
 
 from ..contract import ENDPOINTS, REQUIRED_ENDPOINTS
 from ..mqtt_runtime import normalize_state_payload
+from ..security import redact
 from ..settings import (
     DEFAULT_SIDECAR_BASE_URL,
     INTEGRATION_ID,
@@ -33,7 +34,7 @@ async def state(
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return {
+    return redact({
         **state_payload,
         "summary": {
             "active_config_count": len(registry.ids()),
@@ -42,7 +43,7 @@ async def state(
         "entries": registry.entries,
         "state_snapshots": registry.state_snapshots,
         "mqtt_subscriptions": mqtt_subscription_snapshot(),
-    }
+    })
 
 
 async def _refresh_mqtt_state(*, dry_run: bool = False) -> None:

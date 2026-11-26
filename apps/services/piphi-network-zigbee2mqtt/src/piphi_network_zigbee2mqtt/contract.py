@@ -29,7 +29,7 @@ ENDPOINTS = {
     "bridge_network_map": "/v1/network-map",
 }
 
-REQUIRED_ENDPOINTS = ["health", "entities", "command", "config", "ui_config"]
+REQUIRED_ENDPOINTS = ["health", "command", "config", "ui_config"]
 
 CAPABILITIES: dict[str, dict[str, Any]] = {
     "connected": {

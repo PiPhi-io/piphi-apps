@@ -165,7 +165,7 @@ class Zigbee2MqttMqttClient:
         username, password = _mqtt_credentials(self.mqtt)
         if username:
             client.username_pw_set(username, password)
-        _configure_tls(client, self.mqtt.server)
+        _configure_tls(client, self.mqtt)
 
         def on_connect(client, _userdata, _flags, reason_code, _properties=None):
             if _reason_code_failed(reason_code):
@@ -215,7 +215,7 @@ class Zigbee2MqttMqttClient:
         username, password = _mqtt_credentials(self.mqtt)
         if username:
             client.username_pw_set(username, password)
-        _configure_tls(client, self.mqtt.server)
+        _configure_tls(client, self.mqtt)
 
         def on_connect(client, _userdata, _flags, reason_code, _properties=None):
             if _reason_code_failed(reason_code):
@@ -277,6 +277,14 @@ def resolve_mqtt_settings(
 
 
 def _load_paho_mqtt():
+    import os
+
+    if os.getenv("PIPHI_ZIGBEE2MQTT_TRANSPORT", "").lower() == "fake":
+        if os.getenv("PIPHI_ENV", "").lower() == "production":
+            raise Zigbee2MqttMqttError("The deterministic MQTT transport is forbidden in production.")
+        from .simulation import DeterministicMqttModule
+
+        return DeterministicMqttModule()
     try:
         import paho.mqtt.client as mqtt
     except ImportError as exc:
@@ -333,7 +341,8 @@ def _mqtt_credentials(settings: MqttSettings) -> tuple[str | None, str | None]:
     return username, password
 
 
-def _configure_tls(client: Any, server: str) -> None:
+def _configure_tls(client: Any, settings: MqttSettings | str) -> None:
+    server = settings.server if isinstance(settings, MqttSettings) else settings
     parsed = urlparse(server if "://" in server else f"mqtt://{server}")
     if parsed.scheme != "mqtts":
         return
@@ -342,7 +351,17 @@ def _configure_tls(client: Any, server: str) -> None:
         raise Zigbee2MqttMqttError(
             "MQTT client does not support certificate-verified TLS."
         )
-    tls_set()
+    if isinstance(settings, MqttSettings):
+        if settings.ca or settings.cert or settings.key:
+            tls_set(
+                ca_certs=settings.ca,
+                certfile=settings.cert,
+                keyfile=settings.key,
+            )
+        else:
+            tls_set()
+    else:
+        tls_set()
 
 
 def _reason_code_failed(reason_code: Any) -> bool:

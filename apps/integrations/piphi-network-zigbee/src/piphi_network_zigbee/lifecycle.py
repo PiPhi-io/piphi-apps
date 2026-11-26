@@ -6,13 +6,14 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from piphi_runtime_kit_python import runtime_lifespan
 
-from .state import reconcile_mqtt_subscriptions, runtime, stop_mqtt_subscriptions
+from .persistence import load_entries
+from .state import reconcile_mqtt_subscriptions, registry, runtime, stop_mqtt_subscriptions
 
 
 async def startup_sync(_runtime, _client) -> None:
-    # Real integrations can fetch an existing config snapshot from Core here.
+    for config_id, entry in load_entries().items():
+        registry.set(config_id, entry)
     reconcile_mqtt_subscriptions()
-    return None
 
 
 @asynccontextmanager

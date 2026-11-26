@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import os
+import ssl
 import threading
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -32,6 +34,7 @@ class Zigbee2MqttSidecarClient:
             or os.getenv("PIPHI_INTEGRATION_INTERNAL_TOKEN")
             or ""
         ).strip()
+        self._ssl_context = _sidecar_ssl_context(self.base_url)
 
     async def snapshot(self) -> dict[str, Any]:
         return await self._get_json("/v1/snapshot")
@@ -91,6 +94,38 @@ class Zigbee2MqttSidecarClient:
             raise SidecarUnavailable("Zigbee2MQTT sidecar returned an invalid publish response")
         return result
 
+    async def mqtt_publish_confirmed(
+        self,
+        topic: str,
+        payload: dict[str, Any],
+        *,
+        dry_run: bool = False,
+        timeout_seconds: float = 5.0,
+    ) -> dict[str, Any]:
+        state_topic = topic.removesuffix("/set")
+        before = await self.mqtt_messages([state_topic]) if not dry_run else {"sequence": 0}
+        cursor = int(before.get("sequence") or 0)
+        published = await self.mqtt_publish(topic, payload, dry_run=dry_run)
+        if dry_run:
+            return {**published, "outcome": "planned"}
+        deadline = asyncio.get_running_loop().time() + timeout_seconds
+        while asyncio.get_running_loop().time() < deadline:
+            replay = await self.mqtt_messages([state_topic], after_sequence=cursor)
+            cursor = max(cursor, int(replay.get("sequence") or 0))
+            for message in replay.get("messages") or []:
+                observed = message.get("payload") if isinstance(message, dict) else None
+                if isinstance(observed, dict) and all(observed.get(key) == value for key, value in payload.items()):
+                    return {
+                        **published,
+                        "status": "confirmed",
+                        "outcome": "device_state_converged",
+                        "observed": {key: observed.get(key) for key in payload},
+                    }
+            await asyncio.sleep(0.05)
+        raise SidecarUnavailable(
+            "Zigbee2MQTT accepted the publish but device state did not converge before timeout"
+        )
+
     async def _safe_snapshot(self) -> dict[str, Any]:
         try:
             return await self.snapshot()
@@ -101,7 +136,7 @@ class Zigbee2MqttSidecarClient:
         url = f"{self.base_url}{path}"
         headers = {"Authorization": f"Bearer {self.token}"} if self.token else {}
         try:
-            async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
+            async with httpx.AsyncClient(timeout=self.timeout_seconds, verify=self._ssl_context) as client:
                 response = await client.get(url, headers=headers)
                 response.raise_for_status()
                 return response.json()
@@ -112,7 +147,7 @@ class Zigbee2MqttSidecarClient:
         url = f"{self.base_url}{path}"
         headers = {"Authorization": f"Bearer {self.token}"} if self.token else {}
         try:
-            async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
+            async with httpx.AsyncClient(timeout=self.timeout_seconds, verify=self._ssl_context) as client:
                 response = await client.post(url, headers=headers, json=payload)
                 response.raise_for_status()
                 return response.json()
@@ -143,6 +178,7 @@ class SidecarMessageSubscriber:
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         self._gap: dict[str, int] | None = None
+        self._consecutive_failures = 0
 
     def start(self) -> None:
         if not self.topics:
@@ -179,12 +215,18 @@ class SidecarMessageSubscriber:
         while not self._stop.is_set():
             try:
                 gap_detected = self._poll_once()
+                self._consecutive_failures = 0
                 self.status = "degraded" if gap_detected else "running"
                 self.message = "mqtt_journal_gap" if gap_detected else None
             except SidecarUnavailable as exc:
+                self._consecutive_failures += 1
                 self.status = "error"
                 self.message = str(exc)
-            self._stop.wait(self.poll_interval_seconds)
+            delay = min(
+                30.0,
+                self.poll_interval_seconds * (2 ** min(self._consecutive_failures, 5)),
+            )
+            self._stop.wait(delay)
 
     def _poll_once(self) -> bool:
         url = f"{self.client.base_url}/v1/mqtt/messages"
@@ -194,7 +236,7 @@ class SidecarMessageSubscriber:
             else {}
         )
         try:
-            with httpx.Client(timeout=self.client.timeout_seconds) as client:
+            with httpx.Client(timeout=self.client.timeout_seconds, verify=self.client._ssl_context) as client:
                 response = client.post(
                     url,
                     headers=headers,
@@ -236,3 +278,29 @@ class SidecarMessageSubscriber:
         if isinstance(sequence, int):
             self._after_sequence = max(self._after_sequence, sequence)
         return self._gap is not None
+
+
+def _sidecar_ssl_context(base_url: str) -> ssl.SSLContext | bool:
+    if not base_url.lower().startswith("https://"):
+        return True
+    ca_file = str(
+        os.getenv("PIPHI_ZIGBEE2MQTT_SIDECAR_CA_FILE")
+        or os.getenv("PIPHI_ZIGBEE2MQTT_SIDECAR_CA")
+        or ""
+    ).strip() or None
+    cert_file = str(
+        os.getenv("PIPHI_ZIGBEE2MQTT_SIDECAR_CERT_FILE")
+        or os.getenv("PIPHI_ZIGBEE2MQTT_SIDECAR_CERT")
+        or ""
+    ).strip() or None
+    key_file = str(
+        os.getenv("PIPHI_ZIGBEE2MQTT_SIDECAR_KEY_FILE")
+        or os.getenv("PIPHI_ZIGBEE2MQTT_SIDECAR_KEY")
+        or ""
+    ).strip() or None
+    if bool(cert_file) != bool(key_file):
+        raise ValueError("Sidecar client certificate and key must be configured together.")
+    context = ssl.create_default_context(cafile=ca_file)
+    if cert_file and key_file:
+        context.load_cert_chain(certfile=cert_file, keyfile=key_file)
+    return context

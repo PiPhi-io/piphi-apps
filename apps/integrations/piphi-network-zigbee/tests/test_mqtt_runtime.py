@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from types import SimpleNamespace
+from typing import ClassVar
 
 import httpx
 import pytest
@@ -126,7 +127,7 @@ def test_security_event_worker_delivers_from_an_mqtt_callback_thread(monkeypatch
 
 
 class FakeMqttModule:
-    instances: list[FakeMqttClient] = []
+    instances: ClassVar[list[FakeMqttClient]] = []
 
     class Client:
         def __init__(self, client_id: str) -> None:
@@ -287,6 +288,11 @@ async def test_command_route_publishes_zigbee2mqtt_dry_run() -> None:
                 "mqtt_server": "mqtt://broker.local:1883",
                 "mqtt_base_topic": "zigbee2mqtt",
                 "capabilities": ["state", "brightness_percent"],
+                "control_enabled": True,
+                "allowed_commands": ["set_state"],
+                "exposes": [
+                    {"capability": "state", "property": "state", "access": {"set": True}}
+                ],
             },
         )
         command_response = await client.post(
@@ -297,7 +303,7 @@ async def test_command_route_publishes_zigbee2mqtt_dry_run() -> None:
                     "config_id": "test-kitchen-light",
                     "device_id": "test-kitchen-light",
                 },
-                "params": {"on": True},
+                "params": {"on": True, "confirm": True},
                 "dry_run": True,
             },
         )
@@ -327,6 +333,8 @@ async def test_command_route_rejects_read_only_expose() -> None:
             "exposes": [
                 {"capability": "state", "property": "state", "access": {"set": False}}
             ],
+            "control_enabled": True,
+            "allowed_commands": ["set_state"],
         },
     )
     transport = httpx.ASGITransport(app=app)
@@ -337,7 +345,7 @@ async def test_command_route_rejects_read_only_expose() -> None:
                 "command": "set_state",
                 "config_id": config_id,
                 "device_id": config_id,
-                "args": {"on": True},
+                "args": {"on": True, "confirm": True},
                 "dry_run": True,
             },
         )
@@ -372,6 +380,17 @@ async def test_command_route_replays_key_without_repeating_mqtt_effect(
                 "payload": payload,
             }
 
+        async def mqtt_publish_confirmed(
+            self,
+            topic: str,
+            payload: dict[str, object],
+            *,
+            dry_run: bool = False,
+            timeout_seconds: float = 5.0,
+        ) -> dict[str, object]:
+            assert timeout_seconds == 5.0
+            return await self.mqtt_publish(topic, payload, dry_run=dry_run)
+
     monkeypatch.setattr(command_routes, "Zigbee2MqttSidecarClient", FakePublishingClient)
     runtime_state.registry.set(
         "idempotent-light",
@@ -381,6 +400,8 @@ async def test_command_route_replays_key_without_repeating_mqtt_effect(
             "mqtt_server": "mqtt://broker.local:1883",
             "mqtt_topic": "zigbee2mqtt/idempotent-light",
             "capabilities": ["state", "refresh"],
+            "control_enabled": True,
+            "allowed_commands": ["set_state"],
         },
     )
     headers = {"X-PiPhi-Idempotency-Key": "zigbee-action-idempotency-1"}
@@ -388,7 +409,7 @@ async def test_command_route_replays_key_without_repeating_mqtt_effect(
         "command": "set_state",
         "config_id": "idempotent-light",
         "device_id": "idempotent-light",
-        "args": {"on": True},
+        "args": {"on": True, "confirm": True},
     }
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(
@@ -556,15 +577,13 @@ async def test_apply_config_starts_subscription_and_ingests_state(monkeypatch) -
     assert runtime_state.mqtt_subscription_snapshot()["running"] is True
     assert [delivery["device_id"] for delivery in telemetry_deliveries] == [
         "0xb40e060fffe7068b",
-        "0xb40e060fffe7068b",
     ]
     assert [delivery["config_id"] for delivery in telemetry_deliveries] == [
-        config_id,
         config_id,
     ]
     assert telemetry_deliveries[0]["metrics"]["state"] is True
     assert telemetry_deliveries[0]["metrics"]["brightness_percent"] == 100
-    assert telemetry_deliveries[1]["metrics"]["availability"] is True
+    assert telemetry_deliveries[0]["metrics"]["availability"] is True
 
     runtime_state.stop_mqtt_subscriptions()
     await runtime_state.remove_config(source_id)
@@ -635,6 +654,7 @@ async def test_device_availability_starts_unknown_and_bridge_disconnect_propagat
             return {"status": self.status, "topics": self.topics}
 
     monkeypatch.setattr(runtime_state, "SidecarMessageSubscriber", QuietSubscriber)
+    monkeypatch.setattr(runtime_state, "schedule_telemetry_delivery", lambda **kwargs: None)
     config_id = "availability-sensor"
     await runtime_state.apply_config(
         DeviceConfig(

@@ -9,12 +9,14 @@ import pytest
 from piphi_runtime_testkit_python import build_config_payload, build_runtime_headers
 
 from piphi_network_zigbee2mqtt.main import app
+from piphi_network_zigbee2mqtt.state import sidecar_store
 
 FIXTURES = json.loads((Path(__file__).parent / "fixtures" / "contract-conformance.json").read_text())
 
 
 @pytest.mark.anyio
 async def test_runtime_conforms_to_shared_contract_fixtures() -> None:
+    sidecar_store.current_config = None
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
         for fixture in FIXTURES["cases"]:

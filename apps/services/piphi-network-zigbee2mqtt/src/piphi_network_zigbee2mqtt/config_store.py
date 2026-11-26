@@ -41,6 +41,20 @@ def write_config_atomic(yaml_text: str, config_path: str) -> ConfigWriteResult:
     )
 
 
+def rollback_config_write(result: ConfigWriteResult) -> None:
+    target = Path(result.config_path)
+    require_allowed_config_path(target)
+    if not result.changed:
+        return
+    if result.backup_path:
+        backup = Path(result.backup_path)
+        if not backup.is_file():
+            raise OSError("Configuration rollback backup is missing.")
+        _write_private(target, backup.read_bytes())
+    else:
+        target.unlink(missing_ok=True)
+
+
 def text_sha256(value: str) -> str:
     return f"sha256:{sha256(value.encode('utf-8')).hexdigest()}"
 

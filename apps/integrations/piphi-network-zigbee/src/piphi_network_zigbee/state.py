@@ -27,6 +27,7 @@ from .mqtt_runtime import (
     normalize_state_payload,
     subscriptions_for_entry,
 )
+from .persistence import save_entries
 from .schemas import DeviceConfig
 from .settings import (
     DEFAULT_MQTT_BASE_TOPIC,
@@ -88,6 +89,8 @@ def make_entry(config: DeviceConfig) -> dict[str, Any]:
         "capability_metadata": capability_metadata,
         "exposes": exposes,
         "definition": config.definition,
+        "control_enabled": config.control_enabled,
+        "allowed_commands": config.allowed_commands,
         "config": config.model_dump(),
     }
 
@@ -240,7 +243,7 @@ def _deliver_security_event_from_thread(
 
     try:
         asyncio.run(send())
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - delivery clients may raise provider exceptions
         _log_event_error(exc, {"event_type": event_type})
 
 
@@ -262,6 +265,8 @@ def get_entry_or_404(config_id: str) -> dict[str, Any]:
 async def apply_config(config: DeviceConfig) -> None:
     entry = make_entry(config)
     entry_id = _entry_id_for_config(config)
+    previous_entry = registry.get(entry_id)
+    previous_state = registry.state_snapshots.get(entry_id)
     if config.id != entry_id:
         registry.remove(config.id)
     registry.set(entry_id, entry)
@@ -290,7 +295,17 @@ async def apply_config(config: DeviceConfig) -> None:
             "alias": config.alias,
         },
     )
-    reconcile_mqtt_subscriptions()
+    try:
+        reconcile_mqtt_subscriptions()
+        save_entries(registry.entries)
+    except Exception:
+        registry.remove(entry_id)
+        if previous_entry is not None:
+            registry.set(entry_id, previous_entry)
+        if previous_state is not None:
+            registry.state_snapshots[entry_id] = previous_state
+        reconcile_mqtt_subscriptions()
+        raise
 
 
 async def remove_config(config_id: str) -> bool:
@@ -302,7 +317,13 @@ async def remove_config(config_id: str) -> bool:
         entry,
         {"friendly_name": entry.get("friendly_name"), "alias": entry.get("alias")},
     )
-    reconcile_mqtt_subscriptions()
+    try:
+        reconcile_mqtt_subscriptions()
+        save_entries(registry.entries)
+    except Exception:
+        registry.set(config_id, entry)
+        reconcile_mqtt_subscriptions()
+        raise
     return True
 
 
@@ -480,6 +501,14 @@ def _handle_mqtt_payload(subscription: ZigbeeMqttSubscription, payload: dict[str
     current_state = current_snapshot.get("state") if isinstance(current_snapshot, dict) else {}
     if not isinstance(current_state, dict):
         current_state = {}
+    semantic_update = _semantic_state(state_update)
+    if semantic_update and all(current_state.get(key) == value for key, value in semantic_update.items()):
+        registry.update_state(
+            subscription.config_id,
+            {**current_state, **state_update, "mqtt_topic": entry.get("mqtt_topic")},
+            device_id=subscription.device_id,
+        )
+        return
     emit_security_transition_events(entry, current_state, state_update)
     registry.update_state(
         subscription.config_id,
@@ -495,11 +524,20 @@ def _handle_mqtt_payload(subscription: ZigbeeMqttSubscription, payload: dict[str
         entry,
         {
             "topic": subscription.topic,
-            "payload": payload,
-            "state": state_update,
+            "changed_capabilities": sorted(_semantic_state(state_update)),
         },
     )
     deliver_state_telemetry(entry, subscription.device_id, state_update)
+
+
+def _semantic_state(value: dict[str, Any]) -> dict[str, Any]:
+    ignored = {
+        "last_seen_at",
+        "availability_updated_at",
+        "bridge_availability_updated_at",
+        "mqtt_topic",
+    }
+    return {key: item for key, item in value.items() if key not in ignored}
 
 
 def deliver_state_telemetry(
@@ -582,7 +620,7 @@ def _deliver_state_telemetry_from_thread(
 
     try:
         asyncio.run(send())
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - delivery clients may raise provider exceptions
         _log_telemetry_error(exc, {"device_id": device_id, "container_id": container_id})
 
 

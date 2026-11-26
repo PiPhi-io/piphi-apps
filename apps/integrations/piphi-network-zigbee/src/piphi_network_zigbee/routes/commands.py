@@ -43,16 +43,28 @@ async def _execute_registered_command(
     config_id = str(action_request.config_id or device_id)
     entry = registry.get(config_id)
     if entry is None:
-        entry = {
-            "device_id": device_id,
-            "config_id": config_id,
-            "mqtt_topic": f"zigbee2mqtt/{device_id}",
-            "sidecar_base_url": DEFAULT_SIDECAR_BASE_URL,
-            "capabilities": ["refresh"],
-        }
-        dry_run = True
-    else:
-        dry_run = bool(extras.get("dry_run") or action_request.args.get("dry_run"))
+        return AutomationActionResult.failure(
+            "Unknown Zigbee target",
+            metadata={"status_code": 404, "error": "unknown_target"},
+        )
+    dry_run = bool(extras.get("dry_run") or action_request.args.get("dry_run"))
+
+    if action_request.command != "refresh":
+        if not entry.get("control_enabled"):
+            return AutomationActionResult.failure(
+                "Zigbee control is disabled for this device",
+                metadata={"status_code": 403, "error": "control_disabled"},
+            )
+        if action_request.command not in set(entry.get("allowed_commands") or []):
+            return AutomationActionResult.failure(
+                "Zigbee command is not allow-listed for this device",
+                metadata={"status_code": 403, "error": "command_not_allowlisted"},
+            )
+        if action_request.args.get("confirm") is not True:
+            return AutomationActionResult.failure(
+                "Zigbee controls require explicit confirmation",
+                metadata={"status_code": 400, "error": "confirmation_required"},
+            )
 
     if entry.get("exposes"):
         allowed_commands = {
@@ -60,6 +72,8 @@ async def _execute_registered_command(
             for item in available_commands_for(
                 list(entry.get("capabilities") or []),
                 list(entry.get("exposes") or []),
+                control_enabled=bool(entry.get("control_enabled")),
+                allowed_commands=list(entry.get("allowed_commands") or []),
             )
         }
         if action_request.command not in allowed_commands:
@@ -74,13 +88,20 @@ async def _execute_registered_command(
             action_request.command,
             action_request.args,
         )
-        mqtt_result = await Zigbee2MqttSidecarClient(
+        client = Zigbee2MqttSidecarClient(
             base_url=str(entry.get("sidecar_base_url") or DEFAULT_SIDECAR_BASE_URL),
-        ).mqtt_publish(
-            mqtt_command["topic"],
-            mqtt_command["payload"],
-            dry_run=dry_run,
         )
+        if action_request.command == "refresh" or dry_run:
+            mqtt_result = await client.mqtt_publish(
+                mqtt_command["topic"], mqtt_command["payload"], dry_run=dry_run
+            )
+        else:
+            mqtt_result = await client.mqtt_publish_confirmed(
+                mqtt_command["topic"],
+                mqtt_command["payload"],
+                dry_run=dry_run,
+                timeout_seconds=5.0,
+            )
     except ValueError as exc:
         return AutomationActionResult.failure(
             str(exc),
@@ -104,7 +125,7 @@ async def _execute_registered_command(
 
     target = extras.get("target") if isinstance(extras.get("target"), dict) else {}
     event = append_runtime_event(
-        "zigbee.command.published",
+        "zigbee.command.completed",
         entry,
         {
             "command": action_request.command,

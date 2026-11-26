@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import Field, field_validator
 from piphi_runtime_kit_python import RuntimeConfig
+from pydantic import Field, field_validator
 
 
 class DeviceConfig(RuntimeConfig):
@@ -22,6 +22,8 @@ class DeviceConfig(RuntimeConfig):
     capability_metadata: dict[str, Any] = Field(default_factory=dict)
     exposes: list[dict[str, Any]] = Field(default_factory=list)
     definition: dict[str, Any] = Field(default_factory=dict)
+    control_enabled: bool = False
+    allowed_commands: list[str] = Field(default_factory=list)
 
     @field_validator("friendly_name", "mqtt_base_topic")
     @classmethod

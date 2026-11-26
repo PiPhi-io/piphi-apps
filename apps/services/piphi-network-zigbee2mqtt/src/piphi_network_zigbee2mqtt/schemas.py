@@ -23,6 +23,9 @@ class DeviceConfig(RuntimeConfig):
     mqtt_base_topic: str = "zigbee2mqtt"
     mqtt_username: str | None = os.getenv("MQTT_USERNAME")
     mqtt_password: str | None = os.getenv("MQTT_PASSWORD")
+    mqtt_ca_file: str | None = os.getenv("MQTT_CA_FILE")
+    mqtt_cert_file: str | None = os.getenv("MQTT_CERT_FILE")
+    mqtt_key_file: str | None = os.getenv("MQTT_KEY_FILE")
     mqtt_topic_prefix: str | None = os.getenv("MQTT_TOPIC_PREFIX")
     mqtt_credential_generation: int | None = None
     mqtt_binding: str | None = None
@@ -32,6 +35,8 @@ class DeviceConfig(RuntimeConfig):
 
     @model_validator(mode="after")
     def require_managed_stop_evidence(self) -> DeviceConfig:
+        if bool(self.mqtt_cert_file) != bool(self.mqtt_key_file):
+            raise ValueError("MQTT client cert and key must be configured together.")
         if (
             self.coordinator_stop_authority == "core_managed_helper"
             and self.stopped_coordinator_evidence is None

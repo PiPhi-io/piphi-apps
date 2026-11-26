@@ -48,7 +48,7 @@ def test_runtime_implements_contract_routes() -> None:
     ]:
         assert path in routes
 
-    assert REQUIRED_ENDPOINTS == ["health", "entities", "command", "config", "ui_config"]
+    assert REQUIRED_ENDPOINTS == ["health", "command", "config", "ui_config"]
     assert "refresh" in COMMANDS
 
 
