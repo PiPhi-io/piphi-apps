@@ -3,7 +3,7 @@
   "manifest_version": "1.0",
   "id": "piphi-network-modbus",
   "name": "Modbus",
-  "version": "0.10.0",
+  "version": "0.10.1",
   "description": "Monitor and safely control profile-declared Modbus TCP, TLS, UDP, RTU-over-TCP, RTU, and ASCII points.",
   "metadata": {
     "generator": "piphi-network-create",
@@ -17,7 +17,7 @@
     "website": "https://piphi.io"
   },
   "license": "Apache-2.0",
-  "image": "ghcr.io/piphi-io/piphi-network-modbus:0.10.0",
+  "image": "ghcr.io/piphi-io/piphi-network-modbus:0.10.1",
   "platforms": [
     "linux"
   ],
@@ -25,7 +25,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "ghcr.io/piphi-io/piphi-network-modbus:0.10.0",
+        "image": "ghcr.io/piphi-io/piphi-network-modbus:0.10.1",
         "ports": [
           {
             "container": 4222,
@@ -35,12 +35,31 @@
         "environment": {
           "LOG_LEVEL": "info",
           "PIPHI_ENV": "production",
-          "PIPHI_MODBUS_SIDECAR_URL": "http://piphi-modbus-rtu-sidecar:4212"
+          "PIPHI_MODBUS_SIDECAR_URL": "http://piphi-modbus-rtu-sidecar:4212",
+          "PIPHI_AUTOMATION_LEDGER_PATH": "/var/lib/piphi/modbus/automation-actions.sqlite3",
+          "PIPHI_MODBUS_PULSE_JOURNAL_PATH": "/var/lib/piphi/modbus/pulse-resets.sqlite3"
         },
         "restart_policy": {
           "name": "unless-stopped",
           "maximum_retry_count": 0
-        }
+        },
+        "read_only": true,
+        "tmpfs": [
+          "/tmp"
+        ],
+        "cap_drop": [
+          "ALL"
+        ],
+        "security_opt": [
+          "no-new-privileges:true"
+        ],
+        "volumes": [
+          {
+            "host": "/var/lib/piphi/modbus",
+            "container": "/var/lib/piphi/modbus",
+            "mode": "rw"
+          }
+        ]
       },
       "discovery": {
         "method": "passive"
@@ -52,8 +71,8 @@
       {
         "id": "piphi-modbus-rtu-sidecar",
         "kind": "platform_service",
-        "version_range": ">=0.8.0,<0.9.0",
-        "recommended_version": "0.8.0",
+        "version_range": ">=0.8.1,<0.9.0",
+        "recommended_version": "0.8.1",
         "required": true,
         "shared": true,
         "auto_install": true,
@@ -110,7 +129,10 @@
       "profile_version",
       "profile_provenance",
       "points",
-      "coil_commands"
+      "coil_commands",
+      "profile_sha256",
+      "profile_signature",
+      "writes_enabled"
     ],
     "runtime_fields": [
       "id",
@@ -120,6 +142,10 @@
     ],
     "identity_fields": [
       "host"
+    ],
+    "secret_fields": [
+      "api_key",
+      "profile_signature"
     ]
   },
   "identity": {
@@ -603,5 +629,10 @@
   },
   "onboarding": {
     "mode": "manual"
-  }
+  },
+  "runtime_requirements": [
+    "sidecar_runtime",
+    "secrets_or_api_tokens",
+    "persistent_storage"
+  ]
 }

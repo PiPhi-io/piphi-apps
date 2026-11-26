@@ -3,21 +3,21 @@
   "manifest_version": "1.0",
   "id": "piphi-modbus-rtu-sidecar",
   "name": "Modbus RTU sidecar",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "description": "Coordinate bounded Modbus RTU and ASCII requests over serial buses.",
   "metadata": {
     "generator": "piphi-network-create",
     "scaffold_version": "0.3.0",
     "preset": "sidecar-worker",
     "domain": "sidecar-service",
-    "preset_summary": "Sidecar starter with service health and queue-oriented command hooks."
+    "preset_summary": "Managed serial transport helper with bounded queues and operational health."
   },
   "maintainer": {
     "name": "PiPhi Network",
     "website": "https://piphi.io"
   },
   "license": "Apache-2.0",
-  "image": "ghcr.io/piphi-io/piphi-modbus-rtu-sidecar:0.8.0",
+  "image": "ghcr.io/piphi-io/piphi-modbus-rtu-sidecar:0.8.1",
   "platforms": [
     "linux"
   ],
@@ -25,7 +25,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "ghcr.io/piphi-io/piphi-modbus-rtu-sidecar:0.8.0",
+        "image": "ghcr.io/piphi-io/piphi-modbus-rtu-sidecar:0.8.1",
         "ports": [
           {
             "container": 4212
@@ -33,19 +33,31 @@
         ],
         "environment": {
           "LOG_LEVEL": "info",
-          "PIPHI_ENV": "production"
+          "PIPHI_ENV": "production",
+          "PIPHI_AUTOMATION_LEDGER_PATH": "/var/lib/piphi/modbus-rtu-sidecar/automation-actions.sqlite3"
         },
-        "devices": [
-          {
-            "host": "/dev/serial/by-id",
-            "container": "/dev/serial/by-id",
-            "permissions": "rwm"
-          }
-        ],
+        "devices": [],
         "restart_policy": {
           "name": "unless-stopped",
           "maximum_retry_count": 0
-        }
+        },
+        "read_only": true,
+        "tmpfs": [
+          "/tmp"
+        ],
+        "cap_drop": [
+          "ALL"
+        ],
+        "security_opt": [
+          "no-new-privileges:true"
+        ],
+        "volumes": [
+          {
+            "host": "/var/lib/piphi/modbus-rtu-sidecar",
+            "container": "/var/lib/piphi/modbus-rtu-sidecar",
+            "mode": "rw"
+          }
+        ]
       },
       "discovery": {
         "method": "passive"
@@ -55,10 +67,7 @@
   "api": {
     "required": [
       "health",
-      "entities",
-      "command",
-      "config",
-      "ui_config"
+      "config"
     ],
     "endpoints": {
       "health": "/health",
@@ -71,7 +80,12 @@
       "deconfigure": "/deconfigure",
       "ui_config": "/ui-config",
       "events": "/events",
-      "command": "/command"
+      "command": "/command",
+      "modbus_snapshot": "/v1/modbus/snapshot",
+      "modbus_events": "/v1/modbus/events",
+      "modbus_refresh": "/v1/modbus/refresh",
+      "modbus_write": "/v1/modbus/write",
+      "modbus_write_coils": "/v1/modbus/write-coils"
     }
   },
   "config": {
@@ -79,9 +93,22 @@
     "endpoint": "/ui-config",
     "required": true,
     "editable_fields": [
-      "host",
-      "alias",
-      "service_name"
+      "serial_port",
+      "serial_mode",
+      "baud_rate",
+      "parity",
+      "stop_bits",
+      "data_bits",
+      "response_timeout_seconds",
+      "queue_capacity",
+      "event_capacity",
+      "profile_id",
+      "profile_version",
+      "profile_provenance",
+      "profile_sha256",
+      "profile_signature",
+      "writes_enabled",
+      "registers"
     ],
     "runtime_fields": [
       "id",
@@ -90,56 +117,20 @@
       "device_id"
     ],
     "identity_fields": [
-      "host"
+      "serial_port"
+    ],
+    "secret_fields": [
+      "profile_signature"
     ]
   },
   "identity": {
     "fields": [
-      "host"
+      "serial_port"
     ]
   },
-  "capabilities": {
-    "connected": {
-      "kind": "sensor",
-      "unit": "bool"
-    },
-    "refresh": {
-      "kind": "action"
-    }
-  },
-  "commands": {
-    "refresh": {
-      "description": "Refresh the device state.",
-      "timeout_ms": 5000
-    }
-  },
-  "entities": [
-    {
-      "id": "modbus-rtu-service",
-      "name": "Modbus RTU Service",
-      "device_id": "modbus-rtu-service",
-      "entity_type": "service",
-      "capabilities": [
-        "connected",
-        "refresh"
-      ],
-      "available_commands": [
-        {
-          "id": "refresh",
-          "label": "Refresh",
-          "kind": "action"
-        }
-      ],
-      "dashboard": {
-        "allowed_widgets": [
-          "tile",
-          "stat",
-          "button"
-        ],
-        "default_widget": "tile"
-      }
-    }
-  ],
+  "capabilities": {},
+  "commands": {},
+  "entities": [],
   "marketplace": {
     "metadata_version": 2,
     "display_name": "Modbus RTU sidecar",
@@ -199,11 +190,10 @@
       "Serial"
     ],
     "discovery_methods": [
-      "manual",
-      "serial port enumeration"
+      "manual stable serial adapter selection"
     ],
     "connectivity": "local",
-    "offline_support": "full"
+    "offline_support": "partial"
   },
   "onboarding": {
     "mode": "service"
@@ -212,5 +202,12 @@
     "version": 1,
     "port_binding": "core_allocated",
     "port_env": "PORT"
-  }
+  },
+  "deployment_mode": "sidecar",
+  "runtime_requirements": [
+    "sidecar_runtime",
+    "serial_device_access",
+    "secrets_or_api_tokens",
+    "persistent_storage"
+  ]
 }

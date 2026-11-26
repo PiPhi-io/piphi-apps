@@ -143,6 +143,9 @@ class DeviceConfig(RuntimeConfig):
     profile_id: str = Field(default="inline-profile", pattern=r"^[a-z][a-z0-9_.-]{0,127}$")
     profile_version: str = Field(default="1.0.0", min_length=1, max_length=64)
     profile_provenance: str = Field(default="user-reviewed", min_length=1, max_length=200)
+    profile_sha256: str | None = Field(default=None, pattern=r"^[0-9a-fA-F]{64}$")
+    profile_signature: str | None = Field(default=None, pattern=r"^[0-9a-fA-F]{64}$")
+    writes_enabled: bool = False
     registers: list[RegisterProfile] = Field(min_length=1, max_length=256)
 
     @field_validator("registers")

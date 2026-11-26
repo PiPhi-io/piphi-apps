@@ -415,6 +415,7 @@ async def test_parent_tcp_profile_creates_entities_and_routes_named_write(
     await device.start()
     config = DeviceConfig(
         id="tcp-profile",
+        writes_enabled=True,
         host=f"127.0.0.1:{device.port}",
         transport="tcp",
         profile_id="test.tcp-profile",
@@ -450,7 +451,8 @@ async def test_profile_declared_fc15_steady_and_pulse_commands(
     await device.start()
     config = DeviceConfig.model_validate(
         {
-            "id": "coil-commands",
+                "id": "coil-commands",
+                "writes_enabled": True,
             "host": f"127.0.0.1:{device.port}",
             "points": [
                 {"id": f"relay_{index}", "name": f"Relay {index}", "unit_id": 1, "area": "coil", "address": index, "data_type": "bool", "writable": True}

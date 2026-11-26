@@ -98,6 +98,7 @@ def rtu_config(config_id: str = "rtu-parent") -> DeviceConfig:
             "id": config_id,
             "host": "modbus-rtu-sidecar",
             "transport": "rtu_sidecar",
+            "writes_enabled": True,
             "serial_port": "/dev/serial/by-id/private",
             "profile_id": "acme.meter",
             "profile_version": "1.0.0",
@@ -177,6 +178,29 @@ async def test_parent_configures_sidecar_and_creates_metadata_entity(
         }
     finally:
         await state.remove_config("rtu-parent")
+
+
+@pytest.mark.anyio
+async def test_writes_are_hidden_and_blocked_until_independently_enabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = FakeSidecarClient()
+    monkeypatch.setattr(state, "sidecar_client_factory", lambda: client)
+    config = rtu_config("monitoring-only").model_copy(update={"writes_enabled": False})
+    await state.apply_config(config)
+    try:
+        entity = next(item for item in state.all_entities() if item["id"] == "monitoring-only:temperature")
+        assert entity["entity_type"] == "sensor"
+        assert "set_value" not in entity["capabilities"]
+        with pytest.raises(ValueError, match="writes_disabled"):
+            await state.execute_sidecar_command(
+                config_id="monitoring-only",
+                device_id="monitoring-only:temperature",
+                command="set_value",
+                args={"value": 22},
+            )
+    finally:
+        await state.remove_config("monitoring-only")
 
 
 @pytest.mark.anyio

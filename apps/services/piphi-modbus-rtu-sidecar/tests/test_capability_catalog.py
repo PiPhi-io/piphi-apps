@@ -51,12 +51,10 @@ def test_only_implemented_capabilities_are_advertised() -> None:
     assert not unavailable & (set(MANIFEST["capabilities"]) | set(MANIFEST["commands"]))
 
 
-def test_sidecar_has_only_a_transport_service_entity() -> None:
+def test_sidecar_does_not_fabricate_device_or_service_entities() -> None:
     assert not (ROOT / "src" / "behaviors.json").exists()
-    assert len(MANIFEST["entities"]) == 1
-    service = MANIFEST["entities"][0]
-    assert service["id"] == "modbus-rtu-service"
-    assert service["entity_type"] == "service"
+    assert MANIFEST["entities"] == []
+    assert MANIFEST["commands"] == {}
     assert not _by_status("implemented", "conditions")
 
 
@@ -96,5 +94,5 @@ async def test_unimplemented_and_unsafe_commands_fail_closed(command: str) -> No
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
         response = await client.post("/command", json={"contract_version": "automation.runtime.command.v1", "command": command, "target": {"device_id": "modbus-rtu-service", "config_id": "modbus-rtu-service"}, "params": {}})
-    assert response.status_code == 400
-    assert response.json()["detail"] == f"Unsupported command: {command}"
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Sidecar exposes no entity commands"

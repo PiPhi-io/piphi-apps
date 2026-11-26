@@ -123,6 +123,7 @@ async def test_two_http_services_with_real_pty_and_restart_recovery(
         "id": "e2e-bus",
         "host": "modbus-rtu-sidecar",
         "transport": "rtu_sidecar",
+        "writes_enabled": True,
         "serial_port": slave_name,
         "profile_id": "e2e.realistic-devices",
         "profile_version": "1.0.0",

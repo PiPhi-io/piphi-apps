@@ -16,12 +16,10 @@ async def events():
 
 @router.post("/events/example")
 async def event_example():
-    entry = registry.primary_entry() or {
-        "device_id": "modbus-rtu-service",
-        "config_id": "modbus-rtu-service",
-        "integration_id": INTEGRATION_ID,
-        "container_id": runtime.auth.container_id or None,
-    }
+    entry = registry.primary_entry()
+    if entry is None:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="No configured serial bus")
     event = append_runtime_event(
         "runtime.event",
         entry,

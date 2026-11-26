@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 import os
@@ -30,6 +31,7 @@ from .profile_codec import profile_hash
 from .schemas import DeviceConfig
 from .settings import INTEGRATION_ID, INTEGRATION_NAME, INTEGRATION_VERSION
 from .sidecar_client import ModbusSidecarClient, SidecarError
+from .security import redact, sign_profile_digest, verify_profile_trust
 
 logger = logging.getLogger(__name__)
 
@@ -216,17 +218,51 @@ def get_entry_or_404(config_id: str) -> dict[str, Any]:
 
 
 async def apply_config(config: DeviceConfig) -> None:
+    if config.points:
+        digest = profile_hash(
+            profile_id=config.profile_id,
+            profile_version=config.profile_version,
+            profile_provenance=config.profile_provenance,
+            points=config.points,
+            semantic_bindings={
+                "composites": [item.model_dump(mode="json") for item in config.composites],
+                "coil_commands": [item.model_dump(mode="json") for item in config.coil_commands],
+            },
+        )
+        verify_profile_trust(
+            digest=digest,
+            declared_digest=config.profile_sha256,
+            signature=config.profile_signature,
+        )
     entry = make_entry(config)
     config_id = str(entry["config_id"])
     if config.transport in {"rtu_sidecar", "ascii_sidecar"}:
         client = sidecar_client_factory()
         sidecar_payload = sidecar_config_payload(config)
-        await client.configure(sidecar_payload)
-        snapshot = await client.snapshot(config_id)
-        if not snapshot.get("connected"):
-            raise ValueError("serial_configuration_probe_failed")
-        if await recover_sidecar_pulses(config_id, client):
+        previous_entry = registry.get(config_id)
+        try:
+            await client.configure(sidecar_payload)
             snapshot = await client.snapshot(config_id)
+            if not snapshot.get("connected"):
+                raise ValueError("serial_configuration_probe_failed")
+            if await recover_sidecar_pulses(config_id, client):
+                snapshot = await client.snapshot(config_id)
+        except BaseException:
+            previous_config = (
+                DeviceConfig.model_validate(previous_entry["config"])
+                if previous_entry is not None
+                else None
+            )
+            try:
+                if previous_config is not None and previous_config.transport in {
+                    "rtu_sidecar", "ascii_sidecar"
+                }:
+                    await client.configure(sidecar_config_payload(previous_config))
+                elif previous_entry is None:
+                    await client.deconfigure(config_id)
+            except SidecarError:
+                logger.error("modbus_sidecar_rollback_failed config_id=%s", config_id)
+            raise
         registry.set(config_id, entry)
         sidecar_clients[config_id] = client
         await sync_sidecar_entry(entry, client, snapshot=snapshot)
@@ -678,6 +714,10 @@ def _store_tcp_snapshot(
             },
         ),
     )
+    if not config.writes_enabled:
+        for raw_point in snapshot.get("points", []):
+            if isinstance(raw_point, dict):
+                raw_point["writable"] = False
     refreshed_models = normalize_snapshot(snapshot, config_id=config_id)
     if points is None or config_id not in point_models:
         models = refreshed_models
@@ -691,7 +731,7 @@ def _store_tcp_snapshot(
         ]
     point_models[config_id] = models
     composite_models[config_id] = normalize_composites(
-        config.composites, models, config_id=config_id
+        config.composites, models, config_id=config_id, writes_enabled=config.writes_enabled
     )
     quality_counts = _quality_counts(models)
     unit_health = snapshot.get("unit_health", [])
@@ -749,11 +789,15 @@ async def sync_sidecar_entry(
     config_id = str(entry["config_id"])
     if snapshot is None:
         snapshot = await client.snapshot(config_id)
+    config = DeviceConfig.model_validate(entry["config"])
+    if not config.writes_enabled:
+        for raw_point in snapshot.get("points", []):
+            if isinstance(raw_point, dict):
+                raw_point["writable"] = False
     models = normalize_snapshot(snapshot, config_id=config_id)
     point_models[config_id] = models
-    config = DeviceConfig.model_validate(entry["config"])
     composite_models[config_id] = normalize_composites(
-        config.composites, models, config_id=config_id
+        config.composites, models, config_id=config_id, writes_enabled=config.writes_enabled
     )
     quality_counts = _quality_counts(models)
     polled_models = (
@@ -840,6 +884,25 @@ def sidecar_config_payload(config: DeviceConfig) -> dict[str, Any]:
     payload.pop("transport", None)
     payload.pop("tls_ca_certificate", None)
     payload.pop("tls_server_name", None)
+    if config.profile_sha256 and config.profile_signature:
+        transport_document = {
+            "id": config.profile_id,
+            "version": config.profile_version,
+            "provenance": config.profile_provenance,
+            "transport": {
+                "serial_mode": payload["serial_mode"],
+                "baud_rate": config.baud_rate,
+                "parity": config.parity,
+                "stop_bits": config.stop_bits,
+                "data_bits": config.data_bits,
+                "response_timeout_seconds": config.response_timeout_seconds,
+            },
+            "points": payload["registers"],
+        }
+        encoded = json.dumps(transport_document, sort_keys=True, separators=(",", ":")).encode()
+        transport_digest = hashlib.sha256(encoded).hexdigest()
+        payload["profile_sha256"] = transport_digest
+        payload["profile_signature"] = sign_profile_digest(transport_digest)
     return payload
 
 
@@ -929,7 +992,7 @@ def polling_diagnostics() -> dict[str, Any]:
                 for group in sorted(schedule.values(), key=lambda item: item["id"])
             ],
         }
-    return diagnostics
+    return redact(diagnostics)
 
 
 def find_point_model(config_id: str, device_id: str) -> dict[str, Any]:
@@ -1012,6 +1075,8 @@ async def execute_sidecar_command(
     if client is None or entry is None:
         raise ValueError("sidecar_not_configured")
     config = DeviceConfig.model_validate(entry["config"])
+    if command != "refresh" and not config.writes_enabled:
+        raise ValueError("writes_disabled")
     if command == "run_coil_command":
         binding, _ = resolve_coil_command(config, args)
         if binding.pulse_seconds is not None:
@@ -1072,6 +1137,8 @@ async def execute_tcp_command(
     if client is None or entry is None:
         raise ValueError("tcp_profile_not_configured")
     config = DeviceConfig.model_validate(entry["config"])
+    if command != "refresh" and not config.writes_enabled:
+        raise ValueError("writes_disabled")
     if command == "run_coil_command":
         binding, points = resolve_coil_command(config, args)
         if binding.pulse_seconds is not None:

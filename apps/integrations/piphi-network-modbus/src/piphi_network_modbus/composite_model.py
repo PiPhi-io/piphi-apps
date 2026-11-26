@@ -31,6 +31,7 @@ def normalize_composites(
     points: list[dict[str, Any]],
     *,
     config_id: str,
+    writes_enabled: bool = False,
 ) -> list[dict[str, Any]]:
     point_by_id = {str(point["point_id"]): point for point in points}
     models: list[dict[str, Any]] = []
@@ -45,7 +46,7 @@ def normalize_composites(
             for source in sources.values()
             if source["state"].get("updated_at")
         ]
-        command_ids = ["refresh", *composite.commands]
+        command_ids = ["refresh", *(composite.commands if writes_enabled else {})]
         device_id = f"{config_id}:{composite.id}"
         models.append(
             {

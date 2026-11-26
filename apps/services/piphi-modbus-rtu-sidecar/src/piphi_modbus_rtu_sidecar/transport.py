@@ -11,6 +11,7 @@ from datetime import UTC, datetime
 from typing import Any, TypeVar
 
 from .schemas import DeviceConfig, RegisterProfile
+from .security import redact
 
 T = TypeVar("T")
 
@@ -120,7 +121,7 @@ class EventBuffer:
             "sequence": self._next_sequence,
             "occurred_at": datetime.now(UTC).isoformat(),
             "event_type": event_type,
-            "payload": sanitize(payload),
+            "payload": redact(payload),
         }
         self._next_sequence += 1
         self._events.append(event)
@@ -141,23 +142,7 @@ class EventBuffer:
         )
 
 
-SENSITIVE = ("token", "secret", "password", "credential", "raw_frame", "serial_port")
-
-
-def sanitize(value: Any, *, key: str = "", depth: int = 0) -> Any:
-    if any(part in key.lower() for part in SENSITIVE):
-        return "[redacted]"
-    if depth > 5:
-        return "[truncated]"
-    if isinstance(value, dict):
-        return {str(k): sanitize(v, key=str(k), depth=depth + 1) for k, v in list(value.items())[:100]}
-    if isinstance(value, list):
-        return [sanitize(item, depth=depth + 1) for item in value[:100]]
-    if isinstance(value, bytes):
-        return f"[binary:{len(value)}]"
-    if isinstance(value, str) and len(value) > 4096:
-        return value[:4096] + "[truncated]"
-    return value
+sanitize = redact
 
 
 FUNCTION_BY_AREA = {

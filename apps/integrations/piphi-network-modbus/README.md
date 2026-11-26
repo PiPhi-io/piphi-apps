@@ -1,5 +1,14 @@
 # Piphi Network Modbus
 
+## Production contract
+
+- `/health` is the only public route. Core authenticates every operational request with its runtime identity.
+- Core injects one dedicated `PIPHI_MODBUS_SIDECAR_TOKEN` into this parent and the managed sidecar. It is used only as an internal Bearer credential and is never stored in state or diagnostics.
+- Profiles are monitoring-only unless `writes_enabled` is explicitly true. Writes still resolve only signed profile point/command IDs, enforce type and range limits, and require protocol confirmation plus read-back.
+- Production requires `profile_sha256` and `profile_signature`. The signature is HMAC-SHA256 over the canonical digest using the Core-injected `PIPHI_MODBUS_PROFILE_TRUST_ANCHOR`.
+- Runtime journals live under `/var/lib/piphi/modbus`; Core remains authoritative for configuration snapshots and replays them after restart.
+- All transports are deterministically simulated in tests. This is not physical-device, adapter, electrical-noise, or timing qualification.
+
 PiPhi Modbus runtime for reviewed semantic profiles over local Modbus TCP, UDP,
 RTU-over-TCP, certificate-validated TLS, and the authenticated RTU/ASCII
 sidecar. Profiles declare exact units, areas, addresses,
@@ -135,6 +144,6 @@ and untrusted profiles remain excluded.
 ## Docker
 
 ```bash
-docker build -t ghcr.io/piphi-io/piphi-network-modbus:0.10.0 .
-docker run --rm -p 4222:4222 ghcr.io/piphi-io/piphi-network-modbus:0.10.0
+docker build -t ghcr.io/piphi-io/piphi-network-modbus:0.10.1 .
+docker run --rm -p 4222:4222 ghcr.io/piphi-io/piphi-network-modbus:0.10.1
 ```

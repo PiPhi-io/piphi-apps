@@ -48,7 +48,7 @@ async def write(payload: dict[str, Any]) -> dict[str, Any]:
         raise HTTPException(status_code=400, detail="point_id_required")
     try:
         result = await controller.write_point(point_id, payload.get("value"))
-    except ValueError as exc:
+    except (RuntimeError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"ok": True, "point_id": point_id, **result}
 
@@ -69,6 +69,6 @@ async def write_coils(payload: dict[str, Any]) -> dict[str, Any]:
         raise HTTPException(status_code=400, detail="boolean_values_required")
     try:
         result = await controller.write_coils(point_ids, values)
-    except ValueError as exc:
+    except (RuntimeError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"ok": True, **result}
