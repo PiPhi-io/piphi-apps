@@ -45,6 +45,18 @@ class ConsumerRequest(BaseModel):
     matcher: MatcherRequest
     scan_mode: Literal["auto", "active", "passive"] = "auto"
     queue_capacity: int = Field(default=128, ge=1, le=1024)
+    bind_keys: dict[str, str] = Field(default_factory=dict, max_length=128)
+
+    @field_validator("bind_keys")
+    @classmethod
+    def valid_bind_keys(cls, value: dict[str, str]) -> dict[str, str]:
+        if any(
+            not re.fullmatch(r"ble_[0-9a-f]{32}", handle)
+            or not re.fullmatch(r"[0-9a-fA-F]{32}", key)
+            for handle, key in value.items()
+        ):
+            raise ValueError("bind keys require opaque handles and 16-byte hexadecimal values")
+        return {handle: key.lower() for handle, key in value.items()}
 
 
 def _bearer(authorization: str | None) -> str:
@@ -79,14 +91,21 @@ async def put_consumer(consumer_id: str, request: ConsumerRequest, authorization
     )
     try:
         consumer = await gateway.register(
-            consumer_id, token, matcher, request.scan_mode, request.queue_capacity
+            consumer_id,
+            token,
+            matcher,
+            request.scan_mode,
+            request.queue_capacity,
+            bind_keys={handle: bytes.fromhex(key) for handle, key in request.bind_keys.items()},
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except PermissionError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     return {"consumer_id": consumer.consumer_id, "scan_mode": consumer.mode,
-            "queue_capacity": consumer.capacity, "effective_scan_mode": gateway.plan()}
+            "queue_capacity": consumer.capacity, "effective_scan_mode": gateway.plan(),
+            "contract_version": 1,
+            "capabilities": ["opaque_identity", "bounded_replay", "bthome_bind_key"]}
 
 
 @router.delete("/consumers/{consumer_id}", status_code=204)

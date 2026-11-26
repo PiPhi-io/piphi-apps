@@ -11,7 +11,9 @@ router = APIRouter(tags=["health"])
 
 @router.get("/health")
 async def health():
-    return starter.health_response(metadata={"active_configs": len(registry.ids())})
+    snapshot = diagnostic_snapshot()
+    ready = not snapshot or all(item["receiver_healthy"] for item in snapshot.values())
+    return starter.health_response(metadata={"ready": ready, "active_configs": len(registry.ids())})
 
 
 @router.get("/diagnostics")

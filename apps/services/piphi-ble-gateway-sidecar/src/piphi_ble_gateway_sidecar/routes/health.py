@@ -13,7 +13,8 @@ router = APIRouter(tags=["health"])
 @router.get("/health")
 async def health():
     detail = await gateway.diagnostics()
-    return starter.health_response(metadata={"active_configs": len(registry.ids()), **detail})
+    ready = gateway.service_available and gateway.scanner_state != "failed"
+    return starter.health_response(metadata={"ready": ready, "active_configs": len(registry.ids()), **detail})
 
 
 @router.get("/diagnostics")

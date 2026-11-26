@@ -17,6 +17,7 @@ from .contract import CAPABILITIES, COMMANDS
 from .gateway import gateway
 from .schemas import DeviceConfig
 from .settings import INTEGRATION_ID, INTEGRATION_NAME, INTEGRATION_VERSION
+from .privacy import redact
 
 starter = create_runtime_starter(
     integration_id=INTEGRATION_ID,
@@ -42,7 +43,7 @@ def make_entry(config: DeviceConfig) -> dict[str, Any]:
     return {
         **identity,
         "alias": config.alias,
-        "config": {"id": config.id, "alias": config.alias},
+        "config": redact({"id": config.id, "alias": config.alias, "service_name": config.service_name}),
     }
 
 
@@ -54,7 +55,7 @@ def append_runtime_event(
     event = build_local_event_record(
         event_type=event_type,
         device=device,
-        payload=payload or {},
+        payload=redact(payload or {}),
         source=INTEGRATION_ID,
         severity="info",
     )
@@ -71,6 +72,12 @@ def get_entry_or_404(config_id: str) -> dict[str, Any]:
 
 async def apply_config(config: DeviceConfig) -> None:
     entry = make_entry(config)
+    existing_ids = [item for item in registry.ids() if item != entry["config_id"]]
+    if existing_ids:
+        raise HTTPException(status_code=409, detail="BLE gateway is a singleton platform service")
+    diagnostics = await gateway.diagnostics()
+    consumers = list(diagnostics.get("consumers", {}).values())
+    platform = diagnostics.get("platform_capabilities", {})
     registry.set(config.id, entry)
     registry.update_state(
         config.id,
@@ -78,6 +85,23 @@ async def apply_config(config: DeviceConfig) -> None:
             "service_available": gateway.service_available,
             "receiver_healthy": gateway.receiver_healthy,
             "scanner_state": gateway.scanner_state,
+            "scan_mode": gateway.scan_mode,
+            "observations_received_total": gateway.observations_received,
+            "observations_deduplicated_total": gateway.observations_deduplicated,
+            "last_observation_age_ms": diagnostics.get("last_observation_age_ms"),
+            "reconnects": gateway.reconnects,
+            "queue_depth": sum(int(item.get("queue_depth", 0)) for item in consumers),
+            "queue_capacity": sum(int(item.get("queue_capacity", 0)) for item in consumers),
+            "queue_high_water": max((int(item.get("queue_high_water", 0)) for item in consumers), default=0),
+            "drops": sum(int(item.get("drops", 0)) for item in consumers),
+            "coalesces": sum(int(item.get("coalesces", 0)) for item in consumers),
+            "decrypt_failures": sum(int(item.get("decrypt_failures", 0)) for item in consumers),
+            "scanner_callback_drops": int(diagnostics.get("scanner_callback_drops", 0)),
+            "adapter_count": platform.get("adapter_count"),
+            "adapter_powered": platform.get("adapter_powered"),
+            "adapter_discovering": platform.get("adapter_discovering"),
+            "rfkill_soft_blocked": platform.get("rfkill_soft_blocked"),
+            "rfkill_hard_blocked": platform.get("rfkill_hard_blocked"),
             "alias": config.alias,
             "config_id": entry["config_id"],
         },
@@ -109,10 +133,7 @@ def _register_automation_actions() -> None:
             target = target if isinstance(target, dict) else {}
             device_id = str(request.device_id or target.get("device_id") or "ble-gateway-service")
             config_id = str(request.config_id or target.get("config_id") or device_id)
-            entry = registry.get(config_id) or {
-                "device_id": device_id,
-                "config_id": config_id,
-            }
+            entry = get_entry_or_404(config_id)
             event = append_runtime_event(
                 "runtime.command.received",
                 entry,

@@ -15,6 +15,7 @@ from ..schemas import DeviceConfig
 from ..gateway import GatewayError
 from ..state import (
     apply_config,
+    apply_config_snapshot,
     config_sync,
     registry,
     remove_config,
@@ -42,13 +43,7 @@ async def configure(payload: DeviceConfig, request: Request):
 async def sync_config(snapshot: RuntimeConfigSnapshot, request: Request):
     runtime.auth.sync_from_headers(request.headers, payload_container_id=snapshot.container_id)
     typed_configs = validate_typed_configs(snapshot.configs, DeviceConfig)
-    return await config_sync.apply_snapshot(
-        snapshot=snapshot.model_copy(update={"configs": typed_configs}),
-        active_config_ids=registry.ids(),
-        apply_config=apply_config,
-        remove_config=remove_config,
-        get_active_config_ids=registry.ids,
-    )
+    return await apply_config_snapshot(snapshot.model_copy(update={"configs": typed_configs}))
 
 
 @router.post("/deconfigure")

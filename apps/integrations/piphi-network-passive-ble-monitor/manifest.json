@@ -3,7 +3,7 @@
   "manifest_version": "1.0",
   "id": "piphi-network-passive-ble-monitor",
   "name": "Passive BLE monitor",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "Consume consented BTHome v2 observations from the managed PiPhi BLE gateway.",
   "metadata": {
     "generator": "piphi-network-create",
@@ -17,7 +17,7 @@
     "website": "https://piphi.io"
   },
   "license": "Apache-2.0",
-  "image": "ghcr.io/piphi-io/piphi-network-passive-ble-monitor:0.3.1",
+  "image": "ghcr.io/piphi-io/piphi-network-passive-ble-monitor:0.4.0",
   "platforms": [
     "linux"
   ],
@@ -25,7 +25,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "ghcr.io/piphi-io/piphi-network-passive-ble-monitor:0.3.1",
+        "image": "ghcr.io/piphi-io/piphi-network-passive-ble-monitor:0.4.0",
         "ports": [
           {
             "container": 4204,
@@ -33,12 +33,24 @@
           }
         ],
         "environment": {
-          "LOG_LEVEL": "info"
+          "LOG_LEVEL": "info",
+          "PIPHI_ENV": "production",
+          "PIPHI_BLE_GATEWAY_URL": "http://piphi-ble-gateway-sidecar:4210",
+          "PIPHI_BLE_MONITOR_STATE_PATH": "/var/lib/piphi/passive-ble/state.json",
+          "PIPHI_AUTOMATION_LEDGER_PATH": "/var/lib/piphi/passive-ble/automation-actions.sqlite3"
         },
         "restart_policy": {
           "name": "unless-stopped",
           "maximum_retry_count": 0
-        }
+        },
+        "read_only": true,
+        "volumes": [
+          {
+            "host": "/var/lib/piphi/passive-ble-monitor",
+            "container": "/var/lib/piphi/passive-ble",
+            "mode": "rw"
+          }
+        ]
       },
       "discovery": {
         "method": "passive"
@@ -76,11 +88,13 @@
       "gateway_token",
       "device_handle",
       "alias",
+      "bind_key",
       "poll_interval_seconds",
       "stale_after_seconds"
     ],
     "secret_fields": [
-      "gateway_token"
+      "gateway_token",
+      "bind_key"
     ],
     "runtime_fields": [
       "id",
@@ -102,12 +116,21 @@
       "kind": "sensor",
       "unit": "bool"
     },
-    "observation_fresh": {"kind": "sensor", "unit": "bool"},
-    "sensor_available": {"kind": "sensor", "unit": "bool"},
-    "measurement_age_seconds": {"kind": "sensor", "unit": "s"},
+    "observation_fresh": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "sensor_available": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "measurement_age_seconds": {
+      "kind": "sensor",
+      "unit": "s"
+    },
     "temperature_c": {
       "kind": "sensor",
-      "unit": "°C"
+      "unit": "\u00b0C"
     },
     "humidity_percent": {
       "kind": "sensor",
@@ -188,7 +211,7 @@
     "publisher": {
       "name": "PiPhi Network",
       "website_url": "https://piphi.io",
-      "support_url": "https://github.com/PiPhi-io/piphi-network-passive-ble-monitor/issues",
+      "support_url": "https://github.com/PiPhi-io/piphi-apps/issues",
       "security_contact": "support@piphi.io"
     },
     "access": [
@@ -205,9 +228,9 @@
         "model": "Devices using supported passive BLE advertisement formats"
       }
     ],
-    "documentation_url": "https://github.com/PiPhi-io/piphi-network-passive-ble-monitor",
-    "support_url": "https://github.com/PiPhi-io/piphi-network-passive-ble-monitor/issues",
-    "changelog_url": "https://github.com/PiPhi-io/piphi-network-passive-ble-monitor/releases",
+    "documentation_url": "https://github.com/PiPhi-io/piphi-apps/tree/apps/piphi-network-passive-ble-monitor/v0.4.0/apps/integrations/piphi-network-passive-ble-monitor",
+    "support_url": "https://github.com/PiPhi-io/piphi-apps/issues",
+    "changelog_url": "https://github.com/PiPhi-io/piphi-apps/releases/tag/apps/piphi-network-passive-ble-monitor/v0.4.0",
     "quality_tier": "bronze",
     "governance": {
       "schema_version": 1,
@@ -234,5 +257,24 @@
   },
   "onboarding": {
     "mode": "configuration"
+  },
+  "runtime_requirements": [
+    "sidecar_runtime",
+    "secrets_or_api_tokens",
+    "persistent_storage"
+  ],
+  "requires": {
+    "services": [
+      {
+        "id": "piphi-ble-gateway-sidecar",
+        "kind": "platform_service",
+        "version_range": ">=0.4.0,<0.5.0",
+        "recommended_version": "0.4.0",
+        "required": true,
+        "shared": true,
+        "auto_install": true,
+        "reason": "Owns authenticated BlueZ/WinRT scanning, opaque identity, bounded delivery, and encrypted BTHome mediation."
+      }
+    ]
   }
 }

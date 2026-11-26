@@ -22,7 +22,7 @@ class Scanner(Protocol):
 class BleakCallbackScanner:
     """Continuous Bleak callback scanner (BlueZ on Linux, WinRT on Windows)."""
 
-    def __init__(self, adapter: str | None = None) -> None:
+    def __init__(self, adapter: str | None = None, *, callback_capacity: int = 256) -> None:
         self.adapter = adapter or "default"
         system = platform.system().lower()
         self.backend = "bleak-winrt" if system == "windows" else "bleak-bluez" if system == "linux" else "bleak"
@@ -30,6 +30,8 @@ class BleakCallbackScanner:
         self._scanner = None
         self._callback: DetectionCallback | None = None
         self._tasks: set[asyncio.Task] = set()
+        self.callback_capacity = max(1, min(callback_capacity, 4096))
+        self.callback_drops = 0
 
     async def start(self, mode: ScanMode, callback: DetectionCallback) -> None:
         from bleak import BleakScanner
@@ -37,6 +39,9 @@ class BleakCallbackScanner:
         self._callback = callback
 
         def detected(device, advertisement_data) -> None:
+            if len(self._tasks) >= self.callback_capacity:
+                self.callback_drops += 1
+                return
             details = getattr(device, "details", None)
             address_type = "unknown"
             if isinstance(details, dict):

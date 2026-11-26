@@ -3,7 +3,7 @@
   "manifest_version": "1.0",
   "id": "piphi-ble-gateway-sidecar",
   "name": "BLE gateway sidecar",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "Provide bounded, privacy-preserving BLE observations through Bleak on Linux BlueZ and Windows WinRT.",
   "metadata": {
     "generator": "piphi-network-create",
@@ -17,7 +17,7 @@
     "website": "https://piphi.io"
   },
   "license": "Apache-2.0",
-  "image": "ghcr.io/piphi-io/piphi-ble-gateway-sidecar:0.3.1",
+  "image": "ghcr.io/piphi-io/piphi-ble-gateway-sidecar:0.4.0",
   "platforms": [
     "linux",
     "windows"
@@ -26,19 +26,41 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "ghcr.io/piphi-io/piphi-ble-gateway-sidecar:0.3.1",
+        "image": "ghcr.io/piphi-io/piphi-ble-gateway-sidecar:0.4.0",
         "ports": [
           {
             "container": 4210
           }
         ],
         "environment": {
-          "LOG_LEVEL": "info"
+          "LOG_LEVEL": "info",
+          "PIPHI_ENV": "production",
+          "PIPHI_BLE_HANDLE_KEY_PATH": "/var/lib/piphi/ble-gateway/ble-handle.key",
+          "PIPHI_BLE_CHECKPOINT_PATH": "/var/lib/piphi/ble-gateway/ble-latest.json",
+          "PIPHI_AUTOMATION_LEDGER_PATH": "/var/lib/piphi/ble-gateway/automation-actions.sqlite3"
         },
         "restart_policy": {
           "name": "unless-stopped",
           "maximum_retry_count": 0
-        }
+        },
+        "read_only": true,
+        "volumes": [
+          {
+            "host": "/var/lib/piphi/ble-gateway",
+            "container": "/var/lib/piphi/ble-gateway",
+            "mode": "rw"
+          },
+          {
+            "host": "/run/dbus/system_bus_socket",
+            "container": "/run/dbus/system_bus_socket",
+            "mode": "ro"
+          },
+          {
+            "host": "/sys/class/rfkill",
+            "container": "/sys/class/rfkill",
+            "mode": "ro"
+          }
+        ]
       },
       "discovery": {
         "method": "passive"
@@ -78,10 +100,10 @@
       "deconfigure": "/deconfigure",
       "ui_config": "/ui-config",
       "events": "/events",
-      "command": "/command"
-      ,"ble_consumers": "/v1/ble/consumers/{consumer_id}"
-      ,"ble_observations": "/v1/ble/observations/{consumer_id}"
-      ,"ble_snapshot": "/v1/ble/snapshot/{consumer_id}"
+      "command": "/command",
+      "ble_consumers": "/v1/ble/consumers/{consumer_id}",
+      "ble_observations": "/v1/ble/observations/{consumer_id}",
+      "ble_snapshot": "/v1/ble/snapshot/{consumer_id}"
     }
   },
   "config": {
@@ -112,25 +134,84 @@
       "kind": "sensor",
       "unit": "bool"
     },
-    "receiver_healthy": {"kind": "sensor", "unit": "bool"},
-    "scanner_state": {"kind": "sensor", "unit": "string"},
-    "scan_mode": {"kind": "sensor", "unit": "string"},
-    "observations_received_total": {"kind": "sensor", "unit": "count"},
-    "observations_deduplicated_total": {"kind": "sensor", "unit": "count"},
-    "last_observation_age_ms": {"kind": "sensor", "unit": "ms"},
-    "reconnects": {"kind": "sensor", "unit": "count"},
-    "queue_depth": {"kind": "sensor", "unit": "count"},
-    "queue_capacity": {"kind": "sensor", "unit": "count"},
-    "queue_high_water": {"kind": "sensor", "unit": "count"},
-    "drops": {"kind": "sensor", "unit": "count"},
-    "coalesces": {"kind": "sensor", "unit": "count"},
-    "adapter_count": {"kind": "sensor", "unit": "count"},
-    "adapter_powered": {"kind": "sensor", "unit": "bool"},
-    "adapter_discovering": {"kind": "sensor", "unit": "bool"},
-    "rfkill_soft_blocked": {"kind": "sensor", "unit": "bool"},
-    "rfkill_hard_blocked": {"kind": "sensor", "unit": "bool"},
+    "receiver_healthy": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "scanner_state": {
+      "kind": "sensor",
+      "unit": "string"
+    },
+    "scan_mode": {
+      "kind": "sensor",
+      "unit": "string"
+    },
+    "observations_received_total": {
+      "kind": "sensor",
+      "unit": "count"
+    },
+    "observations_deduplicated_total": {
+      "kind": "sensor",
+      "unit": "count"
+    },
+    "last_observation_age_ms": {
+      "kind": "sensor",
+      "unit": "ms"
+    },
+    "reconnects": {
+      "kind": "sensor",
+      "unit": "count"
+    },
+    "queue_depth": {
+      "kind": "sensor",
+      "unit": "count"
+    },
+    "queue_capacity": {
+      "kind": "sensor",
+      "unit": "count"
+    },
+    "queue_high_water": {
+      "kind": "sensor",
+      "unit": "count"
+    },
+    "drops": {
+      "kind": "sensor",
+      "unit": "count"
+    },
+    "coalesces": {
+      "kind": "sensor",
+      "unit": "count"
+    },
+    "adapter_count": {
+      "kind": "sensor",
+      "unit": "count"
+    },
+    "adapter_powered": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "adapter_discovering": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "rfkill_soft_blocked": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
+    "rfkill_hard_blocked": {
+      "kind": "sensor",
+      "unit": "bool"
+    },
     "refresh": {
       "kind": "action"
+    },
+    "decrypt_failures": {
+      "kind": "sensor",
+      "unit": "count"
+    },
+    "scanner_callback_drops": {
+      "kind": "sensor",
+      "unit": "count"
     }
   },
   "commands": {
@@ -159,6 +240,8 @@
         "queue_high_water",
         "drops",
         "coalesces",
+        "decrypt_failures",
+        "scanner_callback_drops",
         "adapter_count",
         "adapter_powered",
         "adapter_discovering",
@@ -197,7 +280,7 @@
     "publisher": {
       "name": "PiPhi Network",
       "website_url": "https://piphi.io",
-      "support_url": "https://github.com/PiPhi-io/piphi-ble-gateway-sidecar/issues",
+      "support_url": "https://github.com/PiPhi-io/piphi-apps/issues",
       "security_contact": "support@piphi.io"
     },
     "access": [
@@ -220,9 +303,9 @@
         "model": "BLE advertisers supported by parent integrations"
       }
     ],
-    "documentation_url": "https://github.com/PiPhi-io/piphi-ble-gateway-sidecar",
-    "support_url": "https://github.com/PiPhi-io/piphi-ble-gateway-sidecar/issues",
-    "changelog_url": "https://github.com/PiPhi-io/piphi-ble-gateway-sidecar/releases",
+    "documentation_url": "https://github.com/PiPhi-io/piphi-apps/tree/apps/piphi-ble-gateway-sidecar/v0.4.0/apps/services/piphi-ble-gateway-sidecar",
+    "support_url": "https://github.com/PiPhi-io/piphi-apps/issues",
+    "changelog_url": "https://github.com/PiPhi-io/piphi-apps/releases/tag/apps/piphi-ble-gateway-sidecar/v0.4.0",
     "quality_tier": "bronze",
     "governance": {
       "schema_version": 1,
@@ -252,5 +335,12 @@
     "version": 1,
     "port_binding": "core_allocated",
     "port_env": "PORT"
-  }
+  },
+  "deployment_mode": "sidecar",
+  "runtime_requirements": [
+    "sidecar_runtime",
+    "system_dbus_access",
+    "bluetooth_adapter_access",
+    "persistent_storage"
+  ]
 }

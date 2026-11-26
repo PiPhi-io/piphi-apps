@@ -5,6 +5,7 @@ from pathlib import Path
 
 import httpx
 import pytest
+from piphi_runtime_testkit_python import build_runtime_headers
 
 from piphi_ble_gateway_sidecar.main import app
 
@@ -64,7 +65,7 @@ def test_sidecar_has_only_a_transport_service_entity() -> None:
 async def test_config_apply_emits_the_implemented_event() -> None:
     transport = httpx.ASGITransport(app=app)
     config_id = "capability-catalog-test"
-    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver", headers=build_runtime_headers()) as client:
         try:
             response = await client.post("/config", json={"id": config_id, "host": "127.0.0.1", "alias": "Coverage Test"})
             assert response.status_code == 200
@@ -78,7 +79,7 @@ async def test_config_apply_emits_the_implemented_event() -> None:
 @pytest.mark.parametrize("command", ["restart_worker", "write_arbitrary_characteristic", "execute_arbitrary_dbus_method"])
 async def test_unimplemented_and_unsafe_commands_fail_closed(command: str) -> None:
     transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver", headers=build_runtime_headers()) as client:
         response = await client.post("/command", json={"contract_version": "automation.runtime.command.v1", "command": command, "target": {"device_id": "ble-gateway-service", "config_id": "ble-gateway-service"}, "params": {}})
     assert response.status_code == 400
     assert response.json()["detail"] == f"Unsupported command: {command}"

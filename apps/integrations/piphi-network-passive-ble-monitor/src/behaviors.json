@@ -191,6 +191,40 @@
           "ui": {
             "group": "when"
           }
+        },
+        {
+          "id": "dependency_lost",
+          "label": "BLE gateway unavailable",
+          "description": "Start when ble gateway unavailable.",
+          "capability": "receiver_healthy",
+          "runtime": {
+            "event": "runtime.dependency.lost",
+            "source": "integration"
+          },
+          "freshness": {
+            "maxAgeSeconds": 300,
+            "staleDataMode": "allow"
+          },
+          "ui": {
+            "group": "when"
+          }
+        },
+        {
+          "id": "dependency_recovered",
+          "label": "BLE gateway recovered",
+          "description": "Start when ble gateway recovered.",
+          "capability": "receiver_healthy",
+          "runtime": {
+            "event": "runtime.dependency.recovered",
+            "source": "integration"
+          },
+          "freshness": {
+            "maxAgeSeconds": 300,
+            "staleDataMode": "allow"
+          },
+          "ui": {
+            "group": "when"
+          }
         }
       ],
       "intents": [
