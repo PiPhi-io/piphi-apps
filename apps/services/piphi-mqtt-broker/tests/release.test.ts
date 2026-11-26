@@ -59,6 +59,8 @@ test("image labels provenance and drops broker privileges", () => {
   assert.match(entrypoint, /exec su-exec mosquitto:mosquitto mosquitto -c "\$config_file"/);
   assert.match(dockerfile, /ARG MOSQUITTO_VERSION=2\.0\.22-r0/);
   assert.match(dockerfile, /ARG OPENSSL_VERSION=3\.5\.9-r1/);
+  assert.match(dockerfile, /FROM alpine:3\.23@sha256:469c9ea410b9215eaee7976ba6c0639039b444be8e5d638f7abbada189971eb2/);
+  assert.match(dockerfile, /COPY --from=build \/usr\/local\/bin\/node \/usr\/local\/bin\/node/);
   assert.match(dockerfile, /"mosquitto=\$\{MOSQUITTO_VERSION\}"/);
   assert.match(dockerfile, /"openssl=\$\{OPENSSL_VERSION\}"/);
 });
