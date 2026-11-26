@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-import os
 import hashlib
+import logging
+import os
 import time
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -23,6 +24,8 @@ from .profile import decode_point, encode_point, point_metadata, profile_hash
 from .settings import INTEGRATION_ID, INTEGRATION_NAME, INTEGRATION_VERSION
 from .transport import EventBuffer, SerialRTUSession
 from .security import safe_error_code, verify_profile_trust
+
+logger = logging.getLogger(__name__)
 
 starter = create_runtime_starter(
     integration_id=INTEGRATION_ID,
@@ -141,7 +144,14 @@ async def shutdown_controllers() -> None:
     active = list(controllers.values())
     controllers.clear()
     for controller in active:
-        await controller.close()
+        try:
+            await controller.close()
+        except Exception as exc:
+            logger.error(
+                "modbus_serial_close_failed config_id=%s error=%s",
+                controller.entry["config_id"],
+                safe_error_code(exc),
+            )
 
 
 class BusController:
@@ -194,8 +204,10 @@ class BusController:
         return True
 
     async def close(self) -> None:
-        await self.session.close()
-        self.port_open = False
+        try:
+            await self.session.close()
+        finally:
+            self.port_open = False
 
     async def reconnect(self) -> bool:
         await self.close()

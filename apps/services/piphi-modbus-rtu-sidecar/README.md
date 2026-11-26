@@ -32,13 +32,17 @@ queue depth/capacity/high-water mark, poll duration, reconnect, timeout, CRC,
 LRC and transport-error counters, plus per-unit last-success and consecutive-error
 health; serial paths, credentials, and raw frames remain redacted.
 
+`docs/testing.md` maps the Home Assistant-inspired test architecture onto the
+sidecar's HTTP, PTY, lifecycle, and backpressure boundaries.
+
 The authenticated parent may issue FC15 only as an ordered list of stable
 profile point IDs and boolean values. The sidecar re-resolves every point,
 requires one unit and a contiguous writable coil range, confirms the protocol
 response, and reads every coil back. Addresses, units, function overrides, raw
 frames, broadcasts, and sidecar-owned pulse timing are not exposed.
 
-Managed deployment is internal-only and maps `/dev/serial` into the container.
+Managed deployment is internal-only and Core grants one exact stable
+`/dev/serial/by-id/...` device path to the container.
 The service runs with production authentication enabled and accepts only the
 shared internal token injected by PiPhi Core. The parent Modbus integration
 auto-installs the compatible sidecar release and never stores this token in a
