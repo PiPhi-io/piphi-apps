@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-image="piphi-mqtt-broker:smoke"
+image="${PIPHI_MQTT_IMAGE:-piphi-mqtt-broker:smoke}"
 name="piphi-mqtt-smoke-$$"
 failure_name="${name}-entry-failure"
 secrets="${TMPDIR:-/tmp}/piphi-mqtt-smoke-$$"
@@ -26,8 +26,21 @@ mkdir -p "$secrets"
 printf '%s' 'smoke-secret' > "$secrets/password"
 chmod 0600 "$secrets/password"
 
-docker build -t "$image" .
-docker run -d --name "$name" \
+if [ -z "${PIPHI_MQTT_IMAGE:-}" ]; then
+  docker build \
+    --build-arg "RELEASE_VERSION=${EXPECTED_VERSION:-0.4.0}" \
+    --build-arg "SOURCE_REVISION=${EXPECTED_REVISION:-local}" \
+    -t "$image" .
+else
+  docker pull "$image" >/dev/null
+fi
+if [ -n "${EXPECTED_VERSION:-}" ]; then
+  test "$(docker image inspect -f '{{index .Config.Labels \"org.opencontainers.image.version\"}}' "$image")" = "$EXPECTED_VERSION"
+fi
+if [ -n "${EXPECTED_REVISION:-}" ]; then
+  test "$(docker image inspect -f '{{index .Config.Labels \"org.opencontainers.image.revision\"}}' "$image")" = "$EXPECTED_REVISION"
+fi
+docker run -d --name "$name" --read-only --tmpfs /tmp \
   -e MQTT_ALLOW_PLAINTEXT=true \
   -e MQTT_USERNAME=piphi \
   -e MQTT_PASSWORD_SECRET_FILE=/run/secrets/password \
@@ -55,13 +68,8 @@ docker exec "$name" chmod 0755 /mosquitto/data
 docker exec "$name" chown mosquitto:mosquitto /mosquitto/data
 docker exec "$name" node /app/dist/src/healthcheck.js --readiness
 
+docker exec "$name" node /app/dist/src/healthcheck.js --readiness
 docker exec "$name" sh -ec '
-  mosquitto_sub -V mqttv5 -h 127.0.0.1 -u piphi -P smoke-secret -t piphi/test -C 1 -W 5 > /tmp/message &
-  subscriber=$!
-  sleep 1
-  mosquitto_pub -V mqttv5 -h 127.0.0.1 -u piphi -P smoke-secret -t piphi/test -m ok -q 1
-  wait "$subscriber"
-  test "$(cat /tmp/message)" = ok
   ! grep -q smoke-secret /mosquitto/config/identity/current/passwordfile
   test "$(stat -c %a /mosquitto/config/identity/current/passwordfile)" = 640
 '
@@ -72,7 +80,7 @@ if docker exec "$name" mosquitto_sub -V mqttv5 -h 127.0.0.1 -u piphi -P smoke-se
   exit 1
 fi
 
-anonymous="$(docker exec "$name" mosquitto_sub -V mqttv5 -h 127.0.0.1 -t piphi/test -C 1 -W 1 2>&1 || true)"
+anonymous="$(docker exec "$name" mosquitto_sub -V mqttv5 -h 127.0.0.1 -i anonymous-test -t piphi/test -C 1 -W 1 2>&1 || true)"
 echo "$anonymous" | grep -q 'Not authorized'
 
 outside="$(docker exec "$name" mosquitto_pub -V mqttv5 -h 127.0.0.1 -u piphi -P smoke-secret -t outside/test -m denied -q 1 2>&1 || true)"
@@ -106,7 +114,7 @@ cat > "$secrets/policy.json" <<'JSON'
 JSON
 chmod 0600 "$secrets"/*-password "$secrets/policy.json"
 mkdir -p "$secrets/restored-data"
-docker run -d --name "$name" --restart unless-stopped \
+docker run -d --name "$name" --restart unless-stopped --read-only --tmpfs /tmp \
   -e MQTT_ALLOW_PLAINTEXT=true \
   -e MQTT_AUTH_POLICY_FILE=/run/secrets/policy.json \
   -v "$secrets:/run/secrets:ro" \
@@ -117,6 +125,13 @@ until [ "$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{end}
 done
 assert_broker_non_root
 docker exec "$name" mosquitto_pub -V mqttv5 -h 127.0.0.1 -u alpha -P alpha-one -t piphi/alpha/retained -m alpha-state -q 1 -r
+docker exec "$name" mosquitto_pub -V mqttv311 -h 127.0.0.1 -u alpha -P alpha-one -t piphi/alpha/protocol-311 -m qos-two -q 2 -r
+test "$(docker exec "$name" mosquitto_sub -V mqttv5 -h 127.0.0.1 -u alpha -P alpha-one -t piphi/alpha/protocol-311 -C 1 -W 5)" = qos-two
+docker exec "$name" mosquitto_pub -V mqttv5 -h 127.0.0.1 -u alpha -P alpha-one -t piphi/alpha/protocol-311 -n -q 1 -r
+if docker exec "$name" mosquitto_sub -V mqttv5 -h 127.0.0.1 -u alpha -P alpha-one -t piphi/alpha/protocol-311 -C 1 -W 1 >/dev/null 2>&1; then
+  echo "Cleared retained message was replayed" >&2
+  exit 1
+fi
 cross_tenant="$(docker exec "$name" mosquitto_sub -V mqttv5 -h 127.0.0.1 -u beta -P beta-secret -t piphi/alpha/# -C 1 -W 2 2>&1 || true)"
 # A retained alpha message exists; timing out proves beta cannot receive it.
 echo "$cross_tenant" | grep -q 'Timed out'
@@ -124,6 +139,29 @@ reserved_sys="$(docker exec "$name" mosquitto_pub -V mqttv5 -h 127.0.0.1 -u alph
 echo "$reserved_sys" | grep -q 'Not authorized'
 reserved_control="$(docker exec "$name" mosquitto_pub -V mqttv5 -h 127.0.0.1 -u alpha -P alpha-one -t '$CONTROL/piphi-test' -m denied -q 1 2>&1 || true)"
 echo "$reserved_control" | grep -q 'Not authorized'
+private_sys="$(docker exec "$name" mosquitto_sub -V mqttv5 -h 127.0.0.1 -u alpha -P alpha-one -t '$SYS/broker/uptime' -C 1 -W 2 2>&1 || true)"
+echo "$private_sys" | grep -q 'Timed out'
+docker exec "$name" sh -ec 'head -c 1048577 /dev/zero | mosquitto_pub -V mqttv5 -h 127.0.0.1 -u alpha -P alpha-one -t piphi/alpha/backpressure -s -q 1' >/dev/null 2>&1 || true
+if docker exec "$name" mosquitto_sub -V mqttv5 -h 127.0.0.1 -u alpha -P alpha-one -t piphi/alpha/backpressure -C 1 -W 1 >/dev/null 2>&1; then
+  echo "Oversized backpressure message was delivered" >&2
+  exit 1
+fi
+diagnostics="$(docker exec "$name" node /app/dist/src/diagnostics.js)"
+echo "$diagnostics" | node -e '
+  let raw = "";
+  process.stdin.on("data", (chunk) => raw += chunk);
+  process.stdin.on("end", () => {
+    const value = JSON.parse(raw);
+    if (value.broker_id !== "piphi.service.mqtt-broker" || value.status !== "ready") process.exit(1);
+    if (!value.broker.uptime || typeof value.broker.clients_connected !== "number") process.exit(1);
+    if (/alpha|beta|health-secret|piphi\/alpha/.test(raw)) process.exit(1);
+  });
+'
+docker exec "$name" sh -c 'printf '\''{"schema_version":1,"broker_id":"piphi.service.mqtt-broker","last_success_at":"2000-01-01T00:00:00.000Z"}\n'\'' > /mosquitto/data/.piphi-readiness.json'
+stale_diagnostics="$(docker exec "$name" node /app/dist/src/diagnostics.js)"
+echo "$stale_diagnostics" | grep -q '"status":"stale"'
+docker exec "$name" node /app/dist/src/healthcheck.js --readiness
+docker exec "$name" /app/docker/storage-admin.sh flush | grep -q '"status":"ready"'
 
 printf '%s' 'alpha-two' > "$secrets/alpha-password"
 before_restart="$(docker inspect -f '{{.RestartCount}}' "$name")"
@@ -140,6 +178,12 @@ old_password="$(docker exec "$name" mosquitto_sub -V mqttv5 -h 127.0.0.1 -u alph
 echo "$old_password" | grep -q 'Not authorized'
 docker exec "$name" mosquitto_pub -V mqttv5 -h 127.0.0.1 -u alpha -P alpha-two -t piphi/alpha/current -m rotated -q 1
 docker exec "$name" grep -q 'reload-and-disconnect' /mosquitto/log/security-audit.jsonl
+
+grep -v '"username":"beta"' "$secrets/policy.json" > "$secrets/policy.revoked"
+mv "$secrets/policy.revoked" "$secrets/policy.json"
+docker exec "$name" /app/docker/credentials-admin.sh >/dev/null
+revoked_beta="$(docker exec "$name" mosquitto_sub -V mqttv5 -h 127.0.0.1 -u beta -P beta-secret -t piphi/beta/# -C 1 -W 1 2>&1 || true)"
+echo "$revoked_beta" | grep -q 'Not authorized'
 
 cp "$secrets/policy.json" "$secrets/policy.valid"
 printf '%s' '{invalid' > "$secrets/policy.json"
@@ -221,7 +265,7 @@ mkdir -p "$secrets/entry-config"
 docker cp "$name:/mosquitto/config/identity" "$secrets/entry-config/identity"
 password_before="$(sha256sum "$secrets/entry-config/identity/current/passwordfile" | cut -d' ' -f1)"
 acl_before="$(sha256sum "$secrets/entry-config/identity/current/aclfile" | cut -d' ' -f1)"
-docker run -d --name "$failure_name" \
+docker run -d --name "$failure_name" --read-only --tmpfs /tmp \
   -e MQTT_ALLOW_PLAINTEXT=true \
   -e MQTT_AUTH_POLICY_FILE=/run/secrets/policy.json \
   -e PIPHI_TEST_FAIL_IDENTITY_STEP=after-pointer-swap \
@@ -237,7 +281,7 @@ docker rm "$failure_name" >/dev/null
 docker stop "$name" >/dev/null
 docker cp "$name:/mosquitto/data/." "$secrets/restored-data"
 docker rm "$name" >/dev/null
-docker run -d --name "$name" \
+docker run -d --name "$name" --read-only --tmpfs /tmp \
   -e MQTT_ALLOW_PLAINTEXT=true \
   -e MQTT_AUTH_POLICY_FILE=/run/secrets/policy.json \
   -v "$secrets:/run/secrets:ro" \
@@ -265,7 +309,7 @@ chmod 0600 "$secrets/ca.key" "$secrets/server.key" "$secrets/health-client.key"
 chmod 0644 "$secrets/ca.crt" "$secrets/server.crt" "$secrets/health-client.crt"
 docker rm -f "$name" >/dev/null
 
-docker run -d --name "$name" --restart unless-stopped \
+docker run -d --name "$name" --restart unless-stopped --read-only --tmpfs /tmp \
   -e MQTT_USERNAME=piphi \
   -e MQTT_PASSWORD_SECRET_FILE=/run/secrets/password \
   -e MQTT_TLS_ENABLED=true \
