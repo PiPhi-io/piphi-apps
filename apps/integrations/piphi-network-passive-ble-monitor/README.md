@@ -40,7 +40,7 @@ rather than creating a duplicate.
 
 ## Installation and removal
 
-Installing version `0.4.0` auto-installs the compatible
+Installing version `0.4.1` auto-installs the compatible
 `piphi-ble-gateway-sidecar >=0.4.0,<0.5.0`. Core places both services on one
 private application network, resolves the sidecar as
 `http://piphi-ble-gateway-sidecar:4210`, and provisions a distinct high-entropy
@@ -100,7 +100,7 @@ The HTTP consumer is pure async Python/httpx and has no OS-specific imports, so 
 PDM_IGNORE_ACTIVE_VENV=1 pdm install -G dev
 PDM_IGNORE_ACTIVE_VENV=1 pdm run pytest
 PDM_IGNORE_ACTIVE_VENV=1 pdm run python scripts/validate.py
-docker build -t ghcr.io/piphi-io/piphi-network-passive-ble-monitor:0.4.0 .
+docker build -t ghcr.io/piphi-io/piphi-network-passive-ble-monitor:0.4.1 .
 ```
 
 `piphi-app.json` opts this package into full CI, dependency audit, tests, package validation, and portable Linux image builds. `capability-catalog.json` is the machine-readable capability inventory.

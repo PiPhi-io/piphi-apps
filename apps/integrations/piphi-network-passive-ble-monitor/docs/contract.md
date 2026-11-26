@@ -1,6 +1,6 @@
 # Managed BLE gateway consumer contract
 
-Production transport is `gateway.py`; it has no local-radio code. Version `0.4.0` requires sidecar `>=0.4.0,<0.5.0`. Registration uses a per-consumer bearer credential and is limited to one consented opaque handle, the BTHome UUID `0000fcd2-0000-1000-8000-00805f9b34fb`, passive mode, and an optional bind key scoped to that same handle. Handle and service matcher categories are conjunctive.
+Production transport is `gateway.py`; it has no local-radio code. Version `0.4.1` requires sidecar `>=0.4.0,<0.5.0`. Registration uses a per-consumer bearer credential and is limited to one consented opaque handle, the BTHome UUID `0000fcd2-0000-1000-8000-00805f9b34fb`, passive mode, and an optional bind key scoped to that same handle. Handle and service matcher categories are conjunctive.
 
 Accepted observations use schema `piphi.ble.observation.v1` and include sequence, opaque device handle, receiver identity/kind, receiver-monotonic observation time, ingest timestamp, replay marker, RSSI, optional Tx power, connectability, address classification, service UUIDs, and bounded hex maps. Unknown top-level fields are forward-compatible. Invalid observations are counted and isolated.
 
