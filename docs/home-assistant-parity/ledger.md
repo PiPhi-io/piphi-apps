@@ -46,7 +46,7 @@ required for a defensible supported product; **P2** is demand-driven breadth.
 | `piphi-network-pfsense` | Real profile-bound monitoring and bounded actions | P0 | Authenticate every route and restore config on restart; then qualify pfREST/CE/Plus/CARP matrices and postcondition/audit behavior. |
 | `piphi-network-plex` | Real browse/search server slice | P0 | Add route auth, secret token boundary, strict SSRF/redirect/TLS policy, reauth/server-address recovery, push/session semantics, and full release evidence. |
 | `piphi-network-reolink` | Real authenticated polling/control slice | P1 | Add push events, channel-stable entities, battery-safe behavior, inventory retention, capability-gated controls, and camera/NVR physical matrix. |
-| `piphi-network-sense` | Hardened unofficial account adapter; deterministic qualification only | P0 release/registry | Source `0.2.1` adds fail-closed auth, private token persistence, transactional identity-safe reconfiguration, restart rehydration, bounded recovery, per-slice freshness, privacy retention, and provider-local daily periods. Publish and verify the immutable multi-arch artifact, then synchronize the stable registry without changing rollout, lifecycle, tier, or unverified qualification. |
+| `piphi-network-sense` | Hardened released account adapter; deterministic qualification only | P1 physical qualification | Immutable multi-arch `0.2.1` is published and the stable registry now points to its exact digest with rollout, lifecycle, tier, and unverified qualification unchanged. Qualification used network-disabled fake account/transport fixtures; a provider-authorized live-account/model matrix remains outstanding. |
 | `piphi-network-solaredge` | Real read-only Monitoring API V1 adapter | P0 | Migrate from the now-deprecated V1 contract to supported V2 OAuth before release; add multi-site identity, inventory and corrected historical/statistics semantics. |
 | `piphi-network-sonoff-lan` | Real narrow plaintext DIY monitor | P0 | Add runtime auth and DNS-rebinding controls; preserve trusted-LAN/read-only labeling, then add identity/address recovery and model evidence. |
 | `piphi-network-spi` | Deliberately mock-only runtime | P0 | Add runtime auth and truthful mock-only catalog UX; physical support requires one exact spidev grant, chip identity, bus policy, hotplug and qualification. |
@@ -80,9 +80,8 @@ required for a defensible supported product; **P2** is demand-driven breadth.
 - **28 packages** remain `legacy-static`; central monorepo publication refuses
   them. Twenty-seven legacy OCI packages declare future GHCR targets while the
   live registry still references Docker Hub.
-- **27 in-scope packages** have no registry image digest. Eleven of those are
+- **26 in-scope packages** have no registry image digest. Ten of those are
   stable/100% OCI listings; Atmotube is stable/100% with no immutable artifact.
-- Source/registry versions drift for Atmotube, Awair, Sense, LLM Vision, and
-  Midea. Sense additionally has mismatched stable version/ref/image.
+- Source/registry versions drift for Atmotube, Awair, LLM Vision, and Midea.
 - All 54 packages remain qualification `unverified`; publication and rollout
   state must be preserved unless a separate governance decision approves change.

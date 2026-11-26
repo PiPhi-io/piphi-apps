@@ -2736,7 +2736,7 @@
       "type": "integration",
       "source": {
         "folder": "apps/integrations/piphi-network-sense",
-        "source_version": "0.1.2",
+        "source_version": "0.2.1",
         "manifest_path": "manifest.json",
         "manifest_image": "ghcr.io/piphi-io/piphi-network-sense:0.2.1",
         "imported_from": "https://github.com/PiPhi-io/piphi-network-sense",
@@ -2759,22 +2759,24 @@
           "repository": "piphi-io/piphi-network-sense"
         },
         "expected_tag": "apps/piphi-network-sense/v0.2.1",
-        "tag_present_locally": false,
-        "registry_ref": "v0.1.2",
-        "registry_image": "piphinetwork/piphi-network-sense:0.1.2",
-        "image_digest": null,
-        "immutable_image": null,
-        "platforms_verified": false,
-        "oci_labels_verified": false,
-        "sbom_verified": false,
-        "provenance_verified": false,
-        "attestations_verified": false,
-        "non_root_verified": false
+        "tag_present_locally": true,
+        "registry_ref": "apps/piphi-network-sense/v0.2.1",
+        "registry_image": "ghcr.io/piphi-io/piphi-network-sense:0.2.1",
+        "image_digest": "sha256:dfe24fab5596c9157ea99e547102d12518d9061c40e9242405fc0045a671164b",
+        "immutable_image": "ghcr.io/piphi-io/piphi-network-sense@sha256:dfe24fab5596c9157ea99e547102d12518d9061c40e9242405fc0045a671164b",
+        "platforms_verified": true,
+        "oci_labels_verified": true,
+        "sbom_verified": true,
+        "provenance_verified": true,
+        "attestations_verified": true,
+        "non_root_verified": true,
+        "verified_at": "2026-11-26",
+        "verification_note": "Release workflow 45880583121 qualified the exact published digest with deterministic fake account/transport fixtures and networking disabled. The multi-architecture index, OCI labels, SBOM, provenance, attestations, and non-root read-only execution were verified; no live Sense account qualification is claimed."
       },
       "registry": {
-        "version": "0.2.0",
-        "repo_url": "https://github.com/PiPhi-io/piphi-network-sense",
-        "manifest_path": "manifest.json",
+        "version": "0.2.1",
+        "repo_url": "https://github.com/PiPhi-io/piphi-apps",
+        "manifest_path": "apps/integrations/piphi-network-sense/manifest.json",
         "owner": "PiPhi-io",
         "trust_level": "official",
         "risk_level": "moderate",
@@ -2788,9 +2790,9 @@
         "qualification_status": "unverified"
       },
       "consistency": {
-        "source_registry_version_match": false,
-        "source_registry_image_match": false,
-        "immutable_registry_image": false
+        "source_registry_version_match": true,
+        "source_registry_image_match": true,
+        "immutable_registry_image": true
       },
       "home_assistant": {
         "kind": "direct",
