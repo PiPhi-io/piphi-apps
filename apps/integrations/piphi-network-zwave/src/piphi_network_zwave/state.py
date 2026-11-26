@@ -278,6 +278,13 @@ class SidecarSupervisor:
             config_id=self.config_id,
             controller_alias=self.config.alias,
         )
+        for model in models:
+            model.update(
+                {
+                    "container_id": self.entry.get("container_id"),
+                    "integration_id": self.entry.get("integration_id"),
+                }
+            )
         dropped = int(snapshot.get("dropped_event_count") or 0)
 
         self.sidecar_config_id = sidecar_config_id

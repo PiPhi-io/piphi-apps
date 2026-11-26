@@ -1,0 +1,124 @@
+{
+  "schema_version": "piphi.protocol-scenario.v1",
+  "id": "zwave.switch-meter.vertical-slice.v1",
+  "protocol": "zwave",
+  "provenance": {
+    "kind": "synthetic",
+    "source": "PiPhi Z-Wave parent-sidecar contract",
+    "sanitized": true
+  },
+  "tags": ["vertical-slice", "switch", "meter", "command", "event", "reload"],
+  "initial_snapshot": {
+    "schema_version": "piphi.zwave.snapshot.v1",
+    "generated_at": "2026-11-26T12:00:00Z",
+    "config_id": "sidecar-controller",
+    "stream_id": "vertical-slice-stream",
+    "latest_sequence": 4,
+    "dropped_event_count": 0,
+    "controller": {
+      "lifecycle": "ready",
+      "driverReady": true,
+      "networkIdentityHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "controllerIdentityHash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    "nodes": [
+      {
+        "node_id": 2,
+        "identity_hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "name": "Kitchen switch meter",
+        "status": "alive",
+        "ready": true,
+        "values": [
+          {
+            "id": {"command_class": 37, "endpoint": 0, "property": "currentValue"},
+            "identity_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+            "label": "Current value",
+            "value": false,
+            "metadata": {"type": "boolean", "readable": true, "writeable": false, "stateful": true}
+          },
+          {
+            "id": {"command_class": 37, "endpoint": 0, "property": "targetValue"},
+            "identity_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+            "label": "Target value",
+            "value": false,
+            "metadata": {"type": "boolean", "readable": true, "writeable": true, "stateful": true}
+          },
+          {
+            "id": {"command_class": 50, "endpoint": 0, "property": "value", "property_key": 65537},
+            "identity_hash": "3333333333333333333333333333333333333333333333333333333333333333",
+            "label": "Power",
+            "value": 46.7,
+            "metadata": {"type": "number", "readable": true, "writeable": false, "stateful": true, "unit": "W"}
+          }
+        ]
+      }
+    ]
+  },
+  "reported_snapshot": {
+    "schema_version": "piphi.zwave.snapshot.v1",
+    "generated_at": "2026-11-26T12:00:01Z",
+    "config_id": "sidecar-controller",
+    "stream_id": "vertical-slice-stream",
+    "latest_sequence": 5,
+    "dropped_event_count": 0,
+    "controller": {
+      "lifecycle": "ready",
+      "driverReady": true,
+      "networkIdentityHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "controllerIdentityHash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    "nodes": [
+      {
+        "node_id": 2,
+        "identity_hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "name": "Kitchen switch meter",
+        "status": "alive",
+        "ready": true,
+        "values": [
+          {
+            "id": {"command_class": 37, "endpoint": 0, "property": "currentValue"},
+            "identity_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+            "label": "Current value",
+            "value": true,
+            "metadata": {"type": "boolean", "readable": true, "writeable": false, "stateful": true}
+          },
+          {
+            "id": {"command_class": 37, "endpoint": 0, "property": "targetValue"},
+            "identity_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+            "label": "Target value",
+            "value": true,
+            "metadata": {"type": "boolean", "readable": true, "writeable": true, "stateful": true}
+          },
+          {
+            "id": {"command_class": 50, "endpoint": 0, "property": "value", "property_key": 65537},
+            "identity_hash": "3333333333333333333333333333333333333333333333333333333333333333",
+            "label": "Power",
+            "value": 47.1,
+            "metadata": {"type": "number", "readable": true, "writeable": false, "stateful": true, "unit": "W"}
+          }
+        ]
+      }
+    ]
+  },
+  "event": {
+    "schema_version": "piphi.zwave.event.v1",
+    "sequence": 5,
+    "occurred_at": "2026-11-26T12:00:01Z",
+    "event_type": "node.value_updated",
+    "source": "zwave-js",
+    "node_id": 2,
+    "endpoint": 0,
+    "command_class": 37,
+    "value_id": {"command_class": 37, "endpoint": 0, "property": "currentValue"},
+    "payload": {"previousValue": false, "newValue": true}
+  },
+  "expected_command": {
+    "config_id": "sidecar-controller",
+    "command": "set_value",
+    "params": {
+      "node_id": 2,
+      "value_id": {"command_class": 37, "endpoint": 0, "property": "targetValue"},
+      "value": true
+    }
+  }
+}
