@@ -3,11 +3,13 @@ from __future__ import annotations
 import asyncio
 import base64
 import hashlib
+import ipaddress
 import logging
 import os
 import random
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
+from email.utils import parsedate_to_datetime
 from typing import Any
 from urllib.parse import urlparse
 
@@ -23,7 +25,7 @@ DEFAULT_CONSUMER_BASE_URL = "https://consumer-api.airthings.com"
 DEFAULT_HTTP_TIMEOUT_SECONDS = 15.0
 DEFAULT_RETRY_ATTEMPTS = 3
 DEFAULT_RETRY_DELAY_SECONDS = 1.0
-MAX_RETRY_DELAY_SECONDS = 3600.0
+MAX_RETRY_DELAY_SECONDS = 60.0
 TOKEN_EXPIRY_SAFETY_SECONDS = 120
 MAX_DEVICE_RECORDS = 500
 MAX_ACCOUNT_RECORDS = 100
@@ -38,6 +40,10 @@ def _jittered_delay(delay: float) -> float:
     return min(MAX_RETRY_DELAY_SECONDS, max(delay, 0.0) * random.uniform(1.0, 1.1))
 
 
+def _safe_endpoint(url: str) -> str:
+    return urlparse(url).path.rstrip("/").rsplit("/", 1)[-1] or "root"
+
+
 class AirthingsCloudError(RuntimeError):
     """Base error for Airthings consumer cloud operations."""
 
@@ -49,6 +55,17 @@ class AirthingsCloudAuthError(AirthingsCloudError):
 class AirthingsCloudRateLimitError(AirthingsCloudError):
     """Raised when Airthings consumer cloud rate limits the client."""
 
+    def __init__(
+        self,
+        message: str,
+        *,
+        retry_after_seconds: float | None = None,
+        quota_remaining: int | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.retry_after_seconds = retry_after_seconds
+        self.quota_remaining = quota_remaining
+
 
 class AirthingsCloudRequestError(AirthingsCloudError):
     """Raised for unexpected Airthings consumer cloud request failures."""
@@ -58,15 +75,52 @@ class AirthingsCloudContractError(AirthingsCloudRequestError):
     """Raised when a successful provider response violates its documented contract."""
 
 
+class AirthingsCloudDeviceRemovedError(AirthingsCloudRequestError):
+    """Raised when the selected device no longer appears in the selected account."""
+
+
+def _retry_after_seconds(value: str | None) -> float | None:
+    if not value:
+        return None
+    try:
+        return max(float(value), 0.0)
+    except ValueError:
+        try:
+            parsed = parsedate_to_datetime(value)
+        except (TypeError, ValueError, OverflowError):
+            return None
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=UTC)
+        return max((parsed.astimezone(UTC) - datetime.now(tz=UTC)).total_seconds(), 0.0)
+
+
+def _quota_remaining(response: httpx.Response) -> int | None:
+    value = response.headers.get("X-RateLimit-Remaining")
+    if value is None:
+        return None
+    try:
+        return max(int(value), 0)
+    except ValueError:
+        return None
+
+
 def _environment_base_url(name: str, default: str, *, allow_insecure: bool) -> str:
     value = str(os.getenv(name) or default).strip().rstrip("/")
     parsed = urlparse(value)
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
         raise ValueError(f"{name} must be an absolute HTTP(S) URL.")
-    if parsed.scheme != "https" and not allow_insecure:
+    if value == default:
+        return value
+    try:
+        is_loopback = parsed.hostname == "localhost" or ipaddress.ip_address(
+            str(parsed.hostname or "")
+        ).is_loopback
+    except ValueError:
+        is_loopback = False
+    if not allow_insecure or not is_loopback:
         raise ValueError(
-            f"{name} requires HTTPS unless "
-            f"{ALLOW_INSECURE_TEST_ENDPOINTS_ENV}=true is set for an isolated test fixture."
+            f"{name} is fixed to the official Airthings endpoint unless "
+            f"{ALLOW_INSECURE_TEST_ENDPOINTS_ENV}=true selects an isolated loopback fixture."
         )
     return value
 
@@ -164,25 +218,30 @@ class AirthingsCloudClient:
                     params=params,
                 )
                 if response.status_code == 429:
-                    if attempt >= self.retry_attempts:
-                        raise AirthingsCloudRateLimitError("Airthings API rate limit exceeded.")
-                    retry_after = (
+                    retry_after = _retry_after_seconds(
                         response.headers.get("X-RateLimit-Retry-After")
                         or response.headers.get("Retry-After")
                     )
-                    try:
-                        delay = (
-                            min(MAX_RETRY_DELAY_SECONDS, max(float(retry_after), 0.0))
-                            if retry_after
-                            else self.retry_delay_seconds * attempt
+                    quota_remaining = _quota_remaining(response)
+                    if (
+                        attempt >= self.retry_attempts
+                        or (retry_after is not None and retry_after > MAX_RETRY_DELAY_SECONDS)
+                    ):
+                        raise AirthingsCloudRateLimitError(
+                            "Airthings API rate limit exceeded.",
+                            retry_after_seconds=retry_after,
+                            quota_remaining=quota_remaining,
                         )
-                    except ValueError:
-                        delay = self.retry_delay_seconds * attempt
+                    delay = (
+                        retry_after
+                        if retry_after is not None
+                        else self.retry_delay_seconds * attempt
+                    )
                     delay = _jittered_delay(delay)
                     logger.warning(
                         "Airthings API rate limit on %s %s attempt=%s/%s retry_in_seconds=%.2f",
                         method,
-                        urlparse(url).path,
+                        _safe_endpoint(url),
                         attempt,
                         self.retry_attempts,
                         delay,
@@ -196,7 +255,7 @@ class AirthingsCloudClient:
                     logger.warning(
                         "Airthings API server error on %s %s status=%s attempt=%s/%s retry_in_seconds=%.2f",
                         method,
-                        urlparse(url).path,
+                        _safe_endpoint(url),
                         response.status_code,
                         attempt,
                         self.retry_attempts,
@@ -213,7 +272,7 @@ class AirthingsCloudClient:
                 logger.warning(
                     "Airthings API request error on %s %s attempt=%s/%s retry_in_seconds=%.2f error=%r",
                     method,
-                    urlparse(url).path,
+                    _safe_endpoint(url),
                     attempt,
                     self.retry_attempts,
                     delay,
@@ -298,6 +357,10 @@ class AirthingsCloudClient:
             item for item in self._validated_accounts if item[0] != key
         }
         logger.warning("Airthings auth cache cleared")
+
+    def forget_credentials(self, credentials: AirthingsCredentials) -> None:
+        """Remove token/account cache material when credentials rotate or are deleted."""
+        self._clear_cached_auth(credentials)
 
     async def list_account_ids(self, credentials: AirthingsCredentials) -> list[str]:
         access_token = await self._access_token(credentials)
@@ -521,6 +584,6 @@ class AirthingsCloudClient:
             logger.info("Airthings sample fetched pages=%s", page_number)
             return sample
 
-        raise AirthingsCloudRequestError(
+        raise AirthingsCloudDeviceRemovedError(
             "The selected Airthings device was not found in the selected cloud account."
         )

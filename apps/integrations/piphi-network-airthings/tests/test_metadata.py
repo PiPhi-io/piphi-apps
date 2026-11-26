@@ -86,11 +86,11 @@ def test_manifest_and_behaviors_align() -> None:
         "secrets_or_api_tokens",
     ]
     assert manifest["marketplace"]["metadata_version"] == 2
-    assert manifest["marketplace"]["quality_tier"] == "unrated"
+    assert manifest["marketplace"]["quality_tier"] == "bronze"
     assert manifest["marketplace"]["governance"] == {
         "schema_version": 1,
-        "publication_status": "draft",
-        "rollout_percent": 0,
+        "publication_status": "beta",
+        "rollout_percent": 1,
         "lifecycle_status": "active",
         "qualification": {"status": "unverified"},
     }
@@ -108,6 +108,7 @@ def test_manifest_and_behaviors_align() -> None:
         "device.state_changed",
         "airthings.cloud.sample.failed",
         "airthings.cloud.sample.recovered",
+        "airthings.cloud.device.removed",
     } <= trigger_events
 
     template_action = behaviors["templates"][0]["config"]["actions"][0]
@@ -188,6 +189,22 @@ def test_release_image_binds_source_manifest_and_behavior_provenance() -> None:
     assert "behaviors_sha256=$(sha256sum src/behaviors.json" in workflow
 
 
+def test_locked_build_pins_base_image_and_declares_read_only_runtime() -> None:
+    root = Path(__file__).resolve().parent.parent
+    dockerfile = (root / "Dockerfile").read_text()
+    manifest = json.loads((root / "src" / "manifest.json").read_text())
+
+    from_lines = [line for line in dockerfile.splitlines() if line.startswith("FROM ")]
+    assert len(from_lines) == 2
+    assert all("python:3.12-slim@sha256:" in line for line in from_lines)
+    assert "pip install --upgrade pip" not in dockerfile
+    assert "pip install --no-deps ." not in dockerfile
+    assert "pdm==2.29.7" in dockerfile
+    assert "--require-hashes" in dockerfile
+    assert manifest["runtime"]["linux"]["container"]["read_only"] is True
+    assert '"--read-only"' in (root / "scripts" / "qualify_release_image.py").read_text()
+
+
 def test_release_workflow_uses_protected_monorepo_publication() -> None:
     root = Path(__file__).resolve().parent.parent
     workflow = (root.parents[2] / ".github" / "workflows" / "release-app.yml").read_text()
@@ -235,6 +252,13 @@ def test_capability_catalog_marks_declared_scope_implementation_complete() -> No
     assert all(rows[capability]["status"] == "implemented" for capability in manifest["capabilities"])
     assert set(manifest["commands"]) == {
         row["id"] for row in catalog["commands"] if row["status"] == "implemented"
+    }
+    trigger_events = {
+        trigger["runtime"]["event"]
+        for trigger in json.loads((root / "src" / "behaviors.json").read_text())["devices"][0]["triggers"]
+    }
+    assert trigger_events == {
+        row["id"] for row in catalog["events"] if row["status"] == "implemented"
     }
 
 

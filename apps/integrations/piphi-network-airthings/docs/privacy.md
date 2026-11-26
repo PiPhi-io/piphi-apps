@@ -14,7 +14,9 @@ supplied by the user. It accesses only the explicitly selected account and devic
 
 Credentials, account IDs, serial numbers, device names, homes, segments, raw
 provider payloads, access tokens, and upstream response bodies are kept inside
-the configuration/provider boundary. They are not emitted through state,
+the configuration/provider boundary. Credential and provider-selection values
+are held as secret types in a dedicated in-memory store, and cached provider
+tokens are purged on credential rotation and removal. They are not emitted through state,
 telemetry, events, diagnostics, discovery output, logs, or errors.
 
 PiPhi exposes a deterministic opaque `device_ref` instead of the provider serial
@@ -29,5 +31,12 @@ API endpoints. Removing the PiPhi configuration stops polling and removes the
 runtime's in-memory credentials and provider identifiers. Airthings account and
 device data remain governed by the user's Airthings account and Airthings privacy
 terms.
+
+The runtime keeps one normalized last-good state per configured device, a bounded
+48-hour derived mold-risk window for supported Wave Mini devices, aggregate poll
+timestamps, and the Runtime SDK's bounded recent-event history. It does not retain
+raw provider payloads or provider history. Core's mounted configuration snapshot
+is the restart source of truth and remains on the runtime's dedicated writable
+volume; the container root filesystem is read-only.
 
 Security or privacy reports can be sent to `support@piphi.io`.

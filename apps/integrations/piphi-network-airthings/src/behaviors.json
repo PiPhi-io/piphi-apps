@@ -269,6 +269,19 @@
           "ui": {
             "group": "when"
           }
+        },
+        {
+          "id": "cloud_device_removed",
+          "label": "Device leaves the account",
+          "description": "Start once when the selected monitor is no longer returned by the selected Airthings account.",
+          "capability": "telemetry.availability",
+          "runtime": {
+            "event": "airthings.cloud.device.removed",
+            "source": "integration"
+          },
+          "ui": {
+            "group": "when"
+          }
         }
       ]
     }

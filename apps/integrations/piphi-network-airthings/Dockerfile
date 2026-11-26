@@ -1,11 +1,11 @@
-FROM python:3.12-slim AS resolver
+FROM python:3.12-slim@sha256:191083cdf6c7bda8c76158983163ead5d5cf7b77cf3033e805bb0f5296f51b4b AS resolver
 
 WORKDIR /build
 RUN python -m pip install --no-cache-dir "pdm==2.29.7"
 COPY pyproject.toml pdm.lock /build/
 RUN pdm export --prod --output /requirements.txt
 
-FROM python:3.12-slim
+FROM python:3.12-slim@sha256:191083cdf6c7bda8c76158983163ead5d5cf7b77cf3033e805bb0f5296f51b4b
 
 ARG RELEASE_VERSION=0.0.0-unqualified
 ARG SOURCE_REVISION=0000000000000000000000000000000000000000
@@ -23,22 +23,21 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PYTHONPATH=/app/src \
-    PIPHI_AUTOMATION_LEDGER_PATH=/var/lib/piphi/automation-actions.sqlite3
+    PIPHI_AUTOMATION_LEDGER_PATH=/var/lib/piphi/automation-actions.sqlite3 \
+    PIPHI_CONFIG_SNAPSHOT_PATH=/var/lib/piphi/configs.json
 
 WORKDIR /app
 
 RUN groupadd --system --gid 10001 piphi \
     && useradd --system --uid 10001 --gid piphi --home-dir /nonexistent --shell /usr/sbin/nologin piphi \
     && mkdir -p /var/lib/piphi \
-    && chown piphi:piphi /var/lib/piphi \
-    && python -m pip install --upgrade pip
+    && chown piphi:piphi /var/lib/piphi
 
 COPY pyproject.toml pdm.lock README.md /app/
 COPY src /app/src
 COPY --from=resolver /requirements.txt /tmp/requirements.txt
 
 RUN python -m pip install --require-hashes --requirement /tmp/requirements.txt \
-    && python -m pip install --no-deps . \
     && rm -rf /tmp/requirements.txt /root/.cache
 
 USER piphi

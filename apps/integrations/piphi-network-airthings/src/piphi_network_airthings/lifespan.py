@@ -36,8 +36,7 @@ async def startup_sync(_runtime_context, core_http_client) -> None:
 
     if result.core_error:
         runtime_module.logger.warning(
-            "airthings_startup_core_rehydrate_failed error=%s",
-            result.core_error,
+            "airthings_startup_core_rehydrate_failed",
         )
     elif result.missing_runtime_auth:
         runtime_module.logger.warning(

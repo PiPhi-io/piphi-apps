@@ -7,7 +7,11 @@ import pytest
 from fastapi import HTTPException
 from piphi_runtime_kit_python import build_runtime_auth_headers
 
-from piphi_network_airthings.cloud.client import AirthingsCloudAuthError, AirthingsCloudRequestError
+from piphi_network_airthings.cloud.client import (
+    AirthingsCloudAuthError,
+    AirthingsCloudDeviceRemovedError,
+    AirthingsCloudRequestError,
+)
 import piphi_network_airthings.runtime as runtime_module
 from piphi_network_airthings.app import runtime_port_from_environment
 
@@ -32,13 +36,24 @@ def test_runtime_port_rejects_invalid_values(monkeypatch, value: str) -> None:
 async def test_runtime_data_endpoints_require_complete_authentication(
     unauthenticated_client,
 ) -> None:
-    for path in ("/diagnostics", "/entities", "/state", "/events"):
+    for path in (
+        "/contract",
+        "/ui",
+        "/ui-config",
+        "/discover",
+        "/diagnostics",
+        "/entities",
+        "/state",
+        "/events",
+        "/openapi.json",
+        "/docs",
+        "/not-a-route",
+    ):
         response = await unauthenticated_client.get(path)
         assert response.status_code == 401, path
         assert response.json()["detail"] == "Complete runtime authentication is required"
 
     assert (await unauthenticated_client.get("/health")).status_code == 200
-    assert (await unauthenticated_client.get("/ui-config")).status_code == 200
 
 
 @pytest.mark.asyncio
@@ -797,4 +812,207 @@ async def test_discover_returns_auth_error_when_token_exchange_fails(async_clien
     )
 
     assert response.status_code == 401
-    assert response.json()["detail"] == "Airthings consumer cloud credentials were rejected."
+    assert response.json()["detail"] == (
+        "Airthings consumer cloud credentials or account access were rejected."
+    )
+
+
+@pytest.mark.asyncio
+async def test_validation_errors_recursively_omit_private_inputs(async_client) -> None:
+    canaries = {
+        "client_id": "canary-client-never-echo",
+        "client_secret": "canary-secret-never-echo",
+        "account_id": "canary-account-never-echo",
+        "serial_number": "canary-serial-never-echo",
+    }
+    response = await async_client.post(
+        "/config",
+        json={"id": "invalid", **canaries, "poll_interval_seconds": 1},
+    )
+
+    assert response.status_code == 422
+    assert all(value not in response.text for value in canaries.values())
+
+
+@pytest.mark.asyncio
+async def test_failed_credential_repair_preserves_working_identity_and_secrets(
+    async_client,
+    fake_cloud_client,
+) -> None:
+    serial = "2930046980"
+    fake_cloud_client.devices[serial] = {
+        "serialNumber": serial,
+        "name": "Office",
+        "type": "WAVE_MINI",
+        "sensors": ["temp"],
+    }
+    fake_cloud_client.samples[serial] = {
+        "data": {"recorded": datetime.now().astimezone().isoformat(), "temp": 22.0}
+    }
+    payload = {
+        "id": "cfg-repair",
+        "client_id": "original-client",
+        "client_secret": "original-secret",
+        "account_id": "account-1",
+        "serial_number": serial,
+    }
+    assert (await async_client.post("/config", json=payload)).status_code == 200
+    original_entry = runtime_module.registry.get("cfg-repair")
+    original_ref = original_entry["device_ref"]
+
+    async def reject_candidate(_credentials, *, account_id):
+        del account_id
+        raise AirthingsCloudAuthError("rejected candidate")
+
+    fake_cloud_client.list_devices = reject_candidate
+    response = await async_client.post(
+        "/config",
+        json={**payload, "client_id": "replacement-client", "client_secret": "replacement-secret"},
+    )
+
+    assert response.status_code == 401
+    assert runtime_module.registry.get("cfg-repair") is original_entry
+    assert runtime_module.registry.get("cfg-repair")["device_ref"] == original_ref
+    stored = runtime_module.runtime_secrets.get("cfg-repair")
+    assert stored is not None
+    assert stored.client_id.get_secret_value() == "original-client"
+    assert stored.client_secret.get_secret_value() == "original-secret"
+    assert "original-secret" not in repr(runtime_module.runtime_secrets)
+
+
+@pytest.mark.asyncio
+async def test_auth_failure_keeps_last_good_and_guides_identity_preserving_repair(
+    async_client,
+    fake_cloud_client,
+    caplog,
+) -> None:
+    serial = "2930046980"
+    fake_cloud_client.devices[serial] = {
+        "serialNumber": serial,
+        "name": "Office",
+        "type": "WAVE_MINI",
+        "sensors": ["temp"],
+    }
+    fake_cloud_client.samples[serial] = {
+        "data": {"recorded": datetime.now().astimezone().isoformat(), "temp": 22.0}
+    }
+    assert (
+        await async_client.post(
+            "/config",
+            json={
+                "id": "cfg-reauth",
+                "client_id": "client",
+                "client_secret": "secret",
+                "account_id": "account-1",
+                "serial_number": serial,
+            },
+        )
+    ).status_code == 200
+    fake_cloud_client.latest_sample_failures[serial] = AirthingsCloudAuthError("leaky-secret")
+
+    await runtime_module.poll_once("cfg-reauth")
+    failed = (await async_client.get("/state")).json()["entries"]["cfg-reauth"]["latest_state"]
+    assert failed["temperature_c"] == 22.0
+    assert failed["available"] is False and failed["stale"] is True
+    assert failed["reauth_required"] is True
+    assert failed["repair"] == {
+        "action": "reauthenticate",
+        "message": "Update the Airthings client credentials and retry without changing the selected device.",
+        "preserve_device_ref": True,
+    }
+    assert "leaky-secret" not in str(failed)
+
+    fake_cloud_client.latest_sample_failures.clear()
+    await runtime_module.poll_once("cfg-reauth")
+    recovered = (await async_client.get("/state")).json()["entries"]["cfg-reauth"]["latest_state"]
+    assert recovered["available"] is True
+    assert recovered["reauth_required"] is False
+    event_types = [event["event_type"] for event in runtime_module.registry.recent_events]
+    assert event_types.count("airthings.cloud.sample.failed") == 1
+    assert event_types.count("airthings.cloud.sample.recovered") == 1
+    assert "leaky-secret" not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_deconfigure_removes_secret_material_and_active_polling(
+    async_client,
+    fake_cloud_client,
+) -> None:
+    serial = "2930046980"
+    fake_cloud_client.devices[serial] = {
+        "serialNumber": serial,
+        "name": "Office",
+        "type": "WAVE_MINI",
+        "sensors": ["temp"],
+    }
+    fake_cloud_client.samples[serial] = {
+        "data": {"recorded": "2026-11-20T12:00:00+00:00", "temp": 22.0}
+    }
+    assert (
+        await async_client.post(
+            "/config",
+            json={
+                "id": "cfg-remove",
+                "client_id": "client",
+                "client_secret": "secret",
+                "account_id": "account-1",
+                "serial_number": serial,
+            },
+        )
+    ).status_code == 200
+
+    response = await async_client.post(
+        "/deconfigure", json={"config": {"config_id": "cfg-remove"}}
+    )
+    assert response.status_code == 200
+    assert runtime_module.registry.get("cfg-remove") is None
+    assert runtime_module.runtime_secrets.get("cfg-remove") is None
+    assert "cfg-remove" not in runtime_module.poll_tasks
+
+
+@pytest.mark.asyncio
+async def test_provider_device_removal_is_stale_deduplicated_and_recoverable(
+    async_client,
+    fake_cloud_client,
+) -> None:
+    serial = "2930046980"
+    fake_cloud_client.devices[serial] = {
+        "serialNumber": serial,
+        "name": "Office",
+        "type": "WAVE_MINI",
+        "sensors": ["temp"],
+    }
+    fake_cloud_client.samples[serial] = {
+        "data": {"recorded": datetime.now().astimezone().isoformat(), "temp": 22.0}
+    }
+    assert (
+        await async_client.post(
+            "/config",
+            json={
+                "id": "cfg-provider-remove",
+                "client_id": "client",
+                "client_secret": "secret",
+                "account_id": "account-1",
+                "serial_number": serial,
+            },
+        )
+    ).status_code == 200
+    runtime_module.registry.recent_events.clear()
+    fake_cloud_client.latest_sample_failures[serial] = AirthingsCloudDeviceRemovedError(
+        "private provider detail"
+    )
+
+    await runtime_module.poll_once("cfg-provider-remove")
+    await runtime_module.poll_once("cfg-provider-remove")
+    state = (await async_client.get("/state")).json()["entries"]["cfg-provider-remove"]["latest_state"]
+    assert state["temperature_c"] == 22.0
+    assert state["error_class"] == "device_removed"
+    assert state["repair"]["action"] == "select_device"
+    assert "private provider detail" not in str(state)
+    event_types = [event["event_type"] for event in runtime_module.registry.recent_events]
+    assert event_types.count("airthings.cloud.device.removed") == 1
+
+    fake_cloud_client.latest_sample_failures.clear()
+    await runtime_module.poll_once("cfg-provider-remove")
+    event_types = [event["event_type"] for event in runtime_module.registry.recent_events]
+    assert event_types.count("airthings.cloud.sample.recovered") == 1
