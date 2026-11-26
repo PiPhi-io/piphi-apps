@@ -170,7 +170,7 @@ jobs:
             --version '${{ needs.plan.outputs.version }}' \
             --revision '${{ github.sha }}' \
             --manifest-sha256 '${{ steps.contracts.outputs.manifest_sha256 }}' \
-           --behaviors-sha256 '${{ steps.contracts.outputs.behaviors_sha256 }}'
+            --behaviors-sha256 '${{ steps.contracts.outputs.behaviors_sha256 }}'
       - name: Build and qualify Sense release candidate
         if: needs.plan.outputs.package_id == 'piphi-network-sense'
         working-directory: ${{ needs.plan.outputs.app_path }}
@@ -237,7 +237,7 @@ jobs:
           --version '${{ needs.plan.outputs.version }}'
           --revision '${{ github.sha }}'
           --manifest-sha256 '${{ steps.contracts.outputs.manifest_sha256 }}'
-           --behaviors-sha256 '${{ steps.contracts.outputs.behaviors_sha256 }}'
+          --behaviors-sha256 '${{ steps.contracts.outputs.behaviors_sha256 }}'
       - name: Qualify immutable published Sense image
         if: needs.plan.outputs.package_id == 'piphi-network-sense' && inputs.publish
         working-directory: ${{ needs.plan.outputs.app_path }}
@@ -304,8 +304,8 @@ jobs:
         with:
           name: ${{ needs.plan.outputs.package_id }}-${{ needs.plan.outputs.version }}-evidence
           path: |
-             release-evidence.json
-             registry-proposal.json
+            release-evidence.json
+            registry-proposal.json
             ${{ needs.plan.outputs.app_path }}/windows-dist/*-py3-none-any.whl
       - name: Create namespaced GitHub release
         if: inputs.publish
