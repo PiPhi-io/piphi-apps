@@ -13,6 +13,7 @@ from piphi_modbus_rtu_sidecar.profile import decode_point, encode_point, profile
 from piphi_modbus_rtu_sidecar.schemas import DeviceConfig, RegisterProfile
 from piphi_modbus_rtu_sidecar.transport import (
     SerialRTUSession,
+    crc16,
     frame_ascii,
     frame_with_crc,
     validate_ascii_response,
@@ -182,6 +183,95 @@ async def test_real_pty_rtu_read_and_write() -> None:
         assert await session.read(profile) == [0x1234]
         await session.write(profile, [42])
         assert await session.read(profile) == [42]
+        await task
+    finally:
+        await session.close()
+        os.close(master_fd)
+        os.close(slave_fd)
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("area", "function", "response_data", "expected"),
+    [
+        ("coil", 1, b"\x01\x01", [True]),
+        ("discrete_input", 2, b"\x01\x00", [False]),
+        ("holding_register", 3, b"\x02\x12\x34", [0x1234]),
+        ("input_register", 4, b"\x02\x56\x78", [0x5678]),
+    ],
+    ids=("fc01-coil", "fc02-discrete", "fc03-holding", "fc04-input"),
+)
+async def test_real_pty_read_function_matrix(
+    area: str, function: int, response_data: bytes, expected: list[int | bool]
+) -> None:
+    """Every advertised read function crosses the real serial/CRC boundary."""
+    master_fd, slave_fd = pty.openpty()
+    tty.setraw(master_fd)
+    profile = point(
+        area=area,
+        data_type="bool" if area in {"coil", "discrete_input"} else "uint16",
+    )
+    session = SerialRTUSession(
+        DeviceConfig(
+            id=f"read-fc{function:02d}",
+            serial_port=os.ttyname(slave_fd),
+            registers=[profile],
+        )
+    )
+    await session.open()
+
+    async def simulator() -> None:
+        request = await asyncio.to_thread(os.read, master_fd, 256)
+        assert crc16(request) == 0
+        assert request[:2] == bytes([7, function])
+        assert request[2:6] == struct.pack(">HH", 42, 1)
+        os.write(master_fd, frame_with_crc(bytes([7, function]) + response_data))
+
+    task = asyncio.create_task(simulator())
+    try:
+        assert await session.read(profile) == expected
+        await task
+    finally:
+        await session.close()
+        os.close(master_fd)
+        os.close(slave_fd)
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("profile", "values", "function"),
+    [
+        (point(area="coil", data_type="bool", writable=True), [True], 5),
+        (point(writable=True), [99], 6),
+        (point(data_type="uint32", writable=True), [0x1234, 0x5678], 16),
+    ],
+    ids=("fc05-single-coil", "fc06-single-register", "fc16-multiple-registers"),
+)
+async def test_real_pty_write_function_matrix(
+    profile: RegisterProfile, values: list[int | bool], function: int
+) -> None:
+    """Every profile-bound write function validates its wire confirmation."""
+    master_fd, slave_fd = pty.openpty()
+    tty.setraw(master_fd)
+    session = SerialRTUSession(
+        DeviceConfig(
+            id=f"write-fc{function:02d}",
+            serial_port=os.ttyname(slave_fd),
+            registers=[profile],
+        )
+    )
+    await session.open()
+
+    async def simulator() -> None:
+        request = await asyncio.to_thread(os.read, master_fd, 256)
+        assert crc16(request) == 0
+        assert request[:2] == bytes([7, function])
+        response = request[:-2] if function in {5, 6} else request[:6]
+        os.write(master_fd, frame_with_crc(response))
+
+    task = asyncio.create_task(simulator())
+    try:
+        await session.write(profile, values)
         await task
     finally:
         await session.close()

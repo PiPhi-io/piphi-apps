@@ -12,6 +12,8 @@ router = APIRouter(tags=["commands"])
 
 @router.post("/command")
 async def command(payload: dict[str, Any], request: Request):
+    if not commands:
+        raise HTTPException(status_code=404, detail="Sidecar exposes no entity commands")
     command_name = str(payload.get("command") or payload.get("capability_id") or "").strip()
     if not command_name:
         raise HTTPException(status_code=400, detail="Missing command")

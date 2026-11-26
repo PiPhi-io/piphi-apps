@@ -14,12 +14,12 @@
   "groups": [
     {
       "id": "runtime-foundation", "status": "implemented", "scope": ["sidecar-service"], "source_refs": ["core_vocabulary"],
-      "reason": "The scaffold implements configuration presence, connectivity state, refresh dispatch, and sanitized configuration events.",
-      "state": ["connected"], "events": ["runtime.config.applied", "runtime.config.removed", "runtime.command.received"], "conditions": [], "actions": ["refresh"]
+      "reason": "The sidecar exposes authenticated configuration and sanitized lifecycle events without advertising parent-owned entities or behavior actions.",
+      "state": [], "events": ["runtime.config.applied", "runtime.config.removed"], "conditions": [], "actions": []
     },
     {
       "id": "serial-port-and-line-lifecycle", "status": "implemented", "scope": ["stable-linux-serial-by-id-devices", "configured-rtu-and-ascii-line-settings"], "source_refs": ["modbus_serial", "pymodbus", "parent_contract"],
-      "reason": "The authenticated parent supplies a stable /dev/serial/by-id path and bounded baud/data/parity/stop/timeout settings. The sidecar rejects paths outside that mount and duplicate ownership of one resolved physical bus, owns exclusive session access, closes cleanly, reconnects after transport failure, redacts the path, and reports port and unit responsiveness separately. Generic USB discovery, adapter metadata, flow control and custom RS-485 direction timing remain demand-driven platform/device features.",
+      "reason": "Core grants one exact stable /dev/serial/by-id device and the authenticated parent supplies bounded baud/data/parity/stop/timeout settings. The sidecar rejects paths outside that grant and duplicate ownership of one resolved physical bus, owns exclusive session access, closes cleanly, reconnects after transport failure, redacts the path, and reports port and unit responsiveness separately. Generic USB discovery, adapter metadata, flow control and custom RS-485 direction timing remain demand-driven platform/device features.",
       "state": [], "events": [], "conditions": [], "actions": []
     },
     {
@@ -29,7 +29,7 @@
     },
     {
       "id": "request-arbitration-and-routing", "status": "implemented", "scope": ["parent-configured-units-and-profiles"], "source_refs": ["modbus_application", "pymodbus", "parent_contract"],
-      "reason": "A bounded serialized queue permits one profile-resolved request at a time. Units are 1-247, profile points fix areas and addresses, protocol responses are correlated by unit/function, writes are not retried, and broadcasts/raw frames are impossible through the API.",
+      "reason": "A bounded serialized queue permits one trusted-profile-resolved request at a time after canonical hash and HMAC signature verification. Units are 1-247, profile points fix areas and addresses, protocol responses are correlated by unit/function, writes are independently disabled by default and never retried, and broadcasts/raw frames are impossible through the API.",
       "state": [], "events": [], "conditions": [], "actions": []
     },
     {

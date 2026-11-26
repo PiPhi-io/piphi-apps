@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import logging
 import os
 import time
 from collections.abc import Callable
@@ -21,6 +23,9 @@ from .schemas import DeviceConfig
 from .profile import decode_point, encode_point, point_metadata, profile_hash
 from .settings import INTEGRATION_ID, INTEGRATION_NAME, INTEGRATION_VERSION
 from .transport import EventBuffer, SerialRTUSession
+from .security import safe_error_code, verify_profile_trust
+
+logger = logging.getLogger(__name__)
 
 starter = create_runtime_starter(
     integration_id=INTEGRATION_ID,
@@ -49,7 +54,7 @@ def make_entry(config: DeviceConfig) -> dict[str, Any]:
         **identity,
         "host": config.host,
         "alias": config.alias,
-        "config": config.model_dump(exclude={"serial_port"}),
+        "config": config.model_dump(exclude={"serial_port", "profile_signature"}),
     }
 
 
@@ -79,6 +84,11 @@ def get_entry_or_404(config_id: str) -> dict[str, Any]:
 async def apply_config(config: DeviceConfig) -> None:
     entry = make_entry(config)
     config_id = str(entry["config_id"])
+    verify_profile_trust(
+        digest=profile_hash(config),
+        declared_digest=config.profile_sha256,
+        signature=config.profile_signature,
+    )
     configured_port = os.path.abspath(config.serial_port)
     resolved_port = os.path.realpath(config.serial_port)
     production = (
@@ -134,7 +144,14 @@ async def shutdown_controllers() -> None:
     active = list(controllers.values())
     controllers.clear()
     for controller in active:
-        await controller.close()
+        try:
+            await controller.close()
+        except Exception as exc:
+            logger.error(
+                "modbus_serial_close_failed config_id=%s error=%s",
+                controller.entry["config_id"],
+                safe_error_code(exc),
+            )
 
 
 class BusController:
@@ -187,8 +204,10 @@ class BusController:
         return True
 
     async def close(self) -> None:
-        await self.session.close()
-        self.port_open = False
+        try:
+            await self.session.close()
+        finally:
+            self.port_open = False
 
     async def reconnect(self) -> bool:
         await self.close()
@@ -249,7 +268,7 @@ class BusController:
                     {"point_id": point_id, "previous": previous, "value": value},
                 )
         except (ConnectionError, OSError, TimeoutError, ValueError) as exc:
-            self.last_error_code = str(exc) or type(exc).__name__
+            self.last_error_code = safe_error_code(exc)
             self.request_failure_count += 1
             if isinstance(exc, TimeoutError):
                 self.timeout_count += 1
@@ -279,6 +298,8 @@ class BusController:
         return record
 
     async def write_point(self, point_id: str, value: Any) -> dict[str, Any]:
+        if not self.config.writes_enabled:
+            raise ValueError("writes_disabled")
         profile = self.point(point_id)
         encoded = encode_point(profile, value)
         try:
@@ -295,6 +316,8 @@ class BusController:
     async def write_coils(
         self, point_ids: list[str], values: list[bool]
     ) -> dict[str, Any]:
+        if not self.config.writes_enabled:
+            raise ValueError("writes_disabled")
         points = [self.point(point_id) for point_id in point_ids]
         try:
             await self.session.write_coils(points, values)
@@ -329,6 +352,9 @@ class BusController:
             "connected": self.port_open and bool(responsive_units),
             "service_available": True,
             "port_open": self.port_open,
+            "adapter_identity": hashlib.sha256(
+                os.path.basename(self.config.serial_port).encode()
+            ).hexdigest()[:16],
             "responsive_unit_ids": sorted(responsive_units),
             "profile_id": self.config.profile_id,
             "profile_version": self.config.profile_version,

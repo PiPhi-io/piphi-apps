@@ -59,6 +59,25 @@ async def test_queue_serializes_requests_and_rejects_saturation() -> None:
     assert queue.high_water_mark == 1
 
 
+@pytest.mark.anyio
+async def test_failed_queue_operation_releases_capacity_for_the_next_request() -> None:
+    """A failed request cannot permanently consume a bounded queue slot."""
+    queue = BoundedQueue(capacity=1)
+
+    async def fail() -> None:
+        raise TimeoutError("modbus_response_timeout")
+
+    async def succeed() -> str:
+        return "recovered"
+
+    with pytest.raises(TimeoutError, match="modbus_response_timeout"):
+        await queue.submit(fail)
+
+    assert queue.pending == 0
+    assert await queue.submit(succeed) == "recovered"
+    assert queue.pending == 0
+
+
 def test_replay_reports_drops_and_cursor_gaps() -> None:
     events = EventBuffer(capacity=10)
     for index in range(12):

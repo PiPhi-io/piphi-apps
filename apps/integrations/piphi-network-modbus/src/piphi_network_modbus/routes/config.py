@@ -13,6 +13,7 @@ from piphi_runtime_kit_python.fastapi import sync_runtime_auth_from_fastapi_payl
 
 from ..schemas import DeviceConfig
 from ..runtime_auth import authorize_runtime_request
+from ..security import safe_error_code
 from ..state import (
     apply_config,
     config_sync,
@@ -37,7 +38,7 @@ async def configure(payload: DeviceConfig, request: Request):
             status_code=409,
             detail={
                 "error": "configuration_probe_failed",
-                "reason": str(exc) or type(exc).__name__,
+                "reason": safe_error_code(exc),
             },
         ) from exc
     return build_config_apply_response(

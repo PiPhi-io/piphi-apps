@@ -16,6 +16,7 @@ def profile_config(*, transport: str = "tcp") -> DeviceConfig:
         "id": f"composites-{transport}",
         "host": "127.0.0.1",
         "transport": transport,
+        "writes_enabled": True,
         "serial_port": "/dev/ttyUSB0" if transport == "rtu_sidecar" else None,
         "points": [
             {"id": "power", "name": "Power", "unit_id": 1, "area": "coil", "address": 0, "data_type": "bool", "writable": True},

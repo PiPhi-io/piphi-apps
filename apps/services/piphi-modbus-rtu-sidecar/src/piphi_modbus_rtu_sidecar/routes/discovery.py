@@ -14,17 +14,8 @@ router = APIRouter(tags=["discovery"])
 
 @router.post("/discover")
 async def discover(payload: IntegrationDiscoveryRequest | None = None):
-    inputs = normalize_discovery_inputs(payload.inputs if payload else None)
-    return build_discovery_response(
-        [
-            {
-                "id": "modbus-rtu-service",
-                "device_id": "modbus-rtu-service",
-                "host": inputs.get("host", "127.0.0.1"),
-                "alias": "Modbus RTU Service",
-            }
-        ]
-    )
+    normalize_discovery_inputs(payload.inputs if payload else None)
+    return build_discovery_response([])
 
 
 @router.get("/ui-config")

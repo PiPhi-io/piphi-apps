@@ -10,6 +10,7 @@ import socket
 import ssl
 import struct
 import time
+import weakref
 from contextlib import suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -18,6 +19,7 @@ from urllib.parse import urlsplit
 
 from .profile_codec import decode_point, encode_point, point_metadata
 from .schemas import PointProfile
+from .security import safe_error_code
 
 LOCAL_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9.-]{0,251}\Z")
 MBAP = struct.Struct(">HHHB")
@@ -33,6 +35,9 @@ MAX_QUANTITY_BY_AREA = {
     "holding_register": 125,
     "input_register": 125,
 }
+_ENDPOINT_LOCKS: weakref.WeakValueDictionary[tuple[str, str, int], asyncio.Lock] = (
+    weakref.WeakValueDictionary()
+)
 
 
 def crc16(data: bytes) -> int:
@@ -165,7 +170,8 @@ class ModbusTCPClient:
             self._ssl_context.verify_mode = ssl.CERT_REQUIRED
         self._reader: asyncio.StreamReader | None = None
         self._writer: asyncio.StreamWriter | Any | None = None
-        self._lock = asyncio.Lock()
+        endpoint_key = (self.transport, self.name, self.port)
+        self._lock = _ENDPOINT_LOCKS.setdefault(endpoint_key, asyncio.Lock())
         self._transaction = 0
         self._point_cache: dict[str, tuple[bool | int | float | str, str]] = {}
         self._inter_message_delay = inter_message_delay_ms / 1000
@@ -449,7 +455,7 @@ class ModbusTCPClient:
                 poll_health["success_count"] += 1
                 poll_health["last_success_at"] = timestamp
             except (TimeoutError, OSError, EOFError, ValueError) as exc:
-                last_error = str(exc) or type(exc).__name__
+                last_error = safe_error_code(exc)
                 failure_count += 1
                 unit_health.update(
                     failure_count=int(unit_health["failure_count"]) + 1,

@@ -14,84 +14,43 @@ ENDPOINTS = {
     "ui_config": "/ui-config",
     "events": "/events",
     "command": "/command",
+    "modbus_snapshot": "/v1/modbus/snapshot",
+    "modbus_events": "/v1/modbus/events",
+    "modbus_refresh": "/v1/modbus/refresh",
+    "modbus_write": "/v1/modbus/write",
+    "modbus_write_coils": "/v1/modbus/write-coils",
 }
 
-REQUIRED_ENDPOINTS = ["health", "entities", "command", "config", "ui_config"]
+REQUIRED_ENDPOINTS = ["health", "config"]
 
-CAPABILITIES: dict[str, dict[str, Any]] = {
-    "connected": {
-        "kind": "sensor",
-        "unit": "bool"
-    },
-    "refresh": {
-        "kind": "action"
-    }
-}
+CAPABILITIES: dict[str, dict[str, Any]] = {}
 
-COMMANDS: dict[str, dict[str, Any]] = {
-    "refresh": {
-        "description": "Refresh the device state.",
-        "timeout_ms": 5000
-    }
-}
+COMMANDS: dict[str, dict[str, Any]] = {}
 
 CONFIG_SCHEMA: dict[str, Any] = {
     "schema": {
         "title": "Piphi Modbus Rtu Sidecar Setup",
         "type": "object",
         "required": [
-            "host"
+            "serial_port", "registers"
         ],
         "properties": {
-            "host": {
-                "type": "string",
-                "title": "Host"
-            },
-            "alias": {
-                "type": "string",
-                "title": "Alias"
-            },
-            "service_name": {
-                "type": "string",
-                "title": "Service Name"
-            }
+            "serial_port": {"type": "string", "title": "Stable serial adapter path"},
+            "serial_mode": {"type": "string", "enum": ["rtu", "ascii"]},
+            "baud_rate": {"type": "integer", "minimum": 1200, "maximum": 921600},
+            "parity": {"type": "string", "enum": ["N", "E", "O"]},
+            "stop_bits": {"type": "integer", "enum": [1, 2]},
+            "data_bits": {"type": "integer", "enum": [7, 8]},
+            "profile_id": {"type": "string"},
+            "profile_version": {"type": "string"},
+            "profile_sha256": {"type": "string"},
+            "profile_signature": {"type": "string"},
+            "writes_enabled": {"type": "boolean", "default": False},
+            "registers": {"type": "array", "minItems": 1}
         }
     },
     "uiSchema": {
-        "host": {
-            "placeholder": "192.168.1.50"
-        },
-        "alias": {
-            "placeholder": "Office Device"
-        },
-        "service_name": {
-            "placeholder": "local-helper"
-        }
-    }
-}
-
-FALLBACK_ENTITY: dict[str, Any] = {
-    "id": "modbus-rtu-service",
-    "name": "Modbus RTU Service",
-    "device_id": "modbus-rtu-service",
-    "entity_type": "service",
-    "capabilities": [
-        "connected",
-        "refresh"
-    ],
-    "available_commands": [
-        {
-            "id": "refresh",
-            "label": "Refresh",
-            "kind": "action"
-        }
-    ],
-    "dashboard": {
-        "allowed_widgets": [
-            "tile",
-            "stat",
-            "button"
-        ],
-        "default_widget": "tile"
+        "serial_port": {"placeholder": "/dev/serial/by-id/usb-vendor_adapter"},
+        "profile_signature": {"ui:widget": "password"}
     }
 }

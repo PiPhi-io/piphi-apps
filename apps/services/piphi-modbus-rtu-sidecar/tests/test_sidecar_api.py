@@ -43,6 +43,7 @@ def config_payload(config_id: str = "api-test") -> dict[str, Any]:
         "profile_id": "acme.meter",
         "profile_version": "1.0.0",
         "profile_provenance": "Acme manual revision 4",
+        "writes_enabled": True,
         "registers": [
             {
                 "id": "temperature",
