@@ -5,6 +5,7 @@ import json
 import threading
 import uuid
 from collections.abc import Callable
+from contextlib import suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
@@ -118,7 +119,7 @@ class ZigbeeMqttClient:
         def on_message(_client, _userdata, message):
             try:
                 decoded = json.loads(message.payload.decode("utf-8"))
-            except Exception as exc:
+            except (UnicodeDecodeError, json.JSONDecodeError) as exc:
                 error.append(f"invalid_json_response:{exc}")
                 response_event.set()
                 return
@@ -241,11 +242,11 @@ def command_to_mqtt(entry: dict[str, Any], command_name: str, params: dict[str, 
     if command_name == "refresh":
         return {"topic": f"{topic}/get", "payload": _refresh_payload(entry)}
     if command_name == "set_state":
-        return {"topic": f"{topic}/set", "payload": {"state": _state_payload_value(params)}}
+        return {"topic": f"{topic}/set", "payload": {_command_property(entry, "state", params): _state_payload_value(params)}}
     if command_name == "set_brightness":
-        return {"topic": f"{topic}/set", "payload": {"brightness": _brightness_payload_value(params)}}
+        return {"topic": f"{topic}/set", "payload": {_command_property(entry, "brightness_percent", params): _brightness_payload_value(params, entry)}}
     if command_name == "set_color_temperature":
-        return {"topic": f"{topic}/set", "payload": {"color_temp": _color_temp_payload_value(params)}}
+        return {"topic": f"{topic}/set", "payload": {_command_property(entry, "color_temperature_mired", params): _color_temp_payload_value(params, entry)}}
     raise ValueError(f"unsupported Zigbee MQTT command: {command_name}")
 
 
@@ -261,7 +262,6 @@ def normalize_state_payload(payload: dict[str, Any]) -> dict[str, Any]:
     state: dict[str, Any] = {
         "connected": connected,
         "availability": availability,
-        "zigbee_payload": payload,
         "last_seen_at": observed_at,
         "availability_updated_at": observed_at,
         "availability_status": (
@@ -376,21 +376,60 @@ def _state_payload_value(params: dict[str, Any]) -> str:
     raise ValueError("set_state requires state/value/on as ON, OFF, TOGGLE, or a boolean")
 
 
-def _brightness_payload_value(params: dict[str, Any]) -> int:
+def _brightness_payload_value(params: dict[str, Any], entry: dict[str, Any]) -> int:
     raw_value = params.get("brightness", params.get("brightness_percent", params.get("value")))
     if raw_value is None:
         raise ValueError("set_brightness requires brightness, brightness_percent, or value")
     value = float(raw_value)
-    if 0 <= value <= 100 and "brightness" not in params:
-        return round(value * 254 / 100)
-    return max(0, min(254, round(value)))
+    normalized = round(value * 254 / 100) if 0 <= value <= 100 and "brightness" not in params else round(value)
+    return _bounded_expose_value(entry, "brightness_percent", normalized, default_min=0, default_max=254)
 
 
-def _color_temp_payload_value(params: dict[str, Any]) -> int:
+def _color_temp_payload_value(params: dict[str, Any], entry: dict[str, Any]) -> int:
     raw_value = params.get("color_temp", params.get("color_temperature_mired", params.get("value")))
     if raw_value is None:
         raise ValueError("set_color_temperature requires color_temp, color_temperature_mired, or value")
-    return round(float(raw_value))
+    return _bounded_expose_value(entry, "color_temperature_mired", round(float(raw_value)))
+
+
+def _command_property(entry: dict[str, Any], capability: str, params: dict[str, Any]) -> str:
+    endpoint = str(params.get("endpoint") or "").strip()
+    exposes = entry.get("exposes") or []
+    if not exposes:
+        return STATE_FIELDS[capability]
+    matches = [
+        expose
+        for expose in exposes
+        if isinstance(expose, dict)
+        and expose.get("capability") == capability
+        and isinstance(expose.get("access"), dict)
+        and expose["access"].get("set") is True
+        and (not endpoint or str(expose.get("endpoint") or "").strip() == endpoint)
+    ]
+    if len(matches) != 1:
+        raise ValueError(f"{capability} requires one explicit writable endpoint")
+    return str(matches[0].get("property") or STATE_FIELDS[capability])
+
+
+def _bounded_expose_value(
+    entry: dict[str, Any],
+    capability: str,
+    value: int,
+    *,
+    default_min: int | None = None,
+    default_max: int | None = None,
+) -> int:
+    expose = next(
+        (item for item in entry.get("exposes") or [] if isinstance(item, dict) and item.get("capability") == capability),
+        {},
+    )
+    minimum = expose.get("min", default_min)
+    maximum = expose.get("max", default_max)
+    if minimum is not None and value < int(minimum):
+        raise ValueError(f"{capability} must be at least {minimum}")
+    if maximum is not None and value > int(maximum):
+        raise ValueError(f"{capability} must be at most {maximum}")
+    return value
 
 
 def _normalize_state_value(capability: str, value: Any) -> Any:
@@ -478,11 +517,7 @@ def _reason_code_failed(reason_code: Any) -> bool:
 
 
 def _disconnect(client: Any) -> None:
-    try:
+    with suppress(OSError, RuntimeError):
         client.loop_stop()
-    except Exception:
-        pass
-    try:
+    with suppress(OSError, RuntimeError):
         client.disconnect()
-    except Exception:
-        pass

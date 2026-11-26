@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "upstream": "Zigbee2MQTT 2.14.3 MQTT API",
+  "capabilities": [
+    {"id": "managed_mqtt_transport", "kind": "transport", "status": "implemented", "scope": "parent-only namespace", "risk": "medium"},
+    {"id": "bridge_readiness", "kind": "health", "status": "implemented", "scope": "broker/bridge/coordinator evidence", "risk": "read_only"},
+    {"id": "permit_join", "kind": "administration", "status": "implemented", "scope": "allowlisted coordinator/router", "risk": "high", "confirmation": true, "idempotency": "operation_id", "fanout": "single_target"},
+    {"id": "backup_restore_same_family", "kind": "administration", "status": "implemented", "scope": "governed Ember/ZStack evidence", "risk": "high", "confirmation": true},
+    {"id": "network_map", "kind": "diagnostics", "status": "implemented", "scope": "bounded raw topology", "risk": "read_only"},
+    {"id": "remote_coordinator_exclusivity", "kind": "ownership", "status": "excluded", "scope": "TCP/socket coordinator", "reason": "Reachability cannot prove third-party exclusivity."},
+    {"id": "install_code_remove_reinterview_ota_touchlink_groups_scenes", "kind": "administration", "status": "planned", "scope": "bridge/device", "reason": "No safe parent-owned lifecycle and postcondition contract in this release."},
+    {"id": "piphi_device_entities", "kind": "entity", "status": "excluded", "scope": "sidecar", "reason": "The parent integration exclusively owns PiPhi Zigbee entities."}
+  ]
+}

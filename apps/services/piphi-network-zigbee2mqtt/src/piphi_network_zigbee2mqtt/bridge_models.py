@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, Any, Literal
@@ -50,6 +51,10 @@ class MqttSettings(BaseModel):
     user: str | None = None
     password: str | None = None
     base_topic: str = "zigbee2mqtt"
+    ca: str | None = None
+    cert: str | None = None
+    key: str | None = None
+    reject_unauthorized: bool = True
 
     @field_validator("base_topic")
     @classmethod
@@ -58,6 +63,17 @@ class MqttSettings(BaseModel):
         if not token:
             raise ValueError("MQTT base_topic is required.")
         return token
+
+    @model_validator(mode="after")
+    def validate_tls(self) -> MqttSettings:
+        if bool(self.cert) != bool(self.key):
+            raise ValueError("MQTT client cert and key must be configured together.")
+        if not self.reject_unauthorized:
+            raise ValueError("MQTT certificate verification cannot be disabled.")
+        for value in (self.ca, self.cert, self.key):
+            if value and (not Path(value).is_absolute() or ".." in Path(value).parts):
+                raise ValueError("MQTT trust files must use absolute mounted paths.")
+        return self
 
 
 class MqttMessagesRequest(BaseModel):
@@ -591,6 +607,22 @@ class PermitJoinRequest(Zigbee2MqttApiRequest):
     value: bool = True
     time: int = Field(default=60, ge=1, le=254)
     device: str | None = None
+    operation_id: str = Field(min_length=8, max_length=128, pattern=r"^[A-Za-z0-9._:-]+$")
+    confirmation: Literal["open-zigbee-network", "close-zigbee-network"]
+
+    @model_validator(mode="after")
+    def validate_confirmation(self) -> PermitJoinRequest:
+        expected = "open-zigbee-network" if self.value else "close-zigbee-network"
+        if self.confirmation != expected:
+            raise ValueError(f"Permit join requires confirmation={expected}.")
+        allowed = {
+            item.strip()
+            for item in os.getenv("PIPHI_PERMIT_JOIN_DEVICE_ALLOWLIST", "coordinator").split(",")
+            if item.strip()
+        }
+        if self.device and self.device not in allowed:
+            raise ValueError("Permit join target is not allow-listed.")
+        return self
 
 
 class PermitJoinResponse(BaseModel):
@@ -626,6 +658,7 @@ class ApplyBridgeResponse(BaseModel):
     supervisor: SupervisorResponse | None = None
     mqtt_check: MqttCheckResponse | None = None
     message: str | None = None
+    rolled_back: bool = False
 
 
 class SidecarStore:

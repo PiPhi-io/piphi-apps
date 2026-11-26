@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException, Query
 from piphi_runtime_kit_python import RuntimeStateService
 
 from ..contract import ENDPOINTS, REQUIRED_ENDPOINTS
+from ..security import redact
 from ..settings import (
     INTEGRATION_ID,
     INTEGRATION_NAME,
@@ -32,7 +33,7 @@ async def state(
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return {
+    return redact({
         **state_payload,
         "summary": {
             "active_config_count": len(registry.ids()),
@@ -41,7 +42,7 @@ async def state(
         "bridge": sidecar_store.snapshot().model_dump(mode="json"),
         "entries": registry.entries,
         "state_snapshots": registry.state_snapshots,
-    }
+    })
 
 
 @router.get("/contract")

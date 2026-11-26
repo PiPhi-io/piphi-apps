@@ -6,7 +6,7 @@ from fastapi import APIRouter
 
 from ..contract import FALLBACK_ENTITY
 from ..state import capabilities, commands, registry
-from ..zigbee_devices import entity_from_entry
+from ..zigbee_devices import entities_from_entry
 
 router = APIRouter(tags=["entities"])
 
@@ -14,5 +14,5 @@ router = APIRouter(tags=["entities"])
 @router.get("/entities")
 async def entities() -> dict[str, Any]:
     entries = list(registry.entries.values())
-    runtime_entities = [entity_from_entry(entry) for entry in entries] or [FALLBACK_ENTITY]
+    runtime_entities = [entity for entry in entries for entity in entities_from_entry(entry)] or [FALLBACK_ENTITY]
     return {"entities": runtime_entities, "capabilities": capabilities, "commands": commands}

@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "upstream": "Zigbee2MQTT 2.14.3 MQTT API and exposes schema",
+  "capabilities": [
+    {"id": "availability", "kind": "state", "status": "implemented", "scope": "device", "source": "availability topic", "risk": "read_only"},
+    {"id": "environmental_power_safety", "kind": "state", "status": "implemented", "scope": "negotiated expose", "source": "documented exposes", "risk": "read_only"},
+    {"id": "endpoint_identity", "kind": "entity", "status": "implemented", "scope": "expose endpoint", "source": "documented composite exposes", "risk": "read_only"},
+    {"id": "refresh", "kind": "action", "status": "implemented", "scope": "readable expose allowlist", "source": "device /get", "risk": "low"},
+    {"id": "on_off_brightness_color_temperature", "kind": "action", "status": "implemented", "scope": "explicit writable expose and device allowlist", "source": "device /set", "risk": "medium", "confirmation": true, "idempotency": "runtime ledger", "fanout": "single_target"},
+    {"id": "color_cover_fan_climate_lock_valve_siren", "kind": "action", "status": "planned", "scope": "device/endpoint", "source": "documented exposes", "reason": "No qualified typed mapping or postcondition contract."},
+    {"id": "groups_scenes_binding_reporting_ota_touchlink", "kind": "administration", "status": "excluded", "scope": "bridge", "source": "documented MQTT API", "reason": "Consequential administration is outside this release contract."}
+  ]
+}

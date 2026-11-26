@@ -84,7 +84,13 @@ class ManagedMqttGateway:
         username, password = _mqtt_credentials(settings)
         if username:
             client.username_pw_set(username, password)
-        _configure_tls(client, settings.server)
+        _configure_tls(client, settings)
+        max_queued_messages_set = getattr(client, "max_queued_messages_set", None)
+        if callable(max_queued_messages_set):
+            max_queued_messages_set(256)
+        max_inflight_messages_set = getattr(client, "max_inflight_messages_set", None)
+        if callable(max_inflight_messages_set):
+            max_inflight_messages_set(20)
 
         def on_connect(client, _userdata, _flags, reason_code, _properties=None):
             if _reason_code_failed(reason_code):

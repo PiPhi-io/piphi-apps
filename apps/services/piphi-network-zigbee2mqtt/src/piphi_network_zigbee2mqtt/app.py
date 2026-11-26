@@ -5,30 +5,18 @@ from fastapi.responses import JSONResponse
 
 from .lifecycle import lifespan
 from .routes import routers
+from .security import install_log_scrubbing
 from .settings import INTEGRATION_NAME
 
 
 def create_app() -> FastAPI:
+    install_log_scrubbing()
     app = FastAPI(title=INTEGRATION_NAME, lifespan=lifespan)
 
     @app.middleware("http")
     async def protect_sidecar_api(request: Request, call_next):
         path = request.url.path
-        protected = (
-            path.startswith(("/v1/", "/deconfigure/", "/events/", "/telemetry/"))
-            or path
-            in {
-                "/command",
-                "/config",
-                "/config/sync",
-                "/deconfigure",
-                "/state",
-                "/diagnostics",
-                "/entities",
-                "/events",
-                "/telemetry",
-            }
-        )
+        protected = path != "/health"
         if protected:
             from .authorization import authorize_sidecar_request
 

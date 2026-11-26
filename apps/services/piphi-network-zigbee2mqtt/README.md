@@ -10,6 +10,10 @@ integration. Its job is to give PiPhi a stable local API for:
 - reporting bridge-side setup state
 - supporting Linux container use and Windows/macOS proxy use
 
+It never creates PiPhi Zigbee device entities; `piphi-network-zigbee` owns
+device and endpoint identity. In production only `/health` is public. Every
+other route requires the Core-negotiated sidecar bearer token.
+
 ## Run locally
 
 ```bash
@@ -178,9 +182,18 @@ curl -s http://127.0.0.1:8720/v1/permit-join \
   -d '{
     "server": "mqtt://127.0.0.1:1883",
     "base_topic": "zigbee2mqtt",
-    "time": 60
+    "time": 60,
+    "device": "coordinator",
+    "operation_id": "commission-kitchen-001",
+    "confirmation": "open-zigbee-network"
   }'
 ```
+
+Commissioning targets are allowlisted with
+`PIPHI_PERMIT_JOIN_DEVICE_ALLOWLIST`. The operation ID is idempotent. The
+sidecar records active commissioning in its private volume and sends an
+explicit close on timeout, failure, replacement, shutdown, and restart
+recovery. Install-code commissioning is not implemented or advertised.
 
 ## Production Apply Flow
 
@@ -223,6 +236,14 @@ Restart policies:
 - `changed`: restart only when `configuration.yaml` changed
 - `always`: restart after every apply
 - `never`: write config but leave process state alone
+
+Apply is transactional: failed supervisor or MQTT postconditions restore the
+previous private configuration before releasing the coordinator claim.
+
+For `mqtts://`, system trust remains the default. Custom CA and mTLS use mounted
+absolute paths (`mqtt.ca`, `mqtt.cert`, `mqtt.key` or the corresponding
+`MQTT_CA_FILE`, `MQTT_CERT_FILE`, `MQTT_KEY_FILE` runtime bindings).
+Hostname/certificate verification is mandatory.
 
 PiPhi persists an exclusive, leased claim for `coordinator_identity`, renews it
 with the stable Core runtime identity, and fences changes with a generation.
@@ -270,6 +291,8 @@ curl -s http://127.0.0.1:8720/v1/prerequisites \
 Linux:
 
 - sidecar runs non-root as UID/GID `1000:1000`
+- root filesystem is read-only with all Linux capabilities dropped and only
+  `/app/data` plus `/tmp` writable
 - sidecar has no Docker socket, broad USB mapping, privileged mode, or devices
 - sidecar and Zigbee2MQTT share `piphi-helper-zigbee2mqtt-data`
 - Core discovers stable `/dev/serial` links and maps only the selected device
@@ -284,8 +307,8 @@ Windows/macOS:
 ## Docker Build
 
 ```bash
-docker build -t ghcr.io/piphi-io/zigbee2mqtt-sidecar:0.1.26 .
-docker run --rm -p 8720:8720 ghcr.io/piphi-io/zigbee2mqtt-sidecar:0.1.26
+docker build -t ghcr.io/piphi-io/zigbee2mqtt-sidecar:0.1.27 .
+docker run --rm -p 8720:8720 ghcr.io/piphi-io/zigbee2mqtt-sidecar:0.1.27
 ```
 
 For Linux, deploy through Core's managed-runtime helper contract. Running the

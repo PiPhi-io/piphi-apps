@@ -94,7 +94,7 @@ else:
                 errors.append(f"behaviors.devices[{device_index}].actions[{action_index}].runtime.command is required")
             if risk_level not in risk_levels:
                 errors.append(f"behaviors.devices[{device_index}].actions[{action_index}].safety.riskLevel must be low, medium, high, or critical")
-    if not behavior.get("devices") and not behavior.get("templates"):
+    if manifest.get("entities") and not behavior.get("devices") and not behavior.get("templates"):
         errors.append("behaviors.json must define at least one device or template")
     for template_index, template in enumerate(behavior.get("templates") or []):
         device_key = str(template.get("deviceKey") or template.get("device_key") or "").strip()

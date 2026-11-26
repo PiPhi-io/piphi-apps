@@ -1,3 +1,10 @@
+FROM python:3.12-slim@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b AS dependencies
+ARG PDM_VERSION=2.29.7
+WORKDIR /build
+RUN pip install --no-cache-dir "pdm==${PDM_VERSION}"
+COPY pyproject.toml pdm.lock ./
+RUN pdm export --prod --without-hashes --output requirements.txt
+
 FROM python:3.12-slim@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b
 
 ARG RELEASE_VERSION=0.0.0-unqualified
@@ -16,19 +23,22 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PYTHONPATH=/app/src \
-    PIPHI_AUTOMATION_LEDGER_PATH=/var/lib/piphi/automation-actions.sqlite3
+    PIPHI_AUTOMATION_LEDGER_PATH=/var/lib/piphi/automation-actions.sqlite3 \
+    PIPHI_ZIGBEE_STATE_PATH=/var/lib/piphi/zigbee/configs.json
 
 WORKDIR /app
 
 RUN groupadd --system --gid 10001 piphi \
     && useradd --system --uid 10001 --gid piphi --home-dir /nonexistent --shell /usr/sbin/nologin piphi \
-    && mkdir -p /var/lib/piphi \
-    && chown piphi:piphi /var/lib/piphi \
-    && python -m pip install --upgrade pip
+    && mkdir -p /var/lib/piphi/zigbee \
+    && chown piphi:piphi /var/lib/piphi
 
 COPY pyproject.toml ./
 COPY src ./src
-RUN pip install --no-cache-dir .
+COPY --from=dependencies /build/requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt \
+    && pip install --no-cache-dir --no-deps . \
+    && rm /tmp/requirements.txt
 
 USER piphi
 

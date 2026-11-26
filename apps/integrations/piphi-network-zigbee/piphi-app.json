@@ -15,6 +15,8 @@
     "enforcement": "full",
     "commands": [
       "pdm install --check",
+      "pdm export --prod --without-hashes --output /tmp/piphi-zigbee-requirements.txt && pdm run pip-audit -r /tmp/piphi-zigbee-requirements.txt --no-deps --disable-pip",
+      "pdm run ruff check src/piphi_network_zigbee tests/test_production_hardening.py",
       "pdm run python scripts/validate.py",
       "pdm run pytest"
     ],
@@ -24,7 +26,7 @@
     {
       "id": "piphi-network-zigbee",
       "type": "integration",
-      "version": "0.1.12",
+      "version": "0.1.13",
       "manifest": "src/manifest.json",
       "release": {
         "tag": "apps/{package_id}/v{version}",

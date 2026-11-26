@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import Any
 
-
 PROPERTY_CAPABILITY_MAP = {
     "action": "action",
     "battery": "battery_percent",
@@ -71,9 +70,10 @@ def capability_metadata_from_exposes(exposes: list[dict[str, Any]]) -> dict[str,
     metadata: dict[str, dict[str, Any]] = {}
     for expose in exposes:
         capability = expose.get("capability")
-        if not capability or capability in metadata:
+        metadata_key = _expose_identity(expose)
+        if not capability or metadata_key in metadata:
             continue
-        metadata[str(capability)] = {
+        metadata[metadata_key] = {
             key: value
             for key, value in expose.items()
             if key
@@ -91,6 +91,9 @@ def capability_metadata_from_exposes(exposes: list[dict[str, Any]]) -> dict[str,
                 "value_on",
                 "value_off",
                 "value_toggle",
+                "category",
+                "path",
+                "status",
             }
             and value is not None
         }
@@ -100,6 +103,9 @@ def capability_metadata_from_exposes(exposes: list[dict[str, Any]]) -> dict[str,
 def available_commands_for(
     capabilities: list[str],
     exposes: list[dict[str, Any]] | None = None,
+    *,
+    control_enabled: bool = True,
+    allowed_commands: list[str] | None = None,
 ) -> list[dict[str, str]]:
     commands = [{"id": "refresh", "label": "Refresh", "kind": "action"}]
     writable_capabilities = {
@@ -114,7 +120,12 @@ def available_commands_for(
         # Legacy configurations did not persist expose metadata. Preserve their
         # existing controls, but when metadata is present fail closed unless the
         # matching Zigbee2MQTT expose is explicitly writable.
-        if command and (exposes is None or capability in writable_capabilities):
+        if (
+            command
+            and control_enabled
+            and (allowed_commands is None or command in allowed_commands)
+            and (exposes is None or capability in writable_capabilities)
+        ):
             commands.append(
                 {
                     "id": command,
@@ -195,6 +206,8 @@ def entity_from_entry(entry: dict[str, Any]) -> dict[str, Any]:
         "available_commands": available_commands_for(
             capabilities,
             entry.get("exposes") if "exposes" in entry else None,
+            control_enabled=bool(entry.get("control_enabled", False)),
+            allowed_commands=list(entry.get("allowed_commands") or []),
         ),
         "dashboard": {
             "allowed_widgets": ["tile", "stat", "button"],
@@ -212,8 +225,43 @@ def entity_from_entry(entry: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def entities_from_entry(entry: dict[str, Any]) -> list[dict[str, Any]]:
+    exposes = [item for item in entry.get("exposes") or [] if isinstance(item, dict)]
+    endpoints = sorted(
+        {str(item.get("endpoint")).strip() for item in exposes if item.get("endpoint") not in (None, "")}
+    )
+    if not endpoints:
+        return [entity_from_entry(entry)]
+    entities: list[dict[str, Any]] = []
+    for endpoint in endpoints:
+        endpoint_exposes = [item for item in exposes if str(item.get("endpoint") or "").strip() == endpoint]
+        endpoint_capabilities = sorted(
+            {"connected", "availability", "refresh"}
+            | {
+                str(item["capability"])
+                for item in endpoint_exposes
+                if item.get("capability") and item.get("status") == "implemented"
+            }
+        )
+        endpoint_entry = {
+            **entry,
+            "device_id": f"{entry['device_id']}--{normalize_device_id(endpoint)}",
+            "alias": f"{entry.get('alias') or entry.get('friendly_name') or 'Zigbee Device'} · {endpoint}",
+            "capabilities": endpoint_capabilities,
+            "exposes": endpoint_exposes,
+            "capability_metadata": capability_metadata_from_exposes(endpoint_exposes),
+        }
+        entity = entity_from_entry(endpoint_entry)
+        entity["metadata"]["physical_device_id"] = entry["device_id"]
+        entity["metadata"]["endpoint"] = endpoint
+        entities.append(entity)
+    return entities
+
+
 def _normalize_expose(expose: dict[str, Any], property_name: str) -> dict[str, Any]:
-    capability = PROPERTY_CAPABILITY_MAP.get(property_name)
+    capability = PROPERTY_CAPABILITY_MAP.get(property_name) or PROPERTY_CAPABILITY_MAP.get(
+        str(expose.get("name") or "").strip()
+    )
     return {
         "property": property_name,
         "name": str(expose.get("name") or property_name).strip(),
@@ -224,11 +272,14 @@ def _normalize_expose(expose: dict[str, Any], property_name: str) -> dict[str, A
         "values": expose.get("values") if isinstance(expose.get("values"), list) else None,
         "access": _normalize_access(expose.get("access")),
         "endpoint": expose.get("endpoint"),
+        "category": expose.get("category"),
+        "path": expose.get("_path"),
         "description": expose.get("description"),
         "value_on": expose.get("value_on"),
         "value_off": expose.get("value_off"),
         "value_toggle": expose.get("value_toggle"),
         "capability": capability,
+        "status": "implemented" if capability else "unsupported",
     }
 
 
@@ -252,18 +303,31 @@ def _normalize_access(access: Any) -> dict[str, bool]:
     }
 
 
-def _iter_exposes(exposes: Any):
+def _iter_exposes(
+    exposes: Any,
+    *,
+    endpoint: Any = None,
+    path: tuple[str, ...] = (),
+):
     if not isinstance(exposes, list):
         return
     for expose in exposes:
         if not isinstance(expose, dict):
             continue
-        yield expose
+        current_endpoint = expose.get("endpoint", endpoint)
+        current_name = str(expose.get("property") or expose.get("name") or expose.get("type") or "feature")
+        current_path = (*path, current_name)
+        yield {**expose, "endpoint": current_endpoint, "_path": list(current_path)}
         features = expose.get("features")
         if isinstance(features, list):
-            for feature in features:
-                if isinstance(feature, dict):
-                    yield feature
+            yield from _iter_exposes(features, endpoint=current_endpoint, path=current_path)
+
+
+def _expose_identity(expose: dict[str, Any]) -> str:
+    capability = str(expose.get("capability") or expose.get("property") or "unknown")
+    endpoint = str(expose.get("endpoint") or "").strip()
+    path = ".".join(str(item) for item in expose.get("path") or [])
+    return f"{capability}@{endpoint}:{path}" if endpoint else capability
 
 
 def _format_label(command: str) -> str:

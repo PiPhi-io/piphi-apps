@@ -30,7 +30,7 @@ from ..bridge_models import (
 )
 from ..broker_health import check_mqtt_tcp
 from ..config_renderer import render_zigbee2mqtt_config
-from ..config_store import write_config_atomic
+from ..config_store import rollback_config_write, write_config_atomic
 from ..coordinator_claims import (
     CoordinatorClaimConflict,
     claim_owner_id,
@@ -472,13 +472,19 @@ async def permit_join(payload: PermitJoinRequest):
             server=payload.server,
             base_topic=payload.base_topic,
         )
-        result = await Zigbee2MqttMqttClient(
+        client = Zigbee2MqttMqttClient(
             mqtt=mqtt_settings,
             timeout_seconds=payload.timeout_seconds,
-        ).permit_join(
+        )
+        from ..commissioning import permit_join_controller
+
+        result = await permit_join_controller.execute(
+            operation_id=payload.operation_id,
+            mqtt=mqtt_settings,
             value=payload.value,
-            time=payload.time,
+            duration=payload.time,
             device=payload.device,
+            call=client.permit_join,
             dry_run=payload.dry_run,
         )
     except ValueError as exc:
@@ -536,18 +542,22 @@ async def apply_bridge(payload: ApplyBridgeRequest) -> ApplyBridgeResponse:
     restart_required = _restart_required(payload.restart_policy, write_result.changed)
 
     supervisor_result = None
+    rolled_back = False
     if restart_required and payload.supervisor is not None:
         try:
             supervisor_result = await supervise("restart", payload.supervisor)
         except Exception:
+            rollback_config_write(write_result)
             claim_store.release(coordinator_identity, owner_id, claim_generation)
             raise
         sidecar_store.last_supervisor = supervisor_result
         if not supervisor_result.ok:
+            rollback_config_write(write_result)
+            rolled_back = write_result.changed
             claim_store.release(coordinator_identity, owner_id, claim_generation)
 
     mqtt_result = None
-    if payload.mqtt_check is not None:
+    if payload.mqtt_check is not None and not rolled_back:
         server = payload.mqtt_check.server or payload.config.mqtt.server
         mqtt_result = await check_mqtt_tcp(
             server,
@@ -556,15 +566,23 @@ async def apply_bridge(payload: ApplyBridgeRequest) -> ApplyBridgeResponse:
         )
         sidecar_store.last_mqtt_check = mqtt_result
 
-    sidecar_store.current_config = payload.config
-    sidecar_store.current_render = rendered
-    sidecar_store.config_path = write_result.config_path
-    sidecar_store.config_hash = write_result.config_hash
-    sidecar_store.last_error = None
-    if supervisor_result is None or supervisor_result.ok:
+    if mqtt_result is not None and not mqtt_result.ok:
+        rollback_config_write(write_result)
+        rolled_back = write_result.changed
+        claim_store.release(coordinator_identity, owner_id, claim_generation)
+
+    if not rolled_back:
+        sidecar_store.current_config = payload.config
+        sidecar_store.current_render = rendered
+        sidecar_store.config_path = write_result.config_path
+        sidecar_store.config_hash = write_result.config_hash
+        sidecar_store.last_error = None
+    else:
+        sidecar_store.last_error = "Bridge apply postcondition failed; configuration was rolled back."
+    if not rolled_back and (supervisor_result is None or supervisor_result.ok):
         sidecar_store.coordinator_identity = coordinator_identity
         sidecar_store.coordinator_owner_id = owner_id
-    ok = (supervisor_result.ok if supervisor_result else True) and (mqtt_result.ok if mqtt_result else True)
+    ok = not rolled_back and (supervisor_result.ok if supervisor_result else True) and (mqtt_result.ok if mqtt_result else True)
     return ApplyBridgeResponse(
         ok=ok,
         rendered=rendered,
@@ -573,6 +591,7 @@ async def apply_bridge(payload: ApplyBridgeRequest) -> ApplyBridgeResponse:
         supervisor=supervisor_result,
         mqtt_check=mqtt_result,
         message=_apply_message(payload.restart_policy, write_result.changed, restart_required),
+        rolled_back=rolled_back,
     )
 
 

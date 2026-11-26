@@ -21,5 +21,5 @@ the `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` repository secrets.
 Current image target:
 
 ```text
-piphinetwork/zigbee-integration:0.1.0
+ghcr.io/piphi-io/zigbee-integration:0.1.13
 ```

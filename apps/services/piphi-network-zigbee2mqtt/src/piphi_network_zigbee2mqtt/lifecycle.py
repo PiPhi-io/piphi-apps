@@ -7,9 +7,11 @@ from contextlib import asynccontextmanager, suppress
 from fastapi import FastAPI
 from piphi_runtime_kit_python import runtime_lifespan
 
+from .commissioning import permit_join_controller
 from .coordinator_claims import CoordinatorClaimConflict, claim_store
 from .mqtt_gateway import mqtt_gateway
 from .state import runtime, sidecar_store
+from .zigbee2mqtt_mqtt import Zigbee2MqttMqttClient
 
 
 async def startup_sync(_runtime, _client) -> None:
@@ -44,6 +46,13 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
             claim_heartbeat.cancel()
             with suppress(asyncio.CancelledError):
                 await claim_heartbeat
+            if sidecar_store.current_config:
+                client = Zigbee2MqttMqttClient(mqtt=sidecar_store.current_config.mqtt)
+                with suppress(Exception):
+                    await permit_join_controller.close(
+                        sidecar_store.current_config.mqtt,
+                        client.permit_join,
+                    )
             mqtt_gateway.stop()
             if sidecar_store.coordinator_identity and sidecar_store.coordinator_owner_id:
                 claim_store.release(

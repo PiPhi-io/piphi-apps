@@ -53,6 +53,13 @@ def _render_mqtt_settings(settings: MqttSettings) -> dict[str, Any]:
         payload["user"] = user
     if password:
         payload["password"] = password
+    if settings.ca:
+        payload["ca"] = settings.ca
+    if settings.cert:
+        payload["cert"] = settings.cert
+    if settings.key:
+        payload["key"] = settings.key
+    payload["reject_unauthorized"] = True
     return payload
 
 

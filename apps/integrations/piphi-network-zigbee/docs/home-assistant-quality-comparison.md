@@ -4,9 +4,9 @@
 
 **PiPhi revision audited:** [`44f88d9`](https://github.com/PiPhi-io/piphi-apps/tree/44f88d9f1ae1e980d85d05ebf9163532bef137b7)
 
-**Scope:** `apps/integrations/piphi-network-zigbee` source candidate 0.1.12 and `apps/services/piphi-network-zigbee2mqtt` source candidate 0.1.26, assessed as one delivery stack.
+**Scope:** `apps/integrations/piphi-network-zigbee` source candidate 0.1.13 and `apps/services/piphi-network-zigbee2mqtt` source candidate 0.1.27, assessed as one delivery stack.
 
-> **Post-audit remediation status:** The P0 findings recorded by the 0.1.12/0.1.25 rebaseline have been closed in the 0.1.12/0.1.26 release candidates. MQTT delivery now uses a bounded ordered journal with monotonic cursors and explicit gap reporting; startup and runtime availability distinguish broker, bridge, coordinator, and device evidence; recoverable backups require fenced workload state, essential files, and fresh coordinator material for governed families; claims use stable runtime identity, leases, heartbeat renewal, fencing generations, and authenticated stale repair; destructive network changes require recoverable backup, warning, and confirmation; and migration rejects free-form/cross-family evidence in favor of governed same-family records. The historical gap table below is retained as the rationale for that work; the remediation statements in this note take precedence.
+> **Post-audit remediation status:** The P0 findings recorded by the 0.1.13/0.1.25 rebaseline have been closed in the 0.1.13/0.1.27 release candidates. MQTT delivery now uses a bounded ordered journal with monotonic cursors and explicit gap reporting; startup and runtime availability distinguish broker, bridge, coordinator, and device evidence; recoverable backups require fenced workload state, essential files, and fresh coordinator material for governed families; claims use stable runtime identity, leases, heartbeat renewal, fencing generations, and authenticated stale repair; destructive network changes require recoverable backup, warning, and confirmation; and migration rejects free-form/cross-family evidence in favor of governed same-family records. The historical gap table below is retained as the rationale for that work; the remediation statements in this note take precedence.
 
 **External baseline:** Home Assistant Core [`4adb2b9`](https://github.com/home-assistant/core/tree/4adb2b903c1f03354c6fa8ae45dc2b80826d9e51/homeassistant/components/zha), Home Assistant documentation [`f178f5f`](https://github.com/home-assistant/home-assistant.io/blob/f178f5fdb3bfa292cd4fbefdaf95162dbd37833c/source/_integrations/zha.markdown), and Zigbee2MQTT documentation [`b06b2f0`](https://github.com/Koenkk/zigbee2mqtt.io/tree/b06b2f02549d2d4aca907018dc897fd084707810). PiPhi pins Zigbee2MQTT 2.14.3 by container digest ([PiPhi setting](https://github.com/PiPhi-io/piphi-apps/blob/44f88d9f1ae1e980d85d05ebf9163532bef137b7/apps/services/piphi-network-zigbee2mqtt/src/piphi_network_zigbee2mqtt/settings.py#L13-L16), [upstream tag](https://github.com/Koenkk/zigbee2mqtt/tree/3c841fdfd66c92239921ef84fde8f039c64e1662)).
 
@@ -20,8 +20,8 @@ It is still **not comparable to ZHA as a general-purpose Zigbee product**. ZHA d
 
 **Release recommendation:**
 
-- Release integration 0.1.12 with sidecar 0.1.26 as one constrained managed-helper stack after exact-image qualification.
-- Do **not** promote integration candidate 0.1.12 as a general-purpose, HA-equivalent, safety-monitoring, or broadly production-ready Zigbee integration.
+- Release integration 0.1.13 with sidecar 0.1.27 as one constrained managed-helper stack after exact-image qualification.
+- Do **not** promote integration candidate 0.1.13 as a general-purpose, HA-equivalent, safety-monitoring, or broadly production-ready Zigbee integration.
 - A truthful near-term claim is: **“PiPhi-managed Zigbee2MQTT setup and recovery for a qualified coordinator, plus a tested basic MQTT state/control adapter for a constrained set of exposes.”**
 - Keep marketplace quality `unrated`, publication `draft`, qualification `unverified`, and rollout `0`; the software P0 items are closed, but this remains a constrained preview rather than a ZHA-parity or broad hardware-support claim.
 
@@ -85,7 +85,7 @@ This document uses Home Assistant's quality dimensions only as review prompts. P
 7. Backup integrity, encrypted portable export/import, stopped restore, rollback, and guided migration now exist.
 8. Core-managed operations use short-lived operation-specific evidence rather than trusting an assertion that a coordinator is stopped.
 
-### Still open after the 0.1.12/0.1.26 remediation
+### Still open after the 0.1.13/0.1.27 remediation
 
 1. **Remote coordinators:** do not treat TCP reachability as exclusivity. Require an owning helper/lease protocol or explicitly label remote ownership unverified.
 2. **Commissioning authorization:** permit-join should have operation-level authorization, audit, caller-loss cleanup, explicit close, progress, retry, and install-code support.
@@ -94,7 +94,7 @@ This document uses Home Assistant's quality dimensions only as review prompts. P
 
 ## Prioritized work
 
-### P0 — closed in the 0.1.12/0.1.26 candidates
+### P0 — closed in the 0.1.13/0.1.27 candidates
 
 1. State/action/safety delivery is ordered and loss-detectable through the bounded journal and explicit overflow gaps. This still does not make the product alarm-grade.
 2. Startup is unknown; broker/bridge/coordinator/device evidence and bridge-loss propagation are modeled separately.
@@ -135,7 +135,7 @@ Positive foundations worth preserving are IEEE-first identity, expose access gat
 - After P0 remediation, isolated PDM environments reproduced **212 passing integration cases** and **85 passing sidecar cases**. Both scaffold validators and sidecar Ruff also passed.
 - Test inspection found meaningful negative cases for authorization, TLS, topic namespace, coordinator claims/probes, one-time stop evidence, interview filtering, backup tamper/wrong-passphrase/safe extraction, restore compatibility/rollback, and migration confirmation/plan matching.
 - Most tests are mocked/in-process. The recorded physical evidence covers one USB coordinator and same-physical same-family migration only. It does not prove Windows/macOS PM2, network coordinators, a second physical target, other adapter families, RF scale, device-domain breadth, event bursts, broker outage recovery, or OTA.
-- Integration 0.1.12 and sidecar 0.1.26 are source candidates pending source merge and exact-image release qualification; the previously published tags remain integration 0.1.11 and sidecar 0.1.25.
+- Integration 0.1.13 and sidecar 0.1.27 are source candidates pending source merge and exact-image release qualification; the previously published tags remain integration 0.1.11 and sidecar 0.1.25.
 
 ## Primary sources
 
