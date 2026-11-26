@@ -3,7 +3,7 @@
   "manifest_version": "1.0",
   "id": "piphi-network-passive-ble-monitor",
   "name": "Passive BLE monitor",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Consume consented BTHome v2 observations from the managed PiPhi BLE gateway.",
   "metadata": {
     "generator": "piphi-network-create",
@@ -17,7 +17,7 @@
     "website": "https://piphi.io"
   },
   "license": "Apache-2.0",
-  "image": "ghcr.io/piphi-io/piphi-network-passive-ble-monitor:0.4.0",
+  "image": "ghcr.io/piphi-io/piphi-network-passive-ble-monitor:0.4.1",
   "platforms": [
     "linux"
   ],
@@ -25,7 +25,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "ghcr.io/piphi-io/piphi-network-passive-ble-monitor:0.4.0",
+        "image": "ghcr.io/piphi-io/piphi-network-passive-ble-monitor:0.4.1",
         "ports": [
           {
             "container": 4204,
@@ -228,9 +228,9 @@
         "model": "Devices using supported passive BLE advertisement formats"
       }
     ],
-    "documentation_url": "https://github.com/PiPhi-io/piphi-apps/tree/apps/piphi-network-passive-ble-monitor/v0.4.0/apps/integrations/piphi-network-passive-ble-monitor",
+    "documentation_url": "https://github.com/PiPhi-io/piphi-apps/tree/apps/piphi-network-passive-ble-monitor/v0.4.1/apps/integrations/piphi-network-passive-ble-monitor",
     "support_url": "https://github.com/PiPhi-io/piphi-apps/issues",
-    "changelog_url": "https://github.com/PiPhi-io/piphi-apps/releases/tag/apps/piphi-network-passive-ble-monitor/v0.4.0",
+    "changelog_url": "https://github.com/PiPhi-io/piphi-apps/releases/tag/apps/piphi-network-passive-ble-monitor/v0.4.1",
     "quality_tier": "bronze",
     "governance": {
       "schema_version": 1,
@@ -256,7 +256,7 @@
     "offline_support": "partial"
   },
   "onboarding": {
-    "mode": "configuration"
+    "mode": "manual"
   },
   "runtime_requirements": [
     "sidecar_runtime",
