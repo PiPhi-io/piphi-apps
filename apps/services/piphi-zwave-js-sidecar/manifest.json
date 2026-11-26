@@ -3,7 +3,7 @@
   "manifest_version": "1.0",
   "id": "piphi-zwave-js-sidecar",
   "name": "Z-Wave JS sidecar",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "Own the Z-Wave controller and deliver schema-versioned node events to PiPhi.",
   "metadata": {
     "generator": "piphi-network-create",
@@ -17,7 +17,7 @@
     "website": "https://piphi.io"
   },
   "license": "Apache-2.0",
-  "image": "ghcr.io/piphi-io/piphi-zwave-js-sidecar:0.3.1",
+  "image": "ghcr.io/piphi-io/piphi-zwave-js-sidecar:0.4.0",
   "runtime_requirements": [
     "sidecar_runtime",
     "usb_or_device_access",
@@ -30,7 +30,7 @@
     "linux": {
       "type": "container",
       "container": {
-        "image": "ghcr.io/piphi-io/piphi-zwave-js-sidecar:0.3.1",
+        "image": "ghcr.io/piphi-io/piphi-zwave-js-sidecar:0.4.0",
         "ports": [
           {
             "container": 4211
@@ -39,8 +39,12 @@
         "environment": {
           "LOG_LEVEL": "info",
           "PIPHI_ZWAVE_CACHE_DIR": "/var/lib/piphi/zwave-js/cache",
-          "PIPHI_ZWAVE_LOCK_DIR": "/var/lib/piphi/zwave-js/locks"
+          "PIPHI_ZWAVE_LOCK_DIR": "/var/lib/piphi/zwave-js/locks",
+          "PIPHI_ZWAVE_STATE_DIR": "/var/lib/piphi/zwave-js/state",
+          "PIPHI_ZWAVE_ALLOWED_CONTROLLER_PATHS": "/dev/zwave-controller"
         },
+        "read_only": true,
+        "tmpfs": ["/tmp"],
         "restart_policy": {
           "name": "unless-stopped",
           "maximum_retry_count": 0
@@ -54,8 +58,8 @@
         ],
         "devices": [
           {
-            "host": "/dev/serial",
-            "container": "/dev/serial",
+            "host": "/dev/serial/by-id/piphi-zwave-controller",
+            "container": "/dev/zwave-controller",
             "permissions": "rwm"
           }
         ]
@@ -86,7 +90,13 @@
       "events": "/events",
       "command": "/command",
       "zwave_events": "/v1/zwave/events",
-      "zwave_snapshot": "/v1/zwave/snapshot"
+      "zwave_snapshot": "/v1/zwave/snapshot",
+      "inclusion_start": "/v1/admin/inclusion/start",
+      "inclusion_stop": "/v1/admin/inclusion/stop",
+      "exclusion_start": "/v1/admin/exclusion/start",
+      "exclusion_stop": "/v1/admin/exclusion/stop",
+      "nvm_backup": "/v1/admin/nvm/backups",
+      "nvm_restore": "/v1/admin/nvm/backups/:backupId/restore"
     }
   },
   "config": {
@@ -168,9 +178,6 @@
     },
     "refresh_node_values": {
       "kind": "action"
-    },
-    "set_value": {
-      "kind": "action"
     }
   },
   "commands": {
@@ -193,78 +200,9 @@
     "refresh_node_values": {
       "description": "Refresh the known values for one node.",
       "timeout_ms": 120000
-    },
-    "set_value": {
-      "description": "Set one metadata-declared writable Z-Wave value.",
-      "timeout_ms": 30000
     }
   },
-  "entities": [
-    {
-      "id": "zwave-js-service",
-      "name": "Z-Wave JS Service",
-      "device_id": "zwave-js-service",
-      "entity_type": "service",
-      "capabilities": [
-        "connected",
-        "driver_ready",
-        "controller_ready",
-        "node_count",
-        "ready_node_count",
-        "sleeping_node_count",
-        "dead_node_count",
-        "event_queue_depth",
-        "dropped_event_count",
-        "command_queue_depth",
-        "refresh_controller_information",
-        "reconnect_driver",
-        "ping_node",
-        "request_node_interview",
-        "refresh_node_values",
-        "set_value"
-      ],
-      "available_commands": [
-        {
-          "id": "refresh_controller_information",
-          "label": "Refresh controller",
-          "kind": "action"
-        },
-        {
-          "id": "reconnect_driver",
-          "label": "Reconnect driver",
-          "kind": "action"
-        },
-        {
-          "id": "ping_node",
-          "label": "Ping node",
-          "kind": "action"
-        },
-        {
-          "id": "request_node_interview",
-          "label": "Interview node",
-          "kind": "action"
-        },
-        {
-          "id": "refresh_node_values",
-          "label": "Refresh node values",
-          "kind": "action"
-        },
-        {
-          "id": "set_value",
-          "label": "Set writable value",
-          "kind": "action"
-        }
-      ],
-      "dashboard": {
-        "allowed_widgets": [
-          "tile",
-          "stat",
-          "button"
-        ],
-        "default_widget": "tile"
-      }
-    }
-  ],
+  "entities": [],
   "marketplace": {
     "metadata_version": 2,
     "display_name": "Z-Wave JS sidecar",

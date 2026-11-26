@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import asyncio
+import copy
+import json
 import logging
 import os
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 from fastapi import HTTPException
@@ -20,6 +23,7 @@ from .contract import CAPABILITIES, COMMANDS
 from .schemas import DeviceConfig
 from .settings import INTEGRATION_ID, INTEGRATION_NAME, INTEGRATION_VERSION
 from .sidecar_client import SidecarError, ZWaveSidecarClient
+from .redaction import redact
 from .zwave_model import entity_response, normalize_snapshot, resolve_command_value
 
 logger = logging.getLogger(__name__)
@@ -44,6 +48,7 @@ commands = COMMANDS
 node_models: dict[str, list[dict[str, Any]]] = {}
 supervisors: dict[str, "SidecarSupervisor"] = {}
 client_factory: Callable[[], ZWaveSidecarClient] = ZWaveSidecarClient
+CONFIG_STORE_PATH = Path(os.getenv("PIPHI_ZWAVE_CONFIG_STORE_PATH", "./data/controller-configs.json"))
 
 
 def make_entry(config: DeviceConfig) -> dict[str, Any]:
@@ -66,7 +71,7 @@ def append_runtime_event(
     event = build_local_event_record(
         event_type=event_type,
         device=device,
-        payload=payload or {},
+        payload=redact(payload or {}),
         source=INTEGRATION_ID,
         severity=severity,
     )
@@ -78,7 +83,7 @@ def append_runtime_event(
             auth_context=runtime.auth,
             event_type=event_type,
             device=device,
-            payload=payload or {},
+            payload=redact(payload or {}),
             source=INTEGRATION_ID,
             severity=severity,
             on_error=_log_delivery_error,
@@ -122,27 +127,28 @@ def find_node_model(config_id: str, device_id: str) -> dict[str, Any]:
 async def apply_config(config: DeviceConfig) -> None:
     entry = make_entry(config)
     config_id = str(entry["config_id"])
-    previous = supervisors.pop(config_id, None)
+    previous = supervisors.get(config_id)
+    previous_models = list(node_models.get(config_id, []))
+    previous_state = copy.deepcopy(registry.state_snapshots.get(config_id))
+    supervisor = SidecarSupervisor(entry=entry, config=config, client=client_factory())
+    try:
+        await supervisor.sync_snapshot(reason="config_applied")
+        if not supervisor.connected:
+            raise ValueError("controller_dependency_not_ready")
+        controller = registry.state_snapshots.get(config_id, {}).get("controller", {})
+        actual_identity = str(controller.get("controllerIdentityHash") or "") if isinstance(controller, dict) else ""
+        if config.expected_controller_identity_hash and actual_identity != config.expected_controller_identity_hash:
+            raise ValueError("controller_identity_mismatch")
+        await _persist_config_replacement(config_id, entry["config"])
+    except (SidecarError, TypeError, ValueError, OSError) as exc:
+        node_models[config_id] = previous_models
+        _restore_registry_state(config_id, previous_state)
+        await supervisor.stop()
+        raise ValueError("controller_configuration_unavailable") from exc
     if previous:
         await previous.stop()
     registry.set(config_id, entry)
-    registry.update_state(
-        config_id,
-        {
-            "connected": False,
-            "alias": config.alias,
-            "config_id": config_id,
-            "sidecar_status": "connecting",
-            "nodes": {},
-        },
-        device_id=entry["device_id"],
-    )
-    supervisor = SidecarSupervisor(entry=entry, config=config, client=client_factory())
     supervisors[config_id] = supervisor
-    try:
-        await supervisor.sync_snapshot(reason="config_applied")
-    except (SidecarError, TypeError, ValueError) as exc:
-        supervisor.record_failure(exc)
     supervisor.start()
     append_runtime_event(
         "zwave.config.applied",
@@ -152,15 +158,63 @@ async def apply_config(config: DeviceConfig) -> None:
 
 
 async def remove_config(config_id: str) -> bool:
+    if registry.get(config_id) is None:
+        return False
+    await _persist_config_removal(config_id)
     supervisor = supervisors.pop(config_id, None)
     if supervisor:
         await supervisor.stop()
     node_models.pop(config_id, None)
     entry = registry.remove(config_id)
-    if entry is None:
-        return False
+    assert entry is not None
     append_runtime_event("zwave.config.removed", entry, {"alias": entry.get("alias")})
     return True
+
+
+async def restore_persisted_configs() -> None:
+    try:
+        raw = json.loads(CONFIG_STORE_PATH.read_text())
+    except FileNotFoundError:
+        return
+    if not isinstance(raw, list):
+        raise RuntimeError("persisted Z-Wave configuration is malformed")
+    for item in raw:
+        if isinstance(item, dict):
+            await apply_config(DeviceConfig.model_validate(item))
+
+
+async def _persist_config_replacement(config_id: str, config: dict[str, Any]) -> None:
+    configs = {
+        key: entry["config"]
+        for key, entry in registry.entries.items()
+        if isinstance(entry.get("config"), dict)
+    }
+    configs[config_id] = config
+    CONFIG_STORE_PATH.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    temporary = CONFIG_STORE_PATH.with_suffix(".tmp")
+    temporary.write_text(json.dumps([configs[key] for key in sorted(configs)], separators=(",", ":")) + "\n")
+    temporary.chmod(0o600)
+    temporary.replace(CONFIG_STORE_PATH)
+
+
+async def _persist_config_removal(config_id: str) -> None:
+    configs = [
+        entry["config"]
+        for key, entry in sorted(registry.entries.items())
+        if key != config_id and isinstance(entry.get("config"), dict)
+    ]
+    CONFIG_STORE_PATH.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    temporary = CONFIG_STORE_PATH.with_suffix(".tmp")
+    temporary.write_text(json.dumps(configs, separators=(",", ":")) + "\n")
+    temporary.chmod(0o600)
+    temporary.replace(CONFIG_STORE_PATH)
+
+
+def _restore_registry_state(config_id: str, previous_state: dict[str, Any] | None) -> None:
+    if previous_state is None:
+        registry.state_snapshots.pop(config_id, None)
+    else:
+        registry.state_snapshots[config_id] = previous_state
 
 
 async def shutdown_supervisors() -> None:

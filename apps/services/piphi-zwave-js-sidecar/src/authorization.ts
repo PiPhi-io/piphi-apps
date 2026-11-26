@@ -15,10 +15,8 @@ export function registerSidecarAuthorization(app: FastifyInstance): void {
       ?? "",
     ).trim();
     if (!expected) {
-      if (process.env.NODE_ENV === "production") {
-        return reply.code(503).send({ ok: false, reason: "sidecar_authorization_not_configured" });
-      }
-      return;
+      if (process.env.NODE_ENV === "test" && process.env.PIPHI_ALLOW_UNAUTHENTICATED_TESTS === "true") return;
+      return reply.code(503).send({ ok: false, reason: "sidecar_authorization_not_configured" });
     }
     const authorization = String(request.headers.authorization ?? "");
     const [scheme, credential = ""] = authorization.split(" ", 2);

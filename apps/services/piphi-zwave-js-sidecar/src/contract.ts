@@ -44,9 +44,6 @@ export const capabilities = {
   },
   "refresh_node_values": {
     "kind": "action"
-  },
-  "set_value": {
-    "kind": "action"
   }
 } as const;
 
@@ -70,10 +67,6 @@ export const commands = {
   "refresh_node_values": {
     "description": "Refresh the known values for one node.",
     "timeout_ms": 120000
-  },
-  "set_value": {
-    "description": "Set one metadata-declared writable Z-Wave value.",
-    "timeout_ms": 30000
   }
 } as const;
 
@@ -88,7 +81,7 @@ export const configSchema = {
       "controller_path": {
         "type": "string",
         "title": "Controller device path",
-        "pattern": "^/dev/serial/(by-id|by-path)/.+$"
+        "const": "/dev/zwave-controller"
       },
       "alias": {
         "type": "string",
@@ -105,56 +98,11 @@ export const configSchema = {
   },
   "uiSchema": {
     "controller_path": {
-      "placeholder": "/dev/serial/by-id/usb-Z-Wave_Controller-if00"
+      "placeholder": "/dev/zwave-controller"
     },
     "alias": {
       "placeholder": "Office Device"
     },
     "event_queue_capacity": { "ui:widget": "number" }
-  }
-} as const;
-
-export const fallbackEntity = {
-  "id": "zwave-js-service",
-  "name": "Z-Wave JS Service",
-  "device_id": "zwave-js-service",
-  "entity_type": "service",
-  "capabilities": [
-    "connected",
-    "driver_ready",
-    "controller_ready",
-    "node_count",
-    "ready_node_count",
-    "sleeping_node_count",
-    "dead_node_count",
-    "event_queue_depth",
-    "dropped_event_count",
-    "command_queue_depth",
-    "refresh_controller_information",
-    "reconnect_driver",
-    "ping_node",
-    "request_node_interview",
-    "refresh_node_values"
-    ,"set_value"
-  ],
-  "available_commands": [
-    {
-      "id": "refresh_controller_information",
-      "label": "Refresh controller",
-      "kind": "action"
-    },
-    { "id": "reconnect_driver", "label": "Reconnect driver", "kind": "action" },
-    { "id": "ping_node", "label": "Ping node", "kind": "action" },
-    { "id": "request_node_interview", "label": "Interview node", "kind": "action" },
-    { "id": "refresh_node_values", "label": "Refresh node values", "kind": "action" }
-    ,{ "id": "set_value", "label": "Set writable value", "kind": "action" }
-  ],
-  "dashboard": {
-    "allowed_widgets": [
-      "tile",
-      "stat",
-      "button"
-    ],
-    "default_widget": "tile"
   }
 } as const;

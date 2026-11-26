@@ -16,7 +16,7 @@ export function registerConfigRoutes(app: FastifyInstance): void {
     try {
       await applyConfig(payload);
     } catch (error) {
-      const reason = error instanceof Error ? error.message : "configuration_failed";
+      const reason = error instanceof Error && /^[a-z0-9_ ]{1,80}$/i.test(error.message) ? error.message : "configuration_failed";
       const validationFailure = /^(id |controller_path |event_queue_capacity |command_queue_capacity )/.test(reason);
       const status = reason === "only_one_controller_configuration_is_supported"
         ? 409

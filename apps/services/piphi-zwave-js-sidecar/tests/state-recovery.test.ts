@@ -19,6 +19,14 @@ function transactionalFactory(): DriverSessionFactory {
     let lifecycle: DriverSnapshot["lifecycle"] = "stopped";
     const shouldFail = config.alias === "broken replacement";
     const session: DriverSession = {
+      async beginInclusion() { return true; },
+      async stopInclusion() { return true; },
+      async beginExclusion() { return true; },
+      async stopExclusion() { return true; },
+      async removeFailedNode() {},
+      async replaceFailedNode() { return true; },
+      async backupNVM() { return Uint8Array.from([1]); },
+      async restoreNVM() {},
       async start() {
         if (shouldFail) throw new Error("replacement_start_failed");
         lifecycle = "ready";
@@ -35,6 +43,9 @@ function transactionalFactory(): DriverSessionFactory {
           driverReady: lifecycle === "ready",
           controllerReady: lifecycle === "ready",
           controllerPathSuffix: "controller",
+          driverVersion: "test",
+          networkIdentityHash: "a".repeat(64),
+          controllerIdentityHash: "b".repeat(64),
           nodeCount: 0,
           readyNodeCount: 0,
           sleepingNodeCount: 0,

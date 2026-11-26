@@ -71,6 +71,7 @@ export type ZWaveValueId = {
 
 export type ZWaveValueSnapshot = {
   id: ZWaveValueId;
+  identity_hash: string;
   label: string;
   property_name?: string;
   property_key_name?: string;
@@ -92,6 +93,7 @@ export type ZWaveValueSnapshot = {
 
 export type ZWaveNodeSnapshot = {
   node_id: number;
+  identity_hash: string;
   name?: string;
   location?: string;
   manufacturer_id?: number;
@@ -121,6 +123,8 @@ export type DriverSnapshot = {
   controllerReady: boolean;
   controllerPathSuffix: string;
   driverVersion: string;
+  networkIdentityHash?: string;
+  controllerIdentityHash?: string;
   homeIdSuffix?: string;
   controllerNodeId?: number;
   nodeCount: number;
@@ -146,6 +150,14 @@ export interface DriverSession {
   execute(command: DriverCommand): Promise<Record<string, unknown>>;
   snapshot(): DriverSnapshot;
   nodesSnapshot(): ZWaveNodeSnapshot[];
+  beginInclusion(options: { dsk: string; securityClasses: string[] }): Promise<boolean>;
+  stopInclusion(): Promise<boolean>;
+  beginExclusion(): Promise<boolean>;
+  stopExclusion(): Promise<boolean>;
+  removeFailedNode(nodeId: number): Promise<void>;
+  replaceFailedNode(nodeId: number, options: { dsk: string; securityClasses: string[] }): Promise<boolean>;
+  backupNVM(): Promise<Uint8Array>;
+  restoreNVM(data: Uint8Array): Promise<void>;
 }
 
 export type DriverSessionFactory = (options: {

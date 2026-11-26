@@ -10,15 +10,19 @@ state, safe controls, replay reconciliation, and Core delivery.
 - Authenticated `piphi.zwave.snapshot.v1` reconciliation and bounded
   `piphi.zwave.event.v1` replay.
 - Automatic recovery after sidecar outages, replay gaps, or stream restarts.
-- Stable entities grouped by node and endpoint.
+- Stable entities include the full SHA-256 network/controller fingerprint plus
+  node fingerprint and endpoint; each value carries its own stable hash.
+- Transactional configure/reconfigure, durable restart restoration, last-good
+  state during bounded dependency backoff, and explicit stale/degraded health.
 - Switch, level, lock, thermostat, sensor, meter, and battery normalization.
 - Controls only for metadata-declared writable, non-secret values, with type,
   range, and state validation.
 - No arbitrary driver calls, raw serial/NVM access, full DSKs, network keys, or
   unrestricted value writes.
 
-Secure commissioning, broader network administration, RF behavior, controller
-hardware, and real-device interoperability remain unverified.
+The sidecar supplies bounded secure commissioning, exclusion, failed-node
+reconciliation, and NVM lifecycle APIs. Physical security-class negotiation, RF
+behavior, controllers, devices, firmware, and restore interoperability remain unverified.
 
 ## Development
 
@@ -49,9 +53,9 @@ See [`docs/contract.md`](docs/contract.md) for the parent/sidecar boundary and
 ## Container
 
 ```bash
-docker build -t ghcr.io/piphi-io/piphi-network-zwave:0.3.1 .
+docker build -t ghcr.io/piphi-io/piphi-network-zwave:0.4.0 .
 docker run --rm -p 4221:4221 \
   -e PIPHI_ZWAVE_SIDECAR_URL=http://host.docker.internal:4211 \
   -e PIPHI_ZWAVE_SIDECAR_TOKEN=replace-with-a-long-random-token \
-  ghcr.io/piphi-io/piphi-network-zwave:0.3.1
+  ghcr.io/piphi-io/piphi-network-zwave:0.4.0
 ```

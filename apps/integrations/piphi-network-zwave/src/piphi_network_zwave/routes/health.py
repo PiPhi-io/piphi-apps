@@ -11,7 +11,7 @@ router = APIRouter(tags=["health"])
 
 @router.get("/health")
 async def health():
-    return starter.health_response(metadata={"active_configs": len(registry.ids())})
+    return starter.health_response()
 
 
 @router.get("/diagnostics")

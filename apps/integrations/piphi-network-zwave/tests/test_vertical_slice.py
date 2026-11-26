@@ -12,6 +12,9 @@ from piphi_network_zwave.state import runtime
 
 from conftest import FakeSidecarClient
 
+NODE_2 = f"zwave-{'b' * 64}-node-{'c' * 64}-endpoint-0"
+NODE_5 = f"zwave-{'b' * 64}-node-{'d' * 64}-endpoint-0"
+
 
 class RecoveringSidecarClient(FakeSidecarClient):
     failures_remaining = 1
@@ -73,23 +76,26 @@ async def test_snapshot_creates_real_metadata_negotiated_entities() -> None:
             assert response.status_code == 200
 
             entities = (await client.get("/entities")).json()["entities"]
-            kitchen = next(entity for entity in entities if entity["device_id"] == "zwave-node-2-endpoint-0")
-            hall = next(entity for entity in entities if entity["device_id"] == "zwave-node-5-endpoint-0")
+            kitchen = next(entity for entity in entities if entity["device_id"] == NODE_2)
+            hall = next(entity for entity in entities if entity["device_id"] == NODE_5)
 
             assert kitchen["entity_type"] == "switch"
             assert {"switch_state", "power_w"} <= set(kitchen["capabilities"])
             assert "set_switch" in {command["id"] for command in kitchen["available_commands"]}
             assert kitchen["metadata"]["manufacturer_id"] == 900
+            assert {
+                value["identity_hash"] for value in kitchen["metadata"]["values"]
+            } == {"1" * 64, "2" * 64, "3" * 64}
             assert {"temperature_c", "battery_percent"} <= set(hall["capabilities"])
 
             state = (await client.get("/state")).json()
             snapshot = state["entries"]["home-network"]["latest_state"]
             assert snapshot["connected"] is True
-            assert snapshot["nodes"]["zwave-node-2-endpoint-0"]["power_w"] == 46.7
-            assert snapshot["nodes"]["zwave-node-5-endpoint-0"]["temperature_c"] == 22.1
+            assert snapshot["nodes"][NODE_2]["power_w"] == 46.7
+            assert snapshot["nodes"][NODE_5]["temperature_c"] == 22.1
 
             discovery = (await client.post("/discover", json={})).json()["devices"]
-            assert discovery[0]["network_id"] == "primary"
+            assert discovery[0]["network_id"] == "managed"
             assert discovery[0]["node_count"] == 2
         finally:
             await client.post("/deconfigure/home-network")
@@ -137,7 +143,7 @@ async def test_set_switch_resolves_only_advertised_writable_value() -> None:
                     "command": "set_switch",
                     "target": {
                         "config_id": "home-network",
-                        "device_id": "zwave-node-2-endpoint-0",
+                        "device_id": NODE_2,
                     },
                     "params": {"value": True},
                     "capability": "action.set_switch",
@@ -157,7 +163,7 @@ async def test_set_switch_resolves_only_advertised_writable_value() -> None:
             }
             current = (await client.get("/state")).json()["entries"]["home-network"]
             assert (
-                current["latest_state"]["nodes"]["zwave-node-2-endpoint-0"]["switch_state"]
+                current["latest_state"]["nodes"][NODE_2]["switch_state"]
                 is False
             )
         finally:
@@ -177,7 +183,7 @@ async def test_set_switch_fails_closed_for_non_switch_entity() -> None:
                     "command": "set_switch",
                     "target": {
                         "config_id": "home-network",
-                        "device_id": "zwave-node-5-endpoint-0",
+                        "device_id": NODE_5,
                     },
                     "params": {"value": True},
                 },
@@ -207,6 +213,11 @@ async def test_supervisor_recovers_after_initial_sidecar_unavailability(
                     "id": "recovering-network",
                     "event_poll_interval_seconds": 0.25,
                 },
+            )
+            assert response.status_code == 503
+            response = await client.post(
+                "/config",
+                json={"id": "recovering-network", "event_poll_interval_seconds": 0.25},
             )
             assert response.status_code == 200
             await asyncio.sleep(0.05)

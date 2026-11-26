@@ -7,6 +7,9 @@ import {
   shutdownBackgroundTasks,
   type RuntimeRegistry,
 } from "piphi-runtime-kit-node";
+import { createHash, randomUUID } from "node:crypto";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 
 import { commands } from "./contract.js";
 import { createZWaveJsDriverSession } from "./driver-session.js";
@@ -50,6 +53,12 @@ let activeSession: DriverSession | undefined;
 let activeConfigId: string | undefined;
 let eventBuffer = new BoundedEventBuffer();
 let commandQueue = new SerialCommandQueue();
+let administrationActive = false;
+let administrationMode: "inclusion" | "exclusion" | undefined;
+let commissioningTimer: NodeJS.Timeout | undefined;
+
+const stateDir = process.env.PIPHI_ZWAVE_STATE_DIR ?? `/tmp/opencode/piphi-zwave-js-sidecar-${process.pid}`;
+const persistedConfigPath = join(stateDir, "controller-config.json");
 
 export function setDriverSessionFactory(factory: DriverSessionFactory): void {
   if (activeSession) throw new Error("cannot replace driver factory while a controller is active");
@@ -102,6 +111,11 @@ export async function applyConfig(config: DeviceConfig): Promise<void> {
 
   try {
     await session.start();
+    const candidate = session.snapshot();
+    if (candidate.lifecycle !== "ready" || !candidate.networkIdentityHash || !candidate.controllerIdentityHash) {
+      throw new Error("controller_identity_not_ready");
+    }
+    await persistConfig(config);
   } catch (error) {
     await session.stop();
     if (previousSession && previousEntry) {
@@ -136,7 +150,11 @@ export async function applyConfig(config: DeviceConfig): Promise<void> {
 export async function removeConfig(configId: string): Promise<boolean> {
   const entry = registry.get(configId);
   if (!entry) return false;
+  await rm(persistedConfigPath, { force: true });
   if (activeConfigId === configId && activeSession) await activeSession.stop();
+  if (commissioningTimer) clearTimeout(commissioningTimer);
+  commissioningTimer = undefined;
+  administrationMode = undefined;
   activeSession = undefined;
   activeConfigId = undefined;
   registry.remove(configId);
@@ -147,9 +165,106 @@ export async function removeConfig(configId: string): Promise<boolean> {
   return true;
 }
 
+export async function restorePersistedConfig(): Promise<boolean> {
+  if (activeSession) return true;
+  try {
+    const config = JSON.parse(await readFile(persistedConfigPath, "utf8")) as DeviceConfig;
+    await applyConfig(config);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+    throw error;
+  }
+}
+
+export async function beginCommissioning(options: { dsk: string; security_classes: string[]; timeout_seconds: number }) {
+  return withAdministration(async (session) => {
+    const started = await session.beginInclusion({ dsk: options.dsk, securityClasses: options.security_classes });
+    if (!started) throw new Error("inclusion_not_started");
+    administrationMode = "inclusion";
+    scheduleAdministrationTimeout("inclusion", options.timeout_seconds, () => session.stopInclusion());
+    return { started: true, expires_in_seconds: options.timeout_seconds };
+  });
+}
+
+export async function cancelCommissioning() {
+  if (commissioningTimer) clearTimeout(commissioningTimer);
+  commissioningTimer = undefined;
+  try {
+    return await withAdministration(async (session) => ({ stopped: await session.stopInclusion() }), "inclusion");
+  } finally {
+    administrationMode = undefined;
+  }
+}
+
+export async function beginExclusion(timeoutSeconds: number) {
+  return withAdministration(async (session) => {
+    const started = await session.beginExclusion();
+    if (!started) throw new Error("exclusion_not_started");
+    administrationMode = "exclusion";
+    scheduleAdministrationTimeout("exclusion", timeoutSeconds, () => session.stopExclusion());
+    return { started: true, expires_in_seconds: timeoutSeconds };
+  });
+}
+
+export async function cancelExclusion() {
+  if (commissioningTimer) clearTimeout(commissioningTimer);
+  commissioningTimer = undefined;
+  try {
+    return await withAdministration(async (session) => ({ stopped: await session.stopExclusion() }), "exclusion");
+  } finally {
+    administrationMode = undefined;
+  }
+}
+
+export async function reconcileFailedNode(operation: "remove" | "replace", nodeId: number, options?: { dsk: string; security_classes: string[] }) {
+  return withAdministration(async (session) => {
+    if (operation === "remove") await session.removeFailedNode(nodeId);
+    else if (!options || !await session.replaceFailedNode(nodeId, { dsk: options.dsk, securityClasses: options.security_classes })) {
+      throw new Error("replacement_not_started");
+    }
+    return { accepted: true, operation, node_id: nodeId };
+  });
+}
+
+export async function createNVMBackup() {
+  return withAdministration(async (session) => {
+    const identity = requireControllerIdentity(session);
+    const data = await session.backupNVM();
+    const id = `${new Date().toISOString().replace(/[:.]/g, "-")}-${randomUUID()}`;
+    const digest = createHash("sha256").update(data).digest("hex");
+    const directory = join(stateDir, "nvm-backups");
+    await mkdir(directory, { recursive: true, mode: 0o700 });
+    await atomicWrite(join(directory, `${id}.bin`), data);
+    await atomicWrite(join(directory, `${id}.json`), Buffer.from(`${JSON.stringify({ id, digest, size: data.byteLength, controller_identity_hash: identity, created_at: new Date().toISOString() })}\n`));
+    return { id, digest, size: data.byteLength, controller_identity_hash: identity };
+  });
+}
+
+export async function restoreNVMBackup(backupId: string, confirmation: string) {
+  return withAdministration(async (session) => {
+    const identity = requireControllerIdentity(session);
+    if (confirmation !== `restore:${backupId}:${identity}`) throw new Error("nvm_restore_confirmation_required");
+    const directory = join(stateDir, "nvm-backups");
+    const metadata = JSON.parse(await readFile(join(directory, `${backupId}.json`), "utf8")) as { digest: string; controller_identity_hash: string };
+    const data = await readFile(join(directory, `${backupId}.bin`));
+    if (metadata.controller_identity_hash !== identity || createHash("sha256").update(data).digest("hex") !== metadata.digest) {
+      throw new Error("nvm_backup_identity_or_digest_mismatch");
+    }
+    const rollback = await session.backupNVM();
+    try { await session.restoreNVM(data); } catch (error) {
+      try { await session.restoreNVM(rollback); } catch { throw new Error("nvm_restore_and_rollback_failed"); }
+      throw error;
+    }
+    const restoredIdentity = requireControllerIdentity(session);
+    if (restoredIdentity !== identity) throw new Error("nvm_restore_postcondition_failed");
+    return { restored: true, id: backupId, controller_identity_hash: identity };
+  });
+}
+
 export async function executeDriverCommand(
   configId: string,
-  commandName: keyof typeof commands,
+  commandName: keyof typeof commands | "set_value",
   args: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
   const entry = registry.get(configId);
@@ -200,6 +315,9 @@ export function controllerDiagnostics(): Record<string, unknown> {
 }
 
 export async function shutdownRuntime(): Promise<void> {
+  if (commissioningTimer) clearTimeout(commissioningTimer);
+  commissioningTimer = undefined;
+  administrationMode = undefined;
   if (activeSession) await activeSession.stop();
   activeSession = undefined;
   activeConfigId = undefined;
@@ -270,7 +388,7 @@ function updateControllerState(entry: DeviceEntry): void {
   registry.updateState(entry.configId, state, entry.deviceId);
 }
 
-function parseDriverCommand(commandName: keyof typeof commands, args: Record<string, unknown>): DriverCommand {
+function parseDriverCommand(commandName: keyof typeof commands | "set_value", args: Record<string, unknown>): DriverCommand {
   if (commandName === "refresh_controller_information") return { name: commandName };
   if (commandName === "reconnect_driver") return { name: commandName };
   const nodeId = Number(args.node_id ?? args.nodeId);
@@ -325,6 +443,50 @@ function validateConfig(config: DeviceConfig): void {
 function controllerPathSuffix(path: string): string {
   const name = path.split("/").filter(Boolean).at(-1) ?? "unknown";
   return name.length > 12 ? name.slice(-12) : name;
+}
+
+async function persistConfig(config: DeviceConfig): Promise<void> {
+  await mkdir(stateDir, { recursive: true, mode: 0o700 });
+  await atomicWrite(persistedConfigPath, Buffer.from(`${JSON.stringify(config)}\n`));
+}
+
+async function atomicWrite(path: string, data: Uint8Array): Promise<void> {
+  const temporary = `${path}.${process.pid}.tmp`;
+  await writeFile(temporary, data, { mode: 0o600 });
+  await rename(temporary, path);
+}
+
+async function withAdministration<T>(
+  operation: (session: DriverSession) => Promise<T>,
+  allowedMode?: "inclusion" | "exclusion",
+): Promise<T> {
+  if (administrationActive || (administrationMode && administrationMode !== allowedMode)) {
+    throw Object.assign(new Error("controller_administration_busy"), { statusCode: 409 });
+  }
+  if (!activeSession || !activeConfigId) throw new Error("controller_not_configured");
+  administrationActive = true;
+  try { return await operation(activeSession); } finally { administrationActive = false; }
+}
+
+function scheduleAdministrationTimeout(
+  mode: "inclusion" | "exclusion",
+  timeoutSeconds: number,
+  stop: () => Promise<boolean>,
+): void {
+  if (commissioningTimer) clearTimeout(commissioningTimer);
+  commissioningTimer = setTimeout(() => {
+    commissioningTimer = undefined;
+    void stop().catch(() => undefined).finally(() => {
+      if (administrationMode === mode) administrationMode = undefined;
+    });
+  }, timeoutSeconds * 1_000);
+  commissioningTimer.unref();
+}
+
+function requireControllerIdentity(session: DriverSession): string {
+  const identity = session.snapshot().controllerIdentityHash;
+  if (!identity) throw new Error("controller_identity_not_ready");
+  return identity;
 }
 
 for (const commandName of Object.keys(commands) as Array<keyof typeof commands>) {

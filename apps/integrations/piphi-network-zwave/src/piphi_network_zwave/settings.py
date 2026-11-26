@@ -4,7 +4,7 @@ import os
 
 INTEGRATION_ID = "piphi-network-zwave"
 INTEGRATION_NAME = "PiPhi Network Z-Wave"
-INTEGRATION_VERSION = "0.3.1"
+INTEGRATION_VERSION = "0.4.0"
 PROJECT_KIND = "integration"
 PROJECT_PRESET = "protocol-bridge"
 PROJECT_DOMAIN = "bridge"

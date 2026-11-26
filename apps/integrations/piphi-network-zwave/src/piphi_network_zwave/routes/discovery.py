@@ -21,9 +21,9 @@ async def discover(payload: IntegrationDiscoveryRequest | None = None):
     return build_discovery_response(
         [
             {
-                "id": "primary",
-                "device_id": "primary",
-                "network_id": "primary",
+                "id": "managed",
+                "device_id": "managed",
+                "network_id": "managed",
                 "alias": "Home Z-Wave network",
                 "controller_ready": controller.get("controllerReady", False),
                 "node_count": len(snapshot.get("nodes", [])),

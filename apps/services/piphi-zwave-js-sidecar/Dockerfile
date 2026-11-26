@@ -11,7 +11,7 @@ COPY src ./src
 RUN npm run build && npm prune --omit=dev
 
 FROM node:22-alpine@sha256:1314fb30ec37592d5845e5a160d522c0e680972aa534549940b8d73bde88481a AS runtime
-ARG VERSION=0.3.1
+ARG VERSION=0.4.0
 ARG REVISION=unknown
 LABEL org.opencontainers.image.title="PiPhi Z-Wave JS sidecar" \
       org.opencontainers.image.source="https://github.com/PiPhi-io/piphi-apps" \
@@ -22,9 +22,11 @@ WORKDIR /app
 ENV NODE_ENV=production \
     PORT=4211 \
     PIPHI_ZWAVE_CACHE_DIR=/var/lib/piphi/zwave-js/cache \
-    PIPHI_ZWAVE_LOCK_DIR=/var/lib/piphi/zwave-js/locks
+    PIPHI_ZWAVE_LOCK_DIR=/var/lib/piphi/zwave-js/locks \
+    PIPHI_ZWAVE_STATE_DIR=/var/lib/piphi/zwave-js/state \
+    PIPHI_ZWAVE_ALLOWED_CONTROLLER_PATHS=/dev/zwave-controller
 RUN apk add --no-cache libstdc++ \
-    && mkdir -p /var/lib/piphi/zwave-js/cache /var/lib/piphi/zwave-js/locks \
+    && mkdir -p /var/lib/piphi/zwave-js/cache /var/lib/piphi/zwave-js/locks /var/lib/piphi/zwave-js/state \
     && chown -R node:node /app /var/lib/piphi/zwave-js
 COPY --from=build --chown=node:node /app/node_modules ./node_modules
 COPY --from=build --chown=node:node /app/dist ./dist

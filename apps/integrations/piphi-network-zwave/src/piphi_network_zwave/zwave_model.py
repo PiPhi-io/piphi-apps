@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import json
 import re
+import hashlib
 from collections import defaultdict
 from typing import Any
 
@@ -19,6 +20,11 @@ CAPABILITY_COMMANDS = {
 def normalize_snapshot(
     snapshot: dict[str, Any], *, config_id: str, controller_alias: str | None
 ) -> list[dict[str, Any]]:
+    controller = snapshot.get("controller") if isinstance(snapshot.get("controller"), dict) else {}
+    controller_hash = str(controller.get("controllerIdentityHash") or "")
+    network_hash = str(controller.get("networkIdentityHash") or "")
+    if not re.fullmatch(r"[0-9a-f]{64}", controller_hash) or not re.fullmatch(r"[0-9a-f]{64}", network_hash):
+        raise ValueError("sidecar snapshot omitted stable controller identity")
     entities: list[dict[str, Any]] = []
     for raw_node in snapshot.get("nodes", []):
         if not isinstance(raw_node, dict):
@@ -42,6 +48,8 @@ def normalize_snapshot(
                     values=values,
                     config_id=config_id,
                     controller_alias=controller_alias,
+                    controller_hash=controller_hash,
+                    network_hash=network_hash,
                 )
             )
     return entities
@@ -87,6 +95,8 @@ def _normalize_endpoint(
     values: list[dict[str, Any]],
     config_id: str,
     controller_alias: str | None,
+    controller_hash: str,
+    network_hash: str,
 ) -> dict[str, Any]:
     state: dict[str, Any] = {
         "connected": bool(node.get("ready")),
@@ -124,7 +134,9 @@ def _normalize_endpoint(
                 {"id": command, "label": command.replace("_", " ").title(), "kind": "action"}
             )
 
-    device_id = f"zwave-node-{node_id}-endpoint-{endpoint}"
+    upstream_node_hash = str(node.get("identity_hash") or "")
+    node_hash = upstream_node_hash if re.fullmatch(r"[0-9a-f]{64}", upstream_node_hash) else _hash_identity(controller_hash, node_id, node.get("manufacturer_id"), node.get("product_type"), node.get("product_id"))
+    device_id = f"zwave-{controller_hash}-node-{node_hash}-endpoint-{endpoint}"
     node_name = str(node.get("name") or f"Z-Wave node {node_id}").strip()
     name = node_name if endpoint == 0 else f"{node_name} endpoint {endpoint}"
     return {
@@ -140,6 +152,9 @@ def _normalize_endpoint(
         "writable_values": writable_values,
         "metadata": {
             "controller_alias": controller_alias,
+            "network_identity_hash": network_hash,
+            "controller_identity_hash": controller_hash,
+            "node_identity_hash": node_hash,
             "node_id": node_id,
             "endpoint": endpoint,
             "location": node.get("location"),
@@ -160,8 +175,15 @@ def _value_descriptor(raw_value: dict[str, Any]) -> dict[str, Any] | None:
     if not metadata.get("readable") and not metadata.get("writeable"):
         return None
     capability = _capability_for(value_id, raw_value, metadata)
+    upstream_identity = str(raw_value.get("identity_hash") or "")
+    identity_hash = (
+        upstream_identity
+        if re.fullmatch(r"[0-9a-f]{64}", upstream_identity)
+        else _hash_identity(json.dumps(value_id, sort_keys=True, separators=(",", ":")))
+    )
     return {
         "key": _value_key(value_id),
+        "identity_hash": identity_hash,
         "id": value_id,
         "label": str(raw_value.get("label") or value_id.get("property") or "Z-Wave value"),
         "capability": capability,
@@ -287,3 +309,7 @@ def _integer(value: Any) -> int | None:
     except (TypeError, ValueError):
         return None
     return parsed
+
+
+def _hash_identity(*parts: Any) -> str:
+    return hashlib.sha256("\0".join(map(str, parts)).encode()).hexdigest()

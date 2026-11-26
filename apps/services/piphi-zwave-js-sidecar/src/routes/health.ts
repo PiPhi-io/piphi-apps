@@ -6,10 +6,13 @@ import { controllerDiagnostics, registry, starter } from "../state.js";
 
 export function registerHealthRoutes(app: FastifyInstance): void {
   app.get("/health", async () => {
-    return starter.healthResponse({
-      activeConfigs: registry.ids().length,
-      controller: controllerDiagnostics(),
-    });
+    const diagnostics = controllerDiagnostics();
+    const ready = registry.ids().length === 0 || (diagnostics.snapshot as { lifecycle?: string } | null)?.lifecycle === "ready";
+    return {
+      ...starter.healthResponse({}),
+      ready,
+      dependencies: { controller: ready },
+    };
   });
 
   app.get("/diagnostics", async () => {
